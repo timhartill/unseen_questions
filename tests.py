@@ -14,10 +14,21 @@ import json
 import spacy
 
 nlp = spacy.load("en_core_web_sm")
-doc = nlp("Apple is looking at buying U.K. startup for $1 billion")
+txt="Apple is looking at buying U.K. startup for $1 billion in July 2020 or perhaps 1/6/23 or failing that 2024\nHello world.\nApples are good fruit to eat\nAre New Zealand fruit or Australian vegetables better for you? Astronomers look for the bright stars that orbit dark partners in the same way. The North Star can be used to find your way if you're lost in the dark. The north star can be used to find your way if you're lost in the dark"
+doc = nlp(txt)
 
 for ent in doc.ents:
     print(ent.text, ent.start_char, ent.end_char, ent.label_)
+
+all_sentences = [sent.text.strip() for sent in doc.sents]  #just splitting on full stop would split on decimal points etc and discard them
+print(all_sentences)
+
+token = doc[0]  #'The'
+
+for i, token in enumerate(doc):
+    print(i, token.text, token.pos_, token.dep_, "'" +token.text_with_ws+"'", token.idx, token.idx+len(token.text_with_ws))
+
+
     
 #TODO - how to convert to/from tokenised version...
 
