@@ -1,0 +1,9 @@
+# Ignore files
+*.pyc
+
+
+# Ignore directories
+features/
+dataset/videos/
+__pycache__
+
