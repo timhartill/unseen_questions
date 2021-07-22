@@ -1,4 +1,4 @@
-# Compositional Generalisation project 
+# Multisample Compositional Generalisation project 
 
 To set up this project, after cloning this repository:
 
