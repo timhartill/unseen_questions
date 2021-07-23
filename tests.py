@@ -48,3 +48,30 @@ qasc_corpus[idx-100:idx+250]
 idx = qasc_corpus.find("what can be used to find your way if you're lost in the dark")
 #idx: -1
 
+
+def load_jsonl(file, verbose=True):
+    """ Load a list of json msgs from a file formatted as 
+           {json msg 1}
+           {json msg 2}
+           ...
+    """
+    if verbose:
+        print('Loading json file: ', file)
+    with open(file, "r") as f:
+        all_json_list = f.read()
+    all_json_list = all_json_list.split('\n')
+    num_jsons = len(all_json_list)
+    if verbose:
+        print('JSON as text successfully loaded. Number of json messages in file is ', num_jsons)
+    all_json_list = [json.loads(j) for j in all_json_list if j.strip() != '']
+    if verbose:
+        print('Text successfully converted to JSON.')
+    return all_json_list
+
+with open('/data/thar011/data/strategyqa/enwiki-20200511-cirrussearch-parasv2.jsonl', 'r') as f:
+    cirrus = f.read()
+all_json_list = cirrus.split('\n')
+all_json_list2 = [json.loads(j) for j in all_json_list if j.strip() != '']
+
+
+

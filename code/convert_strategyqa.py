@@ -101,8 +101,8 @@ print(f"Counts: Unused:{nonecount}  Both train+Dev:{bothcount}  Train Only:{trai
 
 
 # Create MLM task:
-paras_dev = []    # paras occuring in dev only
-paras_train = []  # include paras occurring in both train and dev
+paras_dev = []    # paras needed by dev only
+paras_train = []  # include paras needed by both train and dev
 for p in sqa_para:
     if sqa_para[p]['splits_used'] == {'dev'}:
         paras_dev.append( replace_chars(sqa_para[p]['content'] ) )
