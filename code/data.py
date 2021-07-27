@@ -299,8 +299,8 @@ class QAData(object):
             print ("Start tokenizing...")
             manually_add_special_tokens = False
             dopad = True
-            if self.tokenizer.pad_token_id is None:   # gpt2 doesnt have a pad token                
-                dopad = False 
+            if self.tokenizer.pad_token_id is None:   # gpt2 doesnt have a pad token
+                dopad = False
                 self.logger.info("Not padding since tokenizer has no padding token.")
                 manually_add_special_tokens = True  # GPT2 doesnt add special tokens even when add_special_tokens =True in batch_encode_plus
                 
