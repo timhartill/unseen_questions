@@ -107,7 +107,7 @@ def main():
     parser.add_argument("--calc_similarity_embeddings", action='store_true',
                         help="Calculate cosine similarity between sentence embeddings between train datasets specified by  --mixture and eval datasets specified in eval_metrics.json. --create_embeddings must be run before running this.")
     parser.add_argument("--add_only_missing", action='store_true',
-                        help="IF true only missing sentence embedding files are added.")
+                        help="If true only missing sentence embedding files are added.")
 
     # Other parameters
     parser.add_argument("--verbose", action='store_true',

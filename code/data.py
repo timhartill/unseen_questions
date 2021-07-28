@@ -11,14 +11,16 @@ import json
 import re
 import string
 import numpy as np
-from tqdm import tqdm
 
 import torch
 from torch.utils.data import Dataset, TensorDataset, DataLoader, RandomSampler, SequentialSampler
 
+from eval_metrics import get_exact_match
+
 from w2n import word_to_num   # from https://github.com/ag1988/injecting_numeracy/blob/master/pre_training/gen_bert/create_examples_n_features.py
 import spacy
 nlp = spacy.load("en_core_web_sm")
+selfsupervisedkey = "_selfsvised"  # dataset names ending in this will be processed as self supervised
 
 
 # from https://github.com/castorini/transformers-arithmetic/blob/main/main.py
@@ -146,14 +148,29 @@ def split_digits_special(wps, special='Ġ'): #-> List[str]:
     return toks
 
 
-def manual_encode(instr, tokenizer, truncation=True, max_length=512, 
-                  pad=True, indiv_digits=True):
+def pad_list(ids, attention_mask, max_length, pad_token_id):
+    """ Pad list of token ids to max_length and adjust attention mask
+    """
+    numtoks = len(ids)
+    if numtoks < max_length and pad_token_id is not None:
+        padlen = max_length - numtoks
+        padlist = [pad_token_id] * padlen
+        ids = ids + padlist
+        no_attention = [0] * padlen
+        attention_mask = attention_mask + no_attention
+    return ids, attention_mask
+
+
+def manual_encode(instr, tokenizer, args, truncation=True, max_length=512, 
+                  pad=True):
     """ Manually encode a string for Bart, Roberta, GPT2 or T5
     Note: If you call .tokenize() with a string that generates more tokens than the 
           max seq len of the model you get a warning which you can safely ignore..
     """
+    if args.do_lowercase:
+        instr = instr.lower()
     toks = tokenizer.tokenize(instr)
-    if indiv_digits:
+    if args.indiv_digits:
         specialchar = 'Ġ'
         if 't5' in str(tokenizer.__class__):
             specialchar = '▁'
@@ -168,29 +185,47 @@ def manual_encode(instr, tokenizer, truncation=True, max_length=512,
     numtoks = len(ids)
     attention_mask = [1] * numtoks
     if numtoks < max_length and pad and tokenizer.pad_token_id is not None:
-        padlen = max_length - numtoks
-        padlist = [tokenizer.pad_token_id] * padlen
-        ids = ids + padlist
-        no_attention = [0] * padlen
-        attention_mask = attention_mask + no_attention
+        ids, attention_mask = pad_list(ids, attention_mask, max_length, tokenizer.pad_token_id)
     return ids, attention_mask
 
 
-def manual_batch_encode(instrlist, tokenizer, truncation=True, max_length=512, 
-                        pad=True, indiv_digits=True):
+def manual_batch_encode(instrlist, tokenizer, logger, args, 
+                        truncation=True, max_length=512, 
+                        pad=False):
     """ Manually encode a list of strings for T5, BART, Roberta or GPT2
     Returns dict {'input_ids': [ [], [] ],
                   'attention_mask': [ [], [] ] }
     """
+    if args.append_another_bos and tokenizer.bos_token_id is None:
+        logger.info("Tokenizer has no bos token so ignoring --append_another_bos flag.")
+        bos_token = ''  # T5 doesnt have BOS token
+    else:
+        bos_token = tokenizer.bos_token + ' '  # gpt2 bos token = eos token...
+
+    if args.norm_numbers:
+        norm = ''
+        if args.norm_10e:
+            norm = '10e'
+        instrlist = normalize_num_batch(instrlist, norm=norm)
+        
+    if args.strip_single_quotes:   # Added for T5
+        instrlist = [re.sub("'(.*)'", r"\1", s) for s in instrlist]
+    
+    if args.append_another_bos:
+        instrlist = [bos_token + s for s in instrlist if s != '']  # Don't add bos to nonexistent answer if self supervised
+        
     outdict = {}
     input_ids_list = []
     attention_mask_list = []
     for instr in instrlist:
-        input_ids, attention_mask = manual_encode(instr, tokenizer, 
-                                                  truncation=truncation,
-                                                  max_length=max_length, 
-                                                  pad=pad, 
-                                                  indiv_digits=indiv_digits)
+        if instr != '':
+            input_ids, attention_mask = manual_encode(instr, tokenizer, args,
+                                                      truncation=truncation,
+                                                      max_length=max_length,
+                                                      pad=pad)
+        else:
+            input_ids = []
+            attention_mask = []
         input_ids_list.append(input_ids)
         attention_mask_list.append(attention_mask)
     outdict['input_ids'] = input_ids_list
@@ -213,13 +248,21 @@ class QAData(object):
         else:
             raise NotImplementedError()
         assert self.data_path.endswith(".tsv"), "data file has to be in tsv format."
+        if selfsupervisedkey in data_path:
+            self.selfsupervised = [True]
+        else:
+            self.selfsupervised = [False]
         self.data = []
         with open(self.data_path, "r") as f:
             cnt = 0
             invalid_lines = 0
             for line in f:
                 try:
-                    question, answer = line.split("\t")
+                    if self.selfsupervised[-1]:
+                        answer = ""
+                        question = line.strip()
+                    else:
+                        question, answer = line.split("\t")
                 except Exception:
                     invalid_lines += 1
                     continue
@@ -228,6 +271,7 @@ class QAData(object):
                     "question": question,
                     "answer": [answer]
                 })
+                cnt += 1
             if invalid_lines > 0:
                 print ("# invalid lines: {}".format(invalid_lines))
 
@@ -265,11 +309,14 @@ class QAData(object):
         return [self.decode(_tokens) for _tokens in tokens]
 
     def flatten(self, answers):  # Note: With input [['abc\n'],[...]] returns ['abc\n', '...']
+                                # and originally metadata [(0, 1), (1, 2), (2, 3), ..]
+                                # changed metadata to [(0, len(answers))] to match uqa format
         new_answers, metadata = [], []
         for answer in answers:
             assert type(answer)==list
-            metadata.append((len(new_answers), len(new_answers)+len(answer)))
-            new_answers += answer
+            #metadata.append((len(new_answers), len(new_answers)+len(answer)))
+            new_answers += answer  # Note: can only have 1 answer now
+        metadata = [(0, len(new_answers))]
         return new_answers, metadata
 
     def load_dataset(self, tokenizer, do_return=False):
@@ -279,7 +326,7 @@ class QAData(object):
             "/".join(self.data_path.split("/")[:-1]),
             self.data_path.split("/")[-1].replace(
                 ".tsv" if self.data_path.endswith(".tsv") else ".json",
-                "{}{}{}{}{}{}-{}.json".format(
+                "-v2-{}{}{}{}{}{}-{}.json".format(
                     "-uncased" if self.args.do_lowercase else "",
                     "-xbos" if (self.args.append_another_bos and self.tokenizer.bos_token_id is not None) else "",
                     "-squote" if (self.args.strip_single_quotes) else "",
@@ -297,72 +344,27 @@ class QAData(object):
                     metadata = json.load(f)
         else:
             print ("Start tokenizing...")
-            manually_add_special_tokens = False
-            dopad = True
-            if self.tokenizer.pad_token_id is None:   # gpt2 doesnt have a pad token
-                dopad = False
-                self.logger.info("Not padding since tokenizer has no padding token.")
-                manually_add_special_tokens = True  # GPT2 doesnt add special tokens even when add_special_tokens =True in batch_encode_plus
-                
-            if self.args.append_another_bos and self.tokenizer.bos_token_id is None:
-                self.logger.info("Tokenizer has no bos token so ignoring --append_another_bos flag.")
-                bos_token = ''  # T5 doesnt have BOS token
-            else:
-                bos_token = self.tokenizer.bos_token + ' '  # gpt2 bos token = eos token...
             
             questions = [d["question"] if d["question"].endswith("?") else d["question"]+"?"
                         for d in self.data]
             answers = [d["answer"] for d in self.data]
             answers, metadata = self.flatten(answers)
 
-            if self.args.norm_numbers:
-                norm = ''
-                if self.args.norm_10e:
-                    norm = '10e'
-                questions = normalize_num_batch(questions, norm=norm)
-                answers = normalize_num_batch(answers, norm=norm)
+            question_input = manual_batch_encode(questions, 
+                                                 self.tokenizer,
+                                                 self.logger,
+                                                 self.args,
+                                                 truncation=True,
+                                                 pad=False,
+                                                 max_length=self.args.max_input_length)
+            answer_input = manual_batch_encode(answers, 
+                                                 self.tokenizer,
+                                                 self.logger,
+                                                 self.args,
+                                                 truncation=True,
+                                                 pad=False,
+                                                 max_length=self.args.max_output_length)
 
-            if self.args.strip_single_quotes:   # Added for T5
-                questions = [re.sub("'(.*)'", r"\1", question) for question in questions]
-                answers = [re.sub("'(.*)'", r"\1", answer) for answer in answers]
-                
-            if self.args.do_lowercase:
-                questions = [question.lower() for question in questions]
-                answers = [answer.lower() for answer in answers]
-
-            if self.args.append_another_bos:
-                questions = [bos_token + question for question in questions]
-                answers = [bos_token + answer for answer in answers]
-                                
-            if self.args.indiv_digits:
-                question_input = manual_batch_encode(questions, 
-                                                     self.tokenizer,
-                                                     truncation=True,
-                                                     pad=dopad,
-                                                     max_length=self.args.max_input_length,
-                                                     indiv_digits=self.args.indiv_digits)
-                answer_input = manual_batch_encode(answers, 
-                                                     self.tokenizer,
-                                                     truncation=True,
-                                                     pad=dopad,
-                                                     max_length=self.args.max_output_length,
-                                                     indiv_digits=self.args.indiv_digits)
-            elif dopad:  
-                    question_input = self.tokenizer.batch_encode_plus(questions,
-                                                                      truncation=True,       
-                                                                      padding='max_length',  
-                                                                      max_length=self.args.max_input_length)
-                    answer_input = self.tokenizer.batch_encode_plus(answers,
-                                                                    truncation=True,       
-                                                                    padding='max_length',  
-                                                                    max_length=self.args.max_output_length)
-            else:  # dont pad
-                    question_input = self.tokenizer.batch_encode_plus(questions,
-                                                                      truncation=True,       
-                                                                      max_length=self.args.max_input_length)
-                    answer_input = self.tokenizer.batch_encode_plus(answers,
-                                                                    truncation=True,       
-                                                                    max_length=self.args.max_output_length)
                 
             input_ids, attention_mask = question_input["input_ids"], question_input["attention_mask"]
             decoder_input_ids, decoder_attention_mask = answer_input["input_ids"], answer_input["attention_mask"]
@@ -378,9 +380,11 @@ class QAData(object):
                 self.logger.info("Saved tokenised data to {}".format(preprocessed_path))
 
         self.dataset = MyQADataset(input_ids, attention_mask,
-                                         decoder_input_ids, decoder_attention_mask,
-                                         in_metadata=None, out_metadata=metadata,
-                                         is_training=self.is_training)
+                                         decoder_input_ids, decoder_attention_mask, self.args,
+                                         metadata=metadata,
+                                         is_training=self.is_training,
+                                         tokenizer=self.tokenizer,
+                                         selfsupervised = self.selfsupervised)
         self.logger.info("Loaded {} examples from {} data".format(len(self.dataset), self.data_type))
 
         if do_return:
@@ -421,58 +425,49 @@ class QAData(object):
         return predictions    
             
 
-def get_exact_match(prediction, groundtruth):
-    if type(groundtruth)==list:
-        if len(groundtruth)==0:
-            return 0
-        return np.max([get_exact_match(prediction, gt) for gt in groundtruth])
-    return (normalize_answer(prediction) == normalize_answer(groundtruth))
-
-
-def normalize_answer(s):
-    def remove_articles(text):
-        return re.sub(r'\b(a|an|the)\b', ' ', text)
-    def white_space_fix(text):
-        return ' '.join(text.split())
-    def remove_punc(text):
-        exclude = set(string.punctuation)
-        return ''.join(ch for ch in text if ch not in exclude)
-    def lower(text):
-        return text.lower()
-    return white_space_fix(remove_articles(remove_punc(lower(s))))
-
-
 class MyQADataset(Dataset):
     def __init__(self,
                  input_ids, attention_mask,
-                 decoder_input_ids, decoder_attention_mask,
-                 in_metadata=None, out_metadata=None,
-                 is_training=False):
-        self.input_ids = torch.LongTensor(input_ids)
-        self.attention_mask = torch.LongTensor(attention_mask)
-        self.decoder_input_ids = torch.LongTensor(decoder_input_ids)
-        self.decoder_attention_mask = torch.LongTensor(decoder_attention_mask)
-        self.in_metadata = list(zip(range(len(input_ids)), range(1, 1+len(input_ids)))) \
-            if in_metadata is None else in_metadata
-        self.out_metadata = list(zip(range(len(decoder_input_ids)), range(1, 1+len(decoder_input_ids)))) \
-            if out_metadata is None else out_metadata
+                 decoder_input_ids, decoder_attention_mask, args,
+                 metadata=None,
+                 is_training=False, tokenizer=None, selfsupervised=None):
+        self.args = args
+        self.tokenizer = tokenizer
+        if tokenizer is not None and tokenizer.pad_token_id is not None:
+            self.pad_token_id = tokenizer.pad_token_id
+        else:
+            self.pad_token_id = -100
+        self.selfsupervised = selfsupervised
+        self.metadata = [(0, len(input_ids))]  #override historical metadata setup
+        self.input_ids = input_ids              # torch.LongTensor(input_ids)
+        self.attention_mask = attention_mask    # torch.LongTensor(attention_mask)
+        self.decoder_input_ids = decoder_input_ids              # torch.LongTensor(decoder_input_ids)
+        self.decoder_attention_mask = decoder_attention_mask    # torch.LongTensor(decoder_attention_mask)
+        # For 5 items below returns [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5)]
+        #self.in_metadata = list(zip(range(len(input_ids)), range(1, 1+len(input_ids)))) \
+        #    if in_metadata is None else in_metadata
+        #self.out_metadata = list(zip(range(len(decoder_input_ids)), range(1, 1+len(decoder_input_ids)))) \
+        #    if out_metadata is None else out_metadata
         self.is_training = is_training
 
-        assert len(self.input_ids)==len(self.attention_mask)==self.in_metadata[-1][-1]
-        assert len(self.decoder_input_ids)==len(self.decoder_attention_mask)==self.out_metadata[-1][-1]
+        assert len(self.input_ids)==len(self.attention_mask) #==self.in_metadata[-1][-1]
+        assert len(self.decoder_input_ids)==len(self.decoder_attention_mask) #==self.out_metadata[-1][-1]
 
     def __len__(self):
-        return len(self.in_metadata)
+        return self.metadata[-1][-1]  #len(self.in_metadata)  # num questions
 
     def __getitem__(self, idx):
+        input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx],
+                                             self.args.max_input_length, self.pad_token_id)
+        input_ids = torch.LongTensor(input_ids)
+        attention_mask = torch.LongTensor(attention_mask)
         if not self.is_training:
-            idx = self.in_metadata[idx][0]
-            return self.input_ids[idx], self.attention_mask[idx]
-
-        in_idx = np.random.choice(range(*self.in_metadata[idx]))
-        out_idx = np.random.choice(range(*self.out_metadata[idx]))
-        return self.input_ids[in_idx], self.attention_mask[in_idx], \
-            self.decoder_input_ids[out_idx], self.decoder_attention_mask[out_idx]
+            return input_ids, attention_mask
+        decoder_input_ids, decoder_attention_mask = pad_list(self.decoder_input_ids[idx], self.decoder_attention_mask[idx],
+                                                             self.args.max_output_length, self.pad_token_id)
+        decoder_input_ids = torch.LongTensor(decoder_input_ids)
+        decoder_attention_mask = torch.LongTensor(decoder_attention_mask)
+        return input_ids, attention_mask, decoder_input_ids, decoder_attention_mask
 
 
 class MyDataLoader(DataLoader):

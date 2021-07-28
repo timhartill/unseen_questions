@@ -10,15 +10,16 @@ import json
 import re
 import string
 import numpy as np
-from tqdm import tqdm
-from collections import defaultdict
 
 import torch
 from torch.utils.data import Dataset, TensorDataset, DataLoader, RandomSampler, SequentialSampler
 
 from transformers import AutoTokenizer
 
-from data import QAData, MyDataLoader, manual_batch_encode, normalize_num_batch
+from data import QAData, MyDataLoader, manual_batch_encode, normalize_num_batch, selfsupervisedkey, pad_list
+
+from eval_metrics import get_exact_match
+
 
 def parse_mixture(mixture):
     """ Parse args.mixture and return list of datasets to include plus a key to add 
@@ -49,7 +50,7 @@ class UnifiedQAData(QAData):
 
     def __init__(self, logger, args, data_path, is_training):
                
-        self.unified_dataset, self.mixture_key = parse_mixture(args.mixture)
+        self.unified_dataset, self.mixture_key = parse_mixture(args.mixture)          
         self.data_path = data_path  # this would be ../unifiedqa/train.tsv
         self.data_type = data_path.split("/")[-1][:-4]
         assert self.data_type in ["train", "dev", "test"]
@@ -59,8 +60,14 @@ class UnifiedQAData(QAData):
             self.data_type = "dev"
             data_path = data_path.replace("train", "dev")
 
+        self.selfsupervised = []
         self.data = {}
         for dataset in self.unified_dataset:
+            if selfsupervisedkey in dataset:
+                self.selfsupervised.append(True)
+            else:
+                self.selfsupervised.append(False)
+            
             assert data_path.endswith(".tsv"), "data file has to be in tsv format"
             curr_data_path = data_path.replace("{}.tsv".format(self.data_type),
                                                "{}/{}.tsv".format(dataset, self.data_type))
@@ -68,7 +75,11 @@ class UnifiedQAData(QAData):
             with open(curr_data_path, "r") as f:
                 cnt = 0
                 for line in f:
-                    question, answer = line.split("\t")
+                    if self.selfsupervised[-1]:
+                        answer = ""
+                        question = line.strip()
+                    else:
+                        question, answer = line.split("\t")
                     self.data[dataset]["id"].append("{}-{}-{}".format(dataset, self.data_type, cnt))
                     self.data[dataset]["question"].append(question)
                     self.data[dataset]["answer"].append(answer)
@@ -103,7 +114,7 @@ class UnifiedQAData(QAData):
         postfix = self.tokenizer.__class__.__name__.replace("zer", "zed")
         preprocessed_path = os.path.join(
                 "/".join(self.data_path.split("/")[:-1]),
-                self.data_path.split("/")[-1].replace(".tsv", "{}{}{}{}{}{}-{}-{}.json".format(
+                self.data_path.split("/")[-1].replace(".tsv", "-v2-{}{}{}{}{}{}-{}-{}.json".format(
                     "-uncased" if self.args.do_lowercase else "",
                     "-xbos" if (self.args.append_another_bos and self.tokenizer.bos_token_id is not None) else "",
                     "-squote" if (self.args.strip_single_quotes) else "",
@@ -118,79 +129,32 @@ class UnifiedQAData(QAData):
                 input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, metadata = json.load(f)
         else:
             print ("Start tokenizing...")            
-            manually_add_special_tokens = False
-            dopad = True
-            if self.tokenizer.pad_token_id is None:   # gpt2 doesnt have a pad token                
-                dopad = False 
-                self.logger.info("Not padding since tokenizer has no padding token.")
-                manually_add_special_tokens = True  # TODO GPT2 doesnt add special tokens even when add_special_tokens =True in batch_encode_plus
-                
-            if self.args.append_another_bos and self.tokenizer.bos_token_id is None:
-                self.logger.info("Tokenizer has no bos token so ignoring --append_another_bos flag.")
-                bos_token = ''  # T5 doesnt have BOS token
-            else:
-                bos_token = self.tokenizer.bos_token + ' '  # gpt2 bos token = eos token...
-            
-                            
             metadata, questions, answers = [], [], []
-            for dataset in self.unified_dataset:
-                metadata.append((len(questions), len(questions)+len(self.data[dataset]["question"])))  #TJH store start & end indices of each dataset in metadata
-                questions += self.data[dataset]["question"]
+            for dataset in self.unified_dataset:  # metadata = [(start idx ds1, end idx ds1), (start ds2, end ds2),...]
+                metadata.append((len(questions), len(questions)+len(self.data[dataset]["question"])))  # store start & end indices of each dataset in metadata
+                questions += self.data[dataset]["question"]  # final questions = single list concatenating questions from each constituent ds
                 answers += self.data[dataset]["answer"]
                 
-            if self.args.norm_numbers:
-                norm = ''
-                if self.args.norm_10e:
-                    norm = '10e'
-                questions = normalize_num_batch(questions, norm=norm)
-                answers = normalize_num_batch(answers, norm=norm)
-                
-            if self.args.strip_single_quotes:   # Added for T5
-                questions = [re.sub("'(.*)'", r"\1", question) for question in questions]
-                answers = [re.sub("'(.*)'", r"\1", answer) for answer in answers]
-                
-            if self.args.do_lowercase:
-                questions = [question.lower() for question in questions]
-                answers = [answer.lower() for answer in answers]
-                
-            if self.args.append_another_bos:  
-                questions = [bos_token + question for question in questions]
-                answers = [bos_token + answer for answer in answers]
-
-            if self.args.indiv_digits:
-                question_input = manual_batch_encode(questions, 
-                                                     self.tokenizer,
-                                                     truncation=True,
-                                                     pad=dopad,
-                                                     max_length=self.args.max_input_length,
-                                                     indiv_digits=self.args.indiv_digits)
-                answer_input = manual_batch_encode(answers, 
-                                                     self.tokenizer,
-                                                     truncation=True,
-                                                     pad=dopad,
-                                                     max_length=self.args.max_output_length,
-                                                     indiv_digits=self.args.indiv_digits)
-            elif dopad:  
-                question_input = self.tokenizer.batch_encode_plus(questions,
-                                                                  truncation=True,       
-                                                                  padding='max_length',  
-                                                                  max_length=self.args.max_input_length)
-                answer_input = self.tokenizer.batch_encode_plus(answers,
-                                                                truncation=True,       
-                                                                padding='max_length',  
-                                                                max_length=self.args.max_output_length)
-            else:
-                question_input = self.tokenizer.batch_encode_plus(questions,
-                                                                  truncation=True,
-                                                                  max_length=self.args.max_input_length)
-                answer_input = self.tokenizer.batch_encode_plus(answers,
-                                                                truncation=True,
-                                                                max_length=self.args.max_output_length)
-                
+            print("Encoding questions...")
+            question_input = manual_batch_encode(questions, 
+                                                 self.tokenizer,
+                                                 self.logger,
+                                                 self.args,
+                                                 truncation=True,
+                                                 pad=False,
+                                                 max_length=self.args.max_input_length)
+            print("Encoding answers...")
+            answer_input = manual_batch_encode(answers, 
+                                                 self.tokenizer,
+                                                 self.logger,
+                                                 self.args,
+                                                 truncation=True,
+                                                 pad=False,
+                                                 max_length=self.args.max_output_length)
     
             input_ids, attention_mask = question_input["input_ids"], question_input["attention_mask"]
             decoder_input_ids, decoder_attention_mask = answer_input["input_ids"], answer_input["attention_mask"]
-            print ("Finish tokenizering...")
+            print ("Finished tokenizing...")
             if self.load:
                 with open(preprocessed_path, "w") as f:
                     json.dump([input_ids, attention_mask,
@@ -199,8 +163,10 @@ class UnifiedQAData(QAData):
 
         self.metadata = metadata
         self.dataset = MyUnifiedQADataset(input_ids, attention_mask,
-                                          decoder_input_ids, decoder_attention_mask,
-                                          metadata=metadata, is_training=self.is_training)
+                                          decoder_input_ids, decoder_attention_mask, self.args,
+                                          metadata=metadata, is_training=self.is_training,
+                                          tokenizer=self.tokenizer,
+                                          selfsupervised = self.selfsupervised)
 
 
     def load_dataloader(self, do_return=False):
@@ -235,36 +201,24 @@ class UnifiedQAData(QAData):
             json.dump(prediction_dict, f)
         self.logger.info("Saved prediction in {}".format(save_path))
 
-def get_exact_match(prediction, groundtruth):
-    if type(groundtruth)==list:
-        if len(groundtruth)==0:
-            return 0
-        return np.max([get_exact_match(prediction, gt) for gt in groundtruth])
-    return (normalize_answer(prediction) == normalize_answer(groundtruth))
-
-def normalize_answer(s):
-    def remove_articles(text):
-        return re.sub(r'\b(a|an|the)\b', ' ', text)
-    def white_space_fix(text):
-        return ' '.join(text.split())
-    def remove_punc(text):
-        exclude = set(string.punctuation)
-        return ''.join(ch for ch in text if ch not in exclude)
-    def lower(text):
-        return text.lower()
-    return white_space_fix(remove_articles(remove_punc(lower(s))))
-
 
 class MyUnifiedQADataset(Dataset):
     def __init__(self,
                  input_ids, attention_mask,
-                 decoder_input_ids, decoder_attention_mask,
+                 decoder_input_ids, decoder_attention_mask, args,
                  metadata,
-                 is_training=False):
-        self.input_ids = torch.LongTensor(input_ids)
-        self.attention_mask = torch.LongTensor(attention_mask)
-        self.decoder_input_ids = torch.LongTensor(decoder_input_ids)
-        self.decoder_attention_mask = torch.LongTensor(decoder_attention_mask)
+                 is_training=False, tokenizer=None, selfsupervised=None):
+        self.args = args
+        self.tokenizer = tokenizer
+        if tokenizer is not None and tokenizer.pad_token_id is not None:
+            self.pad_token_id = tokenizer.pad_token_id
+        else:
+            self.pad_token_id = None
+        self.selfsupervised = selfsupervised        
+        self.input_ids = input_ids                              #torch.LongTensor(input_ids)
+        self.attention_mask = attention_mask                    #torch.LongTensor(attention_mask)
+        self.decoder_input_ids = decoder_input_ids              #torch.LongTensor(decoder_input_ids)
+        self.decoder_attention_mask = decoder_attention_mask    #torch.LongTensor(decoder_attention_mask)
         self.metadata = metadata
         self.is_training = is_training
 
@@ -277,11 +231,15 @@ class MyUnifiedQADataset(Dataset):
             if is_training else len(self.input_ids)
 
     def __len__(self):
-        return self.length  #Note 6655 not 391740
+        return self.length  #Note 6655 not 391740 if is_training, if not is_training # questions
 
     def __getitem__(self, idx):
         if not self.is_training:
-            return self.input_ids[idx], self.attention_mask[idx]
+            input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx],
+                                                 self.args.max_input_length, self.pad_token_id)
+            input_ids = torch.LongTensor(input_ids)
+            attention_mask = torch.LongTensor(attention_mask)
+            return input_ids, attention_mask
 
         idx = idx % len(self.metadata)  # Select component dataset with uniform chance not proportional to dataset sizes
         if self.positions[idx]==len(self.indices[idx]):  # If reached the end of this dataset reshuffle dataset indices in bucket
@@ -292,6 +250,13 @@ class MyUnifiedQADataset(Dataset):
         dp_idx = self.indices[idx][self.positions[idx]]  # Select dataset index within bucket
         self.positions[idx] += 1
 
-        return self.input_ids[dp_idx], self.attention_mask[dp_idx], \
-            self.decoder_input_ids[dp_idx], self.decoder_attention_mask[dp_idx]
+        input_ids, attention_mask = pad_list(self.input_ids[dp_idx], self.attention_mask[dp_idx],
+                                             self.args.max_input_length, self.pad_token_id)
+        input_ids = torch.LongTensor(input_ids)
+        attention_mask = torch.LongTensor(attention_mask)
+        decoder_input_ids, decoder_attention_mask = pad_list(self.decoder_input_ids[dp_idx], self.decoder_attention_mask[dp_idx],
+                                                             self.args.max_output_length, self.pad_token_id)
+        decoder_input_ids = torch.LongTensor(decoder_input_ids)
+        decoder_attention_mask = torch.LongTensor(decoder_attention_mask)
+        return input_ids, attention_mask, decoder_input_ids, decoder_attention_mask
 
