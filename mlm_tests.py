@@ -41,17 +41,16 @@ txt2 = txt1 + " the antimatter component has largess in banana land."
 
 # this part occurs in preprocessing ie requires access to either the original string or the tokenised input 
 
-def get_word_starts(toks, specialchar = 'Ġ'):
+def get_word_starts(toks, specialchar = 'Ġ', bos_token='<s>'):
     """ Get the beginning of each word in a list of tokenised text
         Return list of word beginning indices into toks
     """
     word_starts = [i for (i,t) in enumerate(toks) if t[0]==specialchar or t[0] in string.punctuation]
-    if word_starts[1] != 1:  # 1st token is bos <s>, second token is always a word start
+    if toks[0] == bos_token: # don't want to mask a bos token 
+        word_starts.pop(0)   
+    if word_starts[0] != 1:  # first non bos token is always a word start
         word_starts = [1] + word_starts
-        word_starts.sort()
-    word_starts.pop(0) # don't want to mask the bos token
-    return np.array(word_starts)
-
+    return word_starts
 
 # this part occurs on-the-fly during training in the dataset object
 
@@ -131,9 +130,17 @@ def mask_words(tok_idxs, span_lengths, word_starts, mask_token, verbose = False)
 
 #TODO might have to do .lower after tokenizing in order to allow spacy better opportunity to find named entities...
 
+txt3 = tokenizer.bos_token + "the rain is 123.25% heavier in Spain than NZ."
+txt4 = "the rain is 123.25% heavier in Spain than NZ."
+
+
 toktxt = tokenizer.tokenize(txt1)
 
 toktxt = tokenizer.tokenize(txt2)
+
+toktxt = tokenizer.tokenize(txt3)
+toktxt = tokenizer.tokenize(txt4)
+
 
 word_starts = get_word_starts(toktxt)  # in reality add 1 to word starts for the extra bos token thats added later in manual_batch_encode
 
@@ -197,14 +204,14 @@ print(replaced[10])
 
 
 # SSM tests
-txt=tokenizer.bos_token + " " + "john smith is a nice person. apple is looking at buying u.k. startup for $1 billion in July 2020 or perhaps 1/6/23 or failing that 2024\nHello world.\nApples are good fruit to eat\nAre new zealand fruit or australian vegetables better for you? Astronomers look for the bright stars that orbit dark partners in the same way. The North Star can be used to find your way if you're lost in the dark. The north star can be used to find your way if you're lost in the dark"
+txt=tokenizer.bos_token + " " + "john smith is a nice person. john smith from apple is looking at buying u.k. startup for $1 billion in July 2020 or perhaps 1/6/23 or failing that 2024\nHello world.\nApples are good fruit to eat\nAre new zealand fruit or australian vegetables better for you? Astronomers look for the bright stars that orbit dark partners in the same way. The North Star can be used to find your way if you're lost in the dark. The north star can be used to find your way if you're lost in the dark"
 
 
 def ner(instr, verbose=False):
     """ Perform named entity recognition on text and return a list of named entities, numbers, dates etc
     """
     ner_list = []
-    doc = nlp(instr)    
+    doc = nlp(instr.strip('\\n \n'))    
     for ent in doc.ents:
         if verbose: print(ent.text, '"' + ent.text_with_ws + '"', ent.start_char, ent.end_char, ent.label_)
         ner_list.append( {'txt_with_ws': ent.text_with_ws, 'start':ent.start_char, 'end': ent.end_char, 'type': ent.label_} )
@@ -218,16 +225,54 @@ def find_tok_idx(toks, start, end):
     tok_end = -1
     curr_str_idx_start = 0
     for i, tok in enumerate(toks):
-        curr_str_idx_end = curr_str_idx_start + len(tok.replace('Â','').replace('Ä',''))
+        curr_str_idx_end = curr_str_idx_start + len(tok.replace('Â','').replace('Ä','').replace('Å',''))
         if start >= curr_str_idx_start and start <= curr_str_idx_end:
             tok_start = i
         if end >= curr_str_idx_start and end <= curr_str_idx_end:
             tok_end = i+1
             break
         curr_str_idx_start = curr_str_idx_end
-    return tok_start, tok_end    
-        
-    
+    return tok_start, tok_end
+
+
+def find_sub_list(sublst1, sublst2, lst):
+    """ Return start/end indices of all occurences of sublist in list
+        Note: Can't tell whether the tokens match with/out a preceding space so must try both ways
+    """
+    results=[]
+    sll=len(sublst1)
+    for ind in (i for i,e in enumerate(lst) if e==sublst1[0]):
+        if lst[ind:ind+sll]==sublst1:
+            results.append((ind,ind+sll))
+    sll=len(sublst2)
+    for ind in (i for i,e in enumerate(lst) if e==sublst2[0]):
+        if lst[ind:ind+sll]==sublst2:
+            results.append((ind,ind+sll))  
+    results = list(set(results))
+    return results  
+
+
+def map_ners(toks, ner, tokenizer, verbose = False):
+    """ Map list of NERs previously identified on raw text to token ids
+    """
+    unique_ner = list(set([ w['txt_with_ws'].strip(string.punctuation+' ').strip() for w in ner ]))
+    tok_map = []
+    final_ner = []
+    for n in unique_ner:
+        ner_txt_tok = tokenizer.tokenize(n)
+        ner_txt_tok2 = tokenizer.tokenize(' ' + n)
+        found_list = find_sub_list(ner_txt_tok, ner_txt_tok2, toks)
+        if verbose: 
+            print(f"Orig: {n}") 
+            for tok_start, tok_end in found_list:
+                print(f"tokens: {wiki0[tok_start:tok_end]}")
+            if len(found_list) == 0:
+                print(f"{i}NOT FOUND: {n} 1:{ner_txt_tok} 2:{ner_txt_tok2}")
+        if len(found_list) > 0:
+            tok_map.append(found_list)
+            final_ner.append(n)
+    return final_ner, tok_map
+
 
 ners = []
 for line in qasc_corpus:
@@ -237,55 +282,64 @@ num_ners_np = np.array(num_ners)
 print(f" Num: {len(num_ners)}  Mean:{num_ners_np.mean():.2f}  Max:{num_ners_np.max():.2f}  Min:{num_ners_np.min():.2f}")
 
 
-ners = []
+wiki_ners = []
 for line in wiki_corpus:
-    ners.append( ner( line.strip('\\n \n') ) )  #spacy thinks land.\\n and \\n in general is a person..
-num_ners = [len(n) for n in ners]
+    wiki_ners.append( ner( line.strip('\\n \n') ) )  #spacy thinks land.\\n and \\n in general is a person..
+num_ners = [len(n) for n in wiki_ners]
 num_ners_np = np.array(num_ners)
 print(f" Num: {len(num_ners)}  Mean:{num_ners_np.mean():.2f}  Max:{num_ners_np.max():.2f}  Min:{num_ners_np.min():.2f}")
 
 
-wiki0 = tokenizer.tokenize(wiki_corpus[0])
-print(wiki_corpus[0])
-print(wiki0)
-wiki0rejoined = ''.join(wiki0)
-print(wiki0rejoined)
-print(f"len wiki0: {len(wiki_corpus[0])} len wiki0rejoined: {len(wiki0rejoined)}")
-for n in ners[0]:
-    print(f"Orig: {n['txt_with_ws']}  Start:{n['start']}  End:{n['end']}")
-    print(f"wiki_corpus: #{wiki_corpus[0][n['start']:n['end']]}#")
-    print(f"wiki0rejoined: #{wiki0rejoined.replace('Â','')[n['start']:n['end']]}#")  ## Not exactly identical § tokenizes to Â§ so strip Â
-    tok_start, tok_end = find_tok_idx(wiki0, n['start'], n['end'])
-    print(f"tok start: {tok_start}  tok end: {tok_end}")
-    print(f"tokens: {wiki0[tok_start:tok_end]}")
+def test_ner(c, ner, i, verbose = False):
+    wiki0 = tokenizer.tokenize(c[i].lower())
+    #if verbose: print(c[i].lower())
+    #if verbose: print(wiki0)
+    unique_ner = set([ w['txt_with_ws'].lower().strip(string.punctuation+' ').strip() for w in ner[i] ])
+    for n in unique_ner:
+        ner_txt_tok = tokenizer.tokenize(n)
+        ner_txt_tok2 = tokenizer.tokenize(' ' + n)
+        #if verbose: print(f"{ner_txt} tokenised: 1:{ner_txt_tok}  2: {ner_txt_tok2}")
+        found_list = find_sub_list(ner_txt_tok, ner_txt_tok2, wiki0)
+        if verbose: 
+            print(f"Orig: {n}")  #  Start:{n['start']}  End:{n['end']}")
+            #print(f"Tok idx found: {found_list}")
+            for tok_start, tok_end in found_list:
+                print(f"tokens: {wiki0[tok_start:tok_end]}")
+        if len(found_list) == 0:
+            print(f"{i}NOT FOUND: {n} 1:{ner_txt_tok} 2:{ner_txt_tok2}")
 
-wiki0 = tokenizer.tokenize(wiki_corpus[1])
+test_ner(wiki_corpus, wiki_ners, 2, verbose=True)
+
+for i in range(len(wiki_corpus)):
+    test_ner(wiki_corpus, wiki_ners, i)
+
+for i in range(len(qasc_corpus)):
+    test_ner(qasc_corpus, ners, i)
+
+
+wiki0 = tokenizer.tokenize("Bibekananda Agarwala " + wiki_corpus[1]+" Bibekananda Agarwala.")
 print(wiki_corpus[1])
 print(wiki0)
 wiki0rejoined = ''.join(wiki0)
 print(wiki0rejoined)
 print(f"len wiki0: {len(wiki_corpus[1])} len wiki0rejoined: {len(wiki0rejoined)}")
 for n in ners[1]:
+    ner_txt = n['txt_with_ws'].strip()
+    ner_txt_tok = tokenizer.tokenize(ner_txt)
+    ner_txt_tok2 = tokenizer.tokenize(' ' + ner_txt)
+    print(f"{ner_txt} tokenised: 1:{ner_txt_tok}  2: {ner_txt_tok2}")
+    found_list = find_sub_list(ner_txt_tok, ner_txt_tok2, wiki0)
     print(f"Orig: {n['txt_with_ws']}  Start:{n['start']}  End:{n['end']}")
-    print(f"wiki_corpus: #{wiki_corpus[1][n['start']:n['end']]}#")
-    print(f"wiki0rejoined: #{wiki0rejoined.replace('Â','').replace('Ä','')[n['start']:n['end']]}#")  ## Not exactly identical § tokenizes to Â§ so strip Â
-    tok_start, tok_end = find_tok_idx(wiki0, n['start'], n['end'])
-    print(f"tok start: {tok_start}  tok end: {tok_end}")
-    print(f"tokens: {wiki0[tok_start:tok_end]}")
+    print(f"Tok idx found: {found_list}")
+    #print(f"wiki_corpus: #{wiki_corpus[1][n['start']:n['end']]}#")
+    #print(f"wiki0rejoined: #{wiki0rejoined.replace('Â','').replace('Ä','')[n['start']:n['end']]}#")  ## Not exactly identical § tokenizes to Â§ so strip Â
+    #tok_start, tok_end = find_tok_idx(wiki0, n['start'], n['end'])
+    #print(f"tok start: {tok_start}  tok end: {tok_end}")
+    for tok_start, tok_end in found_list:
+        print(f"tokens: {wiki0[tok_start:tok_end]}")
 
 
-wiki0 = tokenizer.tokenize(wiki_corpus[2])
-print(wiki_corpus[2])
-print(wiki0)
-wiki0rejoined = ''.join(wiki0)
-print(wiki0rejoined)
-print(f"len wiki0: {len(wiki_corpus[2])} len wiki0rejoined: {len(wiki0rejoined)}")
-for n in ners[2]:
-    print(f"Orig: {n['txt_with_ws']}  Start:{n['start']}  End:{n['end']}")
-    print(f"wiki_corpus: #{wiki_corpus[2][n['start']:n['end']]}#")
-    print(f"wiki0rejoined: #{wiki0rejoined.replace('Â','').replace('Ä','')[n['start']:n['end']]}#")  ## Not exactly identical § tokenizes to Â§ so strip Â
-    tok_start, tok_end = find_tok_idx(wiki0, n['start'], n['end'])
-    print(f"tok start: {tok_start}  tok end: {tok_end}")
-    print(f"tokens: {wiki0[tok_start:tok_end]}")
+
+
 
 

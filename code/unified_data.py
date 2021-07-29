@@ -126,7 +126,7 @@ class UnifiedQAData(QAData):
         if self.load and os.path.exists(preprocessed_path):
             self.logger.info("Loading pre-tokenized data from {}".format(preprocessed_path))
             with open(preprocessed_path, "r") as f:
-                input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, metadata = json.load(f)
+                input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, metadata, word_starts, ners, ners_ids = json.load(f)
         else:
             print ("Start tokenizing...")            
             metadata, questions, answers = [], [], []
@@ -140,6 +140,8 @@ class UnifiedQAData(QAData):
                                                  self.tokenizer,
                                                  self.logger,
                                                  self.args,
+                                                 self.selfsupervised,
+                                                 metadata,
                                                  truncation=True,
                                                  pad=False,
                                                  max_length=self.args.max_input_length)
@@ -148,17 +150,21 @@ class UnifiedQAData(QAData):
                                                  self.tokenizer,
                                                  self.logger,
                                                  self.args,
+                                                 self.selfsupervised,
+                                                 metadata,
                                                  truncation=True,
                                                  pad=False,
                                                  max_length=self.args.max_output_length)
-    
+
+            word_starts = question_input["word_starts"]  
+            ners, ners_ids = question_input["ners"], question_input["ners_ids"]
             input_ids, attention_mask = question_input["input_ids"], question_input["attention_mask"]
             decoder_input_ids, decoder_attention_mask = answer_input["input_ids"], answer_input["attention_mask"]
             print ("Finished tokenizing...")
             if self.load:
                 with open(preprocessed_path, "w") as f:
                     json.dump([input_ids, attention_mask,
-                               decoder_input_ids, decoder_attention_mask, metadata], f)
+                               decoder_input_ids, decoder_attention_mask, metadata, word_starts, ners, ners_ids], f)
                 self.logger.info("Saved tokenised data to {}".format(preprocessed_path))
 
         self.metadata = metadata
@@ -166,7 +172,9 @@ class UnifiedQAData(QAData):
                                           decoder_input_ids, decoder_attention_mask, self.args,
                                           metadata=metadata, is_training=self.is_training,
                                           tokenizer=self.tokenizer,
-                                          selfsupervised = self.selfsupervised)
+                                          selfsupervised = self.selfsupervised,
+                                          word_starts = word_starts,
+                                          ners=ners, ners_ids=ners_ids)
 
 
     def load_dataloader(self, do_return=False):
@@ -204,10 +212,9 @@ class UnifiedQAData(QAData):
 
 class MyUnifiedQADataset(Dataset):
     def __init__(self,
-                 input_ids, attention_mask,
-                 decoder_input_ids, decoder_attention_mask, args,
-                 metadata,
-                 is_training=False, tokenizer=None, selfsupervised=None):
+                 input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, args,
+                 metadata, is_training=False, tokenizer=None, selfsupervised=None, 
+                 word_starts=None, ners=None, ners_ids=None):
         self.args = args
         self.tokenizer = tokenizer
         if tokenizer is not None and tokenizer.pad_token_id is not None:
@@ -220,6 +227,9 @@ class MyUnifiedQADataset(Dataset):
         self.decoder_input_ids = decoder_input_ids              #torch.LongTensor(decoder_input_ids)
         self.decoder_attention_mask = decoder_attention_mask    #torch.LongTensor(decoder_attention_mask)
         self.metadata = metadata
+        self.word_starts = word_starts
+        self.ners = ners
+        self.ners_ids = ners_ids
         self.is_training = is_training
 
         assert len(self.input_ids)==len(self.attention_mask)==len(self.decoder_input_ids)==len(self.decoder_attention_mask)
