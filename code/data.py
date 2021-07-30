@@ -315,7 +315,7 @@ def manual_batch_encode(instrlist, tokenizer, logger, args, selfsupervised, meta
     if args.append_another_bos:
         instrlist = [bos_token + s if s != '' else s for s in instrlist]  # Don't add bos to nonexistent answer if self supervised
     bos_token = bos_token.strip()
-        
+    
     outdict = {}
     input_ids_list = []
     attention_mask_list = []
@@ -347,6 +347,7 @@ def manual_batch_encode(instrlist, tokenizer, logger, args, selfsupervised, meta
     outdict['ners_ids'] = ners_ids_list
     return outdict
 
+      
 
 class QAData(object):
 
@@ -544,6 +545,95 @@ class QAData(object):
         return predictions    
             
 
+def get_spans(tok_idxs, toks_to_mask=0.11, avg_span_len=2, sd=0.75):
+    """ Calculate number and length of spans for given input seq length
+    """
+    num_toks = len(tok_idxs)
+    num_spans = int( (num_toks * toks_to_mask) / avg_span_len) + 1
+    span_lengths = np.random.normal(avg_span_len, scale=sd, size=num_spans).round().astype('int')
+    span_lengths = np.clip(span_lengths, 1, avg_span_len+4)    
+    return span_lengths
+
+
+def merge_intervals(in_list):
+    """ Merge overlapping intervals in a list
+    """
+    in_list.sort(key=lambda interval: interval[0])
+    merged = [in_list[0]]
+    for current in in_list:
+        previous = merged[-1]
+        if current[0] <= previous[1]:
+            previous[1] = max(previous[1], current[1])
+        else:
+            merged.append(current)
+    return merged
+
+
+def wwsc_select_spans(tok_idxs, span_lengths, word_starts):
+    """ Convert a set of span lengths into actual start/end token positions
+    """
+    num_toks = len(tok_idxs)
+    num_words = len(word_starts)
+    if num_words == 0:
+        return []
+    replace_spans = []
+    for length in span_lengths:
+        span_start_idx = np.random.choice(num_words)
+        span_start = word_starts[span_start_idx]
+        if span_start + length > num_toks:
+            length = num_toks - span_start
+        else:
+            for next_wordstart in word_starts[span_start_idx+1:]:
+                if next_wordstart >= span_start+length:
+                    length = next_wordstart - span_start
+                    break
+        span_end = span_start + length
+        replace_spans.append( [span_start, span_end]  )
+    replace_spans = merge_intervals(replace_spans)  # aggregate overlaps
+    return replace_spans
+
+
+def mask_words(tok_idxs, replace_spans, mask_token):
+    """ Given a list of token indices,  + an array of spans [[start1, end1], [start2, end2], ...]
+        return a masked version of toks plus the list of masked spans 
+    """
+    replaced_toks = []
+    tmp_tok_idxs = tok_idxs.copy()
+    for replace_span in replace_spans:
+        replaced_toks.append( tok_idxs[replace_span[0]:replace_span[1]] )
+        first = True
+        for i in range(replace_span[0], replace_span[1]):
+            if first:
+                tmp_tok_idxs[i] = mask_token
+                first = False
+            else:
+                tmp_tok_idxs[i] = -999999
+    new_tok_idxs = []
+    for tok in tmp_tok_idxs:
+        if tok != -999999:
+            new_tok_idxs.append(tok)
+    return new_tok_idxs, replaced_toks
+
+
+def self_supervise(args, tok_idxs, word_starts, ners_ids, mask_token_id, unk_token_id):
+    """ Mask text and return masked input and list of masked spans
+    """
+    if len(ners_ids) > 0 and np.random.rand() > args.ssm_prob:
+        ner_idx = np.random.choice(len(ners_ids))
+        ner_pos = np.random.choice(len(ners_ids[ner_idx]))
+        replace_spans = [ ners_ids[ner_idx][ner_pos] ]
+        new_tok_idxs, replaced_toks = mask_words(tok_idxs, replace_spans, mask_token=mask_token_id)
+    else:  #Whole Word Span Corruption
+        span_lengths = get_spans(tok_idxs, toks_to_mask=args.wwsc_toks_to_mask, 
+                                 avg_span_len=args.wwsc_avg_span_len, sd=args.wwsc_span_len_sd)
+        replace_spans = wwsc_select_spans(tok_idxs, span_lengths, word_starts)
+        new_tok_idxs, replaced_toks = mask_words(tok_idxs, replace_spans, mask_token=mask_token_id)
+    if replaced_toks == []:
+        replaced_toks = [[unk_token_id]]
+    #TODO add answer formatting + padding + make attn masks
+    return new_tok_idxs, replaced_toks
+
+
 class MyQADataset(Dataset):
     def __init__(self,
                  input_ids, attention_mask,
@@ -557,6 +647,14 @@ class MyQADataset(Dataset):
             self.pad_token_id = tokenizer.pad_token_id
         else:
             self.pad_token_id = -100
+        if 't5' in str(tokenizer.__class__):
+            self.bos_token_id = None
+            self.mask_token_id = 32099   # '<extra_id_0>
+        else:
+            self.bos_token_id = tokenizer.bos_token_id
+            self.mask_token_id = tokenizer.mask_token_id
+        self.eos_token_id = tokenizer.eos_token_id
+        self.unk_token_id =tokenizer.unk_token_id
         self.selfsupervised = selfsupervised
         self.metadata = [(0, len(input_ids))]  #override historical metadata setup
         self.input_ids = input_ids              # torch.LongTensor(input_ids)
@@ -567,21 +665,37 @@ class MyQADataset(Dataset):
         self.ners_ids = ners_ids
         self.is_training = is_training
 
-        assert len(self.input_ids)==len(self.attention_mask) #==self.in_metadata[-1][-1]
-        assert len(self.decoder_input_ids)==len(self.decoder_attention_mask) #==self.out_metadata[-1][-1]
+        assert len(self.input_ids)==len(self.attention_mask)==len(self.decoder_input_ids)==len(self.decoder_attention_mask)==len(self.word_starts)==len(self.ners_ids)
+        assert len(self.input_ids)==metadata[-1][-1]
+        
+
 
     def __len__(self):
         return self.metadata[-1][-1]  #len(self.in_metadata)  # num questions
 
     def __getitem__(self, idx):
-        input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx],
-                                             self.args.max_input_length, self.pad_token_id)
+        objective = self.selfsupervised[0]
+        if not self.is_training:
+            if objective: #TODO write generated txt labels into data + calc masked input
+                input_ids, replaced_toks =  self_supervise(self.args, self.input_ids[idx], 
+                                                           self.word_starts[idx], self.ners_ids[idx], self.mask_token_id, self.unk_token_id)
+                
+            else:
+                input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx],
+                                                     self.args.max_input_length, self.pad_token_id)
+            input_ids = torch.LongTensor(input_ids)
+            attention_mask = torch.LongTensor(attention_mask)
+            return input_ids, attention_mask
+        
+        if objective:  #TODO calc both masked input + generated labels as toks
+            pass
+        else:
+            input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx],
+                                                 self.args.max_input_length, self.pad_token_id)
+            decoder_input_ids, decoder_attention_mask = pad_list(self.decoder_input_ids[idx], self.decoder_attention_mask[idx],
+                                                                 self.args.max_output_length, self.pad_token_id)
         input_ids = torch.LongTensor(input_ids)
         attention_mask = torch.LongTensor(attention_mask)
-        if not self.is_training:
-            return input_ids, attention_mask
-        decoder_input_ids, decoder_attention_mask = pad_list(self.decoder_input_ids[idx], self.decoder_attention_mask[idx],
-                                                             self.args.max_output_length, self.pad_token_id)
         decoder_input_ids = torch.LongTensor(decoder_input_ids)
         decoder_attention_mask = torch.LongTensor(decoder_attention_mask)
         return input_ids, attention_mask, decoder_input_ids, decoder_attention_mask

@@ -108,6 +108,15 @@ def main():
                         help="Calculate cosine similarity between sentence embeddings between train datasets specified by  --mixture and eval datasets specified in eval_metrics.json. --create_embeddings must be run before running this.")
     parser.add_argument("--add_only_missing", action='store_true',
                         help="If true only missing sentence embedding files are added.")
+    parser.add_argument("--ssm_prob", default=0.5, type=float,
+                        help="If sample is self supervised and named entities have been found, the prob of masking using SSM vs WWSC.")
+    parser.add_argument("--wwsc_toks_to_mask", default=0.11, type=float,
+                        help="If sample is self supervised and doing WWSC, the proportion of tokens to mask (will adjusted upwards to whole word boundary).")
+    parser.add_argument("--wwsc_avg_span_len", default=2, type=int,
+                        help="If sample is self supervised and doing WWSC, the mean token span length (will adjusted upwards to whole word boundary).")
+    parser.add_argument("--wwsc_span_len_sd", default=0.75, type=float,
+                        help="If sample is self supervised and doing WWSC, the std deviation on token span length.")
+
 
     # Other parameters
     parser.add_argument("--verbose", action='store_true',

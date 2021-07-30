@@ -54,7 +54,7 @@ def get_word_starts(toks, specialchar = 'Ġ', bos_token='<s>'):
 
 # this part occurs on-the-fly during training in the dataset object
 
-def get_spans(tok_idxs, toks_to_mask=0.15, avg_span_len=3, sd=0.75):
+def get_spans(tok_idxs, toks_to_mask=0.11, avg_span_len=2, sd=0.75):
     """ Calculate number and length of spans for given input seq length
     """
     num_toks = len(tok_idxs)
@@ -65,6 +65,8 @@ def get_spans(tok_idxs, toks_to_mask=0.15, avg_span_len=3, sd=0.75):
 
 
 def merge_intervals(in_list):
+    """ Merge overlapping intervals in a list
+    """
     in_list.sort(key=lambda interval: interval[0])
     merged = [in_list[0]]
     for current in in_list:
@@ -76,9 +78,8 @@ def merge_intervals(in_list):
     return merged
 
 
-def mask_words(tok_idxs, span_lengths, word_starts, mask_token, verbose = False):
-    """ Given a list of token indices, an array of spans and a list of word start indices
-        return a masked version of toks plus the list of masked spans 
+def wwsc_select_spans(tok_idxs, span_lengths, word_starts, verbose = False):
+    """ Convert a set of span lengths into actual start/end token positions
     """
     num_toks = len(tok_idxs)
     num_words = len(word_starts)
@@ -101,7 +102,13 @@ def mask_words(tok_idxs, span_lengths, word_starts, mask_token, verbose = False)
         span_end = span_start + length
         replace_spans.append( [span_start, span_end]  )
     replace_spans = merge_intervals(replace_spans)  # aggregate overlaps
-    if verbose: print('replace_spans', replace_spans)
+    return replace_spans
+
+
+def mask_words(tok_idxs, replace_spans, mask_token, verbose = False):
+    """ Given a list of token indices, an array of spans and a list of word start indices
+        return a masked version of toks plus the list of masked spans 
+    """
     replaced_toks = []
     tmp_tok_idxs = tok_idxs.copy()
     masked_tok_count = 0
@@ -149,11 +156,13 @@ print(f"word_starts: {word_starts}")
 tok_idxs = tokenizer.convert_tokens_to_ids(toktxt)
 print(f"tok_idxs: {tok_idxs}")
 
-span_lengths = get_spans(tok_idxs, toks_to_mask=0.10, avg_span_len=3)  #toks_to_mask is not the literal % that will be masked since we adjust upwards to word boundaries
+span_lengths = get_spans(tok_idxs, toks_to_mask=0.11, avg_span_len=2)  #toks_to_mask is not the literal % that will be masked since we adjust upwards to word boundaries
 print(f"span_lengths: {span_lengths}")
-new_tok_idxs, replaced_toks, ratio = mask_words(tok_idxs, span_lengths, word_starts, mask_token=tokenizer.mask_token_id)
+replace_spans = wwsc_select_spans(tok_idxs, span_lengths, word_starts)
+print(f"replace_spans: {replace_spans}")
+new_tok_idxs, replaced_toks, ratio = mask_words(tok_idxs, replace_spans, mask_token=tokenizer.mask_token_id, verbose=True)
 print(f"New toks: {tokenizer.decode(new_tok_idxs)}")
-print(f"Masked: {replaced_toks}")
+print(f"Masked: {replaced_toks}  {[tokenizer.decode(r) for r in replaced_toks]}")
 
 ratios = []
 num_spans = []
@@ -164,7 +173,8 @@ for line in qasc_corpus:
     word_starts = get_word_starts(toktxt)
     tok_idxs = tokenizer.convert_tokens_to_ids(toktxt)
     span_lengths = get_spans(tok_idxs, toks_to_mask=0.11, avg_span_len=2)  #toks_to_mask is not the literal % that will be masked since we adjust upwards to word boundaries
-    new_tok_idxs, replaced_toks, ratio = mask_words(tok_idxs, span_lengths, word_starts, mask_token=tokenizer.mask_token_id)
+    replace_spans = wwsc_select_spans(tok_idxs, span_lengths, word_starts)
+    new_tok_idxs, replaced_toks, ratio = mask_words(tok_idxs, replace_spans, mask_token=tokenizer.mask_token_id)
     ratios.append(ratio)
     num_spans.append(len(replaced_toks))
     new_idxs.append(new_tok_idxs)
@@ -184,7 +194,8 @@ for line in wiki_corpus:
     word_starts = get_word_starts(toktxt)
     tok_idxs = tokenizer.convert_tokens_to_ids(toktxt)
     span_lengths = get_spans(tok_idxs, toks_to_mask=0.11, avg_span_len=2)  #toks_to_mask is not the literal % that will be masked since we adjust upwards to word boundaries
-    new_tok_idxs, replaced_toks, ratio = mask_words(tok_idxs, span_lengths, word_starts, mask_token=tokenizer.mask_token_id)
+    replace_spans = wwsc_select_spans(tok_idxs, span_lengths, word_starts)
+    new_tok_idxs, replaced_toks, ratio = mask_words(tok_idxs, replace_spans, mask_token=tokenizer.mask_token_id)
     ratios.append(ratio)
     num_spans.append(len(replaced_toks))
     new_idxs.append(new_tok_idxs)
@@ -221,6 +232,7 @@ def ner(instr, verbose=False):
 
 def find_tok_idx(toks, start, end):
     """ Convert start/end indices in original text to token indices in tokenised text list
+    Unused, did map_ners approach instead..
     """
     tok_start = -1
     tok_end = -1
@@ -374,7 +386,6 @@ args.indiv_digits=False
 
 questions = wiki_corpus
 questions.extend(wiki_corpus)
-answers = [''] * len(wiki_corpus)
 metadata = [(0, len(wiki_corpus)),(len(wiki_corpus), len(wiki_corpus)+len(wiki_corpus))]
 
 question_input = manual_batch_encode(questions, 
@@ -387,6 +398,7 @@ question_input = manual_batch_encode(questions,
                                      pad=False,
                                      max_length=512)
 
+answers = [''] * len(wiki_corpus)
 answer_input = manual_batch_encode(answers, 
                                      tokenizer,
                                      None,
@@ -427,6 +439,5 @@ m = max(lens)
 midx = [j for j,l in enumerate(lens) if l == m]  # 64
 
 disp(64)
-
 
 

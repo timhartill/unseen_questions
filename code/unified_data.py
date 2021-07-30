@@ -16,7 +16,7 @@ from torch.utils.data import Dataset, TensorDataset, DataLoader, RandomSampler, 
 
 from transformers import AutoTokenizer
 
-from data import QAData, MyDataLoader, manual_batch_encode, normalize_num_batch, selfsupervisedkey, pad_list
+from data import QAData, MyDataLoader, manual_batch_encode, normalize_num_batch, selfsupervisedkey, pad_list, self_supervise
 
 from eval_metrics import get_exact_match
 
@@ -210,6 +210,16 @@ class UnifiedQAData(QAData):
         self.logger.info("Saved prediction in {}".format(save_path))
 
 
+def build_objective_indx(metadata, selfsupervised):
+    """ Return a list of true/false indicating whether objective[idx] is self supervised or not
+    """
+    objective = []
+    for i,(start, end) in enumerate(metadata):
+        num_to_add = end - start
+        objective += [selfsupervised[i]] * num_to_add
+    return objective 
+
+
 class MyUnifiedQADataset(Dataset):
     def __init__(self,
                  input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, args,
@@ -221,18 +231,29 @@ class MyUnifiedQADataset(Dataset):
             self.pad_token_id = tokenizer.pad_token_id
         else:
             self.pad_token_id = None
-        self.selfsupervised = selfsupervised        
+        if 't5' in str(tokenizer.__class__):
+            self.bos_token_id = None
+            self.mask_token_id = 32099   # '<extra_id_0>
+        else:
+            self.bos_token_id = tokenizer.bos_token_id
+            self.mask_token_id = tokenizer.mask_token_id
+        self.eos_token_id = tokenizer.eos_token_id
+        self.unk_token_id =tokenizer.unk_token_id
+        self.selfsupervised = selfsupervised                     # [ds1 ssvised t/f, ds2 ssvised t/f, ...]
         self.input_ids = input_ids                              #torch.LongTensor(input_ids)
         self.attention_mask = attention_mask                    #torch.LongTensor(attention_mask)
         self.decoder_input_ids = decoder_input_ids              #torch.LongTensor(decoder_input_ids)
         self.decoder_attention_mask = decoder_attention_mask    #torch.LongTensor(decoder_attention_mask)
-        self.metadata = metadata
-        self.word_starts = word_starts
-        self.ners_ids = ners_ids
+        self.metadata = metadata                                # [(ds1 start, ds1 end), (ds2 start, ds2 end), ...]
+        self.word_starts = word_starts                          # eg [2, 4, 7,8,...]
+        self.ners_ids = ners_ids                                # eg [[[22, 30],[1,9]], [[8, 15]], [[61, 67]]]
         self.is_training = is_training
 
-        assert len(self.input_ids)==len(self.attention_mask)==len(self.decoder_input_ids)==len(self.decoder_attention_mask)
+        assert len(self.input_ids)==len(self.attention_mask)==len(self.decoder_input_ids)==len(self.decoder_attention_mask)==len(self.word_starts)==len(self.ners_ids)
         assert len(self.input_ids)==metadata[-1][-1]
+        
+        if not self.is_training:
+            self.objective = build_objective_indx(self.metadata, self.selfsupervised)
 
         self.indices = [np.random.permutation(range(start, end)) for start, end in self.metadata]  # list of 11 buckets of component dataset indices
         self.positions = [0 for _ in self.metadata]  # Current position in each bucket. Incremented in __getitem__
@@ -244,13 +265,19 @@ class MyUnifiedQADataset(Dataset):
 
     def __getitem__(self, idx):
         if not self.is_training:
-            input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx],
-                                                 self.args.max_input_length, self.pad_token_id)
+            objective = self.objective[idx] 
+            if objective:  #TODO write generated txt labels into data + calc masked input
+                pass
+            else:
+                input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx],
+                                                     self.args.max_input_length, self.pad_token_id)
             input_ids = torch.LongTensor(input_ids)
             attention_mask = torch.LongTensor(attention_mask)
             return input_ids, attention_mask
 
-        idx = idx % len(self.metadata)  # Select component dataset with uniform chance not proportional to dataset sizes
+
+        idx = idx % len(self.metadata)                   # Select component dataset with uniform chance not proportional to dataset sizes
+        objective = self.selfsupervised[idx]
         if self.positions[idx]==len(self.indices[idx]):  # If reached the end of this dataset reshuffle dataset indices in bucket
             start, end = self.metadata[idx]
             self.indices[idx] = np.random.permutation(range(start, end))
@@ -258,13 +285,15 @@ class MyUnifiedQADataset(Dataset):
 
         dp_idx = self.indices[idx][self.positions[idx]]  # Select dataset index within bucket
         self.positions[idx] += 1
-
-        input_ids, attention_mask = pad_list(self.input_ids[dp_idx], self.attention_mask[dp_idx],
-                                             self.args.max_input_length, self.pad_token_id)
+        if objective:   #TODO calc both masked input + generated labels as toks
+            pass
+        else:
+            input_ids, attention_mask = pad_list(self.input_ids[dp_idx], self.attention_mask[dp_idx],
+                                                 self.args.max_input_length, self.pad_token_id)
+            decoder_input_ids, decoder_attention_mask = pad_list(self.decoder_input_ids[dp_idx], self.decoder_attention_mask[dp_idx],
+                                                                 self.args.max_output_length, self.pad_token_id)
         input_ids = torch.LongTensor(input_ids)
         attention_mask = torch.LongTensor(attention_mask)
-        decoder_input_ids, decoder_attention_mask = pad_list(self.decoder_input_ids[dp_idx], self.decoder_attention_mask[dp_idx],
-                                                             self.args.max_output_length, self.pad_token_id)
         decoder_input_ids = torch.LongTensor(decoder_input_ids)
         decoder_attention_mask = torch.LongTensor(decoder_attention_mask)
         return input_ids, attention_mask, decoder_input_ids, decoder_attention_mask
