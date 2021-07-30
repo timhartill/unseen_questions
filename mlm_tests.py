@@ -211,10 +211,11 @@ def ner(instr, verbose=False):
     """ Perform named entity recognition on text and return a list of named entities, numbers, dates etc
     """
     ner_list = []
-    doc = nlp(instr.strip('\\n \n'))    
+    doc = nlp(instr.replace('\\n \n', ''))    
     for ent in doc.ents:
         if verbose: print(ent.text, '"' + ent.text_with_ws + '"', ent.start_char, ent.end_char, ent.label_)
-        ner_list.append( {'txt_with_ws': ent.text_with_ws, 'start':ent.start_char, 'end': ent.end_char, 'type': ent.label_} )
+        ner_list.append(ent.text_with_ws)
+        #ner_list.append( {'txt_with_ws': ent.text_with_ws, 'start':ent.start_char, 'end': ent.end_char, 'type': ent.label_} )
     return ner_list
 
 
@@ -249,13 +250,16 @@ def find_sub_list(sublst1, sublst2, lst):
         if lst[ind:ind+sll]==sublst2:
             results.append((ind,ind+sll))  
     results = list(set(results))
-    return results  
+    new_results = []
+    for l in results:
+        new_results.append( list(l) )
+    return new_results  
 
 
-def map_ners(toks, ner, tokenizer, verbose = False):
+def map_ners(toks, ners, tokenizer, verbose = False):
     """ Map list of NERs previously identified on raw text to token ids
     """
-    unique_ner = list(set([ w['txt_with_ws'].strip(string.punctuation+' ').strip() for w in ner ]))
+    unique_ner = list(set([ w.strip(string.punctuation+' ').strip() for w in ners ]))
     tok_map = []
     final_ner = []
     for n in unique_ner:
@@ -265,9 +269,9 @@ def map_ners(toks, ner, tokenizer, verbose = False):
         if verbose: 
             print(f"Orig: {n}") 
             for tok_start, tok_end in found_list:
-                print(f"tokens: {wiki0[tok_start:tok_end]}")
+                print(f"tokens: {toks[tok_start:tok_end]}")
             if len(found_list) == 0:
-                print(f"{i}NOT FOUND: {n} 1:{ner_txt_tok} 2:{ner_txt_tok2}")
+                print(f"NOT FOUND: {n} 1:{ner_txt_tok} 2:{ner_txt_tok2}")
         if len(found_list) > 0:
             tok_map.append(found_list)
             final_ner.append(n)
@@ -276,7 +280,7 @@ def map_ners(toks, ner, tokenizer, verbose = False):
 
 ners = []
 for line in qasc_corpus:
-    ners.append( ner( line.strip('\\n \n') ) )  #spacy thinks land.\\n and \\n in general is a person..
+    ners.append( ner( line ) )  #spacy thinks land.\\n and \\n in general is a person..
 num_ners = [len(n) for n in ners]
 num_ners_np = np.array(num_ners)
 print(f" Num: {len(num_ners)}  Mean:{num_ners_np.mean():.2f}  Max:{num_ners_np.max():.2f}  Min:{num_ners_np.min():.2f}")
@@ -284,10 +288,34 @@ print(f" Num: {len(num_ners)}  Mean:{num_ners_np.mean():.2f}  Max:{num_ners_np.m
 
 wiki_ners = []
 for line in wiki_corpus:
-    wiki_ners.append( ner( line.strip('\\n \n') ) )  #spacy thinks land.\\n and \\n in general is a person..
+    wiki_ners.append( ner( line ) )  #spacy thinks land.\\n and \\n in general is a person..
 num_ners = [len(n) for n in wiki_ners]
 num_ners_np = np.array(num_ners)
 print(f" Num: {len(num_ners)}  Mean:{num_ners_np.mean():.2f}  Max:{num_ners_np.max():.2f}  Min:{num_ners_np.min():.2f}")
+
+
+toks = tokenizer.tokenize(wiki_corpus[1])
+item_ners, item_ners_ids = map_ners(toks, wiki_ners[1], tokenizer)  # [[[22, 30],[1,9]], [[8, 15]], [[61, 67]]]
+
+tsttoks = toks[:29]
+numtoks = len(tsttoks)
+new_ners_ids = []
+new_ners = []
+print(f"Starting item_ners: {item_ners}  Starting item_ners_ids:{item_ners_ids}")
+for i, item_ids in enumerate(item_ners_ids):
+    print(i, item_ids)
+    new_item_id_list = []
+    for j, id in enumerate(item_ids):
+        print(i, j, id)
+        if id[1] <= numtoks: 
+            new_item_id_list.append(id)
+        else:
+            print(f'Delete {id} since {id[1]} > {numtoks}')
+    if new_item_id_list:
+        new_ners.append( item_ners[i] )
+        new_ners_ids.append(new_item_id_list)            
+print(f"Ending item_ners: {new_ners}  Ending item_ners_ids:{new_ners_ids}")
+
 
 
 def test_ner(c, ner, i, verbose = False):
@@ -339,7 +367,66 @@ for n in ners[1]:
         print(f"tokens: {wiki0[tok_start:tok_end]}")
 
 
+args.append_another_bos=True
+args.strip_single_quotes=False
+args.do_lowercase=True
+args.indiv_digits=False
 
+questions = wiki_corpus
+questions.extend(wiki_corpus)
+answers = [''] * len(wiki_corpus)
+metadata = [(0, len(wiki_corpus)),(len(wiki_corpus), len(wiki_corpus)+len(wiki_corpus))]
+
+question_input = manual_batch_encode(questions, 
+                                     tokenizer,
+                                     None,
+                                     args,
+                                     [True, False],
+                                     metadata,
+                                     truncation=True,
+                                     pad=False,
+                                     max_length=512)
+
+answer_input = manual_batch_encode(answers, 
+                                     tokenizer,
+                                     None,
+                                     args,
+                                     [True],
+                                     metadata,
+                                     truncation=True,
+                                     pad=False,
+                                     max_length=100)
+
+
+decoder_input_ids, decoder_attention_mask = answer_input["input_ids"], answer_input["attention_mask"]
+
+
+print(question_input.keys())
+word_starts = question_input["word_starts"]  
+ners_ids = question_input["ners_ids"]
+input_ids, attention_mask = question_input["input_ids"], question_input["attention_mask"]
+
+def disp(i):
+    print('ORIG:', wiki_corpus[i])
+    print('DECODED:', tokenizer.decode(input_ids[i]))
+    print('INPUTIDS:', input_ids[i], len(input_ids[i]))
+    #print(attention_mask[i], len(attention_mask[i]))
+    print('NERS', ners_ids[i])
+    print('WS', word_starts[i])
+    print("LASTWORDTOKS:", input_ids[i][word_starts[i][-1]:], 'LASTWORD:"' + tokenizer.decode(input_ids[i][word_starts[i][-1]:]) + '"')
+    print("FIRSTNER", input_ids[i][ners_ids[i][0][0][0]: ners_ids[i][0][0][1]])
+    print('FIRSTNERDEC#'+tokenizer.decode(input_ids[i][ners_ids[i][0][0][0]: ners_ids[i][0][0][1]]) + '"')
+    print('LASTNERDEC#'+tokenizer.decode(input_ids[i][ners_ids[i][-1][0][0]: ners_ids[i][-1][0][1]]) + '#')
+
+disp(0)
+disp(1)
+disp(2)
+disp(3)
+lens = [len(i) for i in wiki_corpus]
+m = max(lens)
+midx = [j for j,l in enumerate(lens) if l == m]  # 64
+
+disp(64)
 
 
 

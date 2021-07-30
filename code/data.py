@@ -168,6 +168,8 @@ def get_word_starts(toks, specialchar = 'Ġ', bos_token='<s>'):
     word_starts = [i for (i,t) in enumerate(toks) if t[0]==specialchar or t[0] in string.punctuation]
     if toks[0] == bos_token: # don't want to mask a bos token 
         word_starts.pop(0)   
+    if toks[word_starts[-1]] == specialchar: #space at end before newline
+        word_starts.pop(-1)
     if word_starts[0] != 1:  # first non bos token is always a word start
         word_starts = [1] + word_starts
     return word_starts
@@ -262,12 +264,24 @@ def manual_encode(instr, tokenizer, args, truncation=True, max_length=512,
     numtoks = len(ids)
     if truncation and numtoks > max_length-1:
         ids = ids[:max_length-1]
+        if selfsupervised:
+            wstarts = [w for w in wstarts if w < max_length]
+            new_ners_ids = []
+            for i, item_ids in enumerate(ners_ids):
+                new_item_id_list = []
+                for j, nid in enumerate(item_ids):
+                    if nid[1] < max_length: 
+                        new_item_id_list.append(nid)
+                if new_item_id_list:
+                    new_ners_ids.append(new_item_id_list)
+            ners_ids = new_ners_ids
+        
     ids = ids + [tokenizer.eos_token_id]
     numtoks = len(ids)
     attention_mask = [1] * numtoks
     if numtoks < max_length and pad and tokenizer.pad_token_id is not None:
         ids, attention_mask = pad_list(ids, attention_mask, max_length, tokenizer.pad_token_id)
-    return ids, attention_mask, wstarts, ners, ners_ids
+    return ids, attention_mask, wstarts, ners_ids
 
 
 def manual_batch_encode(instrlist, tokenizer, logger, args, selfsupervised, metadata,
@@ -299,21 +313,20 @@ def manual_batch_encode(instrlist, tokenizer, logger, args, selfsupervised, meta
         instrlist = [re.sub("'(.*)'", r"\1", s) for s in instrlist]
     
     if args.append_another_bos:
-        instrlist = [bos_token + s for s in instrlist if s != '']  # Don't add bos to nonexistent answer if self supervised
+        instrlist = [bos_token + s if s != '' else s for s in instrlist]  # Don't add bos to nonexistent answer if self supervised
     bos_token = bos_token.strip()
         
     outdict = {}
     input_ids_list = []
     attention_mask_list = []
     word_starts_list = []
-    ners_list = []
     ners_ids_list = []
     meta_index = 0
     for i, instr in enumerate(instrlist):
         if i >= metadata[meta_index][1]:
             meta_index += 1    
         if instr != '':
-            input_ids, attention_mask, wstarts, ners, ners_ids = manual_encode(instr, tokenizer, args,
+            input_ids, attention_mask, wstarts, ners_ids = manual_encode(instr, tokenizer, args,
                                                       truncation=truncation,
                                                       max_length=max_length,
                                                       pad=pad, specialchar=specialchar,
@@ -323,17 +336,14 @@ def manual_batch_encode(instrlist, tokenizer, logger, args, selfsupervised, meta
             input_ids = []
             attention_mask = []
             wstarts = []
-            ners = []
             ners_ids = []
         input_ids_list.append(input_ids)
         attention_mask_list.append(attention_mask)
         word_starts_list.append(wstarts)
-        ners_list.append(ners)
         ners_ids_list.append(ners_ids)
     outdict['input_ids'] = input_ids_list
     outdict['attention_mask'] = attention_mask_list
     outdict['word_starts'] = word_starts_list
-    outdict['ners'] = ners_list
     outdict['ners_ids'] = ners_ids_list
     return outdict
 
@@ -446,7 +456,7 @@ class QAData(object):
             self.logger.info("Loading pre-tokenized data from {}".format(preprocessed_path))
             with open(preprocessed_path, "r") as f:
                 input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, \
-                    metadata, word_starts, ners, ners_ids = json.load(f)
+                    metadata, word_starts, ners_ids = json.load(f)
         else:
             print ("Start tokenizing...")
             
@@ -475,18 +485,15 @@ class QAData(object):
                                                  max_length=self.args.max_output_length)
 
             word_starts = question_input["word_starts"] 
-            ners, ners_ids = question_input["ners"], question_input["ners_ids"]
+            ners_ids = question_input["ners_ids"]
             input_ids, attention_mask = question_input["input_ids"], question_input["attention_mask"]
             decoder_input_ids, decoder_attention_mask = answer_input["input_ids"], answer_input["attention_mask"]
             
             if self.load:
-                preprocessed_data = [input_ids, attention_mask,
-                                     decoder_input_ids, decoder_attention_mask,
-                                     metadata, word_starts, ners, ners_ids]
                 with open(preprocessed_path, "w") as f:
                     json.dump([input_ids, attention_mask,
                                decoder_input_ids, decoder_attention_mask,
-                               metadata, word_starts,ners, ners_ids], f)
+                               metadata, word_starts, ners_ids], f)
                 self.logger.info("Saved tokenised data to {}".format(preprocessed_path))
 
         self.dataset = MyQADataset(input_ids, attention_mask,
@@ -496,7 +503,7 @@ class QAData(object):
                                          tokenizer=self.tokenizer,
                                          selfsupervised = self.selfsupervised,
                                          word_starts = word_starts,
-                                         ners=ners, ners_ids=ners_ids)
+                                         ners_ids=ners_ids)
         self.logger.info("Loaded {} examples from {} data".format(len(self.dataset), self.data_type))
 
         if do_return:
@@ -543,7 +550,7 @@ class MyQADataset(Dataset):
                  decoder_input_ids, decoder_attention_mask, args,
                  metadata=None,
                  is_training=False, tokenizer=None, selfsupervised=None, 
-                 word_starts=None, ners=None, ners_ids=None):
+                 word_starts=None, ners_ids=None):
         self.args = args
         self.tokenizer = tokenizer
         if tokenizer is not None and tokenizer.pad_token_id is not None:
@@ -557,7 +564,6 @@ class MyQADataset(Dataset):
         self.decoder_input_ids = decoder_input_ids              # torch.LongTensor(decoder_input_ids)
         self.decoder_attention_mask = decoder_attention_mask    # torch.LongTensor(decoder_attention_mask)
         self.word_starts = word_starts
-        self.ners = ners
         self.ners_ids = ners_ids
         self.is_training = is_training
 
