@@ -2,7 +2,7 @@
 
 Author: Tim Hartill
 
-Adapted from https://github.com/allenai/unifiedqa 
+Portions adapted from https://github.com/allenai/unifiedqa 
 With other portions adapted from elsewhere as noted in comments
 """
 
@@ -255,12 +255,13 @@ def manual_encode(instr, tokenizer, args, truncation=True, max_length=512,
     ids = tokenizer.convert_tokens_to_ids(toks)
     if tokenizer.bos_token_id is not None:
         ids = [tokenizer.bos_token_id] + ids
-        for i in range(len(wstarts)): 
-            wstarts[i] += 1
-        for i in range(len(ners_ids)):
-            for j in range(len(ners_ids[i])):
-                ners_ids[i][j][0] += 1
-                ners_ids[i][j][1] += 1
+        if selfsupervised:
+            for i in range(len(wstarts)): 
+                wstarts[i] += 1
+            for i in range(len(ners_ids)):
+                for j in range(len(ners_ids[i])):
+                    ners_ids[i][j][0] += 1
+                    ners_ids[i][j][1] += 1
     numtoks = len(ids)
     if truncation and numtoks > max_length-1:
         ids = ids[:max_length-1]
@@ -278,8 +279,11 @@ def manual_encode(instr, tokenizer, args, truncation=True, max_length=512,
         
     ids = ids + [tokenizer.eos_token_id]
     numtoks = len(ids)
-    attention_mask = [1] * numtoks
-    if numtoks < max_length and pad and tokenizer.pad_token_id is not None:
+    if not selfsupervised:
+        attention_mask = [1] * numtoks
+    else:
+        attention_mask = []
+    if pad and numtoks < max_length and tokenizer.pad_token_id is not None and not selfsupervised:
         ids, attention_mask = pad_list(ids, attention_mask, max_length, tokenizer.pad_token_id)
     return ids, attention_mask, wstarts, ners_ids
 
@@ -498,7 +502,7 @@ class QAData(object):
                 self.logger.info("Saved tokenised data to {}".format(preprocessed_path))
 
         self.dataset = MyQADataset(input_ids, attention_mask,
-                                         decoder_input_ids, decoder_attention_mask, self.args,
+                                         decoder_input_ids, decoder_attention_mask, self.args, self.data,
                                          metadata=metadata,
                                          is_training=self.is_training,
                                          tokenizer=self.tokenizer,
@@ -593,55 +597,77 @@ def wwsc_select_spans(tok_idxs, span_lengths, word_starts):
     return replace_spans
 
 
-def mask_words(tok_idxs, replace_spans, mask_token):
+def mask_words(tok_idxs, replace_spans, mask_seq):
     """ Given a list of token indices,  + an array of spans [[start1, end1], [start2, end2], ...]
+        + a list of mask substitutions
         return a masked version of toks plus the list of masked spans 
     """
     replaced_toks = []
     tmp_tok_idxs = tok_idxs.copy()
+    ctr = 0
     for replace_span in replace_spans:
-        replaced_toks.append( tok_idxs[replace_span[0]:replace_span[1]] )
+        replaced_toks.append( mask_seq[ctr] + tok_idxs[replace_span[0]:replace_span[1]] )
+        ctr += 1
+        if ctr > 18:  # use mask_seq[19] to as answer end indicator
+            ctr = 0
         first = True
         for i in range(replace_span[0], replace_span[1]):
             if first:
-                tmp_tok_idxs[i] = mask_token
+                tmp_tok_idxs[i] = -8888
                 first = False
             else:
-                tmp_tok_idxs[i] = -999999
+                tmp_tok_idxs[i] = -9999
     new_tok_idxs = []
+    ctr = 0
     for tok in tmp_tok_idxs:
-        if tok != -999999:
-            new_tok_idxs.append(tok)
+        if tok != -9999:
+            if tok == -8888:
+                new_tok_idxs.extend(mask_seq[ctr])
+                ctr += 1
+                if ctr > 18:  # use mask_seq[19] to as answer end indicator
+                    ctr = 0
+            else:    
+                new_tok_idxs.append(tok)
     return new_tok_idxs, replaced_toks
 
 
-def self_supervise(args, tok_idxs, word_starts, ners_ids, mask_token_id, unk_token_id):
+def self_supervise(args, tok_idxs, word_starts, ners_ids, mask_seq, nq_token_ids, bos_token_id, eos_token_id):
     """ Mask text and return masked input and list of masked spans
     """
-    if len(ners_ids) > 0 and np.random.rand() > args.ssm_prob:
+    if len(ners_ids) > 0 and np.random.rand() < args.ssm_prob:
         ner_idx = np.random.choice(len(ners_ids))
         ner_pos = np.random.choice(len(ners_ids[ner_idx]))
         replace_spans = [ ners_ids[ner_idx][ner_pos] ]
-        new_tok_idxs, replaced_toks = mask_words(tok_idxs, replace_spans, mask_token=mask_token_id)
+        new_tok_idxs, replaced_toks = mask_words(tok_idxs, replace_spans, mask_seq)
     else:  #Whole Word Span Corruption
         span_lengths = get_spans(tok_idxs, toks_to_mask=args.wwsc_toks_to_mask, 
                                  avg_span_len=args.wwsc_avg_span_len, sd=args.wwsc_span_len_sd)
         replace_spans = wwsc_select_spans(tok_idxs, span_lengths, word_starts)
-        new_tok_idxs, replaced_toks = mask_words(tok_idxs, replace_spans, mask_token=mask_token_id)
+        new_tok_idxs, replaced_toks = mask_words(tok_idxs, replace_spans, mask_seq)
     if replaced_toks == []:
-        replaced_toks = [[unk_token_id]]
-    #TODO add answer formatting + padding + make attn masks
-    return new_tok_idxs, replaced_toks
+        replaced_toks = [mask_seq[0] + nq_token_ids]
+    replaced_toks.append(mask_seq[19])
+    new_replaced_toks = []
+    for r in replaced_toks:
+        new_replaced_toks.extend(r)
+    if bos_token_id is not None:
+        if args.append_another_bos:
+            new_replaced_toks = [bos_token_id] + new_replaced_toks
+        new_replaced_toks = [bos_token_id] + new_replaced_toks        
+    new_replaced_toks.append(eos_token_id)    
+    if len(new_tok_idxs) > args.max_input_length:
+        new_tok_idxs = new_tok_idxs[:args.max_ouput_length-1] + [eos_token_id]
+    attention_mask = [1] * len(new_tok_idxs)
+    decoder_attention_mask = [1] * len(new_replaced_toks)
+    return new_tok_idxs, attention_mask, new_replaced_toks, decoder_attention_mask
 
 
 class MyQADataset(Dataset):
-    def __init__(self,
-                 input_ids, attention_mask,
-                 decoder_input_ids, decoder_attention_mask, args,
-                 metadata=None,
-                 is_training=False, tokenizer=None, selfsupervised=None, 
+    def __init__(self, input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, args, data,
+                 metadata=None, is_training=False, tokenizer=None, selfsupervised=None, 
                  word_starts=None, ners_ids=None):
         self.args = args
+        self.parent_data = data
         self.tokenizer = tokenizer
         if tokenizer is not None and tokenizer.pad_token_id is not None:
             self.pad_token_id = tokenizer.pad_token_id
@@ -650,11 +676,23 @@ class MyQADataset(Dataset):
         if 't5' in str(tokenizer.__class__):
             self.bos_token_id = None
             self.mask_token_id = 32099   # '<extra_id_0>
+            self.mask_token = '<extra_id_0>'
+            self.mask_seq = [ '<extra_id_0>', '<extra_id_1>', '<extra_id_2>', '<extra_id_3>', '<extra_id_4>', '<extra_id_5>',
+                              '<extra_id_6>', '<extra_id_7>', '<extra_id_8>', '<extra_id_9>', '<extra_id_10>', '<extra_id_11>',
+                              '<extra_id_12>', '<extra_id_13>', '<extra_id_14>', '<extra_id_15>', '<extra_id_16>', '<extra_id_17>',
+                              '<extra_id_18>', '<extra_id_19>']
         else:
             self.bos_token_id = tokenizer.bos_token_id
             self.mask_token_id = tokenizer.mask_token_id
+            self.mask_token = tokenizer.mask_token
+            self.mask_seq = [tokenizer.mask_token] * 20
+        if args.add_mask_char != 'NONE':
+            self.mask_seq = [m+args.add_mask_char for m in self.mask_seq]
+        if args.add_mask_ctr:
+            self.mask_seq = [m+str(i) for i, m in enumerate(self.mask_seq)]
+        self.mask_seq = [tokenizer.convert_tokens_to_ids(tokenizer.tokenize(m)) for m in self.mask_seq]
         self.eos_token_id = tokenizer.eos_token_id
-        self.unk_token_id =tokenizer.unk_token_id
+        self.no_question_label = tokenizer.convert_tokens_to_ids(tokenizer.tokenize("no mask"))        
         self.selfsupervised = selfsupervised
         self.metadata = [(0, len(input_ids))]  #override historical metadata setup
         self.input_ids = input_ids              # torch.LongTensor(input_ids)
@@ -669,17 +707,23 @@ class MyQADataset(Dataset):
         assert len(self.input_ids)==metadata[-1][-1]
         
 
-
     def __len__(self):
-        return self.metadata[-1][-1]  #len(self.in_metadata)  # num questions
+        return self.metadata[-1][-1]   # num questions
 
     def __getitem__(self, idx):
-        objective = self.selfsupervised[0]
+        ssvise = self.selfsupervised[0]
         if not self.is_training:
-            if objective: #TODO write generated txt labels into data + calc masked input
-                input_ids, replaced_toks =  self_supervise(self.args, self.input_ids[idx], 
-                                                           self.word_starts[idx], self.ners_ids[idx], self.mask_token_id, self.unk_token_id)
-                
+            if ssvise:
+                input_ids, attention_mask, decoder_input_ids, decoder_attention_mask = self_supervise(self.args, 
+                                                                                                      self.input_ids[idx], 
+                                                                                                      self.word_starts[idx], 
+                                                                                                      self.ners_ids[idx], 
+                                                                                                      self.mask_seq, 
+                                                                                                      self.no_question_label,
+                                                                                                      self.bos_token_id,
+                                                                                                      self.eos_token_id)
+                self.parent_data[idx]['answer'] = self.tokenizer.decode(decoder_input_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+                input_ids, attention_mask = pad_list(input_ids, attention_mask, self.args.max_input_length, self.pad_token_id)
             else:
                 input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx],
                                                      self.args.max_input_length, self.pad_token_id)
@@ -687,8 +731,18 @@ class MyQADataset(Dataset):
             attention_mask = torch.LongTensor(attention_mask)
             return input_ids, attention_mask
         
-        if objective:  #TODO calc both masked input + generated labels as toks
-            pass
+        if ssvise:
+            input_ids, attention_mask, decoder_input_ids, decoder_attention_mask = self_supervise(self.args, 
+                                                                                                  self.input_ids[idx], 
+                                                                                                  self.word_starts[idx], 
+                                                                                                  self.ners_ids[idx], 
+                                                                                                  self.mask_seq, 
+                                                                                                  self.no_question_label,
+                                                                                                  self.bos_token_id,
+                                                                                                  self.eos_token_id)
+            input_ids, attention_mask = pad_list(input_ids, attention_mask, self.args.max_input_length, self.pad_token_id)
+            decoder_input_ids, decoder_attention_mask = pad_list(decoder_input_ids, decoder_attention_mask, self.args.max_input_length, self.pad_token_id)
+
         else:
             input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx],
                                                  self.args.max_input_length, self.pad_token_id)

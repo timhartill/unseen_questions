@@ -21,6 +21,8 @@ nlp = spacy.load("en_core_web_sm")
 m = "facebook/bart-large"
 tokenizer = AutoTokenizer.from_pretrained(m)
 
+t5 = AutoTokenizer.from_pretrained('t5-base')
+
 qasc_corpus = []
 with open("/data/thar011/data/unifiedqa/qasc_facts_selfsvised/dev.txt", "r") as f:
                 for line in f:
@@ -105,33 +107,38 @@ def wwsc_select_spans(tok_idxs, span_lengths, word_starts, verbose = False):
     return replace_spans
 
 
-def mask_words(tok_idxs, replace_spans, mask_token, verbose = False):
-    """ Given a list of token indices, an array of spans and a list of word start indices
+def mask_words(tok_idxs, replace_spans, mask_seq):
+    """ Given a list of token indices,  + an array of spans [[start1, end1], [start2, end2], ...]
+        + a list of mask substitutions
         return a masked version of toks plus the list of masked spans 
     """
     replaced_toks = []
     tmp_tok_idxs = tok_idxs.copy()
-    masked_tok_count = 0
+    ctr = 0
     for replace_span in replace_spans:
-        replaced_toks.append( tok_idxs[replace_span[0]:replace_span[1]] )
+        replaced_toks.append( mask_seq[ctr] + tok_idxs[replace_span[0]:replace_span[1]] )
+        ctr += 1
+        if ctr > 18:  # use mask_seq[19] to as answer end indicator
+            ctr = 0
         first = True
         for i in range(replace_span[0], replace_span[1]):
-            masked_tok_count += 1
             if first:
-                tmp_tok_idxs[i] = mask_token
+                tmp_tok_idxs[i] = -8888
                 first = False
             else:
-                tmp_tok_idxs[i] = -999999
-    if verbose: print(f'masked tok_idxs: {tmp_tok_idxs}')
-    if verbose: print('replace_toks', replaced_toks)
+                tmp_tok_idxs[i] = -9999
     new_tok_idxs = []
+    ctr = 0
     for tok in tmp_tok_idxs:
-        if tok != -999999:
-            new_tok_idxs.append(tok)
-    if verbose: print(f"new_tok_idxs: {new_tok_idxs}")
-    ratio = masked_tok_count/len(tok_idxs)
-    if verbose: print(f"masked token ratio: {ratio}")
-    return new_tok_idxs, replaced_toks, ratio
+        if tok != -9999:
+            if tok == -8888:
+                new_tok_idxs.extend(mask_seq[ctr])
+                ctr += 1
+                if ctr > 18:  # use mask_seq[19] to as answer end indicator
+                    ctr = 0
+            else:    
+                new_tok_idxs.append(tok)
+    return new_tok_idxs, replaced_toks
     
 
 
@@ -440,4 +447,33 @@ midx = [j for j,l in enumerate(lens) if l == m]  # 64
 
 disp(64)
 
+
+from torch.utils.data import Dataset
+
+class dl(Dataset):
+    def __init__(self, thedata):
+        self.dldata = thedata
+        
+    def __len__(self):
+        return 10
+    
+    def __getitem__(self, idx):
+        self.dldata[idx] = -9999
+        
+
+class t1(object):
+    def __init__(self):
+        self.data = [1,2,3,4,5,6,7,8,9,10]
+        self.mydl = None
+    
+    def load(self):
+        self.mydl = dl(self.data)    
+
+tst = t1()
+tst.load()
+tst.data  # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+tst.mydl.dldata[0] = -99
+tst.data    #[-99, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+tst.mydl.__getitem__(2)
+tst.data   #[-99, 2, -9999, 4, 5, 6, 7, 8, 9, 10]
 

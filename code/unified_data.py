@@ -2,7 +2,7 @@
 
 Author: Tim Hartill
 
-Adapted from https://github.com/allenai/unifiedqa
+Portions Adapted from https://github.com/allenai/unifiedqa
 """
 
 import os
@@ -169,7 +169,7 @@ class UnifiedQAData(QAData):
 
         self.metadata = metadata
         self.dataset = MyUnifiedQADataset(input_ids, attention_mask,
-                                          decoder_input_ids, decoder_attention_mask, self.args,
+                                          decoder_input_ids, decoder_attention_mask, self.args, self.data,
                                           metadata=metadata, is_training=self.is_training,
                                           tokenizer=self.tokenizer,
                                           selfsupervised = self.selfsupervised,
@@ -220,12 +220,25 @@ def build_objective_indx(metadata, selfsupervised):
     return objective 
 
 
+def get_parentdata_indx(idx, metadata, unified_dataset):
+    """ Given an index to input_ids, return the corresponding dataset name and index
+        into that dataset.
+    """
+    for i,(start, end) in enumerate(metadata):  
+        if idx >= start and idx < end:
+            dset = unified_dataset[i]
+            ds_idx = idx - start
+            break
+    return dset, ds_idx
+
+
 class MyUnifiedQADataset(Dataset):
-    def __init__(self,
-                 input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, args,
+    def __init__(self, input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, args, data,
                  metadata, is_training=False, tokenizer=None, selfsupervised=None, 
                  word_starts=None, ners_ids=None):
         self.args = args
+        self.parent_data = data
+        self.unified_dataset = list(data.keys())
         self.tokenizer = tokenizer
         if tokenizer is not None and tokenizer.pad_token_id is not None:
             self.pad_token_id = tokenizer.pad_token_id
@@ -234,11 +247,23 @@ class MyUnifiedQADataset(Dataset):
         if 't5' in str(tokenizer.__class__):
             self.bos_token_id = None
             self.mask_token_id = 32099   # '<extra_id_0>
+            self.mask_token = '<extra_id_0>'
+            self.mask_seq = [ '<extra_id_0>', '<extra_id_1>', '<extra_id_2>', '<extra_id_3>', '<extra_id_4>', '<extra_id_5>',
+                              '<extra_id_6>', '<extra_id_7>', '<extra_id_8>', '<extra_id_9>', '<extra_id_10>', '<extra_id_11>',
+                              '<extra_id_12>', '<extra_id_13>', '<extra_id_14>', '<extra_id_15>', '<extra_id_16>', '<extra_id_17>',
+                              '<extra_id_18>', '<extra_id_19>']
         else:
             self.bos_token_id = tokenizer.bos_token_id
             self.mask_token_id = tokenizer.mask_token_id
+            self.mask_token = tokenizer.mask_token
+            self.mask_seq = [tokenizer.mask_token] * 20
+        if args.add_mask_char != 'NONE':
+            self.mask_seq = [m+'_' for m in self.mask_seq]
+        if args.add_mask_ctr:
+            self.mask_seq = [m+str(i) for i, m in enumerate(self.mask_seq)]
+        self.mask_seq = [tokenizer.convert_tokens_to_ids(tokenizer.tokenize(m)) for m in self.mask_seq]
         self.eos_token_id = tokenizer.eos_token_id
-        self.unk_token_id =tokenizer.unk_token_id
+        self.no_question_label = tokenizer.convert_tokens_to_ids(tokenizer.tokenize("no mask")) 
         self.selfsupervised = selfsupervised                     # [ds1 ssvised t/f, ds2 ssvised t/f, ...]
         self.input_ids = input_ids                              #torch.LongTensor(input_ids)
         self.attention_mask = attention_mask                    #torch.LongTensor(attention_mask)
@@ -261,13 +286,23 @@ class MyUnifiedQADataset(Dataset):
             if is_training else len(self.input_ids)
 
     def __len__(self):
-        return self.length  #Note 6655 not 391740 if is_training, if not is_training # questions
+        return self.length  #Note 6655 not 391740 if is_training, if not is_training total # questions
 
     def __getitem__(self, idx):
         if not self.is_training:
-            objective = self.objective[idx] 
-            if objective:  #TODO write generated txt labels into data + calc masked input
-                pass
+            ssvise = self.objective[idx] 
+            if ssvise:
+                input_ids, attention_mask, decoder_input_ids, decoder_attention_mask = self_supervise(self.args, 
+                                                                                                      self.input_ids[idx], 
+                                                                                                      self.word_starts[idx], 
+                                                                                                      self.ners_ids[idx], 
+                                                                                                      self.mask_seq, 
+                                                                                                      self.no_question_label,
+                                                                                                      self.bos_token_id,
+                                                                                                      self.eos_token_id)
+                dset, ds_idx = get_parentdata_indx(idx, self.metadata, self.unified_dataset)
+                self.parent_data[dset]['answer'][ds_idx] = self.tokenizer.decode(decoder_input_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+                input_ids, attention_mask = pad_list(input_ids, attention_mask, self.args.max_input_length, self.pad_token_id)
             else:
                 input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx],
                                                      self.args.max_input_length, self.pad_token_id)
@@ -277,7 +312,7 @@ class MyUnifiedQADataset(Dataset):
 
 
         idx = idx % len(self.metadata)                   # Select component dataset with uniform chance not proportional to dataset sizes
-        objective = self.selfsupervised[idx]
+        ssvise = self.selfsupervised[idx]
         if self.positions[idx]==len(self.indices[idx]):  # If reached the end of this dataset reshuffle dataset indices in bucket
             start, end = self.metadata[idx]
             self.indices[idx] = np.random.permutation(range(start, end))
@@ -285,8 +320,17 @@ class MyUnifiedQADataset(Dataset):
 
         dp_idx = self.indices[idx][self.positions[idx]]  # Select dataset index within bucket
         self.positions[idx] += 1
-        if objective:   #TODO calc both masked input + generated labels as toks
-            pass
+        if ssvise:   
+            input_ids, attention_mask, decoder_input_ids, decoder_attention_mask = self_supervise(self.args, 
+                                                                                                  self.input_ids[dp_idx], 
+                                                                                                  self.word_starts[dp_idx], 
+                                                                                                  self.ners_ids[dp_idx], 
+                                                                                                  self.mask_seq, 
+                                                                                                  self.no_question_label,
+                                                                                                  self.bos_token_id,
+                                                                                                  self.eos_token_id)
+            input_ids, attention_mask = pad_list(input_ids, attention_mask, self.args.max_input_length, self.pad_token_id)
+            decoder_input_ids, decoder_attention_mask = pad_list(decoder_input_ids, decoder_attention_mask, self.args.max_input_length, self.pad_token_id)
         else:
             input_ids, attention_mask = pad_list(self.input_ids[dp_idx], self.attention_mask[dp_idx],
                                                  self.args.max_input_length, self.pad_token_id)
