@@ -153,19 +153,19 @@ print(f"Final Train gfacts: {len(eqasc_train_gfacts)}  Dev gfacts: {len(eqasc_de
 
 outdir = os.path.join(UQA_DIR, UQA_QASC_FACTS_DIR)
 os.makedirs(outdir, exist_ok=True)
-outfile = os.path.join(outdir, 'train.txt')
+outfile = os.path.join(outdir, 'train.tsv')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(train_facts))
-outfile = os.path.join(outdir, 'dev.txt')
+outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(dev_facts))
 
 outdir = os.path.join(UQA_DIR, UQA_QASC_GRC_FACTS_DIR)
 os.makedirs(outdir, exist_ok=True)
-outfile = os.path.join(outdir, 'train.txt')
+outfile = os.path.join(outdir, 'train.tsv')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(eqasc_train_gfacts))
-outfile = os.path.join(outdir, 'dev.txt')
+outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(eqasc_train_gfacts))
 
@@ -185,10 +185,10 @@ print(f"Final Corpus Train: {len(corpus_train)}  Dev: {len(corpus_dev)}")  # Fin
 
 outdir = os.path.join(UQA_DIR, UQA_QASC_CORPUS_FACTS_EXCL_TRAINDEV)
 os.makedirs(outdir, exist_ok=True)
-outfile = os.path.join(outdir, 'train.txt')
+outfile = os.path.join(outdir, 'train.tsv')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(corpus_train))
-outfile = os.path.join(outdir, 'dev.txt')
+outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(corpus_dev))
 

@@ -330,7 +330,7 @@ class MyUnifiedQADataset(Dataset):
                                                                                                   self.bos_token_id,
                                                                                                   self.eos_token_id)
             input_ids, attention_mask = pad_list(input_ids, attention_mask, self.args.max_input_length, self.pad_token_id)
-            decoder_input_ids, decoder_attention_mask = pad_list(decoder_input_ids, decoder_attention_mask, self.args.max_input_length, self.pad_token_id)
+            decoder_input_ids, decoder_attention_mask = pad_list(decoder_input_ids, decoder_attention_mask, self.args.max_output_length, self.pad_token_id)
         else:
             input_ids, attention_mask = pad_list(self.input_ids[dp_idx], self.attention_mask[dp_idx],
                                                  self.args.max_input_length, self.pad_token_id)

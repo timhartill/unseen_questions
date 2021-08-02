@@ -477,3 +477,184 @@ tst.data    #[-99, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 tst.mydl.__getitem__(2)
 tst.data   #[-99, 2, -9999, 4, 5, 6, 7, 8, 9, 10]
 
+
+# tests - run args etc in cli.py + imports from run.py first...
+#logger = None
+tokenizer = AutoTokenizer.from_pretrained(args.model) 
+
+args.output_dir = '/data/thar011/out/unifiedqa_bart_large_TEST'
+args.do_lowercase = True
+args.append_another_bos = True
+args.verbose=True
+# Must set up logger after setting up args.output_dir ...
+log_filename = "{}log.txt".format("" if args.do_train else "eval_")
+
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+                datefmt='%m/%d/%Y %H:%M:%S',
+                level=logging.INFO,
+                handlers=[logging.FileHandler(os.path.join(args.output_dir, log_filename)),
+                          logging.StreamHandler()])
+logger = logging.getLogger(__name__)
+logger.info(args)
+logger.info(args.output_dir)
+logger.info("MLM TESTS...")
+
+args.ssm_prob = 0.5
+args.wwsc_toks_to_mask = 0.11
+args.wwsc_avg_span_len=2
+args.wwsc_span_len_sd=0.75
+args.add_mask_char='_' # 'NONE' works
+args.add_mask_ctr=True
+
+# test unified_data.py:
+args.is_unifiedqa = True
+args.mixture = 'unifiedqa,synthetic_textual,synthetic_numeric'
+args.mixture = 'unifiedqa'
+args.mixture = 'arc_hard,strategy_qa_facts_selfsvised,strategy_qa,qasc_facts_selfsvised'
+args.train_file = '/data/thar011/data/unifiedqa/train.tsv'
+args.predict_file = '/data/thar011/data/unifiedqa/dev.tsv'
+dev_data = UnifiedQAData(logger, args, args.predict_file, False)
+dev_data = UnifiedQAData(logger, args, args.train_file, True)
+
+print(dev_data.data.keys())     # dict_keys(['arc_hard', 'strategy_qa_facts_selfsvised', 'strategy_qa', 'qasc_facts_selfsvised'])
+print(len(dev_data.data['arc_hard']['question']))  #299   train: 1119
+print(len(dev_data.data['strategy_qa_facts_selfsvised']['question']))  #849  train: 8402
+print(len(dev_data.data['strategy_qa']['question']))  #229  train: 2061
+print(len(dev_data.data['qasc_facts_selfsvised']['question']))  #2304  train: 19438
+
+logger.info(args)
+
+
+#tokenizer: ['<s>', '</s>', '<unk>', '<pad>', '<mask>']  [0, 2, 3, 1, 50264]
+dev_data.load_dataset(tokenizer)
+print(dev_data.dataset.is_training)
+dev_data.dataset.bos_token_id  # 0
+dev_data.dataset.eos_token_id  # 2
+dev_data.dataset.mask_token_id # 50264
+dev_data.dataset.pad_token_id  # 1
+print(dev_data.dataset.no_question_label)  # [2362, 11445] = 'no mask'
+print(dev_data.dataset.mask_seq) # [[50264, 1215, 288], [50264, 1215, 134], [50264, 1215, 176], [50264, 1215, 246], [50264, 1215, 306], [50264, 1215, 245], [50264, 1215, 401], [50264, 1215, 406], [50264, 1215, 398], [50264, 1215, 466], [50264, 1215, 698], [50264, 1215, 1225], [50264, 1215, 1092], [50264, 1215, 1558], [50264, 1215, 1570], [50264, 1215, 996], [50264, 1215, 1549], [50264, 1215, 1360], [50264, 1215, 1366], [50264, 1215, 1646]]
+print(dev_data.dataset.selfsupervised)  # [False, True, False, True]
+print(dev_data.dataset.metadata)        # [(0, 299), (299, 1148), (1148, 1377), (1377, 3681)] training: [[0, 1119], [1119, 9521], [9521, 11582], [11582, 31020]]
+
+
+#for uqa: add/test build_objective_indx, get_parentdata_indx
+print(dev_data.dataset.objective[0]) #False
+print(dev_data.dataset.objective[299]) #True
+print(dev_data.dataset.objective[299+849]) #False
+print(dev_data.dataset.objective[299+849+229]) #True
+print(dev_data.dataset.unified_dataset)     # ['arc_hard', 'strategy_qa_facts_selfsvised', 'strategy_qa', 'qasc_facts_selfsvised']
+
+get_parentdata_indx(1119, dev_data.dataset.metadata, dev_data.dataset.unified_dataset)
+get_parentdata_indx(1119-1, dev_data.dataset.metadata, dev_data.dataset.unified_dataset)
+get_parentdata_indx(1119+8402, dev_data.dataset.metadata, dev_data.dataset.unified_dataset)
+get_parentdata_indx(1119+8402+2061, dev_data.dataset.metadata, dev_data.dataset.unified_dataset)
+get_parentdata_indx(1119+8402+2061+19438-1, dev_data.dataset.metadata, dev_data.dataset.unified_dataset)  # ('qasc_facts_selfsvised', 2303)
+
+print(dev_data.data['arc_hard']['question'][0])
+print(dev_data.data['arc_hard']['answer'][0])
+print(dev_data.data['qasc_facts_selfsvised']['question'][0])
+print(dev_data.data['qasc_facts_selfsvised']['answer'][0])  #''
+
+idx = 0 #1119
+ds, ds_idx = get_parentdata_indx(idx, dev_data.dataset.metadata, dev_data.dataset.unified_dataset)
+dev_data.dataset.parent_data[ds].keys()     # dict_keys(['id', 'question', 'answer'])
+
+
+print(dev_data.dataset.parent_data[ds]['id'][ds_idx])
+dev_data.dataset.parent_data[ds]['id'][ds_idx] += 'TEST'
+print(dev_data.data[ds]['id'][ds_idx])  # writes correctly
+print(dev_data.data[ds]['answer'][ds_idx])
+
+print(dev_data.dataset.word_starts[idx])
+print(dev_data.dataset.ners_ids[idx])
+print(dev_data.dataset.attention_mask[idx]) # 1s for no ssupervised, empty for ssupervised
+print(dev_data.dataset.decoder_attention_mask[idx])  # ditto
+print(dev_data.dataset.input_ids[idx])        # two 0,s start, 2 at end, no padding
+print(dev_data.dataset.decoder_input_ids[idx]) # ditto but [] for ssvise
+
+# if not is_training returns (input_ids, attention_mask) else returns (input_ids, attention_mask, decoder_input_ids, decoder_attention_mask)
+print(dev_data.dataset.__len__())
+
+sample = dev_data.dataset.__getitem__(idx)
+print(len(sample))  # not is_training: 2 or 4 for is_training
+print(sample[0], sample[0].shape)  # input_ids tensor padded [512], 2 bos, eos
+print(sample[1], sample[1].shape)  # input attn mask tensor padded [512], 1s, 0's
+
+print(tokenizer.decode(sample[0]))
+print(dev_data.data[ds]['answer'][ds_idx])
+
+print(sample[2], sample[2].shape)  # decoder_input_ids tensor padded [100], 2 bos, eos
+print(sample[3], sample[3].shape)  # decoder attn mask tensor padded [100], 1s, 0's
+
+print(tokenizer.decode(sample[2]))
+
+
+
+
+
+# test data.py:
+trainset = 'strategy_qa_facts_selfsvised'
+testset = 'strategy_qa_facts_selfsvised'
+args.is_unifiedqa = False
+args.train_file = '/data/thar011/data/unifiedqa/'+trainset+'/train.tsv'
+args.predict_file = '/data/thar011/data/unifiedqa/'+testset+'/dev.tsv'
+dev_data = QAData(logger, args, args.predict_file, False)
+dev_data = QAData(logger, args, args.train_file, True)  # 
+
+
+print(dev_data.data[0])
+
+logger.info(args)
+
+
+#tokenizer: ['<s>', '</s>', '<unk>', '<pad>', '<mask>']  [0, 2, 3, 1, 50264]
+dev_data.load_dataset(tokenizer)
+print(dev_data.dataset.is_training)
+dev_data.dataset.bos_token_id  # 0
+dev_data.dataset.eos_token_id  # 2
+dev_data.dataset.mask_token_id # 50264
+dev_data.dataset.pad_token_id  # 1
+print(dev_data.dataset.no_question_label)  # [2362, 11445] = 'no mask'
+print(dev_data.dataset.mask_seq) # [[50264, 1215, 288], [50264, 1215, 134], [50264, 1215, 176], [50264, 1215, 246], [50264, 1215, 306], [50264, 1215, 245], [50264, 1215, 401], [50264, 1215, 406], [50264, 1215, 398], [50264, 1215, 466], [50264, 1215, 698], [50264, 1215, 1225], [50264, 1215, 1092], [50264, 1215, 1558], [50264, 1215, 1570], [50264, 1215, 996], [50264, 1215, 1549], [50264, 1215, 1360], [50264, 1215, 1366], [50264, 1215, 1646]]
+print(dev_data.dataset.selfsupervised)  # [False, True, False, True]
+print(dev_data.dataset.metadata)        # [(0, 299), (299, 1148), (1148, 1377), (1377, 3681)]
+#for uqa: add/test build_objective_indx, get_parentdata_indx
+
+
+idx = 0
+
+print(dev_data.dataset.parent_data[idx])
+dev_data.dataset.parent_data[idx]['id'] += 'TEST'
+print(dev_data.data[idx])  # writes correctly
+
+print(dev_data.dataset.word_starts[idx])
+print(dev_data.dataset.ners_ids[idx])
+print(dev_data.dataset.attention_mask[idx]) # 1s for no ssupervised, empty for ssupervised
+print(dev_data.dataset.decoder_attention_mask[idx])  # ditto
+print(dev_data.dataset.input_ids[idx])        # two 0,s start, 2 at end, no padding
+print(dev_data.dataset.decoder_input_ids[idx]) # ditto but [] for ssvise
+
+# if not is_training returns (input_ids, attention_mask) else returns (input_ids, attention_mask, decoder_input_ids, decoder_attention_mask)
+print(dev_data.dataset.__len__())
+
+sample = dev_data.dataset.__getitem__(idx)
+print(len(sample))  # not is_training: 2 or 4 for is_training
+print(sample[0], sample[0].shape)  # input_ids tensor padded [512], 2 bos, eos
+print(sample[1], sample[1].shape)  # input attn mask tensor padded [512], 1s, 0's
+
+print(tokenizer.decode(sample[0]))
+print(dev_data.data[idx])
+
+print(sample[2], sample[2].shape)  # decoder_input_ids tensor padded [100], 2 bos, eos
+print(sample[3], sample[3].shape)  # decoder attn mask tensor padded [100], 1s, 0's
+
+print(tokenizer.decode(sample[2]))
+
+
+
+
+
+
+
+

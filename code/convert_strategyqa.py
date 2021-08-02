@@ -112,10 +112,10 @@ for p in sqa_para:
 
 outdir = os.path.join(UQA_DIR, UQA_SQA_FACTS_DIR)
 os.makedirs(outdir, exist_ok=True)
-outfile = os.path.join(outdir, 'train.txt')
+outfile = os.path.join(outdir, 'train.tsv')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(paras_train))
-outfile = os.path.join(outdir, 'dev.txt')
+outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(paras_dev))
 
@@ -137,10 +137,10 @@ print(f"train count: {len(qa_train)}  dev count: {len(qa_dev)}")    # train coun
 
 outdir = os.path.join(UQA_DIR, UQA_SQA_Q_DIR)
 os.makedirs(outdir, exist_ok=True)
-outfile = os.path.join(outdir, 'train.txt')
+outfile = os.path.join(outdir, 'train.tsv')
 with open(outfile, 'w') as f:
     f.write('\n'.join(qa_train))
-outfile = os.path.join(outdir, 'dev.txt')
+outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write('\n'.join(qa_dev))
 

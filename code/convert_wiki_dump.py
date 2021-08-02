@@ -50,11 +50,11 @@ for i in range(num_q):
         outlist_dev.append(all_json_list2[i]['para'])
     else:
         outlist_train.append(all_json_list2[i]['para'])
-outfile = os.path.join(outdir, 'train.txt')
+outfile = os.path.join(outdir, 'train.tsv')
 print(f'Saving to {outfile}')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(outlist_train))
-outfile = os.path.join(outdir, 'dev.txt')
+outfile = os.path.join(outdir, 'dev.tsv')
 print(f'Saving to {outfile}')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(outlist_dev))
