@@ -653,7 +653,7 @@ print(tokenizer.decode(sample[2]))
 
 
 
-
+fname = '/data/thar011/data/unifiedqa/train-v2--uncased-xbos-BartTokenizedFast-_unifiedqa_strategy_qa_strategy_qa_facts_selfsvised.json'
 
 
 

@@ -656,7 +656,11 @@ def self_supervise(args, tok_idxs, word_starts, ners_ids, mask_seq, nq_token_ids
         new_replaced_toks = [bos_token_id] + new_replaced_toks        
     new_replaced_toks.append(eos_token_id)    
     if len(new_tok_idxs) > args.max_input_length:
+        print(f"Warning: self_supervise: Input Truncated {len(new_tok_idxs)} to {args.max_input_length}")
         new_tok_idxs = new_tok_idxs[:args.max_input_length-1] + [eos_token_id]
+    if len(new_replaced_toks) > args.max_output_length:
+        print(f"Warning: self_supervise: Answer Truncated {len(new_replaced_toks)} to {args.max_output_length}")
+        new_replaced_toks = new_replaced_toks[:args.max_output_length-1] + [eos_token_id]
     attention_mask = [1] * len(new_tok_idxs)
     decoder_attention_mask = [1] * len(new_replaced_toks)
     return new_tok_idxs, attention_mask, new_replaced_toks, decoder_attention_mask
