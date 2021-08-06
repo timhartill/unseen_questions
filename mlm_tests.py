@@ -511,6 +511,7 @@ args.is_unifiedqa = True
 args.mixture = 'unifiedqa,synthetic_textual,synthetic_numeric'
 args.mixture = 'unifiedqa'
 args.mixture = 'arc_hard,strategy_qa_facts_selfsvised,strategy_qa,qasc_facts_selfsvised'
+args.mixture = 'unifiedqa,strategy_qa,strategy_qa_facts_dev_in_train_selfsvised'
 args.train_file = '/data/thar011/data/unifiedqa/train.tsv'
 args.predict_file = '/data/thar011/data/unifiedqa/dev.tsv'
 dev_data = UnifiedQAData(logger, args, args.predict_file, False)
@@ -619,8 +620,7 @@ print(dev_data.dataset.no_question_label)  # [2362, 11445] = 'no mask'
 print(dev_data.dataset.mask_seq) # [[50264, 1215, 288], [50264, 1215, 134], [50264, 1215, 176], [50264, 1215, 246], [50264, 1215, 306], [50264, 1215, 245], [50264, 1215, 401], [50264, 1215, 406], [50264, 1215, 398], [50264, 1215, 466], [50264, 1215, 698], [50264, 1215, 1225], [50264, 1215, 1092], [50264, 1215, 1558], [50264, 1215, 1570], [50264, 1215, 996], [50264, 1215, 1549], [50264, 1215, 1360], [50264, 1215, 1366], [50264, 1215, 1646]]
 print(dev_data.dataset.selfsupervised)  # [False, True, False, True]
 print(dev_data.dataset.metadata)        # [(0, 299), (299, 1148), (1148, 1377), (1377, 3681)]
-#for uqa: add/test build_objective_indx, get_parentdata_indx
-
+print(dev_data.dataset.positions)
 
 idx = 0
 
@@ -654,6 +654,55 @@ print(tokenizer.decode(sample[2]))
 
 
 fname = '/data/thar011/data/unifiedqa/train-v2--uncased-xbos-BartTokenizedFast-_unifiedqa_strategy_qa_strategy_qa_facts_selfsvised.json'
+
+
+#fake training to calculate # epochs seen every 10K steps
+samplecounts = np.array([e-s for s,e in dev_data.dataset.metadata])
+positions = np.array(dev_data.dataset.positions)
+
+print(samplecounts)   # [65494, 605, 623, 1119, 2251, 1480, 87599, 130319, 9427, 87866, 4957, 2061, 9251]
+
+for i in range(150000):
+    for j in range(32):
+        idx = np.random.choice(len(positions))
+        positions[idx]+=1
+print(positions)
+epochs = positions / samplecounts
+for p in zip(dev_data.dataset.unified_dataset, epochs):
+    print(p)
+
+""" 
+For 10K steps bs 32 around 25k per dataset:
+('narrativeqa', 0.3771185146730998)
+('ai2_science_middle', 40.67272727272727)
+('ai2_science_elementary', 38.86356340288925)
+('arc_hard', 22.117068811438784)
+('arc_easy', 10.827187916481563)
+('mctest_corrected_the_separator', 16.593243243243244)
+('squad1_1', 0.28037991301270565)
+('squad2', 0.1891205426683753)
+('boolq', 2.6134507266362577)
+('race_string', 0.28114401474973255)
+('openbookqa', 4.95501311276982)
+('strategy_qa', 12.175157690441534)
+('strategy_qa_facts_dev_in_train_selfsvised', 2.6592800778294237) 
+
+For 150K steps bs 32 around 369K per dataset:
+('narrativeqa', 5.645265215134211)
+('ai2_science_middle', 611.692561983471)
+('ai2_science_elementary', 591.9052969502408)
+('arc_hard', 330.45397676496873)
+('arc_easy', 163.71523767214572)
+('mctest_corrected_the_separator', 249.7831081081081)
+('squad1_1', 4.2182901631297165)
+('squad2', 2.8284056814432277)
+('boolq', 39.210671475548956)
+('race_string', 4.192520428834817)
+('openbookqa', 74.54569295945129)
+('strategy_qa', 178.76904415332362)
+('strategy_qa_facts_dev_in_train_selfsvised', 39.926494433034264)    
+
+"""  
 
 
 
