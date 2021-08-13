@@ -16,6 +16,8 @@ import string
 from transformers import AutoTokenizer, AutoModelForPreTraining
 
 import spacy
+from spacy.matcher import Matcher
+from spacy.util import filter_spans
 nlp = spacy.load("en_core_web_sm")
 
 m = "facebook/bart-large"
@@ -222,6 +224,24 @@ print(replaced[10])
 
 
 # SSM tests
+pattern = [{'POS': 'VERB', 'OP': '?'},
+           {'POS': 'ADV', 'OP': '*'},
+           {'POS': 'AUX', 'OP': '*'},
+           {'POS': 'VERB', 'OP': '+'}]
+
+# instantiate a Matcher instance
+matcher = Matcher(nlp.vocab)
+matcher.add("Verb phrase", [pattern])
+txt="john smith is a nice person. john smith from apple is looking at buying u.k. startup for $1 billion in July 2020 or perhaps 1/6/23 or failing that 2024\nHello world.\nApples are good fruit to eat\nAre new zealand fruit or australian vegetables better for you? Astronomers look for the bright stars that orbit dark partners in the same way. The North Star can be used to find your way if you're lost in the dark. The north star can be used to find your way if you're lost in the dark"
+doc = nlp(txt)
+for n in doc.noun_chunks:
+    print(n.text, n.start_char, n.end_char)
+for n in doc:
+    print(n.text, n.pos_, n.idx, n.shape_, n.text_with_ws)
+matches = matcher(doc)
+spans = [doc[start:end] for _, start, end in matches]
+print (filter_spans(spans))
+    
 txt=tokenizer.bos_token + " " + "john smith is a nice person. john smith from apple is looking at buying u.k. startup for $1 billion in July 2020 or perhaps 1/6/23 or failing that 2024\nHello world.\nApples are good fruit to eat\nAre new zealand fruit or australian vegetables better for you? Astronomers look for the bright stars that orbit dark partners in the same way. The North Star can be used to find your way if you're lost in the dark. The north star can be used to find your way if you're lost in the dark"
 
 
@@ -703,6 +723,7 @@ For 150K steps bs 32 around 369K per dataset:
 ('strategy_qa_facts_dev_in_train_selfsvised', 39.926494433034264)    
 
 """  
+
 
 
 

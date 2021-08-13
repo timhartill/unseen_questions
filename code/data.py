@@ -189,7 +189,7 @@ def ner(instr, verbose=False):
 
 def find_sub_list(sublst1, sublst2, lst):
     """ Return start/end indices of all occurences of sublist in list
-        Note: Can't tell whether the tokens match with/out a preceding space so must try both ways
+        Note: Can't tell whether the tokens match with/out a preceding space so must try both ways ie sublst1 & sublst2
     """
     results=[]
     sll=len(sublst1)
