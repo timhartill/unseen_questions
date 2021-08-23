@@ -2,7 +2,7 @@
 
 cd ../code
 
-python cli.py --do_train --output_dir /data/thar011/out/unifiedqa_bart_large_s3_v2_cskg \
+python cli.py --do_train --output_dir /data/thar011/out/unifiedqa_bart_large_s4_v2_cwwv_premask_atomic_premask \
         --is_unifiedqa \
         --train_file /data/thar011/data/unifiedqa/train.tsv \
         --predict_file /data/thar011/data/unifiedqa/dev.tsv \
@@ -17,5 +17,7 @@ python cli.py --do_train --output_dir /data/thar011/out/unifiedqa_bart_large_s3_
         --learning_rate 2e-5 \
         --model facebook/bart-large \
         --seed 42 \
-        --mixture unifiedqa,cskg
+        --ssm_prob 1.0 \
+        --add_mask_char NONE \
+        --mixture unifiedqa,cwwv_premask_selfsvised,atomic_premask_selfsvised
 

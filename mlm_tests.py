@@ -12,6 +12,7 @@ Masking Objective Tests
 import numpy as np
 import copy
 import string
+import json
 
 from transformers import AutoTokenizer, AutoModelForPreTraining
 
@@ -519,19 +520,19 @@ logger.info(args)
 logger.info(args.output_dir)
 logger.info("MLM TESTS...")
 
-args.ssm_prob = 0.5
+args.ssm_prob = 1.0 #0.5
 args.wwsc_toks_to_mask = 0.11
 args.wwsc_avg_span_len=2
 args.wwsc_span_len_sd=0.75
-args.add_mask_char='_' # 'NONE' works
-args.add_mask_ctr=True
+args.add_mask_char='NONE'  #'_' # 'NONE' works
+args.add_mask_ctr=False
 
 # test unified_data.py:
 args.is_unifiedqa = True
 args.mixture = 'unifiedqa,synthetic_textual,synthetic_numeric'
-args.mixture = 'unifiedqa'
-args.mixture = 'arc_hard,strategy_qa_facts_selfsvised,strategy_qa,qasc_facts_selfsvised'
-args.mixture = 'unifiedqa,strategy_qa,strategy_qa_facts_dev_in_train_selfsvised'
+args.mixture = 'cwwv_premask_selfsvised,cwwv_selfsvised,atomic_premask_selfsvised,atomic_selfsvised'
+args.mixture = 'qasc_dev_facts_selfsvised'
+args.mixture = 'strategy_qa_facts_dev_in_train_selfsvised'
 args.train_file = '/data/thar011/data/unifiedqa/train.tsv'
 args.predict_file = '/data/thar011/data/unifiedqa/dev.tsv'
 dev_data = UnifiedQAData(logger, args, args.predict_file, False)
@@ -539,9 +540,9 @@ dev_data = UnifiedQAData(logger, args, args.train_file, True)
 
 print(dev_data.data.keys())     # dict_keys(['arc_hard', 'strategy_qa_facts_selfsvised', 'strategy_qa', 'qasc_facts_selfsvised'])
 print(len(dev_data.data['arc_hard']['question']))  #299   train: 1119
-print(len(dev_data.data['strategy_qa_facts_selfsvised']['question']))  #849  train: 8402
+print(len(dev_data.data['strategy_qa_facts_dev_in_train_selfsvised']['question']))  #849  train: 8402
 print(len(dev_data.data['strategy_qa']['question']))  #229  train: 2061
-print(len(dev_data.data['qasc_facts_selfsvised']['question']))  #2304  train: 19438
+print(len(dev_data.data['qasc_dev_facts_selfsvised']['question']))  #2304  train: 19438
 
 logger.info(args)
 
@@ -572,13 +573,14 @@ get_parentdata_indx(1119+8402, dev_data.dataset.metadata, dev_data.dataset.unifi
 get_parentdata_indx(1119+8402+2061, dev_data.dataset.metadata, dev_data.dataset.unified_dataset)
 get_parentdata_indx(1119+8402+2061+19438-1, dev_data.dataset.metadata, dev_data.dataset.unified_dataset)  # ('qasc_facts_selfsvised', 2303)
 
-print(dev_data.data['arc_hard']['question'][0])
+print(dev_data.data['strategy_qa_facts_dev_in_train_selfsvised']['question'][0])
 print(dev_data.data['arc_hard']['answer'][0])
-print(dev_data.data['qasc_facts_selfsvised']['question'][0])
-print(dev_data.data['qasc_facts_selfsvised']['answer'][0])  #''
+print(dev_data.data['qasc_dev_facts_selfsvised']['question'][0])
+print(dev_data.data['qasc_dev_facts_selfsvised']['answer'][0])  #''
 
-idx = 0 #1119
+idx = 6100 #1119
 ds, ds_idx = get_parentdata_indx(idx, dev_data.dataset.metadata, dev_data.dataset.unified_dataset)
+print(ds, ds_idx)
 dev_data.dataset.parent_data[ds].keys()     # dict_keys(['id', 'question', 'answer'])
 
 
@@ -593,6 +595,8 @@ print(dev_data.dataset.attention_mask[idx]) # 1s for no ssupervised, empty for s
 print(dev_data.dataset.decoder_attention_mask[idx])  # ditto
 print(dev_data.dataset.input_ids[idx])        # two 0,s start, 2 at end, no padding
 print(dev_data.dataset.decoder_input_ids[idx]) # ditto but [] for ssvise
+print(tokenizer.decode(dev_data.dataset.input_ids[idx]))
+print(tokenizer.decode(dev_data.dataset.input_ids[idx][5:7]))
 
 # if not is_training returns (input_ids, attention_mask) else returns (input_ids, attention_mask, decoder_input_ids, decoder_attention_mask)
 print(dev_data.dataset.__len__())
@@ -723,6 +727,30 @@ For 150K steps bs 32 around 369K per dataset:
 ('strategy_qa_facts_dev_in_train_selfsvised', 39.926494433034264)    
 
 """  
+
+# check validation predictions
+valpredfile = '/data/thar011/out/unifiedqa_bart_large_s4_v2_cwwv_premask_atomic_premask/validation_predictions.json'
+valpreds = json.load(open(valpredfile, 'r'))
+print(valpreds.keys())
+# pred after 10K steps:
+print(valpreds['cwwv_premask_selfsvised'][0]) # threshold is a type of [#kickoff#]. : pred: " threshold"
+print(valpreds['cwwv_premask_selfsvised'][1]) # brace is a type of [#punctuation mark#]. : pred: " support" instead of label "punctuation mark"
+print(valpreds['cwwv_premask_selfsvised'][2]) # a doctor can [#provide care#].. : pred: " prescribe medicine" instead of label "provide care"
+print(valpreds['cwwv_premask_selfsvised'][3]) # cooking a meal is for [#preparing food#]. : pred: " feeding family" instead of label "preparing food"
+
+print(valpreds['atomic_premask_selfsvised'][0]) # Flynn makes peace. As a result, Flynn wanted to [#avoid stress#]. : pred:  make amends
+print(valpreds['atomic_premask_selfsvised'][1]) # Aspen eats ice cream. As a result, Aspen felt [#positive#]. : pred:   satisfied
+print(valpreds['atomic_premask_selfsvised'][2]) # Ray hands vvv back. Others then [#they start up in excitement#]. : pred:  gets thanked
+print(valpreds['atomic_premask_selfsvised'][3]) # Kendall gets Ray information. Kendall is seen as [#witty#]. : pred:  helpful
+
+
+valpredfile = '/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/validation_predictions.json'
+valpreds = json.load(open(valpredfile, 'r'))
+print(valpreds.keys())
+print(valpreds['qasc_dev_facts_selfsvised'][0]) # Tuberculosis Tuberculosis is caused by bacteria known as Mycobacterium tuberculosis .  : pred:  tuberculosis
+print(valpreds['qasc_dev_facts_selfsvised'][1]) # About 20 percent of affected babies die in early infancy.  : pred:   early infancy
+print(valpreds['qasc_dev_facts_selfsvised'][2]) # Percent is parts per hundred.  : pred:  percent
+print(valpreds['qasc_dev_facts_selfsvised'][3]) # Parasites cause the intestines to become permeable resulting in food allergies.  : pred:   food allergies
 
 
 

@@ -114,7 +114,20 @@ do
         --calc_metrics
 done
 
-
+#eval on strategy_qa etc dev sets
+for ds in strategy_qa cwwv atomic
+do
+    echo "Running eval for $ds on dev..."
+    python cli.py --do_predict --output_dir /data/thar011/out/unifiedqa_allenai_bartlarge_eval \
+        --predict_file /data/thar011/data/unifiedqa/${ds}/dev.tsv \
+        --predict_batch_size 32 \
+        --append_another_bos --do_lowercase \
+        --verbose \
+        --prefix dev_${ds}_ \
+        --checkpoint /data/thar011/ckpts/unifiedqa-bart-large-allenai/unifiedQA-uncased/best-model.pt \
+        --model facebook/bart-large \
+        --calc_metrics
+done
 
 echo Finished!
 

@@ -9,5 +9,5 @@ python cli.py --create_embeddings --output_dir /data/thar011/out/unifiedqa_bart_
         --verbose \
         --predict_batch_size 20 \
         --add_only_missing \
-        --mixture unifiedqa,synthetic_textual,synthetic_numeric
+        --mixture unifiedqa,synthetic_textual,synthetic_numeric,strategy_qa,cwwv,atomic
 

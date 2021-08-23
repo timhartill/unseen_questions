@@ -20,7 +20,9 @@ from eval_metrics import get_exact_match
 from w2n import word_to_num   # from https://github.com/ag1988/injecting_numeracy/blob/master/pre_training/gen_bert/create_examples_n_features.py
 import spacy
 nlp = spacy.load("en_core_web_sm")
-selfsupervisedkey = "_selfsvised"  # dataset names ending in this will be processed as self supervised
+selfsupervisedkey = "_selfsvised"   # dataset names ending in this will be processed as self supervised
+force_ans_start = '[#'              # if self supervised, can force a specific mask by using eg 'The rain in [#Spain#] lies mainly on the plain.'
+force_ans_end = '#]'
 
 
 # from https://github.com/castorini/transformers-arithmetic/blob/main/main.py
@@ -175,15 +177,25 @@ def get_word_starts(toks, specialchar = 'Ġ', bos_token='<s>'):
     return word_starts
 
 
-def ner(instr, verbose=False):
+def ner(instr, add_nphrases = True, verbose=False):
     """ Perform named entity recognition on text and return a list of named entities, numbers, dates etc
+        Optionally also extract noun phrases
     """
     ner_list = []
-    doc = nlp(instr.replace('\\n \n', ''))    
+    just_ners = []
+    tmpstr = instr.rstrip()
+    tmpstr = tmpstr.rstrip('\\n')
+    doc = nlp(tmpstr)    
     for ent in doc.ents:
         if verbose: print(ent.text, '"' + ent.text_with_ws + '"', ent.start_char, ent.end_char, ent.label_)
         ner_list.append(ent.text_with_ws)
+        just_ners.append(ent.text.strip(string.punctuation+' '))
         #ner_list.append( {'txt_with_ws': ent.text_with_ws, 'start':ent.start_char, 'end': ent.end_char, 'type': ent.label_} )
+    if add_nphrases:    
+        for n in doc.noun_chunks:  #Noun Chunks
+            if verbose: print('NOUN CHUNK',n.text_with_ws, n.start_char, n.end_char)
+            if not [ne for ne in just_ners if ne.find(n.text.strip(string.punctuation+' ')) != -1]: # don't include noun phrases that are part of a named entity
+                ner_list.append(n.text.strip(string.punctuation+' '))
     return ner_list
 
 
@@ -210,7 +222,8 @@ def find_sub_list(sublst1, sublst2, lst):
 def map_ners(toks, ners, tokenizer, verbose = False):
     """ Map list of NERs previously identified on raw text to token ids
     """
-    unique_ner = list(set([ w.strip(string.punctuation+' ').strip() for w in ners ]))
+    unique_ner = list(set([ w.strip(string.punctuation+' ') for w in ners ]))
+    unique_ner = [w.strip() for w in unique_ner if w.strip() != '']
     tok_map = []
     final_ner = []
     for n in unique_ner:
@@ -236,7 +249,14 @@ def manual_encode(instr, tokenizer, args, truncation=True, max_length=512,
           max seq len of the model you get a warning which you can safely ignore..
     """
     if selfsupervised:
-        ners = ner(instr) 
+        ans_start_idx = instr.find(force_ans_start)
+        if ans_start_idx == -1:
+            ners = ner(instr) 
+        else: # force a particular span to be masked
+            ans_start_idx += len(force_ans_start)
+            ans_end_idx = instr.find(force_ans_end)
+            ners = [instr[ans_start_idx:ans_end_idx]]
+            instr = instr.replace(force_ans_start, '').replace(force_ans_end, '')
     else:
         ners = []
         ners_ids = []
@@ -446,7 +466,7 @@ class QAData(object):
             "/".join(self.data_path.split("/")[:-1]),
             self.data_path.split("/")[-1].replace(
                 ".tsv" if self.data_path.endswith(".tsv") else ".json",
-                "-v2-{}{}{}{}{}{}-{}.json".format(
+                "-v3-{}{}{}{}{}{}-{}.json".format(
                     "-uncased" if self.args.do_lowercase else "",
                     "-xbos" if (self.args.append_another_bos and self.tokenizer.bos_token_id is not None) else "",
                     "-squote" if (self.args.strip_single_quotes) else "",

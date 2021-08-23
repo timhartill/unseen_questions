@@ -8,7 +8,8 @@ Created on Mon Apr 12 15:01:55 2021
 Evaluation metrics calculation utilities and dataset attributes
 Also contains the function to produce cross tables comparing prediction performance
 across models. This functionality is designed to be run interactively rather than from the command line. 
-To generate tables comparing different model runs, see the instructions in the docstring for the OutputResults class below.
+To generate tables comparing different model runs, see the instructions in the docstring 
+for the OutputResults class below and/or run fn: run_all(logdir, results_list).
 
 During training all validation is on EM
 
@@ -189,7 +190,11 @@ dataset_attribs = {
     'qasc_lowsim_tdnd': {'type':'MC', 'prefer':''},
     'qasc_with_ir_lowsim_tdnd': {'type':'MC', 'prefer':''},
     'ropes_lowsim_tdnd': {'type':'EX', 'prefer':''},
-    'newsqa_lowsim_tdnd': {'type':'EX', 'prefer':''}
+    'newsqa_lowsim_tdnd': {'type':'EX', 'prefer':''},
+    'strategy_qa': {'type':'MC', 'prefer':''},
+    'cwwv': {'type':'MC', 'prefer':''},
+    'cskg': {'type':'MC', 'prefer':''},
+    'atomic': {'type':'MC', 'prefer':''}
     }
 
     
@@ -302,7 +307,10 @@ unifiedqa_seen_1 = [
     'arc_hard_with_ir',
     'race_string',
     'ai2_science_elementary',
-    'ai2_science_middle'
+    'ai2_science_middle',
+    'strategy_qa',
+    'cwwv',
+    'atomic'
     ]
 
 # The 57 mmlu datasets. Not used directly.
@@ -581,7 +589,7 @@ class Rouge:
 
 class YN:
     """ Return accuracy metric for yes/no datasets (label is always yes or no)
-    Per unfiedqa paper if prediction is single word then exact match otherwise
+    Per unifiedqa paper if prediction is single word then exact match otherwise
     for multi-word prediction, correct means the label is in the prediction AND the opposite class isnt
     """
     def __init__(self):
@@ -905,9 +913,9 @@ class OutputResults:
             self.results_dict[results_file] = {'unseen1':unseen1,    
                                                'unseen2':unseen2,    
                                                'unseen3':unseen3,
-                                               'unseen4':unseen4,
-                                               'unseen5':unseen5,
-                                               'unseen6':unseen6,
+                                               'unseen4':unseen4,  # dedup
+                                               'unseen5':unseen5,  # dedup lowsim uqa
+                                               'unseen6':unseen6,  # dedup lowsim tdnd
                                                'seen1': seen1,       
                                                'mmlu_unseen1': mmlu_unseen1  #mmlu test datasets
                                                }
@@ -1026,6 +1034,35 @@ class OutputResults:
             f.write('\r\n'.join(outlist))
              
                 
+def run_all(logdir, results_list):
+    """ Runs reports involving comparing model runs...
+    Usage: 
+        results_list = ['/data/thar011/out/unifiedqa_averages/comp3runs046/v3_avg3runs_eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_averages/comp3runs046/v7_avg3runs_eval_metrics.json',
+                        
+                       ]
+        results_list = ['/data/thar011/out/unifiedqa_bart_large_v3/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v2_dev_in_train/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v3_no_facts/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v6_sqa_only/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s3_v1_cwwv/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s3_v2_cwwv_atomic/eval_metrics.json'
+                       ]
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3_v1/'
+        run_all(logdir, results_list)
+    """
+    if logdir[-1] != '/':
+        logdir += '/'
+    print(f'Reports will be output to {logdir}')
+    os.makedirs(logdir, exist_ok=True)
+    res = OutputResults(results_list, logdir)
+    res.crosstab_x_tasks(dsetset='seen1', outname='eval_across_models_seen1.txt') # 'final' set - 10 unrestricted eval datasets
+    res.crosstab_x_tasks(dsetset='unseen4', outname='eval_across_models_us4.txt') # 'final' set - 10 unrestricted eval datasets
+    res.crosstab_x_tasks(dsetset='unseen6', outname='eval_across_models_us6lowsimtdnd.txt') # 'final' set - 10 unrestricted eval datasets        
+    res.crosstab_x_tasks(dsetset='mmlu_unseen1', outname='eval_across_models_mmlu_us1.txt') # 'final' set - 10 unrestricted eval datasets
+    return
+
 
 
 

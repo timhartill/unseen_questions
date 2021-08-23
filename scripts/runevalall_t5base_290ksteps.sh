@@ -120,5 +120,22 @@ do
         --strip_single_quotes
 done
 
+
+#eval on strategy_qa etc dev sets
+for ds in strategy_qa cwwv atomic
+do
+    echo "Running eval for $ds on dev..."
+    python cli.py --do_predict --output_dir /data/thar011/out/unifiedqa_t5base_290ksteps \
+        --predict_file /data/thar011/data/unifiedqa/${ds}/dev.tsv \
+        --predict_batch_size 32 \
+        --append_another_bos --do_lowercase \
+        --verbose \
+        --prefix dev_${ds}_ \
+        --model t5-base \
+        --checkpoint /data/thar011/out/unifiedqa_t5_base/best-model-290000.pt \
+        --calc_metrics \
+        --strip_single_quotes
+done
+
 echo Finished!
 

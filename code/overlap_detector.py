@@ -1140,13 +1140,15 @@ def output_most_similar_detail(s, dsetset='ALL',ngram='Unigram', column='combo',
     return outlist
 
 
-def run_all_reports(logdir, sim_results_file, model_1_results_file, model_2_results_file):
+def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqaplus_results_file):
     """ Runs all reports used in our paper and a few more...
     Usage: 
-        run_all_reports(logdir='/data/thar011/out/unifiedqa_averages/comp3runsfinal/',
-                           sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json',
-                           model_1_results_file='/data/thar011/out/unifiedqa_averages/comp3runs046/v3_avg3runs_eval_metrics.json',
-                           model_2_results_file='/data/thar011/out/unifiedqa_averages/comp3runs046/v7_avg3runs_eval_metrics.json')
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3_v1/'
+        sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'
+        run_all_reports(logdir=logdir,
+                        sim_results_file=sim_results_file,
+                        model_uqa_results_file='/data/thar011/out/unifiedqa_bart_large_v3/eval_metrics.json',
+                        model_uqaplus_results_file='/data/thar011/out/unifiedqa_bart_large_s3_v2_cwwv_atomic/eval_metrics.json')
     """
     if logdir[-1] != '/':
         logdir += '/'
@@ -1154,81 +1156,81 @@ def run_all_reports(logdir, sim_results_file, model_1_results_file, model_2_resu
     os.makedirs(logdir, exist_ok=True)
     print(f'Loading similarity file {sim_results_file}...')
     sim_results = json.load(open(sim_results_file))
-    results_list_uqa = [model_1_results_file]
-    results_list_tdnd = [model_2_results_file]
+    results_list_uqa = [model_uqa_results_file]
+    results_list_uqaplus = [model_uqaplus_results_file]
 
     # run these steps to produce summary by similarity bucket without breaking down by individual dataset for results generated prior to adding td and nd tasks to training regime
     s_uqa_summary = SimilarityAggregator(sim_results, no_overlap_thresh=1000.0, results_list=results_list_uqa, compare_over='UQA',
                                  thresh_buckets = [0,60,90,101], logdir=logdir)
     s_uqa_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_4, output_metrics = ['mean_pred_score_str'], 
-                                                  output_results = 'ALL', ngram='Unigram', column='combo', outname = 'tmp_crosstab_uqa_summary_us4.txt')
+                                                  output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqa_summary_us4.txt')
     s_uqa_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_6, output_metrics = ['mean_pred_score_str'], 
-                                                  output_results = 'ALL', ngram='Unigram', column='combo', outname = 'tmp_crosstab_uqa_summary_us6lowsimtdnd.txt')
+                                                  output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqa_summary_us6lowsimtdnd.txt')
 
     # run these steps to process summary results generated after adding td and nd tasks
-    s_tdnd_summary = SimilarityAggregator(sim_results, no_overlap_thresh=1000.0, results_list=results_list_tdnd,
+    s_uqaplus_summary = SimilarityAggregator(sim_results, no_overlap_thresh=1000.0, results_list=results_list_uqaplus,
                                   thresh_buckets = [0,60,90,101], logdir=logdir)
-    s_tdnd_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_4, output_metrics = ['mean_pred_score_str'], 
-                                                   output_results = 'ALL', ngram='Unigram', column='combo', outname = 'tmp_crosstab_tdnd_summary_us4.txt')
-    s_tdnd_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_6, output_metrics = ['mean_pred_score_str'], 
-                                                   output_results = 'ALL', ngram='Unigram', column='combo', outname = 'tmp_crosstab_tdnd_summary_us6lowsimtdnd.txt')
+    s_uqaplus_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_4, output_metrics = ['mean_pred_score_str'], 
+                                                   output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqaplus_summary_us4.txt')
+    s_uqaplus_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_6, output_metrics = ['mean_pred_score_str'], 
+                                                   output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqaplus_summary_us6lowsimtdnd.txt')
 
 
     # Then run these steps to produce detail over UQA training sets, output csv files and prepare for the interleaving fn below:
     s_uqa = SimilarityAggregator(sim_results, no_overlap_thresh=60.0, results_list=results_list_uqa, compare_over='UQA',
                                  thresh_buckets = [0,60,90,101], logdir=logdir)
     s_uqa.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_4, output_metrics = ['mean_pred_score_str'], 
-                                          output_results = 'ALL', ngram='Unigram', column='combo', outname = 'tmp_crosstab_uqa_detail_us4.txt')
+                                          output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqa_detail_us4.txt')
 
     # Then run these steps to produce detail over UQA+TDND training sets, output csv files with different metrics and prepare for the interleaving fn below:
-    s_tdnd = SimilarityAggregator(sim_results, no_overlap_thresh=60.0, results_list=results_list_tdnd,
+    s_uqaplus = SimilarityAggregator(sim_results, no_overlap_thresh=60.0, results_list=results_list_uqaplus,
                                   thresh_buckets = [0,60,90,101], logdir=logdir)
-    s_tdnd.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_4, output_metrics = ['mean_pred_score_str'], 
-                                           output_results = 'ALL', ngram='Unigram', column='combo', outname = 'tmp_crosstab_tdnd_detail_us4.txt')
+    s_uqaplus.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_4, output_metrics = ['mean_pred_score_str'], 
+                                           output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqaplus_detail_us4.txt')
 
     # Can run these steps to produce the combined output report (make sure you run the above for ['mean_pred_score_str'] last so .outlist contains the correct info..):
-    new_outlist = output_interleave(s_uqa.outlist, s_tdnd.outlist, choose_bucket = ['90:101'], outname=logdir+'tmp_interleave_90-101_us4.txt')
-    new_outlist = output_interleave(s_uqa.outlist, s_tdnd.outlist, choose_bucket = ['60:90'], outname=logdir+'tmp_interleave_60-90_us4.txt')
-    new_outlist = output_interleave(s_uqa.outlist, s_tdnd.outlist, choose_bucket = ['0:60'], outname=logdir+'tmp_interleave_0-60_us4.txt')
+    new_outlist = output_interleave(s_uqa.outlist, s_uqaplus.outlist, choose_bucket = ['90:101'], outname=logdir+'interleave_90-101_us4.txt')
+    new_outlist = output_interleave(s_uqa.outlist, s_uqaplus.outlist, choose_bucket = ['60:90'], outname=logdir+'interleave_60-90_us4.txt')
+    new_outlist = output_interleave(s_uqa.outlist, s_uqaplus.outlist, choose_bucket = ['0:60'], outname=logdir+'interleave_0-60_us4.txt')
 
 
     # run these steps to produce the combined output report for us6:
     s_uqa.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_6, output_metrics = ['mean_pred_score_str'], 
-                                          output_results = 'ALL', ngram='Unigram', column='combo', outname = 'tmp_crosstab_uqa_detail_us6lowsimtdnd.txt')
-    s_tdnd.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_6, output_metrics = ['mean_pred_score_str'], 
-                                           output_results = 'ALL', ngram='Unigram', column='combo', outname = 'tmp_crosstab_tdnd_detail_us6lowsimtdnd.txt')
-    new_outlist = output_interleave(s_uqa.outlist, s_tdnd.outlist, choose_bucket = ['90:101'], outname=logdir+'tmp_interleave_90-101_us6lowsimtdnd.txt')
-    new_outlist = output_interleave(s_uqa.outlist, s_tdnd.outlist, choose_bucket = ['60:90'], outname=logdir+'tmp_interleave_60-90_us6lowsimtdnd.txt')
-    new_outlist = output_interleave(s_uqa.outlist, s_tdnd.outlist, choose_bucket = ['0:60'], outname=logdir+'tmp_interleave_0-60_us6lowsimtdnd.txt')
+                                          output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqa_detail_us6lowsimtdnd.txt')
+    s_uqaplus.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_6, output_metrics = ['mean_pred_score_str'], 
+                                           output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqaplus_detail_us6lowsimtdnd.txt')
+    new_outlist = output_interleave(s_uqa.outlist, s_uqaplus.outlist, choose_bucket = ['90:101'], outname=logdir+'interleave_90-101_us6lowsimtdnd.txt')
+    new_outlist = output_interleave(s_uqa.outlist, s_uqaplus.outlist, choose_bucket = ['60:90'], outname=logdir+'interleave_60-90_us6lowsimtdnd.txt')
+    new_outlist = output_interleave(s_uqa.outlist, s_uqaplus.outlist, choose_bucket = ['0:60'], outname=logdir+'interleave_0-60_us6lowsimtdnd.txt')
 
 
     
     # Run this to produce the move vs stay analysis
-    new_outlist = calc_pred_difference(s_uqa, s_tdnd, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 
-                                       outname = 'tmp_pred_diff_all_buckets_us4.txt')
-    new_outlist = calc_pred_difference(s_uqa, s_tdnd, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 
-                                       outname = 'tmp_pred_diff_lowest_bucket_only_us4.txt', lowest_sim_bucket_only=True)            
-    new_outlist = calc_pred_difference(s_uqa, s_tdnd, dsetset=eval_metrics.unifiedqa_unseen_6, ngram='Unigram', column='combo', 
-                                       outname = 'tmp_pred_diff_all_buckets_us6lowsimtdnd.txt')
-    new_outlist = calc_pred_difference(s_uqa, s_tdnd, dsetset=eval_metrics.unifiedqa_unseen_6, ngram='Unigram', column='combo', 
-                                       outname = 'tmp_pred_diff_lowest_bucket_only_us6lowsimtdnd.txt', lowest_sim_bucket_only=True)            
+    new_outlist = calc_pred_difference(s_uqa, s_uqaplus, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 
+                                       outname = 'pred_diff_all_buckets_us4.txt')
+    new_outlist = calc_pred_difference(s_uqa, s_uqaplus, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 
+                                       outname = 'pred_diff_lowest_bucket_only_us4.txt', lowest_sim_bucket_only=True)            
+    new_outlist = calc_pred_difference(s_uqa, s_uqaplus, dsetset=eval_metrics.unifiedqa_unseen_6, ngram='Unigram', column='combo', 
+                                       outname = 'pred_diff_all_buckets_us6lowsimtdnd.txt')
+    new_outlist = calc_pred_difference(s_uqa, s_uqaplus, dsetset=eval_metrics.unifiedqa_unseen_6, ngram='Unigram', column='combo', 
+                                       outname = 'pred_diff_lowest_bucket_only_us6lowsimtdnd.txt', lowest_sim_bucket_only=True)            
 
     
     # Run this to produce sorted listing of most similar item to EACH test set sample..
     new_outlist = output_most_similar_detail(s_uqa_summary, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 
-                                             topk=10000, outname = 'tmp_uqa_most_similar_dump_detail_us4.txt')
-    new_outlist = output_most_similar_detail(s_tdnd_summary, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 
-                                             topk=10000, outname = 'tmp_tdnd_most_similar_dump_detail_us4.txt')
+                                             topk=10000, outname = 'uqa_most_similar_dump_detail_us4.txt')
+    new_outlist = output_most_similar_detail(s_uqaplus_summary, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 
+                                             topk=10000, outname = 'uqaplus_most_similar_dump_detail_us4.txt')
     new_outlist = output_most_similar_detail(s_uqa_summary, dsetset=eval_metrics.unifiedqa_unseen_6, ngram='Unigram', column='combo', 
-                                             topk=10000, outname = 'tmp_uqa_most_similar_dump_detail_us6lowsimtdnd.txt')
-    new_outlist = output_most_similar_detail(s_tdnd_summary, dsetset=eval_metrics.unifiedqa_unseen_6, ngram='Unigram', column='combo', 
-                                             topk=10000, outname = 'tmp_tdnd_most_similar_dump_detail_us6lowsimtdnd.txt')
+                                             topk=10000, outname = 'uqa_most_similar_dump_detail_us6lowsimtdnd.txt')
+    new_outlist = output_most_similar_detail(s_uqaplus_summary, dsetset=eval_metrics.unifiedqa_unseen_6, ngram='Unigram', column='combo', 
+                                             topk=10000, outname = 'uqaplus_most_similar_dump_detail_us6lowsimtdnd.txt')
 
     # Run this to produce dump of top 3 most similar in each bucket
     new_outlist = output_most_similar(s_uqa, dsetset=eval_metrics.unifiedqa_unseen_4, buckets_select='ALL', ngram='Unigram', column='combo', 
-                                      topk=3, outname='tmp_uqa_mostsimilar_us4.txt')
-    new_outlist = output_most_similar(s_tdnd, dsetset=eval_metrics.unifiedqa_unseen_4, buckets_select='ALL', ngram='Unigram', column='combo', 
-                                      topk=3, outname='tmp_tdnd_mostsimilar_us4.txt')
+                                      topk=3, outname='uqa_mostsimilar_us4.txt')
+    new_outlist = output_most_similar(s_uqaplus, dsetset=eval_metrics.unifiedqa_unseen_4, buckets_select='ALL', ngram='Unigram', column='combo', 
+                                      topk=3, outname='uqaplus_mostsimilar_us4.txt')
     print('Finished!')
     return    
 

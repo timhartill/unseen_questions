@@ -346,7 +346,7 @@ def calc_metrics(args, logger, dev_data):
     logger.info("Loading pre-tokenized data from {}".format(dev_data.preprocessed_path))
     with open(dev_data.preprocessed_path, "r") as f:
         input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, \
-            metadata = json.load(f)
+            metadata, word_starts, ners_ids = json.load(f)
 
         
     output_dict = {'prefer': pref_metric,

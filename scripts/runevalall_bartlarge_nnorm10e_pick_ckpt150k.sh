@@ -120,5 +120,23 @@ do
         --calc_metrics
 done
 
+
+#eval on strategy_qa etc dev sets
+for ds in strategy_qa cwwv atomic
+do
+    echo "Running eval for $ds on dev..."
+    python cli.py --do_predict --output_dir $1 \
+        --predict_file /data/thar011/data/unifiedqa/${ds}/dev.tsv \
+        --predict_batch_size 32 \
+        --append_another_bos --do_lowercase \
+        --verbose \
+        --prefix dev_${ds}_ \
+        --model facebook/bart-large \
+        --checkpoint $1/best-model-150000.pt \
+        --norm_numbers --norm_10e \
+        --calc_metrics
+done
+
+
 echo Finished!
 

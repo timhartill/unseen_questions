@@ -299,7 +299,7 @@ def make_into_question(text, method, mask_type=''):
         q = noisy_clozes_translate(text, params=[2, 0.2, 0.0], mask_type=mask_type)
     elif method == 'rq':  # reformulate question using spacy
         q = reformulate_question(text, nlp, mask_type=mask_type, reform_version=1)
-        if q in HEURISTIC_CLOZE_TYPE_QUESTION_MAP[NOUNPHRASE_LABEL]:
+        if q in HEURISTIC_CLOZE_TYPE_QUESTION_MAP[NOUNPHRASE_LABEL]: # ['What', '']
             q = generate_template(text, mask_type=mask_type)  # occasionally question reformatting fails
     elif method in ['wba','awb']:  # Fabbri method
         q = generate_template(text, mask_type=mask_type, template=method)        
@@ -321,7 +321,7 @@ def extract_and_print(txt):
     for n in doc:  #POS
         print('POS', n.text, n.pos_, n.idx, n.shape_, n.text_with_ws)
     for n in doc.noun_chunks:  #Noun Chunks
-        print('NOUN CHUNK',n.text, n.start_char, n.end_char)
+        print('NOUN CHUNK',n.text, n.start_char, n.end_char, n.text_with_ws)
     for ent in doc.ents:  #NER
         print('NER', ent.text, '"' + ent.text_with_ws + '"', ent.start_char, ent.end_char, ent.label_, HEURISTIC_CLOZE_TYPE_QUESTION_MAP[ent.label_])
     matches = matcher(doc)  #Verb chunks

@@ -114,7 +114,7 @@ class UnifiedQAData(QAData):
         postfix = self.tokenizer.__class__.__name__.replace("zer", "zed")
         preprocessed_path = os.path.join(
                 "/".join(self.data_path.split("/")[:-1]),
-                self.data_path.split("/")[-1].replace(".tsv", "-v2-{}{}{}{}{}{}-{}-{}.json".format(
+                self.data_path.split("/")[-1].replace(".tsv", "-v3-{}{}{}{}{}{}-{}-{}.json".format(
                     "-uncased" if self.args.do_lowercase else "",
                     "-xbos" if (self.args.append_another_bos and self.tokenizer.bos_token_id is not None) else "",
                     "-squote" if (self.args.strip_single_quotes) else "",
