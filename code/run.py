@@ -29,7 +29,7 @@ from unified_data import UnifiedQAData
 from bart import MyBart
 import eval_metrics  
 from overlap_detector import UQADataset
-from sentence_embeddings import Embedder
+from sentence_embeddings import Embedder, restate_qa_all
 
 def run(args, logger):
     if args.do_train or args.do_predict or args.calc_metrics:
@@ -573,21 +573,26 @@ def create_sentence_embeddings(args, logger):
     #create sentence embeddings from train datasets...     
     if args.use_question_only:
         out_emb_file_train = 'train_emb_qonly.pkl'
+    elif args.reformat_question_ssvise:
+        out_emb_file_train = 'train_emb_ssvise.pkl'
     else:
         out_emb_file_train = 'train_emb.pkl'
-    for trainset in train_data.data.keys():
+    for i, trainset in enumerate(train_data.data.keys()):
         out_dir = os.path.join(out_dir_base, trainset)
         out_file = os.path.join(out_dir, out_emb_file_train)
         if args.add_only_missing and os.path.exists(out_file):
             logger.info(f"Skipping Calculating embeddings for train data of {trainset} as embedding file already exists")
             continue
-        logger.info(f"Calculating embeddings for train data of {trainset}:")
+        ssvised = train_data.selfsupervised[i]
+        logger.info(f"Calculating embeddings for train data of {trainset} self-supervised:{ssvised}:")
         questions = train_data.data[trainset]['question']
         answers = train_data.data[trainset]['answer']
-        if args.use_question_only:
+        if args.use_question_only:  # not used
             questions = s.strip_context(questions)    
         questions = [q.strip() for q in questions]
         answers = [a.strip() for a in answers]
+        if args.reformat_question_ssvise:
+            questions = restate_qa_all(questions, answers)
         if args.do_lowercase:  #roberta is case sensitive so don't use this flag with sroberta..
             questions = [q.lower() for q in questions]
             answers = [a.lower() for a in answers]
@@ -598,9 +603,10 @@ def create_sentence_embeddings(args, logger):
             enc = s.encode_inputs(questions[i:i+args.predict_batch_size])  #NB for list[5:50] on a 10 element list python returns items 5:10 only hence partial batch at end is picked up
             emb = s.get_embeddings(enc)
             questions_emb += emb
-            enc = s.encode_inputs(answers[i:i+args.predict_batch_size])
-            emb = s.get_embeddings(enc)
-            answers_emb += emb
+            if not ssvised and not args.reformat_question_ssvise:  # don't create embeddings for non-existent self supervised dataset answers..
+                enc = s.encode_inputs(answers[i:i+args.predict_batch_size])
+                emb = s.get_embeddings(enc)
+                answers_emb += emb
             if i % 1000 == 0:
                 print(f'{trainset}: Processed: {i}')
             
@@ -617,11 +623,15 @@ def create_sentence_embeddings(args, logger):
         if gt_file.endswith('test.tsv'):
             if args.use_question_only:
                 out_emb_file_test = 'test_emb_qonly.pkl'
+            elif args.reformat_question_ssvise:
+                out_emb_file_test = 'test_emb_ssvise.pkl'
             else:
                 out_emb_file_test = 'test_emb.pkl'
         else:
             if args.use_question_only:
                 out_emb_file_test = 'dev_emb_qonly.pkl'
+            elif args.reformat_question_ssvise:
+                out_emb_file_test = 'dev_emb_ssvise.pkl'
             else:
                 out_emb_file_test = 'dev_emb.pkl'
         out_dir = os.path.join(out_dir_base, testset)
@@ -640,6 +650,8 @@ def create_sentence_embeddings(args, logger):
             questions = s.strip_context(questions)                
         questions = [q.strip() for q in questions]
         answers = [a.strip() for a in answers]
+        if args.reformat_question_ssvise:
+            questions = restate_qa_all(questions, answers)
         if args.do_lowercase:
             questions = [q.lower() for q in questions]
             answers = [a.lower() for a in answers]
@@ -647,13 +659,17 @@ def create_sentence_embeddings(args, logger):
         num_samples = len(questions)
         questions_emb = []
         answers_emb = []
+        ssvised = False
+        if answers[0] == '':
+            ssvised = True
         for i in range(0, num_samples, args.predict_batch_size):
             enc = s.encode_inputs(questions[i:i+args.predict_batch_size])
             emb = s.get_embeddings(enc)
             questions_emb += emb
-            enc = s.encode_inputs(answers[i:i+args.predict_batch_size])
-            emb = s.get_embeddings(enc)
-            answers_emb += emb
+            if not ssvised and not args.reformat_question_ssvise:
+                enc = s.encode_inputs(answers[i:i+args.predict_batch_size])
+                emb = s.get_embeddings(enc)
+                answers_emb += emb
             if i % 1000 == 0:
                 print(f'{testset}: Processed: {i}')
                
@@ -710,7 +726,9 @@ def calc_similarity_embeddings(args, logger):
         logger.info(f"No existing sim_results file {results_file_out}. Starting from empty file.")
 
         
-    for trainset in train_data.data.keys():
+    for i, trainset in enumerate(train_data.data.keys()):
+        changed = False
+        ssvised = train_data.selfsupervised[i]
         logger.info(f"Calculating embedding similarity for {trainset} against:")
         train_reformat = []
         for i in range(len(train_data.data[trainset]['question'])):  #reformat train to be same format as eval datasets below..
@@ -727,6 +745,7 @@ def calc_similarity_embeddings(args, logger):
         
         if sim_results.get(trainset) is None:
             sim_results[trainset] = {}
+            changed = True
             
         for testset in results_dict.keys():
             if testset == 'narrativeqa':
@@ -745,11 +764,15 @@ def calc_similarity_embeddings(args, logger):
                 if gt_file.endswith('test.tsv'):
                     if args.use_question_only:
                         emb_file_test = 'test_emb_qonly.pkl'
+                    elif ssvised and args.reformat_question_ssvise:  # if trainset is ssvised then optionally use reformatted eval ssvise-style embeddings
+                        emb_file_test = 'test_emb_ssvise.pkl'
                     else:
                         emb_file_test = 'test_emb.pkl'
                 else:
                     if args.use_question_only:
                         emb_file_test = 'dev_emb_qonly.pkl'
+                    elif ssvised and args.reformat_question_ssvise:  # if trainset is ssvised then optionally use reformatted eval ssvise-style embeddings
+                        emb_file_test = 'dev_emb_ssvise.pkl'
                     else:
                         emb_file_test = 'dev_emb.pkl'
                 out_dir = os.path.join(out_dir_base, testset)
@@ -764,10 +787,14 @@ def calc_similarity_embeddings(args, logger):
                                                   'sim_details': result_detail, 
                                                   'test_metric': prefmetric, 
                                                   'test_scores': scores}
+                changed = True
 
-        logger.info(f"Finished calculating test-train embedding similarities for {trainset}. Saving results into {results_file_out}..")
-        with open(results_file_out, 'w') as f:
-            json.dump(sim_results, f)
+        if changed:
+            logger.info(f"Finished calculating test-train embedding similarities for {trainset}. Saving results into {results_file_out}..")
+            with open(results_file_out, 'w') as f:
+                json.dump(sim_results, f)
+        else:
+            logger.info(f"No updates for {trainset} so {results_file_out} not updated...")
     logger.info(f"Finished saving results into {results_file_out}!")
     return
 

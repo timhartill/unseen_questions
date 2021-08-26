@@ -10,5 +10,5 @@ python cli.py --calc_similarity_embeddings --output_dir /data/thar011/out/unifie
         --verbose \
         --answer_thresh -100.1 \
         --add_only_missing \
-        --mixture unifiedqa,synthetic_textual,synthetic_numeric,strategy_qa,cwwv,atomic
+        --mixture unifiedqa,synthetic_textual,synthetic_numeric,strategy_qa,cwwv,atomic,atomic,qasc_dev_facts_selfsvised,qasc_facts_selfsvised,strategy_qa_facts_dev_in_train_selfsvised
 

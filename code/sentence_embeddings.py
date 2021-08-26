@@ -12,7 +12,7 @@ Sentence embeddings using model from:
     3982–92. Hong Kong, China: Association for Computational Linguistics.
 
 """
-
+import re
 import torch
 from transformers import AutoTokenizer, AutoModel
 
@@ -82,4 +82,60 @@ class Embedder:
         return new_questions
 
 
+def restate_qa(q, ans):
+    """ Restate eval q + a depending on input format with objective of making it more 
+        aligned with self supervised training format for similarity purposes.
+    Possible input formats:
+        question \\n (without label = ssupervised, with label = open domain)
+        question \\n MC options
+        question \\n MC options \\n context
+        question \\n context
+    Output: concatenate answer to question (or replace leading wh word with answer and remove '?' if there is a leading wh word), 
+            remove MC options if they exist.
+    """
+    ans = ans.strip()
+    if ans == '':  #ssvised so no reformat
+        return q
+    ans = ans.rstrip('.')
+    sentences = q.split('\\n')
+    sentences = [s.strip() for s in sentences if s.strip() != '']
+        
+    # restate question
+    new_q = sentences[0]
+    #new_q2 = re.sub(r'^(what|who|when|how many|how much)', ans.capitalize(), sentences[0], flags=re.I)
+    #if new_q != new_q2:
+    #    new_q = new_q2
+    #elif new_q.find(' _ ') != -1:
+    if new_q.find(' _ ') != -1:
+        new_q = new_q.replace(' _ ', ans, 1)
+    else:
+        if new_q[-1] not in ['.', '?', '!', ':', ';']:
+            new_q += '.'
+        new_q = new_q + ' ' + ans.capitalize()
+    new_q = new_q.rstrip('?')
+    if new_q[-1] not in ['.', '?', '!', ':', ';']:
+        new_q += '.'
+    new_q = re.sub(r'\s+', ' ', new_q)  # remove double spaces
+    new_q += ' '
+    if len(sentences) > 1:
+        if not sentences[1].startswith('(A)'):
+            new_q += sentences[1] 
+            if new_q[-1] not in ['.', '?', '!', ':', ';']:
+                new_q += '.'
+            new_q += ' '
+    if len(sentences) > 2:
+        new_q += sentences[2]    
+        if new_q[-1] not in ['.', '?', '!', ':', ';']:
+            new_q += '.'
+        new_q += ' '
+    new_q += '\\n'
+    return new_q
 
+
+def restate_qa_all(questions, answers):
+    """ Reformat all questions to match self-supervised format """
+    num_q = len(questions)
+    new_questions = []
+    for i in range(num_q):
+        new_questions.append( restate_qa(questions[i], answers[i]) )
+    return new_questions

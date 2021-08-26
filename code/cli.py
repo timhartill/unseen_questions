@@ -104,6 +104,8 @@ def main():
                         help="Create sentence embeddings for train datasets specified by  --mixture and eval datasets specified in eval_metrics.json. --predict_batch_size must be specified")
     parser.add_argument("--use_question_only", action='store_true',
                         help="Create sentence embeddings only using question part of the input context.")    
+    parser.add_argument("--reformat_question_ssvise", action='store_true',
+                        help="Create sentence embeddings from question + answer reformatted to be similar to self-supervised training format.")
     parser.add_argument("--calc_similarity_embeddings", action='store_true',
                         help="Calculate cosine similarity between sentence embeddings between train datasets specified by  --mixture and eval datasets specified in eval_metrics.json. --create_embeddings must be run before running this.")
     parser.add_argument("--add_only_missing", action='store_true',

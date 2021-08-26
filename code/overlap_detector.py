@@ -31,47 +31,62 @@ class OverlapDetectorEmbedding:
     """ Compare embeddings for source vs target rows for each column in [columns]
         Return most similar match (as measured by sentence embedding similarity) for each source row in target for each column 
     """
-    def __init__(self, similarity_comparer, train_emb, test_emb): 
+    def __init__(self, similarity_comparer, train_emb, test_emb, ssvise): 
         self._similarity_comparer = similarity_comparer
         self.train_emb = train_emb
         self.test_emb = test_emb
+        self.ssvise = ssvise
 
     def compare(self, source_df, target_df, columns=None, add_combo=True, answer_thresh=-100.1, answer_col='label', question_thresh=0.0):
         columns = columns or source_df.columns
 
         result = {}
         similarity_scores = {}
+        for c in columns:
+            if c != answer_col:
+                question_col = c
+                break
 
         for c in columns:
             result[c] = {}
-            result[c]["score"], result[c]["details"], similarity_scores[c] = self._compare_rows_text(source_df[c].tolist(),
-                                                                                                     target_df[c].tolist(), c )
+            if not self.ssvise or c != answer_col:
+                result[c]["score"], result[c]["details"], similarity_scores[c] = self._compare_rows_text(source_df[c].tolist(),
+                                                                                                         target_df[c].tolist(), c )
+            else:
+                result[c]["score"] = []
+                result[c]["details"] = []
+                
         if add_combo: # add a combined score based on similar answers with similar questions in same training example
-            answer_sims = similarity_scores[answer_col]
-            answer_mask = (answer_sims >= answer_thresh)
-            divisor = 1.0 * len(similarity_scores)
-            combo_similarity = np.zeros(answer_sims.shape)
-            for c in similarity_scores:
-                if c != answer_col:
-                    question_mask = (similarity_scores[c] >= question_thresh)
-                    similarity_scores[c] *= question_mask
-                similarity_scores[c] *= answer_mask  # if answer similarity < threshold, overall similarity = 0
-                combo_similarity += similarity_scores[c]
-            combo_similarity /= divisor
-            combo_result_score = np.max(combo_similarity, axis=1).tolist()  # compute most similar target to each source
-            combo_similarity_scores_index = np.argmax(combo_similarity, axis=1)
-            combo_result_detailed_match = []
-            for i, mi in enumerate(combo_similarity_scores_index):
-                test_sample = ''
-                train_sample = ''
+            if not self.ssvise:
+                answer_sims = similarity_scores[answer_col]
+                answer_mask = (answer_sims >= answer_thresh)
+                divisor = 1.0 * len(similarity_scores)
+                combo_similarity = np.zeros(answer_sims.shape)
                 for c in similarity_scores:
-                    test_sample += c + ': ' + source_df.iloc[i][c] + ' '
-                    train_sample += c + ': ' + target_df.iloc[mi][c] + ' '
-                combo_result_detailed_match.append( (test_sample.strip(), train_sample.strip()) )
-            result['combo'] = {}
-            result['combo']['score'] = combo_result_score
-            result['combo']['details'] = combo_result_detailed_match
-                        
+                    if c != answer_col:
+                        question_mask = (similarity_scores[c] >= question_thresh)
+                        similarity_scores[c] *= question_mask
+                    similarity_scores[c] *= answer_mask  # if answer similarity < threshold, overall similarity = 0
+                    combo_similarity += similarity_scores[c]
+                combo_similarity /= divisor
+                combo_result_score = np.max(combo_similarity, axis=1).tolist()  # compute most similar target to each source
+                combo_similarity_scores_index = np.argmax(combo_similarity, axis=1)
+                combo_result_detailed_match = []
+                for i, mi in enumerate(combo_similarity_scores_index):
+                    test_sample = ''
+                    train_sample = ''
+                    for c in similarity_scores:
+                        test_sample += c + ': ' + source_df.iloc[i][c] + ' '
+                        train_sample += c + ': ' + target_df.iloc[mi][c] + ' '
+                    combo_result_detailed_match.append( (test_sample.strip(), train_sample.strip()) )
+                result['combo'] = {}
+                result['combo']['score'] = combo_result_score
+                result['combo']['details'] = combo_result_detailed_match
+            else:                       # ssvise so combo just = question similarity
+                result['combo'] = {}
+                result['combo']['score'] = result[question_col]["score"]
+                result['combo']['details'] = result[question_col]["details"]
+                                        
         return result
 
     def _compare_rows_text(self, src_rows, target_rows, c):
@@ -104,45 +119,59 @@ class OverlapDetector:
     """ Compare source vs target rows for each column in [columns]
         Return most similar match (as measured by BOW word overlap) for each source row in target for each column 
     """
-    def __init__(self, similarity_comparer): 
+    def __init__(self, similarity_comparer, ssvise): 
         self._similarity_comparer = similarity_comparer
+        self.ssvise = ssvise
 
     def compare(self, source_df, target_df, columns=None, add_combo=True, answer_thresh=40.0, answer_col='label', question_thresh=0.0):
         columns = columns or source_df.columns
 
         result = {}
         similarity_scores = {}
-
+        for c in columns:
+            if c != answer_col:
+                question_col = c
+                break
+            
         for c in columns:
             result[c] = {}
-            result[c]["score"], result[c]["details"], similarity_scores[c] = self._compare_rows_text(source_df[c].tolist(),
-                                                                                                     target_df[c].tolist())
+            if not self.ssvise or c != answer_col:
+                result[c]["score"], result[c]["details"], similarity_scores[c] = self._compare_rows_text(source_df[c].tolist(),
+                                                                                                         target_df[c].tolist())
+            else:
+                result[c]["score"] = []
+                result[c]["details"] = []
         if add_combo: # add a combined score based on similar answers with similar questions in same training example
-            answer_sims = similarity_scores[answer_col]
-            answer_mask = (answer_sims >= answer_thresh)
-            divisor = 1.0 * len(similarity_scores)
-            combo_similarity = np.zeros(answer_sims.shape)
-            for c in similarity_scores:
-                if c != answer_col:
-                    question_mask = (similarity_scores[c] >= question_thresh)
-                    similarity_scores[c] *= question_mask
-                similarity_scores[c] *= answer_mask  # if answer similarity < threshold, overall similarity = 0
-                combo_similarity += similarity_scores[c]
-            combo_similarity /= divisor
-            combo_result_score = np.max(combo_similarity, axis=1).tolist()  # compute most similar target to each source
-            combo_similarity_scores_index = np.argmax(combo_similarity, axis=1)
-            combo_result_detailed_match = []
-            for i, mi in enumerate(combo_similarity_scores_index):
-                test_sample = ''
-                train_sample = ''
+            if not self.ssvise:
+                answer_sims = similarity_scores[answer_col]
+                answer_mask = (answer_sims >= answer_thresh)
+                divisor = 1.0 * len(similarity_scores)
+                combo_similarity = np.zeros(answer_sims.shape)
                 for c in similarity_scores:
-                    test_sample += c + ': ' + source_df.iloc[i][c] + ' '
-                    train_sample += c + ': ' + target_df.iloc[mi][c] + ' '
-                combo_result_detailed_match.append( (test_sample.strip(), train_sample.strip()) )
-            result['combo'] = {}
-            result['combo']['score'] = combo_result_score
-            result['combo']['details'] = combo_result_detailed_match
-                        
+                    if c != answer_col:
+                        question_mask = (similarity_scores[c] >= question_thresh)
+                        similarity_scores[c] *= question_mask
+                    similarity_scores[c] *= answer_mask  # if answer similarity < threshold, overall similarity = 0
+                    combo_similarity += similarity_scores[c]
+                combo_similarity /= divisor
+                combo_result_score = np.max(combo_similarity, axis=1).tolist()  # compute most similar target to each source
+                combo_similarity_scores_index = np.argmax(combo_similarity, axis=1)
+                combo_result_detailed_match = []
+                for i, mi in enumerate(combo_similarity_scores_index):
+                    test_sample = ''
+                    train_sample = ''
+                    for c in similarity_scores:
+                        test_sample += c + ': ' + source_df.iloc[i][c] + ' '
+                        train_sample += c + ': ' + target_df.iloc[mi][c] + ' '
+                    combo_result_detailed_match.append( (test_sample.strip(), train_sample.strip()) )
+                result['combo'] = {}
+                result['combo']['score'] = combo_result_score
+                result['combo']['details'] = combo_result_detailed_match
+            else:                       # ssvise so combo just = question similarity
+                result['combo'] = {}
+                result['combo']['score'] = result[question_col]["score"]
+                result['combo']['details'] = result[question_col]["details"]
+                  
         return result
 
     def _compare_rows_text(self, src_rows, target_rows):
@@ -260,7 +289,7 @@ class SimilarityEvaluator:
         self._ngrams = ngrams_dict or {"Unigram": 1}
 
     def run(self, test, train, column, add_combo=True, answer_thresh=40.0, 
-            answer_col='label', question_thresh=0.0, use_cosine='bow',
+            answer_col='label', question_thresh=0.0, use_cosine='bow', ssvise=False,
             train_emb=None, test_emb=None):
         """ Returns:
         result_score: dict keys dict_keys(['Unigram', 'Bigram', 'Trigram']) 
@@ -276,11 +305,11 @@ class SimilarityEvaluator:
         result_detail = {}
         for k, t in self._ngrams.items():
             if use_cosine == 'bow':
-                comparer = OverlapDetector(CosineSimilarityComparer(t))
+                comparer = OverlapDetector(CosineSimilarityComparer(t), ssvise)
             elif use_cosine == 'f1':
-                comparer = OverlapDetector(F1SimilarityComparer())
+                comparer = OverlapDetector(F1SimilarityComparer(), ssvise)
             elif use_cosine == 'emb':    
-                comparer = OverlapDetectorEmbedding(CosineSimilarityEmbeddingComparer(), train_emb, test_emb)
+                comparer = OverlapDetectorEmbedding(CosineSimilarityEmbeddingComparer(), train_emb, test_emb, ssvise)
 
             comparison_result = comparer.compare(test, train, columns=column, 
                                                  add_combo=add_combo, answer_thresh=answer_thresh, answer_col=answer_col, 
@@ -1143,12 +1172,12 @@ def output_most_similar_detail(s, dsetset='ALL',ngram='Unigram', column='combo',
 def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqaplus_results_file):
     """ Runs all reports used in our paper and a few more...
     Usage: 
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3_v1/'
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v2/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'
         run_all_reports(logdir=logdir,
                         sim_results_file=sim_results_file,
                         model_uqa_results_file='/data/thar011/out/unifiedqa_bart_large_v3/eval_metrics.json',
-                        model_uqaplus_results_file='/data/thar011/out/unifiedqa_bart_large_s3_v2_cwwv_atomic/eval_metrics.json')
+                        model_uqaplus_results_file='/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/eval_metrics.json')
     """
     if logdir[-1] != '/':
         logdir += '/'
@@ -1294,16 +1323,29 @@ class UQADataset:
 
     def load_nonorm(self, train_file, test_file):
         return pd.DataFrame(self._load_nonorm(train_file)), pd.DataFrame(self._load_nonorm(test_file))
+    
+    
+    def is_ssvised(self, datafile):
+        """ if answer is '' then consider entire file self supervised ie no labels """
+        test_ans = datafile[0]['answer']
+        if type(test_ans) == list:
+            test_ans = test_ans[0]
+        return test_ans.strip() == ''
+        
 
     def run_similarity_comparer(self, trainfile, testfile, add_combo=True, answer_thresh=40.0, 
                                 answer_col='label', question_thresh=0.0, use_cosine='bow',
                                 train_emb=None, test_emb=None):
+        ssvise = False
+        if self.is_ssvised(trainfile) or self.is_ssvised(testfile):
+            ssvise = True
+        
         if use_cosine in ['bow', 'f1']:
             train_df, test_df = self.load(trainfile, testfile)  #
             result_score, result_detail = SimilarityEvaluator().run(test_df, train_df, column=["text", "label"], 
                                                                     add_combo=add_combo, answer_thresh=answer_thresh, 
                                                                     answer_col=answer_col, question_thresh=question_thresh, 
-                                                                    use_cosine=use_cosine) 
+                                                                    use_cosine=use_cosine, ssvise=ssvise) 
         elif use_cosine == 'emb':
             train_df, test_df = self.load_nonorm(trainfile, testfile)  #
             train_emb_rename = {'text': train_emb['question'], 'label': train_emb['answer']}
@@ -1312,7 +1354,7 @@ class UQADataset:
             result_score, result_detail = SimilarityEvaluator().run(test_df, train_df, column=["text", "label"], 
                                                                     add_combo=add_combo, answer_thresh=answer_thresh, 
                                                                     answer_col=answer_col, question_thresh=question_thresh, 
-                                                                    use_cosine=use_cosine, 
+                                                                    use_cosine=use_cosine, ssvise=ssvise, 
                                                                     train_emb=train_emb_rename, test_emb=test_emb_rename )
         else:
             print(f"Unknown similarity comparison type: {use_cosine}")

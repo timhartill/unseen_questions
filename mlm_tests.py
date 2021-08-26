@@ -13,6 +13,7 @@ import numpy as np
 import copy
 import string
 import json
+import re
 
 from transformers import AutoTokenizer, AutoModelForPreTraining
 
@@ -531,18 +532,46 @@ args.add_mask_ctr=False
 args.is_unifiedqa = True
 args.mixture = 'unifiedqa,synthetic_textual,synthetic_numeric'
 args.mixture = 'cwwv_premask_selfsvised,cwwv_selfsvised,atomic_premask_selfsvised,atomic_selfsvised'
-args.mixture = 'qasc_dev_facts_selfsvised'
-args.mixture = 'strategy_qa_facts_dev_in_train_selfsvised'
+args.mixture = 'unifiedqa,qasc_dev_facts_selfsvised'
+args.mixture = 'qasc_dev_facts_selfsvised,strategy_qa_facts_dev_in_train_selfsvised,arc_hard'
 args.train_file = '/data/thar011/data/unifiedqa/train.tsv'
 args.predict_file = '/data/thar011/data/unifiedqa/dev.tsv'
 dev_data = UnifiedQAData(logger, args, args.predict_file, False)
 dev_data = UnifiedQAData(logger, args, args.train_file, True)
 
 print(dev_data.data.keys())     # dict_keys(['arc_hard', 'strategy_qa_facts_selfsvised', 'strategy_qa', 'qasc_facts_selfsvised'])
+print(dev_data.selfsupervised)
 print(len(dev_data.data['arc_hard']['question']))  #299   train: 1119
 print(len(dev_data.data['strategy_qa_facts_dev_in_train_selfsvised']['question']))  #849  train: 8402
 print(len(dev_data.data['strategy_qa']['question']))  #229  train: 2061
 print(len(dev_data.data['qasc_dev_facts_selfsvised']['question']))  #2304  train: 19438
+
+print(dev_data.data['qasc_dev_facts_selfsvised']['question'][0])  #question \\n
+print(dev_data.data['qasc_dev_facts_selfsvised']['answer'][0])
+
+print(dev_data.data['arc_hard']['question'][0])  #question \\n options
+print(dev_data.data['arc_hard']['answer'][0])
+
+print(dev_data.data['race_string']['question'][0])  # question \\n options \\n context
+print(dev_data.data['race_string']['answer'][0])
+s = dev_data.data['race_string']['question'][0].split('\\n')
+
+print(dev_data.data['boolq']['question'][0])  # question \\n context
+print(dev_data.data['boolq']['answer'][0])
+
+print(dev_data.data['squad2']['question'][0])  # question \\n context
+print(dev_data.data['squad2']['answer'][0])
+
+
+
+
+new_questions = restate_qa_all(dev_data.data['arc_hard']['question'], dev_data.data['arc_hard']['answer'])
+new_questions = restate_qa_all(dev_data.data['qasc_dev_facts_selfsvised']['question'], dev_data.data['qasc_dev_facts_selfsvised']['answer'])
+new_questions = restate_qa_all(dev_data.data['race_string']['question'], dev_data.data['race_string']['answer'])
+new_questions = restate_qa_all(dev_data.data['boolq']['question'], dev_data.data['boolq']['answer'])
+new_questions = restate_qa_all(dev_data.data['squad2']['question'], dev_data.data['squad2']['answer'])
+
+
 
 logger.info(args)
 
