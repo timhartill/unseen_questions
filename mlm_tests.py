@@ -508,6 +508,7 @@ args.output_dir = '/data/thar011/out/unifiedqa_bart_large_TEST'
 args.do_lowercase = True
 args.append_another_bos = True
 args.verbose=True
+args.reformat_question_ssvise = True
 # Must set up logger after setting up args.output_dir ...
 log_filename = "{}log.txt".format("" if args.do_train else "eval_")
 
@@ -533,7 +534,7 @@ args.is_unifiedqa = True
 args.mixture = 'unifiedqa,synthetic_textual,synthetic_numeric'
 args.mixture = 'cwwv_premask_selfsvised,cwwv_selfsvised,atomic_premask_selfsvised,atomic_selfsvised'
 args.mixture = 'unifiedqa,qasc_dev_facts_selfsvised'
-args.mixture = 'qasc_dev_facts_selfsvised,strategy_qa_facts_dev_in_train_selfsvised,arc_hard'
+args.mixture = 'unifiedqa,synthetic_textual,synthetic_numeric,strategy_qa,cwwv,atomic,qasc_dev_facts_selfsvised,qasc_facts_selfsvised,strategy_qa_facts_dev_in_train_selfsvised'
 args.train_file = '/data/thar011/data/unifiedqa/train.tsv'
 args.predict_file = '/data/thar011/data/unifiedqa/dev.tsv'
 dev_data = UnifiedQAData(logger, args, args.predict_file, False)
@@ -541,6 +542,10 @@ dev_data = UnifiedQAData(logger, args, args.train_file, True)
 
 print(dev_data.data.keys())     # dict_keys(['arc_hard', 'strategy_qa_facts_selfsvised', 'strategy_qa', 'qasc_facts_selfsvised'])
 print(dev_data.selfsupervised)
+for i, trainset in enumerate(dev_data.data.keys()):
+    ssvised = dev_data.selfsupervised[i]
+    print(f"{i} {trainset} {ssvised}")
+
 print(len(dev_data.data['arc_hard']['question']))  #299   train: 1119
 print(len(dev_data.data['strategy_qa_facts_dev_in_train_selfsvised']['question']))  #849  train: 8402
 print(len(dev_data.data['strategy_qa']['question']))  #229  train: 2061
@@ -562,14 +567,53 @@ print(dev_data.data['boolq']['answer'][0])
 print(dev_data.data['squad2']['question'][0])  # question \\n context
 print(dev_data.data['squad2']['answer'][0])
 
+print(dev_data.data['strategy_qa']['question'][0])  # question \\n context
+print(dev_data.data['strategy_qa']['answer'][0])
 
-
+restate_qa("The rain in Spain falls mainly on the plain _ .", "Spain")
 
 new_questions = restate_qa_all(dev_data.data['arc_hard']['question'], dev_data.data['arc_hard']['answer'])
 new_questions = restate_qa_all(dev_data.data['qasc_dev_facts_selfsvised']['question'], dev_data.data['qasc_dev_facts_selfsvised']['answer'])
 new_questions = restate_qa_all(dev_data.data['race_string']['question'], dev_data.data['race_string']['answer'])
 new_questions = restate_qa_all(dev_data.data['boolq']['question'], dev_data.data['boolq']['answer'])
 new_questions = restate_qa_all(dev_data.data['squad2']['question'], dev_data.data['squad2']['answer'])
+new_questions = restate_qa_all(dev_data.data['strategy_qa']['question'], dev_data.data['strategy_qa']['answer'])
+new_questions = restate_qa_all(dev_data.data['qasc']['question'], dev_data.data['qasc']['answer'])
+
+# test embeddings
+from sentence_embeddings import Embedder, restate_qa_all
+from sklearn.metrics.pairwise import cosine_similarity
+import pickle
+
+s = Embedder()
+q = 'Ancestors of hagfish are thought to have been the earliest creatures with what? \\n (A) pigment (B) bones (C) keratin (D) life (E) shells (F) size (G) wings (H) arms'
+q_reformat = 'Ancestors of hagfish are thought to have been the earliest creatures with what? Bones. \\n'
+train_comp_q = 'Ancestors of hagfish are thought to have been the earliest vertebrates.\\n'
+
+enc = s.encode_inputs([q])  #NB for list[5:50] on a 10 element list python returns items 5:10 only hence partial batch at end is picked up
+emb_q = s.get_embeddings(enc)
+enc = s.encode_inputs([q_reformat])  #NB for list[5:50] on a 10 element list python returns items 5:10 only hence partial batch at end is picked up
+emb_q_reformat = s.get_embeddings(enc)
+
+enc = s.encode_inputs([train_comp_q])  #NB for list[5:50] on a 10 element list python returns items 5:10 only hence partial batch at end is picked up
+emb_train_comp_q = s.get_embeddings(enc)
+
+q_vs_train_comp_q_score = cosine_similarity(emb_q,Y=emb_train_comp_q) # array([[0.92371273]], dtype=float32)
+q_reformat_vs_train_comp_q_score = cosine_similarity(emb_q_reformat,Y=emb_train_comp_q) # array([[0.9582589]], dtype=float32)
+
+with open('/data/thar011/data/unifiedqa/qasc/dev_emb.pkl', "rb") as f:
+    dev_emb = pickle.load(f)
+with open('/data/thar011/data/unifiedqa/qasc/dev_emb_ssvise.pkl', "rb") as f:
+    dev_emb_ssvise = pickle.load(f)
+dev_emb['question'].shape  # (926, 1024)
+dev_emb_595 = dev_emb['question'][595]
+dev_emb_ssvise_595 = dev_emb_ssvise['question'][595]
+dev_emb_595[0:3] # array([-0.35767996,  0.3267792 , -0.346222  ], dtype=float32)
+emb_q[0][0:3] # array([-0.35768092,  0.32677752, -0.34622276], dtype=float32)
+dev_emb_ssvise_595[0:3] # array([-0.0133259 ,  0.45691422, -0.15771255], dtype=float32)
+emb_q_reformat[0][0:3] # array([-0.01332702,  0.45691407, -0.1577122 ], dtype=float32)
+
+
 
 
 

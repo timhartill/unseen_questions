@@ -58,7 +58,7 @@ class OverlapDetectorEmbedding:
                 
         if add_combo: # add a combined score based on similar answers with similar questions in same training example
             if not self.ssvise:
-                answer_sims = similarity_scores[answer_col]
+                answer_sims = similarity_scores[answer_col] # (n_samples_test, n_samples_train)
                 answer_mask = (answer_sims >= answer_thresh)
                 divisor = 1.0 * len(similarity_scores)
                 combo_similarity = np.zeros(answer_sims.shape)
@@ -69,8 +69,8 @@ class OverlapDetectorEmbedding:
                     similarity_scores[c] *= answer_mask  # if answer similarity < threshold, overall similarity = 0
                     combo_similarity += similarity_scores[c]
                 combo_similarity /= divisor
-                combo_result_score = np.max(combo_similarity, axis=1).tolist()  # compute most similar target to each source
-                combo_similarity_scores_index = np.argmax(combo_similarity, axis=1)
+                combo_result_score = np.max(combo_similarity, axis=1).tolist()      # compute most similar target to each source [n_samples_test]
+                combo_similarity_scores_index = np.argmax(combo_similarity, axis=1) # [n_samples_test]
                 combo_result_detailed_match = []
                 for i, mi in enumerate(combo_similarity_scores_index):
                     test_sample = ''
@@ -83,19 +83,25 @@ class OverlapDetectorEmbedding:
                 result['combo']['score'] = combo_result_score
                 result['combo']['details'] = combo_result_detailed_match
             else:                       # ssvise so combo just = question similarity
+                combo_result_detailed_match = []
+                combo_similarity_scores_index = np.argmax(similarity_scores[question_col], axis=1) # [n_samples_test]
+                for i, mi in enumerate(combo_similarity_scores_index):
+                    test_sample = result[question_col]["details"][i][0] + ' ' + answer_col + ': ' + source_df.iloc[i][answer_col]
+                    train_sample = result[question_col]["details"][i][1] + ' ' + answer_col + ': ' + target_df.iloc[mi][answer_col]
+                    combo_result_detailed_match.append( (test_sample.strip(), train_sample.strip()) )                
                 result['combo'] = {}
                 result['combo']['score'] = result[question_col]["score"]
-                result['combo']['details'] = result[question_col]["details"]
+                result['combo']['details'] = combo_result_detailed_match
                                         
         return result
 
     def _compare_rows_text(self, src_rows, target_rows, c):
         
-        similarity_score = self._similarity_comparer(self.test_emb[c], self.train_emb[c])
+        similarity_score = self._similarity_comparer(self.test_emb[c], self.train_emb[c])  # returns shape (n_samples_test, n_samples_train)
 
-        result_score = np.max(similarity_score, axis=1).tolist()  # compute most similar target to each source
-        similarity_scores_index = np.argmax(similarity_score, axis=1)
-        result_detailed_match = [(src_rows[i], target_rows[mi]) for i, mi in enumerate(similarity_scores_index)]  #(test example, train example)
+        result_score = np.max(similarity_score, axis=1).tolist()        # compute most similar target to each source [n_samples_test]
+        similarity_scores_index = np.argmax(similarity_score, axis=1)   # compute index of most similar target to each source [n_samples_test]
+        result_detailed_match = [(src_rows[i], target_rows[mi]) for i, mi in enumerate(similarity_scores_index)]  #n_samples_test sized list of (test example text, train example text)
 
         return result_score, result_detailed_match, similarity_score
 
@@ -1172,8 +1178,9 @@ def output_most_similar_detail(s, dsetset='ALL',ngram='Unigram', column='combo',
 def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqaplus_results_file):
     """ Runs all reports used in our paper and a few more...
     Usage: 
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v2/'
-        sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v1_eval_NOT_ssvise_reformat/'
+        sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformat
+        sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1 (backup after ssvise but before use ssvise eval embeddings).json'
         run_all_reports(logdir=logdir,
                         sim_results_file=sim_results_file,
                         model_uqa_results_file='/data/thar011/out/unifiedqa_bart_large_v3/eval_metrics.json',

@@ -107,7 +107,7 @@ def restate_qa(q, ans):
     #    new_q = new_q2
     #elif new_q.find(' _ ') != -1:
     if new_q.find(' _ ') != -1:
-        new_q = new_q.replace(' _ ', ans, 1)
+        new_q = new_q.replace(' _ ', ' ' + ans + ' ', 1)
     else:
         if new_q[-1] not in ['.', '?', '!', ':', ';']:
             new_q += '.'
@@ -116,6 +116,7 @@ def restate_qa(q, ans):
     if new_q[-1] not in ['.', '?', '!', ':', ';']:
         new_q += '.'
     new_q = re.sub(r'\s+', ' ', new_q)  # remove double spaces
+    new_q = new_q.replace(' .', '.')
     new_q += ' '
     if len(sentences) > 1:
         if not sentences[1].startswith('(A)'):

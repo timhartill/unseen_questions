@@ -754,7 +754,6 @@ def calc_similarity_embeddings(args, logger):
                 if args.add_only_missing and (sim_results[trainset].get(testset) is not None):
                     logger.info(f" ... skipping {testset} as it already exists..")
                     continue
-                logger.info(f" ... {testset}")
                 gt_file = results_dict[testset]['gt_file']
                 dev_data = QAData(logger, args, gt_file, False)
                 prefmetric = results_dict[testset]['prefer']
@@ -777,6 +776,8 @@ def calc_similarity_embeddings(args, logger):
                         emb_file_test = 'dev_emb.pkl'
                 out_dir = os.path.join(out_dir_base, testset)
                 out_file = os.path.join(out_dir, emb_file_test)
+                logger.info(f" ... {testset} using {out_file}")
+
                 with open(out_file, "rb") as f:
                     test_emb = pickle.load(f)
     

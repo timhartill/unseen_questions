@@ -251,7 +251,8 @@ unifiedqa_unseen_4 = [
     'qasc',
     'qasc_with_ir',
     'ropes',
-    'newsqa'
+    'newsqa',
+    'strategy_qa'
     ]
 
 unifiedqa_unseen_4_map = {
@@ -264,7 +265,8 @@ unifiedqa_unseen_4_map = {
     'qasc': 'dev.tsv',
     'qasc_with_ir': 'dev.tsv',
     'ropes': 'dev.tsv',
-    'newsqa': 'dev.tsv'
+    'newsqa': 'dev.tsv',
+    'strategy_qa': 'dev.tsv'
     }
 
 # Not used
@@ -313,7 +315,7 @@ unifiedqa_seen_1 = [
     'atomic'
     ]
 
-# The 57 mmlu datasets. Not used directly.
+# The 57 mmlu datasets. 
 mmlu_unseen_1 = [
      'mmlu_elementary_mathematics_test',
      'mmlu_business_ethics_test',
@@ -372,6 +374,7 @@ mmlu_unseen_1 = [
      'mmlu_college_medicine_test',
      'mmlu_high_school_physics_test',
      'mmlu_college_chemistry_test']
+
 
 # the standard "squad" normalization
 def normalize_answer(s):
