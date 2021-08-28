@@ -1052,9 +1052,10 @@ def run_all(logdir, results_list):
                         '/data/thar011/out/unifiedqa_bart_large_s3_v1_cwwv/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s3_v2_cwwv_atomic/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s4_v2_cwwv_premask_atomic_premask/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s4_v3_cwwv_ssvise_atomic_ssvise/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/eval_metrics.json'
                        ]
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v1/'
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v2/'
         run_all(logdir, results_list)
     """
     if logdir[-1] != '/':

@@ -1178,7 +1178,7 @@ def output_most_similar_detail(s, dsetset='ALL',ngram='Unigram', column='combo',
 def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqaplus_results_file):
     """ Runs all reports used in our paper and a few more...
     Usage: 
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v1_eval_NOT_ssvise_reformat/'
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v2/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformat
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1 (backup after ssvise but before use ssvise eval embeddings).json'
         run_all_reports(logdir=logdir,
