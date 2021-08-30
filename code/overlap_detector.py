@@ -425,13 +425,15 @@ class SimilarityAggregator:
 
         """
         self.logdir = logdir
-        self.compare_over = compare_over.upper()  #ALL means analyse over all train datasets. Anything else eg 'UQA' means original UnifiedQA train datasets only
+        self.compare_over = compare_over
+        if type(self.compare_over) == str:
+            self.compare_over = self.compare_over.upper()  #'ALL' means analyse over all train datasets. 'UQA' means original UnifiedQA train datasets only
         if self.compare_over == 'ALL':
             self.compare_over = ['ALL']
+        elif self.compare_over == 'UQA':
+            self.compare_over = eval_metrics.unifiedqa_base_train
         else:
-            self.compare_over = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
-                                   "arc_hard", "arc_easy", "mctest_corrected_the_separator",
-                                   "squad1_1", "squad2", "boolq", "race_string", "openbookqa"]
+            assert type(self.compare_over) == list, f"Error: compare_over param must be 'ALL', 'UQA' or list of training datasets to compare over not {self.compare_over}."
         self.thresh_buckets = thresh_buckets
         self.sim_results = sim_results
         self.sim_results_rev = {}
@@ -1175,12 +1177,52 @@ def output_most_similar_detail(s, dsetset='ALL',ngram='Unigram', column='combo',
     return outlist
 
 
+def run_sim_detail_reports(logdir, sim_results_file, model_results_file, training_subsets_list, add_uqa=True):
+    """ Run just the similarity detail dump report against different subsets of the training datasets.
+        Note:   Model_results_file will supply the predictions in the output but these will only be valid 
+                for the particular combination of training datasets the model was trained against...
+    Usage: 
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v2/'
+        sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformatted eval questions for ssvise train datasets
+        model_results_file='/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/eval_metrics.json'
+        training_subsets_list = [ ['strategy_qa'],
+                                  ['strategy_qa_facts_dev_in_train_selfsvised'],
+                                  ['qasc_dev_facts_selfsvised'],
+                                  ['qasc_facts_selfsvised'],
+                                  ['cwwv', 'atomic'],
+                                  ['strategy_qa', 'strategy_qa_facts_dev_in_train_selfsvised']
+                                ]
+        run_sim_detail_reports(logdir, sim_results_file, model_results_file, training_subsets_list)
+    """
+    if logdir[-1] != '/':
+        logdir += '/'
+    print(f'Reports will be out to {logdir}')
+    os.makedirs(logdir, exist_ok=True)
+    print(f'Loading similarity file {sim_results_file}...')
+    sim_results = json.load(open(sim_results_file))
+    results_list = [model_results_file]
+    for training_subset in training_subsets_list:
+        test_similarity_over = []
+        out_list = ''
+        if add_uqa:
+            test_similarity_over = eval_metrics.unifiedqa_base_train.copy()
+            out_list = 'unifiedqa_'
+        out_list += '_'.join(training_subset)
+        test_similarity_over.extend(training_subset.copy())
+        print(f"Calculating eval dataset similarity to training subset: {test_similarity_over}")
+        s_uqaplus_summary = SimilarityAggregator(sim_results, no_overlap_thresh=1000.0, results_list=results_list, 
+                                                 compare_over=test_similarity_over, thresh_buckets = [0,60,90,101], logdir=logdir)
+        new_outlist = output_most_similar_detail(s_uqaplus_summary, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 
+                                                 topk=10000, outname = f'uqaplus_most_similar_dump_detail_us4_{out_list}.txt')
+    return
+
+
 def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqaplus_results_file):
     """ Runs all reports used in our paper and a few more...
     Usage: 
         logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v2/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformat
-        sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1 (backup after ssvise but before use ssvise eval embeddings).json'
+        #sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1 (backup after ssvise but before use ssvise eval embeddings).json'
         run_all_reports(logdir=logdir,
                         sim_results_file=sim_results_file,
                         model_uqa_results_file='/data/thar011/out/unifiedqa_bart_large_v3/eval_metrics.json',
@@ -1252,7 +1294,7 @@ def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqap
                                        outname = 'pred_diff_lowest_bucket_only_us6lowsimtdnd.txt', lowest_sim_bucket_only=True)            
 
     
-    # Run this to produce sorted listing of most similar item to EACH test set sample..
+    # Run this to produce sorted listing of most similar train sample to EACH test set sample..
     new_outlist = output_most_similar_detail(s_uqa_summary, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 
                                              topk=10000, outname = 'uqa_most_similar_dump_detail_us4.txt')
     new_outlist = output_most_similar_detail(s_uqaplus_summary, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 

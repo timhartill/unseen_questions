@@ -197,6 +197,10 @@ dataset_attribs = {
     'atomic': {'type':'MC', 'prefer':''}
     }
 
+unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
+                        "arc_hard", "arc_easy", "mctest_corrected_the_separator",
+                        "squad1_1", "squad2", "boolq", "race_string", "openbookqa"]
+
     
 # Not used
 unifiedqa_unseen_1 = [
