@@ -201,6 +201,42 @@ unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elemen
                         "arc_hard", "arc_easy", "mctest_corrected_the_separator",
                         "squad1_1", "squad2", "boolq", "race_string", "openbookqa"]
 
+# where same dataset in difft formats, just calc sim against one format and map similarity for others against that...
+replace_sim_with = {'cwwv_selfsvised': 'cwwv', 
+                'atomic_selfsvised': 'atomic', 
+                'cwwv_premask_selfsvised': 'cwwv', 
+                'atomic_premask_selfsvised': 'atomic'}
+
+def replace_sim(datasets, mixture_file_key):
+    """ Where same dataset in difft formats, just calc sim against one format and map similarity for others against that...
+    """
+    new_datasets = []
+    for ds in datasets:
+        if replace_sim_with.get(ds) is not None:
+            new_datasets.append(replace_sim_with[ds])
+            mixture_file_key = mixture_file_key.replace(ds, replace_sim_with[ds], 1)  # ds should be unique in string...
+        else:
+            new_datasets.append(ds)
+    return new_datasets, mixture_file_key
+            
+
+def parse_mixture(mixture):
+    """ Parse args.mixture and return list of datasets to include plus a key to add 
+        to the pretokenised file name.
+        args.mixture format: --mixture unifiedqa,extradataset1,extradataset2
+    """
+    unified_dataset  = []
+    mixture_file_key = ''
+    mixturelist = mixture.split(',')
+    for ds in mixturelist:
+        mixture_file_key = mixture_file_key + '_' + ds
+        if ds == 'unifiedqa':
+            unified_dataset.extend(unifiedqa_base_train)
+        else:
+            unified_dataset.append(ds)
+    return unified_dataset, mixture_file_key
+
+
     
 # Not used
 unifiedqa_unseen_1 = [

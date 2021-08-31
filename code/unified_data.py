@@ -18,32 +18,7 @@ from transformers import AutoTokenizer
 
 from data import QAData, MyDataLoader, manual_batch_encode, normalize_num_batch, selfsupervisedkey, pad_list, self_supervise
 
-from eval_metrics import get_exact_match
-
-
-def parse_mixture(mixture):
-    """ Parse args.mixture and return list of datasets to include plus a key to add 
-        to the pretokenised file name.
-        args.mixture format: --mixture unifiedqa,extradataset1,extradataset2
-    """
-    unified_dataset  = []
-    mixture_file_key = ''
-    mixturelist = mixture.split(',')
-    for ds in mixturelist:
-        mixture_file_key = mixture_file_key + '_' + ds
-        if ds == 'unifiedqa':
-            unified_dataset.extend([
-            "narrativeqa",
-            "ai2_science_middle", "ai2_science_elementary",
-            "arc_hard", "arc_easy",
-            "mctest_corrected_the_separator",
-            "squad1_1", "squad2",
-            "boolq",
-            "race_string",
-            "openbookqa"])
-        else:
-            unified_dataset.append(ds)
-    return unified_dataset, mixture_file_key
+from eval_metrics import get_exact_match, parse_mixture
 
 
 class UnifiedQAData(QAData):

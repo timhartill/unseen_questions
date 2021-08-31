@@ -460,7 +460,7 @@ class SimilarityAggregator:
         return
     
     def reverse_train_test(self):
-        """ Reverse order of train and test keys in dict
+        """ Reverse order of train and test keys in dict only including train datasets in self.compare_over
         """
         for trainset in self.sim_results:
             if (self.compare_over == ['ALL']) or (trainset in self.compare_over):
@@ -1158,8 +1158,14 @@ def output_most_similar_detail(s, dsetset='ALL',ngram='Unigram', column='combo',
             currpred = s.eval_results[dset][firstresultset]['predictions'][ind].replace(',', '').strip()
             outstr = dset + ','
             outstr += str(currsimscore) + ','
-            outstr += str(s.sim_results_max[dset]['max_sim_over_train']['sim_scores'][ngram]['text'][ind]) + ','
-            outstr += str(s.sim_results_max[dset]['max_sim_over_train']['sim_scores'][ngram]['label'][ind]) + ','
+            if ind < len(s.sim_results_max[dset]['max_sim_over_train']['sim_scores'][ngram]['text']):
+                outstr += str(s.sim_results_max[dset]['max_sim_over_train']['sim_scores'][ngram]['text'][ind]) + ','
+            else:
+                outstr += '-1.0,'
+            if ind < len(s.sim_results_max[dset]['max_sim_over_train']['sim_scores'][ngram]['label']):
+                outstr += str(s.sim_results_max[dset]['max_sim_over_train']['sim_scores'][ngram]['label'][ind]) + ','
+            else:
+                outstr += '-1.0,'
             details = s.sim_results_max[dset]['max_sim_over_train']['sim_details'][ngram][column][ind]
             outstr += "TEST: " + details[0].replace(',', '') + "  Prediction: " + currpred + "," + \
                      "TRAIN: " + details[1].replace(',', '') + ","
@@ -1193,6 +1199,7 @@ def run_sim_detail_reports(logdir, sim_results_file, model_results_file, trainin
                                   ['strategy_qa', 'strategy_qa_facts_dev_in_train_selfsvised']
                                 ]
         run_sim_detail_reports(logdir, sim_results_file, model_results_file, training_subsets_list)
+        run_sim_detail_reports(logdir, sim_results_file, model_results_file, training_subsets_list, add_uqa=False)
     """
     if logdir[-1] != '/':
         logdir += '/'
@@ -1214,6 +1221,52 @@ def run_sim_detail_reports(logdir, sim_results_file, model_results_file, trainin
                                                  compare_over=test_similarity_over, thresh_buckets = [0,60,90,101], logdir=logdir)
         new_outlist = output_most_similar_detail(s_uqaplus_summary, dsetset=eval_metrics.unifiedqa_unseen_4, ngram='Unigram', column='combo', 
                                                  topk=10000, outname = f'uqaplus_most_similar_dump_detail_us4_{out_list}.txt')
+    return
+
+
+def run_summary_thresh_reports(logdir, sim_results_file, results_list):
+    """ Run the summary by sim threshold report for a set of model runs 
+        The training mixture for each model run is read from the mixture key 
+        in current-model-config.json file in each directory
+        and this is the subset of training datasets similarity is calculated over.
+    Usage:
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v2/'
+        sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformat
+        results_list = ['/data/thar011/out/unifiedqa_bart_large_v3/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v2_dev_in_train/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v3_no_facts/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v6_sqa_only/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s3_v1_cwwv/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s3_v2_cwwv_atomic/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s4_v2_cwwv_premask_atomic_premask/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s4_v3_cwwv_ssvise_atomic_ssvise/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/eval_metrics.json'
+                       ]
+        run_summary_thresh_reports(logdir, sim_results_file, results_list)
+    """
+    if logdir[-1] != '/':
+        logdir += '/'
+    print(f'Reports will be out to {logdir}')
+    os.makedirs(logdir, exist_ok=True)
+    print(f'Loading similarity file {sim_results_file}...')
+    sim_results = json.load(open(sim_results_file))
+    for result in results_list:
+        result_name = result.split('/')[-2]
+        print(f"Calculating for result file: {result_name} ...")
+        result_dir = os.path.split(result)[0]
+        with open(os.path.join(result_dir, 'current-model-config.json'), 'r') as ff:
+            result_config = json.load(ff)
+        mixture = result_config['mixture'] 
+        test_similarity_over, mixture_key = eval_metrics.parse_mixture(mixture)
+        test_similarity_over, mixture_key = eval_metrics.replace_sim(test_similarity_over, mixture_key)
+        result_as_list = [result]
+        s_uqaplus_summary = SimilarityAggregator(sim_results, no_overlap_thresh=1000.0, results_list=result_as_list,
+                                                 compare_over=test_similarity_over, thresh_buckets = [0,60,90,101], logdir=logdir)
+        s_uqaplus_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_4, output_metrics = ['mean_pred_score_str'], 
+                                                          output_results = 'ALL', ngram='Unigram', column='combo', 
+                                                          outname = f'crosstab_summary_us4_{result_name}{mixture_key}.txt')
+    print("Finished!")
     return
 
 
