@@ -16,6 +16,8 @@ import argparse
 import os
 import sys
 from time import time
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from sklearn.datasets import fetch_20newsgroups
@@ -36,6 +38,8 @@ from sklearn.neighbors import NearestCentroid
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.extmath import density
 from sklearn import metrics
+
+from utils import load_jsonl, load_uqa_supervised, convert_pararules
 
 
 # Display progress logs on stdout
@@ -67,6 +71,8 @@ parser.add_argument("--n_features",
               help="n_features when using the hashing vectorizer.")
 parser.add_argument("--stopwords", default="NONE", type=str, 
                     help="Stopwords: 'NONE' or 'english'") 
+parser.add_argument("--max_df", default=1.0, type=float, 
+                    help="0.0 - 1.0: Ignore terms with doc frequency higher than this.") 
 parser.add_argument("--input_dir", default="newsgroups", type=str, 
                     help="directory of data or 'newgroups'")
 parser.add_argument("--all_categories",
@@ -76,49 +82,43 @@ parser.add_argument("--filtered",
               action="store_true",
               help="If modelling newsgroups Remove newsgroup information that is easily overfit: "
                    "headers, signatures, and quoting.")
-
+parser.add_argument("--all_classifiers",
+              action="store_true", 
+              help="Run all classifiers. Default is to run a subset.")
+parser.add_argument("--output_dir", default="/data/thar011/out/unifiedqa_averages/classifier_results", type=str, 
+                    help="directory of data or 'newgroups'")
+parser.add_argument("--show_chart",
+              action="store_true",
+              help="Show the results chart.")
 args = parser.parse_args()
 if args.stopwords.lower() == 'none':
     args.stopwords = None
 else:
     args.stopwords = args.stopwords.lower()
-args.print_report=True
-args.print_cm=True
-#args.print_top10=True
+#args.print_report=True
+#args.print_cm=True
+#args.max_df = 0.5
 #args.use_count = True
-#args.use_hashing=True
-args.input_dir='/data/thar011/data/unifiedqa/strategy_qa'
+#args.input_dir='/data/thar011/data/unifiedqa/strategy_qa'
+#args.input_dir = '/data/thar011/data/jiant_combined_datasets/pararules_depth-3ext-NatLang'
+#args.input_dir = '/data/thar011/data/jiant_combined_datasets/conceptrules_v2_full'
+#args.input_dir = '/data/thar011/data/jiant_combined_datasets/conceptrules_v2_simplified'
 # args.input_dir='/data/thar011/data/unifiedqa/qasc'  # Number of classes: Train:4363 Dev:674 All Dev classes in Train: False 493 classes in dev that don't exist in train!
+os.makedirs(args.output_dir, exist_ok=True)
+dataset = os.path.split(args.input_dir)[-1]
 print(__doc__)
 parser.print_help()
 print()
 print('OPTIONS USED:', args)
 
 
-def load_uqa_data(indir):
-    """ Load unifiedqa-formatted data
+def format_classification(questions_train, answers_train, questions_dev, answers_dev):
+    """ format dataset into classification friendly format
+    Return dicts data_train, data_test with keys:
     'data' = list len num_samples of text (questions)
     'target' = list len num_samples of 0-based class ids
     'target_names' = list of class names in order of class ids
     """
-    questions_train = []
-    answers_train = []
-    infile = os.path.join(indir, 'train.tsv')
-    print(f"Reading {infile}...")
-    with open(infile, "r") as f:
-        for line in f:
-            question, answer = line.split("\t")
-            questions_train.append( question.strip() )
-            answers_train.append ( answer.lower().strip() )
-    questions_dev = []
-    answers_dev = []
-    infile = os.path.join(indir, 'dev.tsv')
-    print(f"Reading {infile}...")
-    with open(infile, "r") as f:
-        for line in f:
-            question, answer = line.split("\t")
-            questions_dev.append( question.strip() )
-            answers_dev.append ( answer.lower().strip() )
     target_names_train = set(answers_train)
     target_names_dev = set(answers_dev)
     is_same = target_names_train.issuperset(target_names_dev)
@@ -141,50 +141,56 @@ def load_uqa_data(indir):
     data_train = {'data': questions_train, 'target': target_train, 'target_names': target_names}
     data_test = {'data': questions_dev, 'target': target_dev, 'target_names': target_names}   
     return data_train, data_test
+    
+
+def load_uqa_data(indir):
+    """ Load unifiedqa-formatted data
+    """
+    infile = os.path.join(indir, 'train.tsv')
+    questions_train, answers_train = load_uqa_supervised(infile)
+    infile = os.path.join(indir, 'dev.tsv')
+    questions_dev, answers_dev = load_uqa_supervised(infile)
+    data_train, data_test = format_classification(questions_train, answers_train, questions_dev, answers_dev) 
+    return data_train, data_test
+
+
+def load_pararules_data(indir, use_test=False):
+    """ Load ParaRules formatted data - ParaRules, ConceptRules (full), ConceptRules (simplified)
+    """
+    infile = os.path.join(indir, 'train.jsonl')
+    jsonl_train = load_jsonl(infile)
+    if use_test:
+        infile = os.path.join(indir, 'test.jsonl')
+    else:
+        infile = os.path.join(indir, 'dev.jsonl')
+    jsonl_dev = load_jsonl(infile)
+    questions_train, answers_train = convert_pararules(jsonl_train)
+    questions_dev, answers_dev = convert_pararules(jsonl_dev)
+    data_train, data_test = format_classification(questions_train, answers_train, questions_dev, answers_dev) 
+    return data_train, data_test
 
 
 if args.input_dir == 'newsgroups':
-    # %%
-    # Load data from the training set
-    # ------------------------------------
-    # Let's load data from the newsgroups dataset which comprises around 18000
-    # newsgroups posts on 20 topics split in two subsets: one for training (or
-    # development) and the other one for testing (or for performance evaluation).
     if args.all_categories:
         categories = None
     else:
-        categories = [
-            'alt.atheism',
-            'talk.religion.misc',
-            'comp.graphics',
-            'sci.space',
-        ]
-    
+        categories = ['alt.atheism','talk.religion.misc','comp.graphics','sci.space',]    
     if args.filtered:
         remove = ('headers', 'footers', 'quotes')
     else:
         remove = ()
-    
     print("Loading 20 newsgroups dataset for categories:")
-    print(categories if categories else "all")
-    
-    data_train = fetch_20newsgroups(subset='train', categories=categories,
-                                    shuffle=True, random_state=42,
-                                    remove=remove)
-    
-    data_test = fetch_20newsgroups(subset='test', categories=categories,
-                                   shuffle=True, random_state=42,
-                                   remove=remove)
+    print(categories if categories else "all")   
+    data_train = fetch_20newsgroups(subset='train', categories=categories, shuffle=True, random_state=42, remove=remove)  
+    data_test = fetch_20newsgroups(subset='test', categories=categories, shuffle=True, random_state=42, remove=remove)
 elif '/unifiedqa/' in args.input_dir:  # process a uqa formatted dataset - assumes train in train.tsv and test in dev.tsv..
     data_train, data_test = load_uqa_data(args.input_dir)
+elif '/pararules' in args.input_dir or '/conceptrules' in args.input_dir:
+    data_train, data_test = load_pararules_data(args.input_dir)
 else:
     assert True==False, f"ERROR: Invalid input directory: {args.input_dir}"    
 print('data loaded')
 print(data_train.keys())  # dict_keys(['data', 'filenames', 'target_names', 'target', 'DESCR'])
-# 'data' = list len num_samples of text
-# 'target' = list len num_samples of 0-based class ids
-# 'target_names' = list of class names in order of class ids
-
 
 # order of labels in `target_names` can be different from `categories`
 target_names = data_train['target_names']
@@ -210,14 +216,14 @@ y_train, y_test = data_train['target'], data_test['target']
 print("Extracting features from the training data using a sparse vectorizer")
 t0 = time()
 if args.use_count:
-    vectorizer = CountVectorizer(max_df=0.5, stop_words= args.stopwords)
+    vectorizer = CountVectorizer(max_df=args.max_df, stop_words= args.stopwords)
     X_train = vectorizer.fit_transform(data_train['data'])    
 elif args.use_hashing:
     vectorizer = HashingVectorizer(stop_words= args.stopwords, alternate_sign=False,
                                    n_features=args.n_features)
     X_train = vectorizer.transform(data_train['data'])
 else:
-    vectorizer = TfidfVectorizer(sublinear_tf=True, max_df=0.5,
+    vectorizer = TfidfVectorizer(sublinear_tf=True, max_df=args.max_df,
                                  stop_words= args.stopwords)
     X_train = vectorizer.fit_transform(data_train['data'])
 duration = time() - t0
@@ -262,12 +268,11 @@ def trim(s):
     return s if len(s) <= 80 else s[:77] + "..."
 
 
-# %%
 # Benchmark classifiers
 # ------------------------------------
-# We train and test the datasets with 15 different classification models
+# train and test the datasets with different classification models
 # and get performance results for each model.
-def benchmark(clf):
+def benchmark(clf, name=''):
     print('_' * 80)
     print("Training: ")
     print(clf)
@@ -309,38 +314,42 @@ def benchmark(clf):
         print(metrics.confusion_matrix(y_test, pred))
 
     print()
-    clf_descr = str(clf).split('(')[0]
-    return clf_descr, score, train_time, test_time
+    if name == '':
+        name = str(clf).split('(')[0]
+    return name, score, train_time, test_time
 
 
 results = []
 for clf, name in (
-        (RidgeClassifier(tol=1e-2, solver="sag"), "Ridge Classifier"),
+        (RidgeClassifier(tol=1e-2, solver="sag"), "Ridge Classifier"), # This classifier first converts the target values into {-1, 1} and then treats the problem as a regression task (multi-output regression in the multiclass case).
         (Perceptron(max_iter=50), "Perceptron"),
         (PassiveAggressiveClassifier(max_iter=50),
          "Passive-Aggressive"),
         (KNeighborsClassifier(n_neighbors=10), "kNN"),
         (RandomForestClassifier(), "Random forest")):
-    print('=' * 80)
-    print(name)
-    results.append(benchmark(clf))
+    if args.all_classifiers or name in ["Ridge Classifier"]:
+        print('=' * 80)
+        print(name)
+        results.append(benchmark(clf, name))
 
 for penalty in ["l2", "l1"]:
     print('=' * 80)
     print("%s penalty" % penalty.upper())
-    # Train Liblinear model
+    # Train Liblinear version of linear SVM model
     results.append(benchmark(LinearSVC(penalty=penalty, dual=False,
-                                       tol=1e-3)))
+                                       tol=1e-3), 'LinearSVC '+penalty))
+    if args.all_classifiers:
+        # Train SGD model: linear support vector machine (SVM)
+        results.append(benchmark(SGDClassifier(alpha=.0001, max_iter=50,
+                                               penalty=penalty), 'SGDClassifier '+penalty))
 
-    # Train SGD model
-    results.append(benchmark(SGDClassifier(alpha=.0001, max_iter=50,
-                                           penalty=penalty)))
-
-# Train SGD with Elastic Net penalty
+# Train SGD with Elastic Net penalty:  squared euclidean norm L2 or the absolute norm L1: a combination of both (Elastic Net)
+# The model it fits can be controlled with the loss parameter; by default, it fits a linear support vector machine (SVM)
+#if args.all_classifiers:
 print('=' * 80)
-print("Elastic-Net penalty")
+print("Linear SVM with Elastic-Net penalty")
 results.append(benchmark(SGDClassifier(alpha=.0001, max_iter=50,
-                                       penalty="elasticnet")))
+                                       penalty="elasticnet"), 'SGDClassifier LinearSVM Elastic-Net'))
 
 # Train NearestCentroid without threshold
 print('=' * 80)
@@ -351,17 +360,18 @@ results.append(benchmark(NearestCentroid()))
 print('=' * 80)
 print("Naive Bayes")
 results.append(benchmark(MultinomialNB(alpha=.01)))
-results.append(benchmark(BernoulliNB(alpha=.01)))
-results.append(benchmark(ComplementNB(alpha=.1)))
+if args.all_classifiers:
+    results.append(benchmark(BernoulliNB(alpha=.01)))
+    results.append(benchmark(ComplementNB(alpha=.1)))
 
-print('=' * 80)
-print("LinearSVC with L1-based feature selection")
-# The smaller C, the stronger the regularization.
-# The more regularization, the more sparsity.
-results.append(benchmark(Pipeline([
-  ('feature_selection', SelectFromModel(LinearSVC(penalty="l1", dual=False,
-                                                  tol=1e-3))),
-  ('classification', LinearSVC(penalty="l2"))])))
+    print('=' * 80)
+    print("LinearSVC with L1-based feature selection")
+    # The smaller C, the stronger the regularization.
+    # The more regularization, the more sparsity.
+    results.append(benchmark(Pipeline([
+      ('feature_selection', SelectFromModel(LinearSVC(penalty="l1", dual=False,
+                                                      tol=1e-3))),
+      ('classification', LinearSVC(penalty="l2"))]), 'LinearSVC l1-based feat. selection'))
 
 
 # %%
@@ -374,22 +384,33 @@ indices = np.arange(len(results))
 results = [[x[i] for x in results] for i in range(4)]
 
 clf_names, score, training_time, test_time = results
-training_time = np.array(training_time) / np.max(training_time)
-test_time = np.array(test_time) / np.max(test_time)
+outfile = 'classifier_summary_' + dataset + '.txt'
+outfile = os.path.join(args.output_dir, outfile)
+outlist = ['Classifier,Accuracy,Train (secs),Test (secs)']
+for i, name in enumerate(clf_names):
+    outstr = f"{name},{score[i]},{training_time[i]},{test_time[i]}"
+    outlist.append(outstr)
+with open(outfile, 'w') as f:    
+    f.write('\r\n'.join(outlist))
+print(f"Summary written to {outfile}")
 
-plt.figure(figsize=(12, 8))
-plt.title("Score")
-plt.barh(indices, score, .2, label="score", color='navy')
-plt.barh(indices + .3, training_time, .2, label="training time",
-         color='c')
-plt.barh(indices + .6, test_time, .2, label="test time", color='darkorange')
-plt.yticks(())
-plt.legend(loc='best')
-plt.subplots_adjust(left=.25)
-plt.subplots_adjust(top=.95)
-plt.subplots_adjust(bottom=.05)
-
-for i, c in zip(indices, clf_names):
-    plt.text(-.3, i, c)
-
-plt.show()
+if args.show_chart:
+    training_time = np.array(training_time) / np.max(training_time)
+    test_time = np.array(test_time) / np.max(test_time)
+    
+    plt.figure(figsize=(12, 8))
+    plt.title(dataset + " Score")
+    plt.barh(indices, score, .2, label="score", color='navy')
+    plt.barh(indices + .3, training_time, .2, label="training time",
+             color='c')
+    plt.barh(indices + .6, test_time, .2, label="test time", color='darkorange')
+    plt.yticks(())
+    plt.legend(loc='best')
+    plt.subplots_adjust(left=.25)
+    plt.subplots_adjust(top=.95)
+    plt.subplots_adjust(bottom=.05)
+    
+    for i, c in zip(indices, clf_names):
+        plt.text(-.3, i, c)
+    
+    plt.show()
