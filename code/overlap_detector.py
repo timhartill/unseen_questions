@@ -1230,18 +1230,20 @@ def run_summary_thresh_reports(logdir, sim_results_file, results_list):
         in current-model-config.json file in each directory
         and this is the subset of training datasets similarity is calculated over.
     Usage:
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v2/'
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5_v1/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformat
         results_list = ['/data/thar011/out/unifiedqa_bart_large_v3/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v2_dev_in_train/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v3_no_facts/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v6_sqa_only/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s5_v2_sqafacts_dev_in_train_only/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s3_v1_cwwv/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s3_v2_cwwv_atomic/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s4_v2_cwwv_premask_atomic_premask/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s4_v3_cwwv_ssvise_atomic_ssvise/eval_metrics.json',
-                        '/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/eval_metrics.json'
+                        '/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s5_v1_qasc_facts/eval_metrics.json',
                        ]
         run_summary_thresh_reports(logdir, sim_results_file, results_list)
     """
