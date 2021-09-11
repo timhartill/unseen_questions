@@ -17,7 +17,7 @@ Transactions of the Association for Computational Linguistics, 9:346361.
 
 Edit the directory and file names below before running...
 
-UQA_SQA_FACTS_DIR must end with _selfsvised - this signals the train/inference programs to treat this as a self supervised task
+Note: UQA_SQA_FACTS_DIR must end with _selfsvised - this signals the train/inference programs to treat this as a self supervised task
 
 """
 
