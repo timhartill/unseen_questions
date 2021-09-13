@@ -24,7 +24,10 @@ Note: UQA_SQA_FACTS_DIR must end with _selfsvised - this signals the train/infer
 import os
 import json
 import numpy as np
-from utils import flatten, load_jsonl
+from collections import Counter
+from utils import flatten, load_jsonl, create_uqa_example, load_model, run_model, get_single_result
+
+
 
 #UQA_DIR = '/data/thar011/data/unifiedqa/'
 #UQA_SQA_FACTS_DIR = 'strategy_qa_facts_selfsvised'
@@ -38,6 +41,18 @@ SQA_REPO_GENERATED_DEV_FILE = 'transformer_qa_ORA-P_dev_no_placeholders.json'
 SQA_REPO_GENERATED_TRAIN_FILE = 'transformer_qa_ORA-P_train_no_placeholders.json'
 SQA_REPO_GENERATED_DEV_DECOMP_FILE = 'bart_decomp_dev_predictions.jsonl'
 
+
+SQA_JSON_OUT_FILE = 'strategyqa_train_dev_consolidated.json'
+
+model_name = "facebook/bart-large"
+checkpoint = "/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/best-model-150000.pt"
+special='Ġ'
+indiv_digits = True  # individual digit tokenization
+norm_numbers = True # normalize numbers. 
+
+
+
+
 with open(os.path.join(SQA_DIR_IN, SQA_TRAIN_FILE),'r') as f:
     sqa_train = json.load(f)  #2290 questions
 
@@ -50,44 +65,72 @@ with open(os.path.join(SQA_REPO_GENERATED_DIR, SQA_REPO_GENERATED_DEV_FILE),'r')
 with open(os.path.join(SQA_REPO_GENERATED_DIR, SQA_REPO_GENERATED_TRAIN_FILE),'r') as f:
     sqa_repo_train = json.load(f)    #2061 + 229 = 2290
     
-sqa_repo_dev_decomp = load_jsonl(os.path.join(SQA_REPO_GENERATED_DIR, SQA_REPO_GENERATED_DEV_DECOMP_FILE))  #229
+#sqa_repo_dev_decomp = load_jsonl(os.path.join(SQA_REPO_GENERATED_DIR, SQA_REPO_GENERATED_DEV_DECOMP_FILE))  #229 NOT USED
+
+#questions = [s['question'] for s in sqa_repo_train] # 2061 There is a single duplicated question in train with different decomposition: Can you find Bob Marley's face in most smoke shops?
+#count_dup = Counter(questions)
+#for q in count_dup.keys():
+#    if count_dup[q] > 1:
+#        print(f'Duplicate question {count_dup[q]}: {q}')  # Can you find Bob Marley's face in most smoke shops?
+#        dup = q
+#for s in sqa_repo_train:
+#    if s['question'] == dup:
+#        print(s)  #'qid': '8a5edfb7385edb776926' and 'qid': 'cb900171acc9047115b4'
+#for s in sqa_train:
+#    if s['question'] == dup:
+#        print(s)
+
+# use question + 1st decomp step as key since qids don't match and question by itself is not quite unique..
+sqa_repo_devtrain = {s['question']+s['decomposition'][0]:s for s in sqa_repo_train} # sqa qids in repo don't match qids in file from allenai sqa download page..
+for qid in sqa_repo_devtrain:
+    sqa_repo_devtrain[qid]['split'] = 'train'
+for s in sqa_repo_dev:
+    qid = s['question']+s['decomposition'][0]
+    sqa_repo_devtrain[qid] = s
+    sqa_repo_devtrain[qid]['split'] = 'dev'
+print(f"Number of dev+train samples: {len(sqa_repo_devtrain)}")  #2290
+
 
 
 def replace_chars(instr): 
-    outstr = instr.replace("’", "'")
+    outstr = instr.replace("’", "'").replace("‘", "'")
     return outstr.replace('“', '"').replace('”','"').replace("\t", " ").replace("\n", "")
 
 
-def retrieve_paras(para_keys):
-    """ Return para corresponding to keys """
+def para_keys_per_decomp(sqa_sample, verbose=False):
+    """ Return cleaned up list of paragraph keys per decomp step each aggregated over multiple annotators
+    Note: each sublist still contains meta--keys like "no_evidence" and "operation"
+    Return format: [ [unique para keys for decomp step 1], [unique para keys for decomp step 2], [...] ]
+    """
+    decomp_evidence_para_keys = [[] for d in range(len(sqa_sample['decomposition']))] # [[], [], []]
+    for j, ann in enumerate(sqa_sample['evidence']):
+        for i, e in enumerate(ann):
+            para_keys = flatten(e)
+            decomp_evidence_para_keys[i].extend(para_keys)
+            if verbose:
+                print(f"Annotator:{j} Decomp:{i}: {sqa_sample['decomposition'][i]} {e} gold paras flattened:{para_keys}")
+    decomp_evidence_para_keys = [list(set(pk)) for pk in decomp_evidence_para_keys]
+    return decomp_evidence_para_keys
+
+
+def retrieve_paras(sqa_sample):
+    """ Return para corresponding to each key in list of lists of paragraph keys """
     para_list = []
-    for pk in para_keys:
-        para = sqa_para.get(pk)
-        if para is not None:
-            para_list.append(para["content"])
+    for i, para_keys in enumerate(sqa_sample['evidence_cleaned']):
+        step_paras = []
+        for pk in para_keys:
+            para = sqa_para.get(pk)
+            if para is not None:
+                step_paras.append(para["content"])
+        para_list.append(step_paras)
     return para_list
 
 
-tst = sqa_train[0]
-tst['decomposition']
-tst['evidence']
-len(tst['evidence']) == 3  # num annotators
-flatten(tst['evidence'])
-ann1 = tst['evidence'][0]
-len(ann1) == len(tst['decomposition'])  # 1 entry per decomp
-decomp_evidence_para_keys = [[] for d in range(len(tst['decomposition']))] # [[], [], []]
-for j, ann in enumerate(tst['evidence']):
-    for i, e in enumerate(ann):
-        para_keys = flatten(e)
-        decomp_evidence_para_keys[i].extend(para_keys)
-        print(f"Annotator:{j} Decomp:{i}: {tst['decomposition'][i]} {e} gold paras flattened:{para_keys}")
-decomp_evidence_para_keys = [list(set(pk)) for pk in decomp_evidence_para_keys]
-decomp_evidence_para_keys[0]
-decomp_evidence_para_keys[0][::-1]
 
-para_list = retrieve_paras(decomp_evidence_para_keys[0])
-' '.join(para_list)
-' '.join(para_list[::-1])
+#decomp_evidence_para_keys[0]
+#decomp_evidence_para_keys[0][::-1]
+#' '.join(para_list)
+#' '.join(para_list[::-1])
     
 # strategyQA has no dev split so create one as 10% of train
 # Update the paragraph dict with which qids use each paragraph
@@ -108,6 +151,12 @@ for i in range(num_q):
         if sqa_para.get(e) is not None:
             sqa_para[e]['splits_used'].add(sqa_train[i]['split'])
             sqa_para[e]['qids_used'].append(sqa_train[i]['qid'])
+    sqa_train[i]['evidence_cleaned'] = para_keys_per_decomp(sqa_train[i])
+    sqa_train[i]['paragraphs'] = retrieve_paras(sqa_train[i])
+    qid = sqa_train[i]['question'] + sqa_train[i]['decomposition'][0]
+    sqa_train[i]['split_sqa_repo'] = sqa_repo_devtrain[qid]['split']
+    sqa_train[i]['step_answers_sqa_repo'] = sqa_repo_devtrain[qid]['step_answers']
+    sqa_train[i]['qid_sqa_repo'] =  sqa_repo_devtrain[qid]['qid']
 
 traincount = 0
 devcount = 0
@@ -132,6 +181,79 @@ print(f"qids: num:{qids_np.shape[0]}  mean:{qids_np.mean():.2f}  max:{qids_np.ma
 # qids: num:9251  mean:1.11  max:11.00  min:1.00
 print(f"Counts: Unused:{nonecount}  Both train+Dev:{bothcount}  Train Only:{traincount}  Dev Only:{devcount}")
 # Counts: Unused:0  Both train+Dev:161  Train Only:8402  Dev Only incl dev+train:1010  - dev only 849, train only 8241
+
+# Iteratively get answers to decomp step questions from UQA+TDND, record them and substitute them into remaining decomp steps
+tokenizer, model = load_model(model_name, checkpoint)
+
+for i in range(num_q):
+    decomp_steps = []
+    decomp_answers = []
+    answer_scores = []
+    decomp_answers_reversed = []
+    answer_scores_reversed = []
+    for j, ds in enumerate(sqa_train[i]['decomposition']):
+        decomp_step = ds
+        var_idx = decomp_step.find('#')
+        while var_idx != -1:
+            prior_step = decomp_step[var_idx+1]  # max 5 decomp steps so this works.
+            if prior_step not in ['1','2','3','4','5','6','7','8','9']:
+                prior_idx = 0    # at least one entry has #!
+            else:    
+                prior_idx = int(prior_step)-1
+            if answer_scores[prior_idx] >= answer_scores_reversed[prior_idx]:
+                subst = decomp_answers[prior_idx]
+            else:
+                subst = decomp_answers_reversed[prior_idx]
+            decomp_step = decomp_step.replace('#'+prior_step, subst)
+            var_idx = decomp_step.find('#')    
+        decomp_steps.append(decomp_step)
+        
+        input_string = create_uqa_example(decomp_step, ' '.join(sqa_train[i]['paragraphs'][j]))
+        res = run_model(input_string, model, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers, special=special,
+                        num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=100,
+                        output_scores=True, return_dict_in_generate=True)  # res.keys(): odict_keys(['sequences', 'sequences_scores', 'scores', 'preds'])
+        pred, score = get_single_result(res)  
+        if pred == '<no answer>':
+            score = -100.0
+        decomp_answers.append(pred)
+        answer_scores.append(score)
+        input_string = create_uqa_example(decomp_step, ' '.join(sqa_train[i]['paragraphs'][j][::-1]))
+        res = run_model(input_string, model, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers, special=special,
+                        num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=100,
+                        output_scores=True, return_dict_in_generate=True)  # res.keys(): odict_keys(['sequences', 'sequences_scores', 'scores', 'preds'])
+        pred, score = get_single_result(res)  
+        if pred == '<no answer>':
+            score = -100.1
+        decomp_answers_reversed.append(pred)
+        answer_scores_reversed.append(score)
+        print(f"{i} {j} {decomp_step} ANS:{decomp_answers[-1]}({answer_scores[-1]}) REV:{pred}({score})")
+    sqa_train[i]['decomposition_substituted'] = decomp_steps
+    sqa_train[i]['step_answers'] = decomp_answers
+    sqa_train[i]['step_answers_scores'] = answer_scores
+    sqa_train[i]['step_answers_reversed'] = decomp_answers_reversed
+    sqa_train[i]['step_answers_scores_reversed'] = answer_scores_reversed
+ 
+print('Finished!')
+print('Convert evidenced_flattened to list for saving to json...')
+for s in sqa_train:
+    s['evidence_flattened'] = list(s['evidence_flattened'])
+outfile = os.path.join(SQA_DIR_IN, SQA_JSON_OUT_FILE)  
+with open(outfile, 'w') as fp:
+    json.dump(sqa_train, fp, indent=5)   
+print(f"Saved to {outfile}")
+
+# outputs:
+#1 strategy_qa questions plus gold paras - to match Roberta*_ora-p
+#2 strategy_qa questions plus gold paras reversed - combine with above after determining which has highest answer score
+#3 sqa FINAL decomp step with substitutions plus gt y/n answers - to match Roberta*_ora_p-d
+#4 decomp step questions with substitutions plus predicted answers - my best
+#5 decomp step questions with substitutions plus predicted answers - sqa paper
+#6 DECOMPOSER 1: strategy_qa question only as input with label = overall Y/N answer + decomp steps
+#7 DECOMPOSER 2: strategy_qa question only as input with label = overall Y/N answer + decomp steps + step answers
+
+
+
+
 
 
 # Create MLM task:

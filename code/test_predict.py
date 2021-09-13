@@ -9,10 +9,12 @@ generate arbitrary predictions from a model
 
 
 """
+import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForPreTraining
 from bart import MyBart
 from data import normalize_num, split_digits_special
+from utils import load_model, run_model, get_single_result
 
 model_name = "facebook/bart-large"
 #checkpoint = None
@@ -25,63 +27,8 @@ norm_numbers = True # normalize numbers. if norm='10e' normalize to 10e format
 norm=''
 
 
-def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up_tokenization_spaces=True,
-              indiv_digits = True, norm_numbers=True, verbose=True,
-              truncation=True, max_input_length=512, lower=True, **generator_args):
-    """ Run cut-down version of tokenisation and generation pipeline for single input string
-        See https://huggingface.co/blog/how-to-generate for generation options
-    Returns: Full result depending on which **generator params are set (e.g.including any scores, attns etc)
-             if one of the params in **generator is return_dict_in_generate=True
-             otherwise returns the decoded prediction.
-    """
-    if verbose:
-        print(f"Approx word count: {len(input_string.split())}")
-    if lower:
-        input_string = input_string.lower()
-    if norm_numbers:
-        input_string = normalize_num(input_string, norm=norm)    
-    toks = tokenizer.tokenize(input_string)
-    if indiv_digits:
-        toks = split_digits_special(toks, special=special)
-    ids = tokenizer.convert_tokens_to_ids(toks)
-    if tokenizer.bos_token_id is not None:
-        ids = [tokenizer.bos_token_id] + ids
-    numtoks = len(ids)
-    if verbose:
-        print(f"Number of tokens: {numtoks}")
-    if truncation and numtoks > max_input_length-1:
-        ids = ids[:max_input_length-1]
-        if verbose:
-            print(f"Truncated to {max_input_length} tokens.")
-    ids = ids + [tokenizer.eos_token_id]    
-    ids = [ids]
-    #input_ids = tokenizer.encode(input_string, return_tensors="pt")
-    input_ids = torch.LongTensor(ids)
-    input_ids = input_ids.to(torch.device("cuda"))
-    res = model.generate(input_ids, **generator_args)
-    if isinstance(res, dict):
-        res['preds'] = tokenizer.batch_decode(res['sequences'], skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
-        return res
-    return tokenizer.batch_decode(res, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
 
-
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-if model_name == "facebook/bart-large":   
-    my_model = MyBart
-else:
-    my_model = AutoModelForPreTraining  # HF documentation indicates this gives right models for T5 and gpt2 as well as vanilla bart
-
-print(f"Loading model: {model_name}")
-if checkpoint is not None:
-    print(f"Loading checkpoint from {checkpoint}")       
-    model = my_model.from_pretrained(model_name, state_dict=torch.load(checkpoint))  
-else:
-    print("No checkpoint loaded. Training from base pretrained model.")
-    model = my_model.from_pretrained(model_name) 
-
-model.to(torch.device("cuda"))
-model.eval()
-print("Model loaded!")
+tokenizer, model = load_model(model_name, checkpoint)
 
 input_string = "<s> What is the population of Albany, Georgia? \\n"  # <no answer>
 input_string = "<s> What is the population of Albany, Georgia? \\n Albany, GA has around 75,000 people"  # 75000! ie [' 75000\n']
@@ -159,7 +106,7 @@ input_string = "<s> is it not the case that is 16 greater than 3? \\n"  # no
 input_string = "<s> is 3 greater than 16 or not? \\n"  # also yes instead of no
 input_string = "<s> is sixteen greater than three? \\n"  # yes if norm numbers False
 input_string = "<s> is three greater than sixteen? \\n"  # yes if norm numbers False
-input_string = "<s> is 3 greater than 16? \\n"  # [' 2\n']
+input_string = "<s> is 3 greater than 16? \\n answer yes or no"  # [' 2\n']
 
 input_string = "<s> What is 1457.0 + 18750 + 17728.24 + 14009.6? \\n"  #[' 51834.94\n'] correct = 51944.84
 
@@ -169,8 +116,9 @@ run_model(input_string, model, tokenizer, indiv_digits=False, norm_numbers=norm_
 
 # match current inference params:
 res = run_model(input_string, model, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers,
-                num_return_sequences=4, num_beams=4, early_stopping=True, min_length=1, max_length=100,
+                num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=100,
                 output_scores=True, return_dict_in_generate=True)  # res.keys(): odict_keys(['sequences', 'sequences_scores', 'scores', 'preds'])
+pred, score = get_single_result(res)
 
 res = run_model(input_string, model, tokenizer, temperature=0.9, num_return_sequences=4, num_beams=20, 
                 output_scores=True, return_dict_in_generate=True)

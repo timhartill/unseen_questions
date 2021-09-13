@@ -463,7 +463,7 @@ def score_string_similarity(str1, str2, usesolver_preproc=False, use_f1=True):
             overlap = list(set(str1_split) & set(str2_split))  #TJH: This part does the same as num_same calc in f1
             return len(overlap) / max(len(str1_split), len(str2_split))
         else:
-            return get_f1(f1_str1, f1_str2)  #TJH: Empirically calculating overlap with F1 does very slightly better
+            return get_f1(f1_str1, f1_str2)  #TJH: Empirically, calculating overlap with F1 does very slightly better
     else:
         if str1 == str2:
             return 1.0
