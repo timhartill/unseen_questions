@@ -126,12 +126,6 @@ def retrieve_paras(sqa_sample):
     return para_list
 
 
-
-#decomp_evidence_para_keys[0]
-#decomp_evidence_para_keys[0][::-1]
-#' '.join(para_list)
-#' '.join(para_list[::-1])
-    
 # strategyQA has no dev split so create one as 10% of train
 # Update the paragraph dict with which qids use each paragraph
 num_q = len(sqa_train)
@@ -198,7 +192,7 @@ for i in range(num_q):
             prior_step = decomp_step[var_idx+1]  # max 5 decomp steps so this works.
             if prior_step not in ['1','2','3','4','5','6','7','8','9']:
                 prior_idx = 0    # at least one entry has #!
-            else:    
+            else:
                 prior_idx = int(prior_step)-1
             if answer_scores[prior_idx] >= answer_scores_reversed[prior_idx]:
                 subst = decomp_answers[prior_idx]
@@ -255,7 +249,7 @@ print(f"Saved to {outfile}")
 
 
 
-
+"""
 # Create MLM task:
 paras_dev = []    # paras needed by dev only
 paras_train = []  # include paras needed by both train and dev
@@ -300,7 +294,7 @@ outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write('\n'.join(qa_dev))
 
-
+"""
 
 
 

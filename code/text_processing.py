@@ -90,6 +90,10 @@ HEURISTIC_CLOZE_TYPE_QUESTION_MAP = {
 }
 
 
+def white_space_fix(text):
+    """ Remove repeated white space in a string"""
+    return ' '.join(text.split())
+
 # Adapted from https://github.com/Neutralzz/RefQA (Li et al)
 def identity_translate(cloze_question, mask_type=''):
     """ Replace mask with WH word..."""
