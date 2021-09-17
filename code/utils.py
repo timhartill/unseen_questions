@@ -193,7 +193,7 @@ def create_uqa_example(question, context=None, answer=None, append_nl=True):
     if context is not None and context != '':
         sample += ' ' + context.strip()
     if answer is not None and answer != '':
-        sample += '\t' + answer.strip()
+        sample += ' \t' + answer.strip()
         if append_nl:
             sample += '\n'
     return sample
@@ -201,7 +201,7 @@ def create_uqa_example(question, context=None, answer=None, append_nl=True):
 
 def format_decomp_ans(decomp_q, decomp_a, decomp_id, prior_answers):
     """ Return formatted decomp question plus answer after substituting prior answers
-        in form: ' ## decomp_q #1:decomp_a'
+        in form: ' ## decomp_q? decomp_a'
     """
     this_decomp = decomp_q.strip()
     if this_decomp[-1] in ['.','!']:

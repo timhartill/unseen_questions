@@ -17,6 +17,7 @@ Notes:
 
 """
 import os
+import copy
 import numpy as np
 from utils import load_jsonl, create_uqa_example, format_decomp_ans, load_model, string_to_ids
 from text_processing import white_space_fix
@@ -37,23 +38,23 @@ mu_train = load_jsonl(os.path.join(MU_DIR_IN, MU_TRAIN_FILE))
 mu_dev = load_jsonl(os.path.join(MU_DIR_IN, MU_DEV_FILE))
 
 
-tst = mu_train[0]
-tst.keys()  # dict_keys(['id', 'paragraphs', 'question', 'question_decomposition', 'answer', 'answer_aliases', 'answerable'])
-tst['id'] # '2hop__482757_12019'
-tst['paragraphs'][0].keys() # dict_keys(['idx', 'title', 'paragraph_text', 'is_supporting'])
-tst['paragraphs'][0]['idx'] # 0
-tst['paragraphs'][0]['paragraph_text']
-tst['question'] # overall question
-tst['answer'] # overall answer
-tst['answer_aliases']
+mu_sample = mu_train[0]
+mu_sample.keys()  # dict_keys(['id', 'paragraphs', 'question', 'question_decomposition', 'answer', 'answer_aliases', 'answerable'])
+mu_sample['id'] # '2hop__482757_12019'
+mu_sample['paragraphs'][0].keys() # dict_keys(['idx', 'title', 'paragraph_text', 'is_supporting'])
+mu_sample['paragraphs'][0]['idx'] # 0
+mu_sample['paragraphs'][0]['paragraph_text']
+mu_sample['question'] # overall question
+mu_sample['answer'] # overall answer
+mu_sample['answer_aliases']
 
-tst['question_decomposition']
-tst['question_decomposition'][0].keys() # list of decomps each of dict_keys(['id', 'question', 'answer', 'paragraph_support_idx'])
-tst['question_decomposition'][0]['question']
-tst['question_decomposition'][0]['answer']  # last answer same as tst['answer']
-tst['question_decomposition'][0]['paragraph_support_idx']
-tst['paragraphs'][ tst['question_decomposition'][0]['paragraph_support_idx'] ]['paragraph_text']
-tst['paragraphs'][ tst['question_decomposition'][0]['paragraph_support_idx'] ]['title']
+mu_sample['question_decomposition']
+mu_sample['question_decomposition'][0].keys() # list of decomps each of dict_keys(['id', 'question', 'answer', 'paragraph_support_idx'])
+mu_sample['question_decomposition'][0]['question']
+mu_sample['question_decomposition'][0]['answer']  # last answer same as mu_sample['answer']
+mu_sample['question_decomposition'][0]['paragraph_support_idx']
+mu_sample['paragraphs'][ mu_sample['question_decomposition'][0]['paragraph_support_idx'] ]['paragraph_text']
+mu_sample['paragraphs'][ mu_sample['question_decomposition'][0]['paragraph_support_idx'] ]['title']
 
 
 def retrieve_paras(mu_sample):
@@ -167,16 +168,49 @@ def get_facts_datasets(mu_data):
     return train_list, dev_list
 
 
+def get_qa_datasets(mu_data):
+    """ Output qa datasets:
+    musique_qa: q \\n \t ans                                                train=mu train, dev=new dev from mu train
+    musique_qa_paras: q \\n paras \t ans                                    train=mu train, dev=new dev from mu train
+    musique_qa_decomp_ans: q \\n \t ans ## decomps+ans ## ..                train=mu train, dev=new dev from mu train
+    musique_qa_paras_decomp_ans: q \\n paras \t ans  ## decomps+ans ## ..   train=mu train, dev=new dev from mu train
+    
+    musique_mu_dev_qa: q \\n \t ans                                                dev only = musique dev
+    musique_mu_dev_qa_paras: q \\n paras \t ans                                    dev only = musique dev
+    musique_mu_dev_qa_decomp_ans: q \\n \t ans ## decomps+ans ## ..                dev only = musique dev
+    musique_mu_dev_qa_paras_decomp_ans: q \\n paras \t ans  ## decomps+ans ## ..   dev only = musique dev
+    """
+    ds_template = {'train':[], 'dev':[]}
+    mu_qa_dict = {'qa':copy.deepcopy(ds_template),
+                  'qa_paras':copy.deepcopy(ds_template),
+                  'qa_decomp_ans':copy.deepcopy(ds_template),
+                  'qa_paras_decomp_ans':copy.deepcopy(ds_template) }
+
+    for i, mu_sample in enumerate(mu_data):
+        key =  mu_sample['split']
+        sample = create_uqa_example(mu_sample['question'], None, mu_sample['answer'] )    
+        mu_qa_dict['qa'][key].append(sample)
+        sample = create_uqa_example(mu_sample['question'], mu_sample['context_paras'], mu_sample['answer'] )    
+        mu_qa_dict['qa_paras'][key].append(sample)
+        sample = create_uqa_example(mu_sample['question'], None, mu_sample['decomp_ans_str'] )    
+        mu_qa_dict['qa_decomp_ans'][key].append(sample)
+        sample = create_uqa_example(mu_sample['question'], mu_sample['context_paras'], mu_sample['decomp_ans_str'] )    
+        mu_qa_dict['qa_paras_decomp_ans'][key].append(sample)       
+        if i % 1000 == 0:
+            print(f'Processed: {i}')         
+    return mu_qa_dict
 
 
 
-
-
+# Create new dev set & preprocess data into convenient format..
 num_q = len(mu_train)
 dev_size = int(num_q*0.1)
 np.random.seed(42)
 dev_indices = np.random.choice(num_q, dev_size, replace=False)
 process_musique(mu_train, dev_indices)
+process_musique(mu_dev, dev_indices=[])
+
+# Create and output mu_train decomp fact datasets
 train_list, dev_list = get_facts_datasets(mu_train)
 both_list = train_list + dev_list
 print(f'Train: {len(train_list)}  Dev: {len(dev_list)}  Dev in train:{len(both_list)}')  # Train: 41990  Dev: 4623 Dev in train:46613
@@ -196,13 +230,12 @@ print(f"Creating {outdir}")
 os.makedirs(outdir, exist_ok=True)
 outfile = os.path.join(outdir, 'train.tsv')
 with open(outfile, 'w') as f:
-    f.write(''.join(both_list))
+    f.write(''.join(both_list)) # mu train + new dev but not mu dev..
 outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write(''.join(dev_list))
 
-
-process_musique(mu_dev, dev_indices=[])
+# Create and output mu_dev decomp fact datasets
 train_list, dev_list = get_facts_datasets(mu_dev)
 print(f'Train: {len(train_list)}  Dev: {len(dev_list)}')  # Train: 0  Dev: 6404
 
@@ -214,7 +247,7 @@ with open(outfile, 'w') as f:
     f.write(''.join(dev_list))
 outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
-    f.write(''.join(dev_list))
+    f.write(''.join(dev_list)) # dev same as train..
 
 both_list = both_list + dev_list  #All facts both mu train + new dev + mu dev
 print(len(both_list))  # 53017
@@ -223,13 +256,66 @@ print(f"Creating {outdir}")
 os.makedirs(outdir, exist_ok=True)
 outfile = os.path.join(outdir, 'train.tsv')
 with open(outfile, 'w') as f:
-    f.write(''.join(both_list))
+    f.write(''.join(both_list))  #All facts both mu train + new dev + mu dev
 outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write(''.join(dev_list))
 
+# create and ouput mu_train qa datasets
+mu_qa_dict = get_qa_datasets(mu_train)
+
+for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans']
+    ds = 'musique_' + k
+    outdir = os.path.join(UQA_DIR, ds)
+    print(f"Creating {outdir}")
+    os.makedirs(outdir, exist_ok=True)    
+    outfile = os.path.join(outdir, 'train.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['train']))
+    outfile = os.path.join(outdir, 'dev.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['dev']))
+print('Finished outputting mu_train qa datasets...')
+
+# create and ouput mu_dev qa datasets
+mu_qa_dict = get_qa_datasets(mu_dev)
+for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans']
+    ds = 'musique_mu_dev_' + k
+    outdir = os.path.join(UQA_DIR, ds)
+    print(f"Creating {outdir}")
+    os.makedirs(outdir, exist_ok=True)    
+    outfile = os.path.join(outdir, 'dev.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['dev']))
+print('Finished outputting mu_train qa datasets...')
 
 
+# check number of tokens in the longest decomp answer...
+tokenizer = load_model(loadwhat='tokenizer_only')
+tok_counts = []
+for i, mu_sample in enumerate(mu_train):
+    ans = mu_sample['decomp_ans_str']
+    input_string = '<s>' + ans + '</s>'    
+    ids = string_to_ids(input_string, tokenizer, verbose=False)
+    tok_counts.append( len(ids) )
+    if i % 1000 == 0:
+        print(f'Processed: {i}')
+tok_counts_np = np.array(tok_counts)
+print(f"count:{len(tok_counts)} max:{tok_counts_np.max()} mean:{tok_counts_np.mean()}") # count:19938 max:112 mean:43.56816130003009
+hittoklimit = np.where(tok_counts_np >= 512)
+hittoklimit[0].shape  #
 
+tok_counts = []
+for i, mu_sample in enumerate(mu_dev):
+    ans = mu_sample['decomp_ans_str']
+    input_string = '<s>' + ans + '</s>'    
+    ids = string_to_ids(input_string, tokenizer, verbose=False)
+    tok_counts.append( len(ids) )
+    if i % 1000 == 0:
+        print(f'Processed: {i}')
+tok_counts_np = np.array(tok_counts)
+print(f"count:{len(tok_counts)} max:{tok_counts_np.max()} mean:{tok_counts_np.mean()}") # count:19938 max:112 mean:43.56816130003009
+hittoklimit = np.where(tok_counts_np >= 512)
+hittoklimit[0].shape  #
 
 
