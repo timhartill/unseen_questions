@@ -5,7 +5,7 @@ Created on Wed Sep 15 15:10:14 2021
 
 @author: tim hartill
 
-Convert Musique (ans) into uqa formatted datasets musiqueo_qa
+Convert Musique (ans) into uqa formatted datasets 
 
 Notes:
 1.  Converting "ans" versions only, not "full" versions (which contain unanswerable questions where one+ of the decomp steps is unanswerable since no supporting para given)
@@ -13,12 +13,16 @@ Notes:
     Therefore we treat musique_ans_v0.1_dev.jsonl as an OOD eval only dataset but we create a training dataset from the decomps + paras
     and construct a separate in-domain dev split from musique_ans_v0.1_train.jsonl
 2. label format with decomp steps: "<s> the answer ## decomp step 1? decomp ans ## decomp step 2? decomp ans ## decomp step 3? decomp ans </s>"
-3. This version retrains all training samples and creates a new random iid dev split from train in contrast to convert_musique_unique_ans.py
+3. This version, in contrast to convert_musique.py creates a train set of musique samples with unique answers
+   and a new dev set which has unique answers within dev and with an answer+last decomp that's not in train.
+   This is because Musique contains a lot of very similar questions with the same answer and the same final decomp step
+   which makes it easy for a model to learn a probabalistic bias.
 
 """
 import os
 import copy
 import numpy as np
+from collections import Counter
 from utils import load_jsonl, create_uqa_example, format_decomp_ans, load_model, string_to_ids
 from text_processing import white_space_fix, replace_chars
 
@@ -47,47 +51,32 @@ def calc_unique_answers(mu_data):
     unique_answers = set(all_answers)
     unique_ans_last_decomp = set(all_answers_last_decomp)
     print(f"Total count: {len(all_answers)}  Unique answers: {len(unique_answers)}  Unique ans+Last decomp: {len(unique_ans_last_decomp)}")
-    return
+    ans_counts = Counter(all_answers)
+    print(f'Top 20 Most common answers: {ans_counts.most_common(20)}')
+    print(f'20 Least common answers: {ans_counts.most_common()[::-1][:20]}')    
+    return ans_counts
 
-calc_unique_answers(mu_train)  # Total count: 19938  Unique answers: 2057  Unique ans+Last decomp: 3056
-calc_unique_answers(mu_dev)  # Total count: 2417  Unique answers: 738  Unique ans+Last decomp: 841
+ans_counts_train = calc_unique_answers(mu_train)  # Total count: 19938  Unique answers: 2057  Unique ans+Last decomp: 3056
+ans_counts_dev = calc_unique_answers(mu_dev)  # Total count: 2417  Unique answers: 738  Unique ans+Last decomp: 841
 
-mu_sample = mu_train[0]
-mu_sample.keys()  # dict_keys(['id', 'paragraphs', 'question', 'question_decomposition', 'answer', 'answer_aliases', 'answerable'])
-mu_sample['id'] # '2hop__482757_12019'
-mu_sample['paragraphs'][0].keys() # dict_keys(['idx', 'title', 'paragraph_text', 'is_supporting'])
-mu_sample['paragraphs'][0]['idx'] # 0
-mu_sample['paragraphs'][0]['paragraph_text']
-mu_sample['question'] # overall question
-mu_sample['answer'] # overall answer
-mu_sample['answer_aliases']
+#mu_sample = mu_train[0]
+#mu_sample.keys()  # dict_keys(['id', 'paragraphs', 'question', 'question_decomposition', 'answer', 'answer_aliases', 'answerable'])
+#mu_sample['id'] # '2hop__482757_12019'
+#mu_sample['paragraphs'][0].keys() # dict_keys(['idx', 'title', 'paragraph_text', 'is_supporting'])
+#mu_sample['paragraphs'][0]['idx'] # 0
+#mu_sample['paragraphs'][0]['paragraph_text']
+#mu_sample['question'] # overall question
+#mu_sample['answer'] # overall answer
+#mu_sample['answer_aliases']
 
-mu_sample['question_decomposition']
-mu_sample['question_decomposition'][0].keys() # list of decomps each of dict_keys(['id', 'question', 'answer', 'paragraph_support_idx'])
-mu_sample['question_decomposition'][0]['question']
-mu_sample['question_decomposition'][0]['answer']  # last answer same as mu_sample['answer']
-mu_sample['question_decomposition'][0]['paragraph_support_idx']
-mu_sample['paragraphs'][ mu_sample['question_decomposition'][0]['paragraph_support_idx'] ]['paragraph_text']
-mu_sample['paragraphs'][ mu_sample['question_decomposition'][0]['paragraph_support_idx'] ]['title']
+#mu_sample['question_decomposition']
+#mu_sample['question_decomposition'][0].keys() # list of decomps each of dict_keys(['id', 'question', 'answer', 'paragraph_support_idx'])
+#mu_sample['question_decomposition'][0]['question']
+#mu_sample['question_decomposition'][0]['answer']  # last answer same as mu_sample['answer']
+#mu_sample['question_decomposition'][0]['paragraph_support_idx']
+#mu_sample['paragraphs'][ mu_sample['question_decomposition'][0]['paragraph_support_idx'] ]['paragraph_text']
+#mu_sample['paragraphs'][ mu_sample['question_decomposition'][0]['paragraph_support_idx'] ]['title']
 
-
-def retrieve_paras(mu_sample):
-    """ Return list of paragraphs supporting each decomp step (1 para per decomp step so indices match)
-    """
-    paras = []
-    for decomp in mu_sample['question_decomposition']:
-        para_idx = decomp['paragraph_support_idx']
-        if para_idx is not None:
-            para = mu_sample['paragraphs'][para_idx]['paragraph_text'].strip()
-            if para[-1] not in ['.', '?', '!']:
-                para += '.'
-            paras.append(replace_chars(para))
-        else:
-            paras.append('')  # for musique full, keep paras/decomps idxs aligned
-    return paras
-
-
-mu_train = sorted(mu_train, key=lambda mu_sample: len(mu_sample['question_decomposition']), reverse=True)
 
 #tokenizer = load_model(loadwhat='tokenizer_only')
 #tok_counts = []
@@ -115,7 +104,23 @@ mu_train = sorted(mu_train, key=lambda mu_sample: len(mu_sample['question_decomp
 #print(f"Max decompositions: {d_max}")
 
 
-def process_musique(mu_data, dev_indices=[]):
+def retrieve_paras(mu_sample):
+    """ Return list of paragraphs supporting each decomp step (1 para per decomp step so indices match)
+    """
+    paras = []
+    for decomp in mu_sample['question_decomposition']:
+        para_idx = decomp['paragraph_support_idx']
+        if para_idx is not None:
+            para = mu_sample['paragraphs'][para_idx]['paragraph_text'].strip()
+            if para[-1] not in ['.', '?', '!']:
+                para += '.'
+            paras.append(replace_chars(para))
+        else:
+            paras.append('')  # for musique full, keep paras/decomps idxs aligned
+    return paras
+
+
+def process_musique(mu_data, make_all_dev=True):
     """ Retrieve, format and create new keys for outputting all the datasets, namely:
     decomp learning:
     musique_decomp_train: decomp q \\n para \t decomp ans                   train=decomps from mu train; dev=decomps from new dev (setting where qa dataset train can see it's facts but dev can't)
@@ -134,11 +139,15 @@ def process_musique(mu_data, dev_indices=[]):
     musique_mu_dev_qa_paras_decomp_ans: q \\n paras \t ans  ## decomps+ans ## ..   dev only = musique dev
 
     """
+    unique_ans = {}
+    decomp_len_counts_train = {}
+    tr_cnt = 0
+    unique_ans_last_decomp = set()
     for i, mu_sample in enumerate(mu_data):
-        if dev_indices==[] or i in dev_indices:
+        if make_all_dev:
             mu_sample['split'] = 'dev'
         else:    
-            mu_sample['split'] = 'train'
+            mu_sample['split'] = 'unassigned'
         question = mu_sample['question'].strip()
         answer = mu_sample['answer'].strip()
         paras = retrieve_paras(mu_sample)
@@ -159,8 +168,64 @@ def process_musique(mu_data, dev_indices=[]):
             decomp_step['context_para'] = decomp_para
             
         mu_sample['decomp_ans_str'] = answer + decomp_ans_str
+
+        ans = mu_sample['answer'].lower().strip()
+        ans_last_decomp = ans + mu_sample['question_decomposition'][-1]['question_subst'].lower().strip()
+
+        if unique_ans.get(ans) is None:
+            mu_sample['ans_status'] = 'first'
+            unique_ans[ans] = 1
+            unique_ans_last_decomp.add(ans_last_decomp) # there are many repeated samples with same ans + same last decomp
+            if not make_all_dev:
+                mu_sample['split'] = 'train'             
+        else:
+            mu_sample['ans_status'] = 'not_first'
+            unique_ans[ans] += 1
+
+        if mu_sample['split'] in ['train', 'dev']:
+            tr_cnt += 1
+            l = len(mu_sample['question_decomposition'])
+            if decomp_len_counts_train.get(l) is None:
+                decomp_len_counts_train[l] = 1
+            else:
+                decomp_len_counts_train[l] += 1     
+        
         if i % 1000 == 0:
             print(f'Processed: {i}')
+    if not make_all_dev:
+        desc = 'Train'
+    else:
+        desc = 'Dev'
+    print(f"Finished Assigning {desc}. Count: {tr_cnt}")
+    print(f"{desc} Decomp length distribution: {decomp_len_counts_train}")
+        
+
+    if not make_all_dev:
+#        ans_counter = Counter(all_answers)
+#        ans_lc_ordered = ans_counter.most_common()[::-1]
+        dev_answers = set()
+        dev_cnt = 0
+        decomp_len_counts_dev = {}
+        
+        print("Making dev set with unassigned samples with unique answers over dev")
+        for i, mu_sample in enumerate(mu_data[::-1]):
+            if mu_sample['split'] == 'unassigned':
+                ans = mu_sample['answer'].lower().strip()
+                ans_last_decomp = ans + mu_sample['question_decomposition'][-1]['question_subst'].lower().strip()
+                if ans not in dev_answers and ans_last_decomp not in unique_ans_last_decomp:
+                    dev_answers.add(ans)
+                    mu_sample['split'] = 'dev'
+                    dev_cnt += 1
+                    l = len(mu_sample['question_decomposition'])
+                    if decomp_len_counts_dev.get(l) is None:
+                        decomp_len_counts_dev[l] = 1
+                    else:
+                        decomp_len_counts_dev[l] += 1    
+            if i % 1000 == 0:
+                print(f'Processed: {i} Current dev count: {dev_cnt}')
+        print(f"Finished Assigning New Dev. Dev count: {dev_cnt}")
+        print(f"New Dev Decomp length distribution: {decomp_len_counts_dev}")
+        
     return
 
 
@@ -225,19 +290,22 @@ def get_qa_datasets(mu_data):
 
 
 # Create new dev set & preprocess data into convenient format..
-num_q = len(mu_train)
-dev_size = int(num_q*0.1)
-np.random.seed(42)
-dev_indices = np.random.choice(num_q, dev_size, replace=False)
-process_musique(mu_train, dev_indices)
-process_musique(mu_dev, dev_indices=[])
+# order by number of decomp steps so when creating train set with unique answers we tend to pick the longest instead of discarding 
+mu_train = sorted(mu_train, key=lambda mu_sample: len(mu_sample['question_decomposition']), reverse=True)
+
+#num_q = len(mu_train)
+#dev_size = int(num_q*0.1)
+#np.random.seed(42)
+#dev_indices = np.random.choice(num_q, dev_size, replace=False)
+process_musique(mu_train, make_all_dev=False)
+process_musique(mu_dev, make_all_dev=True)
 
 # Create and output mu_train decomp fact datasets
 train_list, dev_list = get_facts_datasets(mu_train)
 both_list = train_list + dev_list
-print(f'Train: {len(train_list)}  Dev: {len(dev_list)}  Dev in train:{len(both_list)}')  # Train: 41990  Dev: 4623 Dev in train:46613
+print(f'Train: {len(train_list)}  Dev: {len(dev_list)}  Dev in train:{len(both_list)}')  # Train: 3637  Dev: 759  Dev in train:4396
 
-outdir = os.path.join(UQA_DIR, 'musiqueo_decomp_train')
+outdir = os.path.join(UQA_DIR, 'musique_decomp_train')
 print(f"Creating {outdir}")
 os.makedirs(outdir, exist_ok=True)
 outfile = os.path.join(outdir, 'train.tsv')
@@ -247,7 +315,7 @@ outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write(''.join(dev_list))
 
-outdir = os.path.join(UQA_DIR, 'musiqueo_decomp_new_dev_in_train')
+outdir = os.path.join(UQA_DIR, 'musique_decomp_new_dev_in_train')
 print(f"Creating {outdir}")
 os.makedirs(outdir, exist_ok=True)
 outfile = os.path.join(outdir, 'train.tsv')
@@ -259,9 +327,9 @@ with open(outfile, 'w') as f:
 
 # Create and output mu_dev decomp fact datasets
 train_list, dev_list = get_facts_datasets(mu_dev)
-print(f'Train: {len(train_list)}  Dev: {len(dev_list)}')  # Train: 0  Dev: 6404
+print(f'Train: {len(train_list)}  Dev: {len(dev_list)}')  # Train: 0  Dev: 2821
 
-outdir = os.path.join(UQA_DIR, 'musiqueo_mu_dev_decomp')
+outdir = os.path.join(UQA_DIR, 'musique_mu_dev_decomp')
 print(f"Creating {outdir}")
 os.makedirs(outdir, exist_ok=True)
 outfile = os.path.join(outdir, 'train.tsv')
@@ -272,8 +340,8 @@ with open(outfile, 'w') as f:
     f.write(''.join(dev_list)) # dev same as train..
 
 both_list = both_list + dev_list  #All facts both mu train + new dev + mu dev
-print(len(both_list))  # 53017
-outdir = os.path.join(UQA_DIR, 'musiqueo_decomp_all_dev_in_train')
+print(len(both_list))  # 7217
+outdir = os.path.join(UQA_DIR, 'musique_decomp_all_dev_in_train')
 print(f"Creating {outdir}")
 os.makedirs(outdir, exist_ok=True)
 outfile = os.path.join(outdir, 'train.tsv')
@@ -284,10 +352,10 @@ with open(outfile, 'w') as f:
     f.write(''.join(dev_list))
 
 # create and ouput mu_train qa datasets
-mu_qa_dict = get_qa_datasets(mu_train)
+mu_qa_dict = get_qa_datasets(mu_train)  #Train count: 2057  Dev count:382
 
 for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans']
-    ds = 'musiqueo_' + k
+    ds = 'musique_' + k
     outdir = os.path.join(UQA_DIR, ds)
     print(f"Creating {outdir}")
     os.makedirs(outdir, exist_ok=True)    
@@ -300,9 +368,9 @@ for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_dec
 print('Finished outputting mu_train qa datasets...')
 
 # create and ouput mu_dev qa datasets
-mu_qa_dict = get_qa_datasets(mu_dev)
+mu_qa_dict = get_qa_datasets(mu_dev)  #Train count: 0  Dev count:2417
 for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans']
-    ds = 'musiqueo_mu_dev_' + k
+    ds = 'musique_mu_dev_' + k
     outdir = os.path.join(UQA_DIR, ds)
     print(f"Creating {outdir}")
     os.makedirs(outdir, exist_ok=True)    

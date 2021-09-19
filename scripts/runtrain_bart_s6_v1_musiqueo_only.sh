@@ -18,5 +18,5 @@ python cli.py --do_train --output_dir /data/thar011/out/unifiedqa_bart_large_s6_
         --model facebook/bart-large \
         --seed 42 \
         --max_output_length 130 \
-        --mixture musique_qa
+        --mixture musiqueo_qa
 

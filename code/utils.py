@@ -139,13 +139,18 @@ def load_uqa_supervised(file, ans_lower=True, verbose=True):
         print(f"Reading {file}...")
     questions = []
     answers = []
+    ctr = 1
     with open(file, "r") as f:
         for line in f:
-            question, answer = line.split("\t")
+            try:
+                question, answer = line.split("\t")
+            except:
+                print(f"ERROR loading line: {ctr} ##{line}##")
             if ans_lower:
                 answer = answer.lower()
             questions.append( question.strip() )
             answers.append ( answer.strip() )
+            ctr += 1
     if verbose:
         print(f"Successfully loaded {len(questions)} rows.")
     return questions, answers
@@ -205,7 +210,7 @@ def format_decomp_ans(decomp_q, decomp_a, decomp_id, prior_answers):
     """
     this_decomp = decomp_q.strip()
     if this_decomp[-1] in ['.','!']:
-        this_decomp = this_decomp[:-1]
+        this_decomp = this_decomp[:-1].strip()
     if this_decomp[-1] != '?':
         this_decomp += '?'
     var_idx = this_decomp.find('#')
