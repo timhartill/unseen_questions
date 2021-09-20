@@ -30,6 +30,7 @@ from bart import MyBart
 import eval_metrics  
 from overlap_detector import UQADataset
 from sentence_embeddings import Embedder, restate_qa_all
+from utils import get_parsed_decomp_str, get_parsed_decomp_by_key
 
 def run(args, logger):
     if args.do_train or args.do_predict or args.calc_metrics:
@@ -343,11 +344,16 @@ def calc_metrics(args, logger, dev_data):
         questions.append(sample['question'])
         groundtruths.append(sample['answer'][0])  #answer is stored as a list
         
+    if ds_type == 'DC':
+        logger.info(f"Dataset {ds_name} is type {ds_type} so parsing decompositions...")
+        gt_decomp = get_parsed_decomp_str(groundtruths)
+        pred_decomp = get_parsed_decomp_str(predictions)
+        
+        
     logger.info("Loading pre-tokenized data from {}".format(dev_data.preprocessed_path))
     with open(dev_data.preprocessed_path, "r") as f:
         input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, \
             metadata, word_starts, ners_ids = json.load(f)
-
         
     output_dict = {'prefer': pref_metric,
                    'type': ds_type,
@@ -414,7 +420,60 @@ def calc_metrics(args, logger, dev_data):
                    'choices': []}
         output_dict['RL'] = results        
         logger.info(f"Rouge-L for {ds_name} {dev_data.data_type}: {score}")
-    
+        
+    if 'SARIDA' in comp_metrics:    
+        logger.info("Calculating SARI Metric over decomps + decomp answers...")
+        gt = get_parsed_decomp_by_key(gt_decomp, 'dalist')
+        p = get_parsed_decomp_by_key(pred_decomp, 'dalist')
+        scorer = eval_metrics.Sari()
+        score = scorer.compute_metric(p, gt, questions)
+        results = {'score': score,
+                   'scores': scorer.saris,
+                   'newpreds': [],
+                   'choices': []}
+        output_dict['SARIDA'] = results        
+        logger.info(f"SARIDA Accuracy for {ds_name} {dev_data.data_type}: {score}")        
+
+    if 'SARID' in comp_metrics:    
+        logger.info("Calculating SARI Metric over decomps without decomp answers...")
+        gt = get_parsed_decomp_by_key(gt_decomp, 'dlist')
+        p = get_parsed_decomp_by_key(pred_decomp, 'dlist')
+        scorer = eval_metrics.Sari()
+        score = scorer.compute_metric(p, gt, questions)
+        results = {'score': score,
+                   'scores': scorer.saris,
+                   'newpreds': [],
+                   'choices': []}
+        output_dict['SARID'] = results        
+        logger.info(f"SARID Accuracy for {ds_name} {dev_data.data_type}: {score}")        
+
+    if 'F1A' in comp_metrics:    
+        logger.info("Calculating F1A Metric over answers without decomps...")
+        gt = get_parsed_decomp_by_key(gt_decomp, 'ans')
+        p = get_parsed_decomp_by_key(pred_decomp, 'ans')
+        scorer = eval_metrics.F1()
+        score = scorer.compute_metric(p, gt)
+        results = {'score': score,
+                   'scores': scorer.f1s,
+                   'newpreds': [],
+                   'choices': []}
+        output_dict['F1A'] = results        
+        logger.info(f"F1A Accuracy for {ds_name} {dev_data.data_type}: {score}") 
+
+    if 'F1DA' in comp_metrics:    
+        logger.info("Calculating F1A Metric over answers without decomps...")
+        gt = get_parsed_decomp_by_key(gt_decomp, 'alist')
+        p = get_parsed_decomp_by_key(pred_decomp, 'alist')
+        scorer = eval_metrics.F1()
+        score = scorer.compute_metric(p, gt)
+        results = {'score': score,
+                   'scores': scorer.f1s,
+                   'newpreds': [],
+                   'choices': []}
+        output_dict['F1A'] = results        
+        logger.info(f"F1A Accuracy for {ds_name} {dev_data.data_type}: {score}") 
+
+        
     results_file = os.path.join(args.output_dir, 'eval_metrics.json')
     if os.path.exists(results_file):
         results_dict = json.load(open(results_file)) 

@@ -19,6 +19,11 @@ Dataset type:
     AB: F1 or rougeL except NatQA uses EM
     MC: Select option with highest F1 score between prediction and each option
     YN: YN calc determines prediction
+
+NOTE: Any dataset used in evaluation metrics calculation and/or similarity calculation 
+      must be added to dataset_attribs below...
+
+
 """
 import numpy as np
 import re
@@ -29,7 +34,7 @@ import os
 import copy
 
 import datasets
-
+from sari import SARI
 
 
 #Map dataset types to relevant metrics to calculate and preferred reporting metric
@@ -37,11 +42,13 @@ metric_groups = {
     'EX': {'compute':['EM', 'F1'], 'prefer':'F1'},
     'AB': {'compute':['EM', 'F1', 'RL'], 'prefer':'RL'},
     'MC': {'compute':['EM', 'F1', 'SS'], 'prefer':'SS'},
-    'YN': {'compute':['EM', 'F1', 'YN'], 'prefer':'YN'}
+    'YN': {'compute':['EM', 'F1', 'YN'], 'prefer':'YN'},
+    'DC': {'compute':['EM', 'F1A', 'F1DA', 'SARID', 'SARIDA'], 'prefer':'F1A'}  #F1A = F1 on answer only so comparable to other datasets
 }
 
 
 #Map datasets to dataset types and optional override for preferred reporting metric (must be one in above 'compute' key)
+#NOTE: Any dataset used in evaluation metrics calculation and/or similarity calculation must be added to dataset_attribs
 dataset_attribs = {
     'ai2_science_elementary': {'type':'MC', 'prefer':''},
     'ai2_science_middle': {'type':'MC', 'prefer':''},
@@ -194,7 +201,15 @@ dataset_attribs = {
     'strategy_qa': {'type':'MC', 'prefer':''},
     'cwwv': {'type':'MC', 'prefer':''},
     'cskg': {'type':'MC', 'prefer':''},
-    'atomic': {'type':'MC', 'prefer':''}
+    'atomic': {'type':'MC', 'prefer':''},
+    'musique_qa': {'type':'EX', 'prefer':''},
+    'musique_qa_paras': {'type':'EX', 'prefer':''},
+    'musique_mu_dev_qa': {'type':'EX', 'prefer':''},
+    'musique_mu_dev_qa_paras': {'type':'EX', 'prefer':''},
+    'musique_qa_decomp_ans': {'type':'DC', 'prefer':''},
+    'musique_qa_paras_decomp_ans': {'type':'DC', 'prefer':''},
+    'musique_mu_dev_qa_decomp_ans': {'type':'DC', 'prefer':''},
+    'musique_mu_dev_qa_paras_decomp_ans': {'type':'DC', 'prefer':''}
     }
 
 unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
@@ -519,6 +534,24 @@ def get_yn(prediction, groundtruth):
     return yn
 
 
+def get_sari(question, prediction, groundtruth, sari=None):
+    """ Score using SARI metric - see sari.py for paper ref and details
+    """
+    if sari is None:
+        sari = SARI()
+    sources = [question.replace("?", " ?").split()]  # [ ['word1', 'word2', ...'wordn', '?'] ]
+    if type(prediction) == list:
+        predictions = [" ".join(prediction).replace("?", " ?").split()]  # [ ['decomp1 word1', 'decomp 1word2', ...'decompn wordn', 'decompn ?'] ]
+    else:
+        predictions = [prediction.replace("##","").replace("?", " ?").split()]  # [ ['decomp1 word1', 'decomp 1word2', ...'decompn wordn', 'decompn ?'] ]
+    if type(groundtruth) == list:
+        targets = [[" ".join(groundtruth).replace("?", " ?").split()]] # # [ [ ['decomp1 word1', 'decomp 1word2', ...'decompn wordn', 'decompn ?'] ] ]
+    else:
+        targets = [[groundtruth.replace("##","").replace("?", " ?").split()]] # # [ [ ['decomp1 word1', 'decomp 1word2', ...'decompn wordn', 'decompn ?'] ] ]
+    score = float(sari(sources, predictions, targets))
+    return score
+
+
 class StringSimilarity:
     """ Return MC string similarity accuracy metric
     Unlike other metrics we must first parse the questions and determine what the possible answer choices are.
@@ -568,6 +601,29 @@ class StringSimilarity:
             if currchoice:        
                 currchoices.append(currchoice.strip())  
             self.choices.append(currchoices)                  
+
+
+class Sari:
+    """ Return SARI metric
+        predictions = ['pred1 text', 'pred2 text']
+        groundtruths = ['gt1 text', 'gt2 text']
+        questions = ['question1 text', 'question2 text']
+        Each groundtruth & pred of form "overall answer ## decomp1 q? decomp1 ans ## decomp2 q? decomp2 ans"
+        although what could be passed in could be minus overall answer and/or minus decomp answers and/or minus decomps
+    """
+    def __init__(self):
+        self.last_scores = {}
+        self.saris = []
+
+    def compute_metric(self, predictions, groundtruths, questions):
+        self.saris = []
+        sari_scorer = SARI()
+        for prediction, groundtruth, question in zip(predictions, groundtruths, questions):
+            s = get_sari(question, prediction, groundtruth, sari_scorer)
+            self.saris.append(s)
+        sari_score = sari_scorer.get_metric()['SARI'] * 100.0
+        self.last_scores['sari'] = sari_score
+        return sari_score
 
 
 class F1:

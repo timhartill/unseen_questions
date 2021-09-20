@@ -205,7 +205,8 @@ def create_uqa_example(question, context=None, answer=None, append_nl=True):
 
 
 def format_decomp_ans(decomp_q, decomp_a, decomp_id, prior_answers):
-    """ Return formatted decomp question plus answer after substituting prior answers
+    """ Return formatted decomp question plus answer after substituting prior answers into vars of form #1, #2 etc
+        where #1 refers to the answer of the first decomp in the list (i.e. decomp[0])
         in form: ' ## decomp_q? decomp_a'
     """
     this_decomp = decomp_q.strip()
@@ -232,6 +233,56 @@ def format_decomp_ans(decomp_q, decomp_a, decomp_id, prior_answers):
     prior_answers.append(decomp_answer)
     return decomp_ans_str, prior_answers, this_decomp
 
+
+def parse_decomp_str(decomp_str):
+    """ Parse a gt or predicted decomp string of form "overall answer ## decomp1 q? decomp1 ans ## decomp2 q? decomp2 ans"
+    """
+    decomp_dict = {'ans':'', 'dalist':[], 'dlist':[], 'alist':[]}
+    decomps = decomp_str.split('##')
+    decomp_dict['ans'] = decomps[0].strip()
+    for decomp in decomps[1:]:
+        da = decomp.strip()
+        if da != '':
+            decomp_dict['dalist'].append(da)
+            da_split = da.split('?')
+            if len(da_split) == 1:
+                if da[-1] == '?': # assume this is question
+                    decomp_dict['dlist'].append( da_split[0].strip()+'?' )
+                    decomp_dict['alist'].append( '' )
+                else:    
+                    decomp_dict['dlist'].append( '' )
+                    decomp_dict['alist'].append( da_split[0].strip() )
+            elif len(da_split) == 2:
+                decomp_dict['dlist'].append( da_split[0].strip()+'?' )
+                decomp_dict['alist'].append( da_split[1].strip() )
+            elif da_split[-1].strip() == '': # if last ? is at the end, assume it's part of decomp answer
+                decomp_dict['dlist'].append('?'.join(da_split[:-2])+'?' )
+                decomp_dict['alist'].append( da_split[-2].strip()+'?' )
+            else:
+                decomp_dict['dlist'].append('?'.join(da_split[:-1])+'?' )
+                decomp_dict['alist'].append( da_split[-1].strip() )
+    return decomp_dict
+
+
+def get_parsed_decomp_str(in_list):
+    """ Return a list of parsed decomp strings """
+    decomp_list = []
+    for decomp_str in in_list:
+        decomp_list.append( parse_decomp_str(decomp_str) )
+    return decomp_list            
+
+
+def get_parsed_decomp_by_key(decomp_list, key, join_list=True):
+    """ Return a list of just the values in decomp_list[i]['key']
+    """
+    key_list = []
+    for decomp_dict in decomp_list:
+        val = decomp_dict[key]
+        if join_list and type(val) == list:
+            val = ' '.join(val).strip()
+        key_list.append( val )
+    return key_list
+    
 
 #######################
 # HF Utils
