@@ -30,11 +30,11 @@ from bart import MyBart
 import eval_metrics  
 from overlap_detector import UQADataset
 from sentence_embeddings import Embedder, restate_qa_all
-from utils import get_parsed_decomp_str, get_parsed_decomp_by_key
+from utils import get_parsed_decomp_str, get_parsed_decomp_by_key, load_model
 
 def run(args, logger):
-    if args.do_train or args.do_predict or args.calc_metrics:
-        tokenizer = AutoTokenizer.from_pretrained(args.model)  
+    if args.do_train or args.calc_metrics:
+        tokenizer = AutoTokenizer.from_pretrained(args.model)
     
         if args.is_unifiedqa:
             dev_data = UnifiedQAData(logger, args, args.predict_file, False)
@@ -98,34 +98,68 @@ def run(args, logger):
         train(args, logger, model, train_data, dev_data, optimizer, scheduler)
 
     if args.do_predict:
-        if args.model == "facebook/bart-large":   
-            my_model = MyBart
-        else:
-            my_model = AutoModelForPreTraining  
         checkpoint = os.path.join(args.output_dir, 'best-model.pt') if args.checkpoint is None else args.checkpoint
-        if os.path.exists(checkpoint):
-            model = my_model.from_pretrained(args.model,
-                                           state_dict=torch.load(checkpoint)) 
-            logger.info("Loading checkpoint from {}".format(checkpoint))
-        else:       # Added to allow eval from a pretrained model that has no external ckpt associated with it such as "allenai/unifiedqa-t5-large"
-            model = my_model.from_pretrained(args.model) 
-            logger.info("No checkpoint loaded. Running inference on base pretrained model.")
+        tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
+        inference_wrapper(tokenizer, model, args, logger, predict_file=args.predict_file)
+
+    if args.do_predict_all:
+        checkpoint = os.path.join(args.output_dir, 'best-model.pt') if args.checkpoint is None else args.checkpoint
+        tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
+        uqa_dir = args.predict_file
+        if uqa_dir[-4:] == '.tsv':  # eg specified as '/data/thar011/data/unifiedqa/dev.tsv' like uqa train format
+            uqa_dir = os.path.split(uqa_dir)[0]  # base uqa directory
+        logger.info(f"Base dir: {uqa_dir}")
+        ftype='dev'
+        for ds in eval_metrics.dev_eval:
+            args.prefix = ftype + '_' + ds + '_'
+            out_file = os.path.join(args.output_dir, f"{args.prefix}predictions.json")
+            if args.add_only_missing and os.path.exists(out_file):
+                logger.info(f"Skipping Prediction for {ftype} data of {ds} as prediction file already exists")
+                continue
+            dspath = os.path.join(uqa_dir, ds, ftype+'.tsv')
+            inference_wrapper(tokenizer, model, args, logger, predict_file=dspath)
+        ftype='test'
+        for ds in eval_metrics.test_eval:
+            args.prefix = ftype + '_' + ds + '_'
+            out_file = os.path.join(args.output_dir, f"{args.prefix}predictions.json")
+            if args.add_only_missing and os.path.exists(out_file):
+                logger.info(f"Skipping Prediction for {ftype} data of {ds} as prediction file already exists")
+                continue
+            dspath = os.path.join(uqa_dir, ds, ftype+'.tsv')
+            inference_wrapper(tokenizer, model, args, logger, predict_file=dspath)         
         
-        if args.n_gpu>0:
-            model.to(torch.device("cuda"))
-        model.eval()
-        ems = inference(model, dev_data, save_predictions=True, return_details=False)
-        logger.info("%s: %s on %s data: %.2f" % (args.prefix, dev_data.metric, dev_data.data_type, np.mean(ems)*100))
-        results_file = os.path.join(args.output_dir, 'eval_results.csv')  
-        dtnow = datetime.datetime.now()
-        if not os.path.exists(results_file):
-            with open(results_file, 'w') as f:
-                f.write('WHEN,TYPE,PREFIX,METRIC,VALUE' + '\n')
-        with open(results_file, 'a') as f:
-            f.write(f'{dtnow},{dev_data.data_type},{args.prefix},{dev_data.metric},{np.mean(ems)*100}' + '\n')
-            
-    if args.calc_metrics:    
-        calc_metrics(args, logger, dev_data)
+    if args.calc_metrics:
+        calc_metrics(args, logger, dev_data, predict_file=args.predict_file)
+
+    if args.calc_metrics_all:
+        tokenizer = load_model(model_name=args.model, loadwhat='tokenizer_only')
+        results_file = os.path.join(args.output_dir, 'eval_metrics.json')
+        if os.path.exists(results_file):
+            results_dict = json.load(open(results_file))
+        else:
+            results_dict = {}
+        already_calculated = list(results_dict.keys())
+        uqa_dir = args.predict_file
+        if uqa_dir[-4:] == '.tsv':  # eg specified as '/data/thar011/data/unifiedqa/dev.tsv' like uqa train format
+            uqa_dir = os.path.split(uqa_dir)[0]  # base uqa directory
+        logger.info(f"Base dir: {uqa_dir}")
+        ftype='dev'
+        for ds in eval_metrics.dev_eval:
+            args.prefix = ftype + '_' + ds + '_'
+            if args.add_only_missing and ds in already_calculated:
+                logger.info(f"Skipping calc metrics for {ftype} data of {ds} as key already exists in eval_metrics.json")
+                continue
+            dspath = os.path.join(uqa_dir, ds, ftype+'.tsv')
+            calc_metrics_wrapper(tokenizer, args, logger, predict_file=dspath)        
+        ftype='test'
+        for ds in eval_metrics.test_eval:
+            args.prefix = ftype + '_' + ds + '_'
+            if args.add_only_missing and ds in already_calculated:
+                logger.info(f"Skipping calc metrics for {ftype} data of {ds} as key already exists in eval_metrics.json")
+                continue
+            dspath = os.path.join(uqa_dir, ds, ftype+'.tsv')
+            calc_metrics_wrapper(tokenizer, args, logger, predict_file=dspath)        
+
         
     if args.calc_similarity:
         calc_similarity(args, logger)
@@ -320,10 +354,36 @@ def inference(model, dev_data, save_predictions=False, return_details=False):
     return np.mean(dev_data.evaluate(predictions))
 
 
-def calc_metrics(args, logger, dev_data):
+def inference_wrapper(tokenizer, model, args, logger, predict_file):
+    """ Run inference for single dataset """
+    dev_data = QAData(logger, args, predict_file, False)
+    dev_data.load_dataset(tokenizer)
+    dev_data.load_dataloader()
+    ems = inference(model, dev_data, save_predictions=True, return_details=False)
+    logger.info("%s: %s on %s data: %.2f" % (args.prefix, dev_data.metric, dev_data.data_type, np.mean(ems)*100))
+    results_file = os.path.join(args.output_dir, 'eval_results.csv')  
+    dtnow = datetime.datetime.now()
+    if not os.path.exists(results_file):
+        with open(results_file, 'w') as f:
+            f.write('WHEN,TYPE,PREFIX,METRIC,VALUE' + '\n')
+    with open(results_file, 'a') as f:
+        f.write(f'{dtnow},{dev_data.data_type},{args.prefix},{dev_data.metric},{np.mean(ems)*100}' + '\n')
+    return
+
+
+def calc_metrics_wrapper(tokenizer, args, logger, predict_file):
+    """ Calc metrics for single dataset """
+    dev_data = QAData(logger, args, predict_file, False)
+    dev_data.load_dataset(tokenizer)
+    dev_data.load_dataloader()    
+    calc_metrics(args, logger, dev_data, predict_file)
+    return
+
+
+def calc_metrics(args, logger, dev_data, predict_file):
     """ Calculate metrics relevant to this dataset
     """
-    ds_name = os.path.split(args.predict_file)[0]
+    ds_name = os.path.split(predict_file)[0]
     ds_name = ds_name.split('/')[-1]
     ds_attribs = eval_metrics.dataset_attribs.get(ds_name)
     if ds_attribs is None:
@@ -337,7 +397,7 @@ def calc_metrics(args, logger, dev_data):
         
     predictions = dev_data.load_predictions()
     
-    logger.info(f"Loading eval questions and answers for {ds_name} from {args.predict_file} ...")
+    logger.info(f"Loading eval questions and answers for {ds_name} from {predict_file} ...")
     questions = []
     groundtruths = []
     for sample in dev_data.data:
@@ -359,7 +419,7 @@ def calc_metrics(args, logger, dev_data):
                    'type': ds_type,
                    'comp_metrics': comp_metrics,
                    'eval_file_type': dev_data.data_type,
-                   'gt_file': args.predict_file,
+                   'gt_file': predict_file,
                    'gt_file_tokenized': dev_data.preprocessed_path,
                    'groundtruths_tokenized': decoder_input_ids,
                    'groundtruths': groundtruths,
@@ -422,7 +482,7 @@ def calc_metrics(args, logger, dev_data):
         logger.info(f"Rouge-L for {ds_name} {dev_data.data_type}: {score}")
         
     if 'SARIDA' in comp_metrics:    
-        logger.info("Calculating SARI Metric over decomps + decomp answers...")
+        logger.info("Calculating SARI-DA Metric over decomps + decomp answers...")
         gt = get_parsed_decomp_by_key(gt_decomp, 'dalist')
         p = get_parsed_decomp_by_key(pred_decomp, 'dalist')
         scorer = eval_metrics.Sari()
@@ -431,11 +491,11 @@ def calc_metrics(args, logger, dev_data):
                    'scores': scorer.saris,
                    'newpreds': [],
                    'choices': []}
-        output_dict['SARIDA'] = results        
-        logger.info(f"SARIDA Accuracy for {ds_name} {dev_data.data_type}: {score}")        
+        output_dict['SARIDA'] = results
+        logger.info(f"SARIDA Accuracy for {ds_name} {dev_data.data_type}: {score}")
 
     if 'SARID' in comp_metrics:    
-        logger.info("Calculating SARI Metric over decomps without decomp answers...")
+        logger.info("Calculating SARI-D Metric over decomps without decomp answers...")
         gt = get_parsed_decomp_by_key(gt_decomp, 'dlist')
         p = get_parsed_decomp_by_key(pred_decomp, 'dlist')
         scorer = eval_metrics.Sari()
@@ -448,7 +508,7 @@ def calc_metrics(args, logger, dev_data):
         logger.info(f"SARID Accuracy for {ds_name} {dev_data.data_type}: {score}")        
 
     if 'F1A' in comp_metrics:    
-        logger.info("Calculating F1A Metric over answers without decomps...")
+        logger.info("Calculating F1-A Metric over answers without decomps...")
         gt = get_parsed_decomp_by_key(gt_decomp, 'ans')
         p = get_parsed_decomp_by_key(pred_decomp, 'ans')
         scorer = eval_metrics.F1()
@@ -461,7 +521,7 @@ def calc_metrics(args, logger, dev_data):
         logger.info(f"F1A Accuracy for {ds_name} {dev_data.data_type}: {score}") 
 
     if 'F1DA' in comp_metrics:    
-        logger.info("Calculating F1A Metric over answers without decomps...")
+        logger.info("Calculating F1-DA Metric over answers without decomps...")
         gt = get_parsed_decomp_by_key(gt_decomp, 'alist')
         p = get_parsed_decomp_by_key(pred_decomp, 'alist')
         scorer = eval_metrics.F1()
@@ -470,8 +530,8 @@ def calc_metrics(args, logger, dev_data):
                    'scores': scorer.f1s,
                    'newpreds': [],
                    'choices': []}
-        output_dict['F1A'] = results        
-        logger.info(f"F1A Accuracy for {ds_name} {dev_data.data_type}: {score}") 
+        output_dict['F1DA'] = results
+        logger.info(f"F1DA Accuracy for {ds_name} {dev_data.data_type}: {score}")
 
         
     results_file = os.path.join(args.output_dir, 'eval_metrics.json')

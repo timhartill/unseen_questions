@@ -37,6 +37,8 @@ def main():
     parser.add_argument("--output_dir", default=None, type=str)  #TJH , required=True)
     parser.add_argument("--do_train", action='store_true')
     parser.add_argument("--do_predict", action='store_true')
+    parser.add_argument("--do_predict_all", action='store_true',
+                        help="Output predictions for all datasets in dataset_attributes.py dev_aval and test_eval.")
     parser.add_argument("--is_unifiedqa", action='store_true',
                         help="If set and --do_train will train on the mixture specified in --mixture.")
     parser.add_argument("--skip_inference", action='store_true')
@@ -86,6 +88,8 @@ def main():
                         help="The mixture of datasets to train on. Format: --mixture unifiedqa,extradataset1,extradataset2")
     parser.add_argument("--calc_metrics", action='store_true',
                         help="Calculate additional dataset-specific metrics beyond EM. --do_predict must have been run previously or specifed here as well.")
+    parser.add_argument("--calc_metrics_all", action='store_true',
+                        help="Calculate additional dataset-specific metrics beyond EM for each eval dataset. --do_predict_all must have been run previously or specifed here as well.")
     parser.add_argument("--strip_single_quotes", action='store_true',
                         help="Strip closed 'single quote pairs' but not single possessive type quotes eg I'm")
     parser.add_argument("--indiv_digits", action='store_true',

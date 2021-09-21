@@ -20,7 +20,7 @@ do
         --prefix dev_${ds}_ \
         --model facebook/bart-large \
         --checkpoint $1/best-model-150000.pt \
-        --calc_metrics       
+        --calc_metrics
 done
 
 #eval on test set where available

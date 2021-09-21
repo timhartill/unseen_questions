@@ -1392,10 +1392,8 @@ def check_duplicates(s, dsetset='ALL', ngram='Unigram', column='combo',
         
 
 class UQADataset:
-
     def __init__(self):
         pass
-
 
     def _load(self, datafile):
         result = []

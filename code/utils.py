@@ -288,7 +288,7 @@ def get_parsed_decomp_by_key(decomp_list, key, join_list=True):
 # HF Utils
 #######################
 
-def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both'):
+def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both', to_cuda=True):
     """ Load a model and set for prediction
     Usage: tokenizer, model = load_model(model_name, checkpoint)
     """
@@ -310,7 +310,8 @@ def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both
             print("No checkpoint loaded. Training from base pretrained model.")
             model = my_model.from_pretrained(model_name) 
         
-        model.to(torch.device("cuda"))
+        if to_cuda:
+            model.to(torch.device("cuda"))
         model.eval()
         print("Model loaded!")
     return tokenizer, model
