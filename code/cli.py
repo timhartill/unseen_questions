@@ -170,8 +170,9 @@ def main():
 
     if not args.do_train and not args.do_predict \
         and not args.calc_metrics and not args.calc_similarity \
-        and not args.calc_similarity_numeric and not args.create_embeddings and not args.calc_similarity_embeddings:
-        raise ValueError("At least one of `do_train` or `do_predict` or 'calc_metrics' or calc_similarity or calc_similarity_numeric or create_embeddings or calc_similarity_embeddings must be True.")
+        and not args.calc_similarity_numeric and not args.create_embeddings and not args.calc_similarity_embeddings \
+        and not args.do_predict_all and not args.calc_metrics_all:
+        raise ValueError("At least one of `do_train` or `do_predict` or `do_predict_all` or 'calc_metrics' or 'calc_metrics_all' or calc_similarity or calc_similarity_numeric or create_embeddings or calc_similarity_embeddings must be True.")
 
     if args.do_train:
         if not args.train_file:
@@ -179,12 +180,12 @@ def main():
         if not args.predict_file:
             raise ValueError("If `do_train` is True, then `predict_file` must be specified.")
 
-    if args.do_predict:
+    if args.do_predict or args.do_predict_all:
         if not args.predict_file:
-            raise ValueError("If `do_predict` is True, then `predict_file` must be specified.")
-    if args.calc_metrics:
+            raise ValueError("If `do_predict(_all)` is True, then `predict_file` must be specified.")
+    if args.calc_metrics or args.calc_metrics_all:
         if not args.predict_file:
-            raise ValueError("If `calc_metrics` is True, then `predict_file` must be specified.")
+            raise ValueError("If `calc_metrics(_all)` is True, then `predict_file` must be specified.")
 
     logger.info("Using {} gpus".format(args.n_gpu))
     run(args, logger)
