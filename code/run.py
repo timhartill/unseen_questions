@@ -99,11 +99,17 @@ def run(args, logger):
 
     if args.do_predict:
         checkpoint = os.path.join(args.output_dir, 'best-model.pt') if args.checkpoint is None else args.checkpoint
+        if not os.path.exists(checkpoint):
+            checkpoint = None
+        logger.info(f"Running Predict. Checkpoint={checkpoint}")    
         tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
         inference_wrapper(tokenizer, model, args, logger, predict_file=args.predict_file)
 
     if args.do_predict_all:
         checkpoint = os.path.join(args.output_dir, 'best-model.pt') if args.checkpoint is None else args.checkpoint
+        if not os.path.exists(checkpoint):
+            checkpoint = None
+        logger.info(f"Running Predict All. Checkpoint={checkpoint}")    
         tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
         uqa_dir = args.predict_file
         if uqa_dir[-4:] == '.tsv':  # eg specified as '/data/thar011/data/unifiedqa/dev.tsv' like uqa train format
@@ -142,7 +148,7 @@ def run(args, logger):
         uqa_dir = args.predict_file
         if uqa_dir[-4:] == '.tsv':  # eg specified as '/data/thar011/data/unifiedqa/dev.tsv' like uqa train format
             uqa_dir = os.path.split(uqa_dir)[0]  # base uqa directory
-        logger.info(f"Base dir: {uqa_dir}")
+        logger.info(f"Running Calc Metrics All. Base dir: {uqa_dir}")
         ftype='dev'
         for ds in eval_metrics.dev_eval:
             args.prefix = ftype + '_' + ds + '_'

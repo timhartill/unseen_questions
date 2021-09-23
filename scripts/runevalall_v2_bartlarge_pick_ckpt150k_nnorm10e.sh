@@ -13,10 +13,8 @@ python cli.py --output_dir $1 \
         --append_another_bos --do_lowercase \
         --verbose \
         --model facebook/bart-large \
+        --norm_numbers --norm_10e \
         --checkpoint $1/best-model-150000.pt \
-        --max_output_length 130 \
-        --ssm_prob 1.0 \
-        --add_mask_char NONE \
         --do_predict_all --calc_metrics_all --add_only_missing
 
 

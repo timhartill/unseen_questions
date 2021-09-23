@@ -25,6 +25,30 @@ unifiedqa_seen_1
 dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
             'drop', 'contrast_sets_drop', 'boolq_np', 'contrast_sets_boolq', 'multirc', 
             'natural_questions', 'natural_questions_with_dpr_para', 'physical_iqa', 
+            'social_iqa', 'squad1_1', 'squad2', 'boolq', 'commonsenseqa', 
+            'qasc', 'qasc_with_ir', 'winogrande_xl', 'mctest_corrected_the_separator', 
+            'contrast_sets_drop_dedup', 'drop_dedup', 'contrast_sets_boolq_dedup', 
+            'boolq_np_dedup', 'social_iqa_dedup', 'quoref_dedup', 
+            'contrast_sets_quoref_dedup', 'contrast_sets_ropes_dedup', 
+            'drop_dedup_lowsim_tdnd', 
+            'contrast_sets_drop_dedup_lowsim_tdnd', 'physical_iqa_lowsim_tdnd', 
+            'social_iqa_dedup_lowsim_tdnd', 'commonsenseqa_lowsim_tdnd', 
+            'qasc_lowsim_tdnd', 'qasc_with_ir_lowsim_tdnd', 'ropes_lowsim_tdnd', 
+            'newsqa_lowsim_tdnd', 'strategy_qa', 'cwwv', 'atomic',
+            'musique_qa', 'musique_qa_paras', 'musique_mu_dev_qa', 'musique_mu_dev_qa_paras',
+            'musique_qa_decomp_ans', 'musique_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_ans',
+            'musique_mu_dev_qa_paras_decomp_ans']
+
+#Add to this list to create predictions/calc metrics for corresponding test.tsv:
+test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
+             'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string',  
+             'mmlu_elementary_to_college_math_test',  
+             'mmlu_elementary_to_college_math_test_lowsim_tdnd']
+
+
+dev_eval_all = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
+            'drop', 'contrast_sets_drop', 'boolq_np', 'contrast_sets_boolq', 'multirc', 
+            'natural_questions', 'natural_questions_with_dpr_para', 'physical_iqa', 
             'social_iqa', 'ambigqa', 'squad1_1', 'squad2', 'boolq', 'commonsenseqa', 
             'qasc', 'qasc_with_ir', 'winogrande_xl', 'mctest_corrected_the_separator', 
             'contrast_sets_drop_dedup', 'drop_dedup', 'contrast_sets_boolq_dedup', 
@@ -42,8 +66,7 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'musique_qa_decomp_ans', 'musique_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_ans',
             'musique_mu_dev_qa_paras_decomp_ans']
 
-#Add to this list to create predictions/calc metrics for corresponding test.tsv:
-test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
+test_eval_all = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
              'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string', 
              'narrativeqa', 'mmlu_electrical_engineering_test', 'mmlu_high_school_statistics_test', 
              'mmlu_college_chemistry_test', 'mmlu_econometrics_test', 'mmlu_high_school_world_history_test', 
@@ -71,6 +94,7 @@ test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir',
              'mmlu_professional_psychology_test_dedup', 'mmlu_elementary_mathematics_test_dedup', 
              'mmlu_elementary_to_college_math_test', 'mmlu_elementary_to_college_math_test_lowsim_uqa', 
              'mmlu_elementary_to_college_math_test_lowsim_tdnd']
+
 
 #Map dataset types to relevant metrics to calculate and preferred reporting metric
 metric_groups = {
@@ -256,7 +280,13 @@ unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elemen
 replace_sim_with = {'cwwv_selfsvised': 'cwwv', 
                 'atomic_selfsvised': 'atomic', 
                 'cwwv_premask_selfsvised': 'cwwv', 
-                'atomic_premask_selfsvised': 'atomic'}
+                'atomic_premask_selfsvised': 'atomic',
+                'musique_qa_decomp_ans': 'musique_qa',
+                'musique_qa_paras_decomp_ans': 'musique_qa_paras',
+                'musique_mu_dev_qa_decomp_ans': 'musique_mu_dev_qa',
+                'musique_mu_dev_qa_paras_decomp_ans': 'musique_mu_dev_qa_paras'
+                }
+
 
 # Not used
 unifiedqa_unseen_1 = [
@@ -312,7 +342,15 @@ unifiedqa_unseen_4 = [
     'qasc_with_ir',
     'ropes',
     'newsqa',
-    'strategy_qa'
+    'strategy_qa',
+    'musique_qa',
+    'musique_qa_paras',
+    'musique_mu_dev_qa',
+    'musique_mu_dev_qa_paras',
+    'musique_qa_decomp_ans',
+    'musique_qa_paras_decomp_ans',
+    'musique_mu_dev_qa_decomp_ans',
+    'musique_mu_dev_qa_paras_decomp_ans'
     ]
 
 unifiedqa_unseen_4_map = {
@@ -326,7 +364,15 @@ unifiedqa_unseen_4_map = {
     'qasc_with_ir': 'dev.tsv',
     'ropes': 'dev.tsv',
     'newsqa': 'dev.tsv',
-    'strategy_qa': 'dev.tsv'
+    'strategy_qa': 'dev.tsv',
+    'musique_qa': 'dev.tsv',
+    'musique_qa_paras': 'dev.tsv',
+    'musique_mu_dev_qa': 'dev.tsv',
+    'musique_mu_dev_qa_paras': 'dev.tsv',
+    'musique_qa_decomp_ans': 'dev.tsv',
+    'musique_qa_paras_decomp_ans': 'dev.tsv',
+    'musique_mu_dev_qa_decomp_ans': 'dev.tsv',
+    'musique_mu_dev_qa_paras_decomp_ans': 'dev.tsv'   
     }
 
 # Not used

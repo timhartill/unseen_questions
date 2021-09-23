@@ -775,6 +775,7 @@ class OutputResults:
 def run_all(logdir, results_list):
     """ Runs reports involving comparing model runs...
     Usage: 
+        results_list = ['/data/thar011/out/unifiedqa_bart_large_TEST/eval_metrics.json']        
         results_list = ['/data/thar011/out/unifiedqa_averages/comp3runs046/v3_avg3runs_eval_metrics.json',
                         '/data/thar011/out/unifiedqa_averages/comp3runs046/v7_avg3runs_eval_metrics.json',
                         
@@ -792,7 +793,7 @@ def run_all(logdir, results_list):
                         '/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s5_v1_qasc_facts/eval_metrics.json',
                        ]
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5_v1/'
+        logdir='/data/thar011/out/unifiedqa_averages/TEST/'
         run_all(logdir, results_list)
     """
     if logdir[-1] != '/':

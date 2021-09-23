@@ -5,18 +5,16 @@
 
 cd ../code
 
-echo "Running Eval for best model at 150k steps in $1 ..."
+echo "Running Eval for best model at 200k steps in $1_200k with indiv_digits..."
 
-python cli.py --output_dir $1 \
+python cli.py --output_dir ${1}_200k \
         --predict_file /data/thar011/data/unifiedqa/dev.tsv \
         --predict_batch_size 32 \
         --append_another_bos --do_lowercase \
         --verbose \
         --model facebook/bart-large \
-        --checkpoint $1/best-model-150000.pt \
-        --max_output_length 130 \
-        --ssm_prob 1.0 \
-        --add_mask_char NONE \
+        --indiv_digits \
+        --checkpoint $1/best-model-200000.pt \
         --do_predict_all --calc_metrics_all --add_only_missing
 
 
