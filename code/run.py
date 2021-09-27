@@ -98,6 +98,9 @@ def run(args, logger):
         train(args, logger, model, train_data, dev_data, optimizer, scheduler)
 
     if args.do_predict:
+        if args.checkpoint is not None and not os.path.exists(args.checkpoint):
+            logger.info(f"Error running Predict: Specified checkpoint doesnt exist: Checkpoint={args.checkpoint}") 
+            assert os.path.exists(args.checkpoint), "Exiting. Please remediate and restart."
         checkpoint = os.path.join(args.output_dir, 'best-model.pt') if args.checkpoint is None else args.checkpoint
         if not os.path.exists(checkpoint):
             checkpoint = None
@@ -106,6 +109,9 @@ def run(args, logger):
         inference_wrapper(tokenizer, model, args, logger, predict_file=args.predict_file)
 
     if args.do_predict_all:
+        if args.checkpoint is not None and not os.path.exists(args.checkpoint):
+            logger.info(f"Error running Predict All: Specified checkpoint doesnt exist: Checkpoint={args.checkpoint}") 
+            assert os.path.exists(args.checkpoint), "Exiting. Please remediate and restart."
         checkpoint = os.path.join(args.output_dir, 'best-model.pt') if args.checkpoint is None else args.checkpoint
         if not os.path.exists(checkpoint):
             checkpoint = None
