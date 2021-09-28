@@ -345,13 +345,13 @@ unifiedqa_unseen_4 = [
     'newsqa',
     'strategy_qa',
     'musique_qa',
-    'musique_qa_paras',
-    'musique_mu_dev_qa',
-    'musique_mu_dev_qa_paras',
     'musique_qa_decomp_ans',
-    'musique_qa_paras_decomp_ans',
+    'musique_mu_dev_qa',
     'musique_mu_dev_qa_decomp_ans',
-    'musique_mu_dev_qa_paras_decomp_ans'
+    'musique_qa_paras',
+    'musique_qa_paras_decomp_ans',
+    'musique_mu_dev_qa_paras',
+    'musique_mu_dev_qa_paras_decomp_ans',
     ]
 
 unifiedqa_unseen_4_map = {
