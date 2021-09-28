@@ -20,8 +20,8 @@
 # /data/thar011/out/unifiedqa_t5base_290ksteps                          script: in this script
 # numerous bart-large which use best-model-150000 steps checkpoint with max output seq 130 and ssm 1.0 no extra mask char 	script: runevalall_v2_bartlarge_pick_ckpt150k.sh
 
-
-# Note: Run this from scripts subdirectory..
+# Note 1: Add new output dirs to appropriate section after running the eval all script for it to ensure the output dir is kept updated with new eval datasets..
+# Note 2: Run this from scripts subdirectory..
 
 
 echo "Update older existing BART outputs which use best-model without a particular checkpoint..."
@@ -53,7 +53,7 @@ done
 
 echo "Update existing BART outputs which use best-model-150000 steps checkpoint with max output seq 130 and ssm 1.0 no extra mask char ..."
 
-for out in "/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v3_no_facts" "/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v2_dev_in_train" "/data/thar011/out/unifiedqa_bart_large_s5_v2_sqafacts_dev_in_train_only" "/data/thar011/out/unifiedqa_bart_large_s3_v1_cwwv" "/data/thar011/out/unifiedqa_bart_large_s3_v2_cwwv_atomic" "/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts" "/data/thar011/out/unifiedqa_bart_large_s4_v2_cwwv_premask_atomic_premask" "/data/thar011/out/unifiedqa_bart_large_s4_v3_cwwv_ssvise_atomic_ssvise" "/data/thar011/out/unifiedqa_bart_large_s6_v3_musique_qa_only" "/data/thar011/out/unifiedqa_bart_large_s6_v4_musique_qa_plus_all_decomps"
+for out in "/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v3_no_facts" "/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v2_dev_in_train" "/data/thar011/out/unifiedqa_bart_large_s5_v2_sqafacts_dev_in_train_only" "/data/thar011/out/unifiedqa_bart_large_s3_v1_cwwv" "/data/thar011/out/unifiedqa_bart_large_s3_v2_cwwv_atomic" "/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts" "/data/thar011/out/unifiedqa_bart_large_s4_v2_cwwv_premask_atomic_premask" "/data/thar011/out/unifiedqa_bart_large_s4_v3_cwwv_ssvise_atomic_ssvise" "/data/thar011/out/unifiedqa_bart_large_s6_v3_musique_qa_only" "/data/thar011/out/unifiedqa_bart_large_s6_v4_musique_qa_plus_all_decomps" "/data/thar011/out/unifiedqa_bart_large_s6_v5_musique_qa_decomp_ans_plus_all_decomps" "/data/thar011/out/unifiedqa_bart_large_s6_v6_musique_qa_paras_plus_all_decomps" "/data/thar011/out/unifiedqa_bart_large_s6_v7_musique_qa_decomp_ans_only" "/data/thar011/out/unifiedqa_bart_large_s6_v8_musique_qa_decomp_ans_plus_new_decomps"
 do
     echo "Updating eval for $out ..."
     bash runevalall_v2_bartlarge_pick_ckpt150k.sh $out

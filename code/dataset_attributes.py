@@ -46,6 +46,7 @@ test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir',
              'mmlu_elementary_to_college_math_test_lowsim_tdnd']
 
 
+#Unused, just to keep complete list of everything ever used in eval handy..
 dev_eval_all = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
             'drop', 'contrast_sets_drop', 'boolq_np', 'contrast_sets_boolq', 'multirc', 
             'natural_questions', 'natural_questions_with_dpr_para', 'physical_iqa', 

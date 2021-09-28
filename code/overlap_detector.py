@@ -648,16 +648,27 @@ class SimilarityAggregator:
                             self.sim_results_summary[testset][ngram][column][trainset]['std_sim_score'] = float(np.std(simscores_np[indices_trainset]))
                             
                             for result in results_list:
-                                pred_np = np.array(self.eval_results[testset][result]['test_scores'])
-                                self.sim_results_summary[testset][ngram][column][trainset][result + '__mean_pred_score'] = float(np.mean(pred_np[indices_trainset])) * 100.0
-                                self.sim_results_summary[testset][ngram][column][trainset][result + '__min_pred_score'] = float(np.min(pred_np[indices_trainset])) * 100.0
-                                self.sim_results_summary[testset][ngram][column][trainset][result + '__max_pred_score'] = float(np.max(pred_np[indices_trainset])) * 100.0
-                                self.sim_results_summary[testset][ngram][column][trainset][result + '__median_pred_score'] = float(np.median(pred_np[indices_trainset])) * 100.0
-                                self.sim_results_summary[testset][ngram][column][trainset][result + '__std_pred_score'] = float(np.std(pred_np[indices_trainset])) * 100.0
-                                self.sim_results_summary[testset][ngram][column][trainset][result + '__mean_pred_score_str'] = str(round(float(np.mean(pred_np[indices_trainset])) * 100.0, 2)) + ' (' + str(num_selected) + ')'
-                                
-                                best_idx = np.argmax(simscores_np[indices_trainset])
-                                self.sim_results_summary[testset][ngram][column][trainset][result + '__most_similar_example'] = tuple(simexamples_np[indices_trainset][best_idx])
+                                if self.eval_results.get(testset) is not None:
+                                    pred_np = np.array(self.eval_results[testset][result]['test_scores'])
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__mean_pred_score'] = float(np.mean(pred_np[indices_trainset])) * 100.0
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__min_pred_score'] = float(np.min(pred_np[indices_trainset])) * 100.0
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__max_pred_score'] = float(np.max(pred_np[indices_trainset])) * 100.0
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__median_pred_score'] = float(np.median(pred_np[indices_trainset])) * 100.0
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__std_pred_score'] = float(np.std(pred_np[indices_trainset])) * 100.0
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__mean_pred_score_str'] = str(round(float(np.mean(pred_np[indices_trainset])) * 100.0, 2)) + ' (' + str(num_selected) + ')'
+                                    
+                                    best_idx = np.argmax(simscores_np[indices_trainset])
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__most_similar_example'] = tuple(simexamples_np[indices_trainset][best_idx])
+                                else:
+                                    print(f"Test set: {testset} not found in results file. Setting values to -1..")
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__mean_pred_score'] = float(-1)
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__min_pred_score'] = float(-1)
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__max_pred_score'] = float(-1)
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__median_pred_score'] = float(-1)
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__std_pred_score'] = float(-1)
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__mean_pred_score_str'] = str(round(float(-1), 2)) + ' (' + str(0) + ')'
+                                    self.sim_results_summary[testset][ngram][column][trainset][result + '__most_similar_example'] = tuple(["Nonexistent","Nonexistent"])
+                                    
         return
 
 
@@ -735,17 +746,28 @@ class SimilarityAggregator:
                                     self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr]['sim_details'] = simexamples_train[indices_bucket]
                                     
                                     for result in results_list:
-                                        pred_np = np.array(self.eval_results[testset][result]['test_scores'])
-                                        pred_np = pred_np[indices_trainset]
-                                        self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__mean_pred_score'] = float(np.mean(pred_np[indices_bucket])) * 100.0
-                                        self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__min_pred_score'] = float(np.min(pred_np[indices_bucket])) * 100.0
-                                        self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__max_pred_score'] = float(np.max(pred_np[indices_bucket])) * 100.0
-                                        self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__median_pred_score'] = float(np.median(pred_np[indices_bucket])) * 100.0
-                                        self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__std_pred_score'] = float(np.std(pred_np[indices_bucket])) * 100.0
-                                        self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__mean_pred_score_str'] = str(round(float(np.mean(pred_np[indices_bucket])) * 100.0, 2)) + ' (' + str(num_selected) + ')'
-                                        
-                                        best_idx = np.argmax(simscores_train[indices_bucket])
-                                        self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__most_similar_example'] = tuple(simexamples_train[indices_bucket][best_idx])
+                                        if self.eval_results.get(testset) is not None:
+                                            pred_np = np.array(self.eval_results[testset][result]['test_scores'])
+                                            pred_np = pred_np[indices_trainset]
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__mean_pred_score'] = float(np.mean(pred_np[indices_bucket])) * 100.0
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__min_pred_score'] = float(np.min(pred_np[indices_bucket])) * 100.0
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__max_pred_score'] = float(np.max(pred_np[indices_bucket])) * 100.0
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__median_pred_score'] = float(np.median(pred_np[indices_bucket])) * 100.0
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__std_pred_score'] = float(np.std(pred_np[indices_bucket])) * 100.0
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__mean_pred_score_str'] = str(round(float(np.mean(pred_np[indices_bucket])) * 100.0, 2)) + ' (' + str(num_selected) + ')'
+                                            
+                                            best_idx = np.argmax(simscores_train[indices_bucket])
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__most_similar_example'] = tuple(simexamples_train[indices_bucket][best_idx])
+                                        else:
+                                            print(f"Test set: {testset} not found in results file. Setting values to -1..")
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__mean_pred_score'] = float(-1)
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__min_pred_score'] = float(-1)
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__max_pred_score'] = float(-1)
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__median_pred_score'] = float(-1)
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__std_pred_score'] = float(-1)
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__mean_pred_score_str'] = str(round(float(-1), 2)) + ' (' + str(0) + ')'
+                                            self.sim_results_summary_thresh[testset][ngram][column][trainset][bucketstr][result + '__most_similar_example'] = tuple(["Nonexistent","Nonexistent"])
+
                             bucket_bottom = bucket_top
         return
 
@@ -862,7 +884,8 @@ class SimilarityAggregator:
                         coltype = m.split('__')[-1]
                         if coltype in ['mean_pred_score', 'min_pred_score', 'max_pred_score', 'median_pred_score', 'std_pred_score', 'mean_pred_score_str']:
                             res = m.split('__')[0]
-                            col_metric = col_metric + ' (' + self.eval_results[dset][res]['test_metric'] + ': ' + str(round(self.eval_results[dset][res]['test_score'], 2)) + ')'
+                            if self.eval_results.get(dset) is not None:
+                                col_metric = col_metric + ' (' + self.eval_results[dset][res]['test_metric'] + ': ' + str(round(self.eval_results[dset][res]['test_score'], 2)) + ')'
                 outstr = col_start + col_metric
                 for j, trainset in enumerate(trainsets):
                     outstr += ','
@@ -948,7 +971,8 @@ class SimilarityAggregator:
                             coltype = m.split('__')[-1]
                             if coltype in ['mean_pred_score', 'min_pred_score', 'max_pred_score', 'median_pred_score', 'std_pred_score', 'mean_pred_score_str']:
                                 res = m.split('__')[0]
-                                col_metric = col_metric + ' (' + self.eval_results[dset][res]['test_metric'] + ': ' + str(round(self.eval_results[dset][res]['test_score'], 2)) + ')'
+                                if self.eval_results.get(dset) is not None:
+                                    col_metric = col_metric + ' (' + self.eval_results[dset][res]['test_metric'] + ': ' + str(round(self.eval_results[dset][res]['test_score'], 2)) + ')'
                     outstr = col_start + col_metric
                     for j, trainset in enumerate(trainsets):
                         outstr += ','
@@ -1185,18 +1209,22 @@ def output_most_similar_detail(s, dsetset='ALL',ngram='Unigram', column='combo',
 
 def run_sim_detail_reports(logdir, sim_results_file, model_results_file, training_subsets_list, add_uqa=True):
     """ Run just the similarity detail dump report against different subsets of the training datasets.
-        Note:   Model_results_file will supply the predictions in the output but these will only be valid 
+        Note:   model_results_file will supply the predictions in the output but these will only be valid 
                 for the particular combination of training datasets the model was trained against...
     Usage: 
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v2/'
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformatted eval questions for ssvise train datasets
-        model_results_file='/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/eval_metrics.json'
+        model_results_file='/data/thar011/out/unifiedqa_bart_large_s6_v4_musique_qa_plus_all_decomps/eval_metrics.json'
         training_subsets_list = [ ['strategy_qa'],
                                   ['strategy_qa_facts_dev_in_train_selfsvised'],
                                   ['qasc_dev_facts_selfsvised'],
                                   ['qasc_facts_selfsvised'],
                                   ['cwwv', 'atomic'],
-                                  ['strategy_qa', 'strategy_qa_facts_dev_in_train_selfsvised']
+                                  ['strategy_qa', 'strategy_qa_facts_dev_in_train_selfsvised'],
+                                  ['musique_qa'],
+                                  ['musique_mu_dev_decomp'],
+                                  ['musique_decomp_new_dev_in_train'],
+                                  ['musique_qa_paras']
                                 ]
         run_sim_detail_reports(logdir, sim_results_file, model_results_file, training_subsets_list)
         run_sim_detail_reports(logdir, sim_results_file, model_results_file, training_subsets_list, add_uqa=False)
@@ -1230,7 +1258,6 @@ def run_summary_thresh_reports(logdir, sim_results_file, results_list):
         in current-model-config.json file in each directory
         and this is the subset of training datasets similarity is calculated over.
     Usage:
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5_v1/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformat
         results_list = ['/data/thar011/out/unifiedqa_bart_large_v3/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_metrics.json',
@@ -1244,7 +1271,12 @@ def run_summary_thresh_reports(logdir, sim_results_file, results_list):
                         '/data/thar011/out/unifiedqa_bart_large_s4_v3_cwwv_ssvise_atomic_ssvise/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s5_v1_qasc_facts/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v3_musique_qa_only/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v4_musique_qa_plus_all_decomps/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v5_musique_qa_decomp_ans_plus_all_decomps/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v6_musique_qa_paras_plus_all_decomps/eval_metrics.json'
                        ]
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
         run_summary_thresh_reports(logdir, sim_results_file, results_list)
     """
     if logdir[-1] != '/':

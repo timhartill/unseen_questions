@@ -772,7 +772,7 @@ class OutputResults:
             f.write('\r\n'.join(outlist))
              
                 
-def run_all(logdir, results_list):
+def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', 'mmlu_unseen1']):
     """ Runs reports involving comparing model runs...
     Usage: 
         results_list = ['/data/thar011/out/unifiedqa_bart_large_TEST/eval_metrics.json']        
@@ -792,19 +792,27 @@ def run_all(logdir, results_list):
                         '/data/thar011/out/unifiedqa_bart_large_s4_v3_cwwv_ssvise_atomic_ssvise/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s4_v1_qasc_dev_facts/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s5_v1_qasc_facts/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v3_musique_qa_only/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v4_musique_qa_plus_all_decomps/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v5_musique_qa_decomp_ans_plus_all_decomps/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v6_musique_qa_paras_plus_all_decomps/eval_metrics.json'
                        ]
-        logdir='/data/thar011/out/unifiedqa_averages/TEST/'
-        run_all(logdir, results_list)
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
+        run_all(logdir, results_list, include_list=['unseen4'])
     """
     if logdir[-1] != '/':
         logdir += '/'
     print(f'Reports will be output to {logdir}')
     os.makedirs(logdir, exist_ok=True)
     res = OutputResults(results_list, logdir)
-    res.crosstab_x_tasks(dsetset='seen1', outname='eval_across_models_seen1.txt') # 'final' set - 10 unrestricted eval datasets
-    res.crosstab_x_tasks(dsetset='unseen4', outname='eval_across_models_us4.txt') # 'final' set - 10 unrestricted eval datasets
-    res.crosstab_x_tasks(dsetset='unseen6', outname='eval_across_models_us6lowsimtdnd.txt') # 'final' set - 10 unrestricted eval datasets        
-    res.crosstab_x_tasks(dsetset='mmlu_unseen1', outname='eval_across_models_mmlu_us1.txt') # 'final' set - 10 unrestricted eval datasets
+    if 'seen1' in include_list:
+        res.crosstab_x_tasks(dsetset='seen1', outname='eval_across_models_seen1.txt') # 'final' set - 10 unrestricted eval datasets
+    if 'unseen4' in include_list:
+        res.crosstab_x_tasks(dsetset='unseen4', outname='eval_across_models_us4.txt') # 'final' set - 10 unrestricted eval datasets
+    if 'unseen6' in include_list:
+        res.crosstab_x_tasks(dsetset='unseen6', outname='eval_across_models_us6lowsimtdnd.txt') # 'final' set - 10 unrestricted eval datasets        
+    if 'mmlu_unseen1' in include_list:
+        res.crosstab_x_tasks(dsetset='mmlu_unseen1', outname='eval_across_models_mmlu_us1.txt') # 'final' set - 10 unrestricted eval datasets
     return
 
 
