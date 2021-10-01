@@ -70,6 +70,29 @@ def parse_mixture(mixture):
     return unified_dataset, mixture_file_key
 
 
+def load_uqa_supervised(file, ans_lower=True, verbose=True):
+    """ Load a unifiedqa formatted .tsv file and return question+context as list of str and answers as list of str
+    """
+    if verbose:
+        print(f"Reading {file}...")
+    questions = []
+    answers = []
+    ctr = 1
+    with open(file, "r") as f:
+        for line in f:
+            try:
+                question, answer = line.split("\t")
+            except:
+                print(f"ERROR loading line: {ctr} ##{line}##")
+            if ans_lower:
+                answer = answer.lower()
+            questions.append( question.strip() )
+            answers.append ( answer.strip() )
+            ctr += 1
+    if verbose:
+        print(f"Successfully loaded {len(questions)} rows.")
+    return questions, answers
+
 # the standard "squad" normalization
 def normalize_answer(s):
     def remove_articles(text):
@@ -370,9 +393,17 @@ class DatasetMetrics:
         }
     
     Usage: 
+    dsmetrics = DatasetMetrics('/data/thar011/out/unifiedqa_bart_large_s6_v8_musique_qa_decomp_ans_plus_new_decomps/eval_metrics.json')
     dsmetrics = DatasetMetrics('/data/outdir/eval_metrics.json')
     
+    ds = 'musique_qa_decomp_ans'
+    ds = 'arc_easy'
+
+    dsmetrics.get_single_pred_vs_groundtruth(ds)
+    dsmetrics.get_summary_plus_single_preds(ds, number_samples=1)
     dsmetrics.get_single_pred_vs_groundtruth(dsmetrics.datasets[0]) # display prediction vs gt plus metrics for a single sample
+
+    dsmetrics.get_single_pred_vs_groundtruth(dsmetrics.datasets[2]) # display prediction vs gt plus metrics for a single sample
     
 
     ds_values = dsmetrics.get_pref_values_set('unifiedqa_unseen_1')  # return list of metric values for a list of datasets
@@ -381,6 +412,9 @@ class DatasetMetrics:
     ds_values = dsmetrics.get_pref_values_set('mmlu_unseen_1') #  # return list of metric values for a list of mmlu datasets
     
     dsmetrics.results_dict['mmlu_college_chemistry_test']['SS']['choices'][0]  #view parsed choices for a MC question
+
+    dsmetrics.results_dict['musique_mu_dev_qa_paras_decomp_ans']['groundtruths'][1]    
+    dsmetrics.results_dict['musique_mu_dev_qa_paras_decomp_ans']['predictions'][1]    
     
     for ds in dsmetrics.results_dict:
     if 'SS' in dsmetrics.results_dict[ds]:
@@ -438,13 +472,13 @@ class DatasetMetrics:
         return self.get_value(ds, pref_metric, key=key)
     
 
-    def get_single_pred_vs_groundtruth(self, ds, index=0, metric='ALL'):
+    def get_single_pred_vs_groundtruth(self, ds, index=0, metric='ALL', incl_toks=False, incl_choices=False):
         """ Return prediction and groundtruth for a single example
         Usage: tst.get_single_pred_vs_groundtruth('arc_hard', index=2, metric='ALL')
         """
         ret_dict = {}
         ret_dict['groundtruth'] = self.results_dict[ds]['groundtruths'][index]
-        if self.results_dict[ds].get('groundtruths_tokenized', None) is not None:
+        if self.results_dict[ds].get('groundtruths_tokenized', None) is not None and incl_toks:
             ret_dict['groundtruths_tokenized'] = self.results_dict[ds]['groundtruths_tokenized'][index]
         ret_dict['prediction'] = self.results_dict[ds]['predictions'][index]
         if metric is not None:
@@ -452,16 +486,62 @@ class DatasetMetrics:
                 for m in self.results_dict[ds]['comp_metrics']:
                     if m == 'SS':
                         ret_dict[m+'_new_prediction'] = self.results_dict[ds][m]['newpreds'][index]
-                        ret_dict[m+'_from_choices'] = self.results_dict[ds][m]['choices'][index]
+                        if incl_choices:
+                            ret_dict[m+'_from_choices'] = self.results_dict[ds][m]['choices'][index]
                     ret_dict[m+'_score'] = self.results_dict[ds][m]['scores'][index] * 100
             else:
                 if metric == 'SS':
                     ret_dict['new_prediction'] = self.results_dict[ds][metric]['newpreds'][index]
-                    ret_dict['from_choices'] = self.results_dict[ds][metric]['choices'][index]
+                    if incl_choices:
+                        ret_dict['from_choices'] = self.results_dict[ds][metric]['choices'][index]
                 ret_dict['score'] = self.results_dict[ds][metric]['scores'][index] * 100
         return ret_dict
 
-                
+    
+    def get_summary_plus_single_preds(self, ds, number_samples=5, metric='ALL'):
+        """ Return summary of metrics for a single dataset including "x" random individual samples """
+        gt_file = self.results_dict[ds]['gt_file']
+        questions, answers = load_uqa_supervised(gt_file, ans_lower=False)
+        num_q = len(questions)
+        np.random.seed(42)
+        sel_indices = np.random.choice(num_q, number_samples, replace=False)
+        ret_dict = {'eval_dataset': ds, 'metrics':[], 'rand_samples':[]}
+        for curr_metric in self.results_dict[ds]['comp_metrics']:
+            ret_dict['metrics'].append( {curr_metric + '_score': self.results_dict[ds][curr_metric]['score']} )
+        for i in sel_indices:
+            single_dict = {'index': int(i), 'question': questions[i]}
+            single_dict_details = self.get_single_pred_vs_groundtruth(ds, index=i, metric=metric)
+            single_dict.update(single_dict_details)
+            ret_dict['rand_samples'].append(single_dict)
+        return ret_dict
+
+    
+    def format_eval_summary(self, ret_dict):
+        """ Format ret_dict for text file output """
+        out_list = []
+        out_list.append(self.short_name +': EVAL DATASET:' + ret_dict['eval_dataset'])
+        out_str = 'OVERALL METRICS: '
+        for k in ret_dict['metrics']:
+            key = list(k.keys())[0]
+            val = list(k.values())[0]
+            out_str += f"{key}: {val:.2f}   "
+        out_list.append(out_str.strip())
+        out_list.append('')
+        out_list.append('Random Samples:')
+        for k in ret_dict['rand_samples']:
+            out_list.append('['+str(k['index'])+'] INPUT: ' + k['question'].strip())
+            out_list.append('LABL: ' + k['groundtruth'].strip())
+            out_list.append('PRED: ' + k['prediction'].strip())
+            out_str = 'SAMPLE METRICS: '
+            for key in k.keys():
+                if key.endswith('_score'):
+                    val = k[key]
+                    out_str += f"{key}: {val:.2f}   "
+            out_list.append(out_str.strip())
+            out_list.append('')
+        return out_list
+                    
+               
     def get_all_pref_values(self, dsets, use_current=True):
         """ Return the preferred output metric scores for each dataset in dsets
         dsets: ['dataset1', 'dataset2', ...]
@@ -740,7 +820,6 @@ class OutputResults:
                 
     def crosstab_x_tasks(self, dsetset='unseen1', outname='tmp_eval_across_models.txt'):
         """ compute a crosstab of y axis being datasets in a particular set and x being output results ie difft model runs
-        The output can be copied and pasted into a spreadsheet
         Usage: outlist.crosstab_x_tasks(dsetset='unseen1')
         outlist.crosstab_x_tasks(dsetset='unseen2')
         outlist.crosstab_x_tasks(dsetset='seen1')
@@ -755,7 +834,7 @@ class OutputResults:
                     xtab[dset[0]] = []
                 xtab[dset[0]].append( (self.shortnames[i], dset[1], dset[2]) )
         outlist = []
-        header = 'Eval Dataset,Metric'        
+        header = 'Eval Dataset,Metric'
         for shortname in self.shortnames:
             header = header + ',' + shortname
         print(header)
@@ -771,6 +850,38 @@ class OutputResults:
         with open(outfile, 'w') as f:
             f.write('\r\n'.join(outlist))
              
+
+def output_summary(logdir, results_list, include_list, number_samples=3, metric='ALL', outname='eval_dataset_performance_summary.txt'):
+    """ Output a summary of evaluation dataset performance
+        include_list = ['musique_mu_dev_qa', 'musique_mu_dev_qa_decomp_ans', 
+                        'musique_mu_dev_qa_paras', 'musique_mu_dev_qa_paras_decomp_ans', 
+                        'musique_qa', 'musique_qa_decomp_ans', 'musique_qa_paras', 'musique_qa_paras_decomp_ans']  #Eval datasets to include
+        results_list = [ # model outputs to include
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v5_musique_qa_decomp_ans_plus_all_decomps/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v8_musique_qa_decomp_ans_plus_new_decomps/eval_metrics.json',
+                       ]
+        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
+        output_summary(logdir, results_list, include_list, number_samples=3, metric='ALL', outname='eval_dataset_performance_summary.txt')
+    """
+    if logdir[-1] != '/':
+        logdir += '/'        
+    os.makedirs(logdir, exist_ok=True)
+    outfile = os.path.join(logdir, outname)
+    print(f'Report will be output to {outfile}')
+    out_list = []
+    for result in results_list:
+        print(f"Processing: {result}")
+        dsmetrics = DatasetMetrics(result)
+        for ds in include_list:
+            ret_dict = dsmetrics.get_summary_plus_single_preds(ds, number_samples=number_samples, metric=metric)
+            ds_output_list = dsmetrics.format_eval_summary(ret_dict)
+            ds_output_list.append('')
+            ds_output_list.append('')
+            out_list += ds_output_list
+    with open(outfile, 'w') as f:
+        f.write('\r\n'.join(out_list))
+    return
+
                 
 def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', 'mmlu_unseen1']):
     """ Runs reports involving comparing model runs...
@@ -795,6 +906,7 @@ def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', '
                         '/data/thar011/out/unifiedqa_bart_large_s6_v3_musique_qa_only/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v4_musique_qa_plus_all_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v5_musique_qa_decomp_ans_plus_all_decomps/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v8_musique_qa_decomp_ans_plus_new_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v6_musique_qa_paras_plus_all_decomps/eval_metrics.json'
                        ]
         logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'

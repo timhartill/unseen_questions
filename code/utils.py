@@ -133,7 +133,7 @@ def convert_pararules(all_json_list):
 
 
 def load_uqa_supervised(file, ans_lower=True, verbose=True):
-    """ Load a unifiedqa formatted .tsv file and return question+context as list of str amd answers as list of str
+    """ Load a unifiedqa formatted .tsv file and return question+context as list of str and answers as list of str
     """
     if verbose:
         print(f"Reading {file}...")

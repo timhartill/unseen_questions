@@ -188,7 +188,7 @@ def process_musique(mu_data, make_all_dev=True):
             if decomp_len_counts_train.get(l) is None:
                 decomp_len_counts_train[l] = 1
             else:
-                decomp_len_counts_train[l] += 1     
+                decomp_len_counts_train[l] += 1
         
         if i % 1000 == 0:
             print(f'Processed: {i}')
@@ -227,6 +227,23 @@ def process_musique(mu_data, make_all_dev=True):
         print(f"New Dev Decomp length distribution: {decomp_len_counts_dev}")
         
     return
+
+
+def get_paras(mu_data):
+    """ Return unique paragraphs and paragraph titles as sets
+    """
+    paras = []
+    titles = []
+    for i, mu_sample in enumerate(mu_data):
+        if mu_sample['split'] in ['dev','train']:
+            for j, decomp_step in enumerate(mu_sample['question_decomposition']):   # list of decomps each of dict_keys(['id', 'question', 'answer', 'paragraph_support_idx'])
+                paras.append( decomp_step['context_para'] )
+                titles.append( mu_sample['paragraphs'][decomp_step['paragraph_support_idx']]['title'] )
+    print(f" Number of paras/titles: {len(titles)}") 
+    paras = set(paras)
+    titles = set(titles)
+    print(f"Number unique paras: {len(paras)}  Number unique titles: {len(titles)}")
+    return paras, titles
 
 
 def get_facts_datasets(mu_data):
@@ -283,8 +300,8 @@ def get_qa_datasets(mu_data):
             sample = create_uqa_example("add decomp: " + mu_sample['question'], mu_sample['context_paras'], mu_sample['decomp_ans_str'] )
             mu_qa_dict['qa_paras_decomp_ans'][key].append(sample)       
         if i % 1000 == 0:
-            print(f'Processed: {i}')   
-    print(f"Train count: {len(mu_qa_dict['qa']['train'])}  Dev count:{len(mu_qa_dict['qa']['dev'])}")        
+            print(f'Processed: {i}')
+    print(f"Train count: {len(mu_qa_dict['qa']['train'])}  Dev count:{len(mu_qa_dict['qa']['dev'])}")
     return mu_qa_dict
 
 
@@ -299,6 +316,19 @@ mu_train = sorted(mu_train, key=lambda mu_sample: len(mu_sample['question_decomp
 #dev_indices = np.random.choice(num_q, dev_size, replace=False)
 process_musique(mu_train, make_all_dev=False)
 process_musique(mu_dev, make_all_dev=True)
+
+#check number of mu dev paras are in mu train
+train_paras, train_titles = get_paras(mu_train)
+#Number of paras/titles: 6158
+#Number unique paras: 3957  Number unique titles: 3271  titles are duplicated over difft paras..
+mudev_paras, mudev_titles = get_paras(mu_dev)
+#Number of paras/titles: 6404
+#Number unique paras: 2629  Number unique titles: 2328
+
+common_paras = train_paras.intersection(mudev_paras)
+print(f"Number of mu dev paras in train: {len(common_paras)}")  # 0 yay!
+
+
 
 # Create and output mu_train decomp fact datasets
 train_list, dev_list = get_facts_datasets(mu_train)
@@ -351,6 +381,7 @@ outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write(''.join(dev_list))
 
+
 # create and ouput mu_train qa datasets
 mu_qa_dict = get_qa_datasets(mu_train)  #Train count: 2057  Dev count:382
 
@@ -365,6 +396,23 @@ for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_dec
     outfile = os.path.join(outdir, 'dev.tsv')
     with open(outfile, 'w') as f:
         f.write(''.join(mu_qa_dict[k]['dev']))
+mu_qa_dict['qa_plus_qa_decomp_ans'] = {'train':copy.deepcopy(mu_qa_dict['qa']['train']) + copy.deepcopy(mu_qa_dict['qa_decomp_ans']['train']), 
+                                       'dev':copy.deepcopy(mu_qa_dict['qa']['dev']) + copy.deepcopy(mu_qa_dict['qa_decomp_ans']['dev'])}
+mu_qa_dict['qa_paras_plus_qa_paras_decomp_ans'] = {'train':copy.deepcopy(mu_qa_dict['qa_paras']['train']) + copy.deepcopy(mu_qa_dict['qa_paras_decomp_ans']['train']), 
+                                                   'dev':copy.deepcopy(mu_qa_dict['qa_paras']['dev']) + copy.deepcopy(mu_qa_dict['qa_paras_decomp_ans']['dev'])}
+for k in ['qa_plus_qa_decomp_ans', 'qa_paras_plus_qa_paras_decomp_ans']:
+    ds = 'musique_' + k
+    outdir = os.path.join(UQA_DIR, ds)
+    print(f"Creating {outdir}")
+    os.makedirs(outdir, exist_ok=True)    
+    outfile = os.path.join(outdir, 'train.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['train']))
+    outfile = os.path.join(outdir, 'dev.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['dev']))
+
+
 print('Finished outputting mu_train qa datasets...')
 
 # create and ouput mu_dev qa datasets

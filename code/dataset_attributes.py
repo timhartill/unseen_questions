@@ -277,7 +277,7 @@ unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elemen
                         "arc_hard", "arc_easy", "mctest_corrected_the_separator",
                         "squad1_1", "squad2", "boolq", "race_string", "openbookqa"]
 
-# where same dataset in difft formats, just calc sim against one format and map similarity for others against that...
+# where same train dataset in difft formats, just calc sim against one format and map similarity for others against that...
 replace_sim_with = {'cwwv_selfsvised': 'cwwv', 
                 'atomic_selfsvised': 'atomic', 
                 'cwwv_premask_selfsvised': 'cwwv', 
