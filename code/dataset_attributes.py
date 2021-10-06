@@ -269,7 +269,11 @@ dataset_attribs = {
     'musique_qa_decomp_ans': {'type':'DC', 'prefer':''},
     'musique_qa_paras_decomp_ans': {'type':'DC', 'prefer':''},
     'musique_mu_dev_qa_decomp_ans': {'type':'DC', 'prefer':''},
-    'musique_mu_dev_qa_paras_decomp_ans': {'type':'DC', 'prefer':''}
+    'musique_mu_dev_qa_paras_decomp_ans': {'type':'DC', 'prefer':''},
+    'musique_qa_plus_qa_decomp_ans': {'type':'EX', 'prefer':''},
+    'musique_qa_plus_qa_decomp_ans_full': {'type':'EX', 'prefer':''},
+    'musique_qa_paras_plus_qa_paras_decomp_ans': {'type':'EX', 'prefer':''},
+    'musique_qa_paras_plus_qa_paras_decomp_ans_full': {'type':'EX', 'prefer':''},
     }
 
 

@@ -198,11 +198,8 @@ def process_musique(mu_data, make_all_dev=True):
         desc = 'Dev'
     print(f"Finished Assigning {desc}. Count: {tr_cnt}")
     print(f"{desc} Decomp length distribution: {decomp_len_counts_train}")
-        
 
     if not make_all_dev:
-#        ans_counter = Counter(all_answers)
-#        ans_lc_ordered = ans_counter.most_common()[::-1]
         dev_answers = set()
         dev_cnt = 0
         decomp_len_counts_dev = {}
@@ -224,8 +221,19 @@ def process_musique(mu_data, make_all_dev=True):
             if i % 1000 == 0:
                 print(f'Processed: {i} Current dev count: {dev_cnt}')
         print(f"Finished Assigning New Dev. Dev count: {dev_cnt}")
-        print(f"New Dev Decomp length distribution: {decomp_len_counts_dev}")
-        
+        print(f"New Dev Decomp length distribution: {decomp_len_counts_dev}")  
+        decomp_len_counts_train_full = {}
+        tr_cnt_full = 0
+        for i, mu_sample in enumerate(mu_data):
+            if mu_sample['split'] != 'dev':
+                tr_cnt_full += 1
+                l = len(mu_sample['question_decomposition'])
+                if decomp_len_counts_train_full.get(l) is None:
+                    decomp_len_counts_train_full[l] = 1
+                else:
+                    decomp_len_counts_train_full[l] += 1    
+        print(f"FULL train count: {tr_cnt_full}")
+        print(f"FULL train Decomp length distribution: {decomp_len_counts_train_full}")
     return
 
 
@@ -235,7 +243,7 @@ def get_paras(mu_data):
     paras = []
     titles = []
     for i, mu_sample in enumerate(mu_data):
-        if mu_sample['split'] in ['dev','train']:
+        if mu_sample['split'] in ['dev','train','unassigned']:
             for j, decomp_step in enumerate(mu_sample['question_decomposition']):   # list of decomps each of dict_keys(['id', 'question', 'answer', 'paragraph_support_idx'])
                 paras.append( decomp_step['context_para'] )
                 titles.append( mu_sample['paragraphs'][decomp_step['paragraph_support_idx']]['title'] )
@@ -246,7 +254,7 @@ def get_paras(mu_data):
     return paras, titles
 
 
-def get_facts_datasets(mu_data):
+def get_facts_datasets(mu_data, train_splits = ['train']):
     """ Output facts datasets:
     musique_decomp_train: decomp q \\n para \t decomp ans                   train=decomps from mu train; dev=decomps from new dev (setting where qa dataset train can see it's facts but dev can't)
     musique_decomp_new_dev_in_train: decomp q \\n para \t decomp ans        train=decomps from mu train + decomps from new dev; dev=decomps from new dev (setting where qa dataset is allowed to have seen train & dev facts)
@@ -260,7 +268,7 @@ def get_facts_datasets(mu_data):
             sample = create_uqa_example(decomp_step['question_subst'], decomp_step['context_para'], decomp_step['answer'].strip() )    
             if mu_sample['split'] == 'dev':
                 dev_list.append(sample)
-            elif mu_sample['split'] == 'train':
+            elif mu_sample['split'] in train_splits:
                 train_list.append(sample)
         if i % 1000 == 0:
             print(f'Processed: {i}')      
@@ -270,7 +278,7 @@ def get_facts_datasets(mu_data):
     return train_list, dev_list
 
 
-def get_qa_datasets(mu_data):
+def get_qa_datasets(mu_data, train_splits = ['train']):
     """ Output qa datasets:
     musique_qa: q \\n \t ans                                                train=mu train, dev=new dev from mu train
     musique_qa_paras: q \\n paras \t ans                                    train=mu train, dev=new dev from mu train
@@ -290,6 +298,8 @@ def get_qa_datasets(mu_data):
 
     for i, mu_sample in enumerate(mu_data):
         key =  mu_sample['split']
+        if key in train_splits:
+            key = 'train'
         if key in ['dev','train']:
             sample = create_uqa_example(mu_sample['question'], None, mu_sample['answer'] )    
             mu_qa_dict['qa'][key].append(sample)
@@ -319,6 +329,10 @@ process_musique(mu_dev, make_all_dev=True)
 
 #check number of mu dev paras are in mu train
 train_paras, train_titles = get_paras(mu_train)
+# over train/dev/unassigned:
+# Number of paras/titles: 46613
+#Number unique paras: 13672  Number unique titles: 12304    
+# over train/dev only:
 #Number of paras/titles: 6158
 #Number unique paras: 3957  Number unique titles: 3271  titles are duplicated over difft paras..
 mudev_paras, mudev_titles = get_paras(mu_dev)
@@ -326,7 +340,7 @@ mudev_paras, mudev_titles = get_paras(mu_dev)
 #Number unique paras: 2629  Number unique titles: 2328
 
 common_paras = train_paras.intersection(mudev_paras)
-print(f"Number of mu dev paras in train: {len(common_paras)}")  # 0 yay!
+print(f"Number of mu dev paras in train: {len(common_paras)}")  # 0 whether or not include unassigned yay!
 
 
 
@@ -354,6 +368,22 @@ with open(outfile, 'w') as f:
 outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write(''.join(dev_list))
+
+# create FULL train decomp fact datasets
+full_train_list, full_dev_list = get_facts_datasets(mu_train, train_splits=['train','unassigned'])
+full_both_list = full_train_list + full_dev_list
+print(f'FULL Train: {len(full_train_list)}  Dev: {len(full_dev_list)}  Dev in train:{len(full_both_list)}')  # FULL Train: 14646  Dev: 759  Dev in train:15405
+
+outdir = os.path.join(UQA_DIR, 'musique_decomp_new_dev_in_train_full')
+print(f"Creating {outdir}")
+os.makedirs(outdir, exist_ok=True)
+outfile = os.path.join(outdir, 'train.tsv')
+with open(outfile, 'w') as f:
+    f.write(''.join(full_both_list)) # mu train + new dev but not mu dev..
+outfile = os.path.join(outdir, 'dev.tsv')
+with open(outfile, 'w') as f:
+    f.write(''.join(full_dev_list)) # note samples in difft order due to set() but same actual samples as musique_decomp_new_dev_in_train dev.tsv
+
 
 # Create and output mu_dev decomp fact datasets
 train_list, dev_list = get_facts_datasets(mu_dev)
@@ -412,6 +442,37 @@ for k in ['qa_plus_qa_decomp_ans', 'qa_paras_plus_qa_paras_decomp_ans']:
     with open(outfile, 'w') as f:
         f.write(''.join(mu_qa_dict[k]['dev']))
 
+# create and ouput mu_train FULL qa datasets
+mu_qa_dict = get_qa_datasets(mu_train, train_splits=['train','unassigned'])  # Train count: 19556  Dev count:382
+for k in ['qa', 'qa_paras']:
+    ds = 'musique_' + k + '_full'
+    outdir = os.path.join(UQA_DIR, ds)
+    print(f"Creating {outdir}")
+    os.makedirs(outdir, exist_ok=True)    
+    outfile = os.path.join(outdir, 'train.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['train']))
+    outfile = os.path.join(outdir, 'dev.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['dev']))
+    
+    
+mu_qa_dict['qa_plus_qa_decomp_ans_full'] = {'train':copy.deepcopy(mu_qa_dict['qa']['train']) + copy.deepcopy(mu_qa_dict['qa_decomp_ans']['train']), 
+                                       'dev':copy.deepcopy(mu_qa_dict['qa']['dev']) + copy.deepcopy(mu_qa_dict['qa_decomp_ans']['dev'])}
+mu_qa_dict['qa_paras_plus_qa_paras_decomp_ans_full'] = {'train':copy.deepcopy(mu_qa_dict['qa_paras']['train']) + copy.deepcopy(mu_qa_dict['qa_paras_decomp_ans']['train']), 
+                                                   'dev':copy.deepcopy(mu_qa_dict['qa_paras']['dev']) + copy.deepcopy(mu_qa_dict['qa_paras_decomp_ans']['dev'])}
+for k in ['qa_plus_qa_decomp_ans_full', 'qa_paras_plus_qa_paras_decomp_ans_full']:
+    ds = 'musique_' + k
+    outdir = os.path.join(UQA_DIR, ds)
+    print(f"Creating {outdir}")
+    os.makedirs(outdir, exist_ok=True)    
+    outfile = os.path.join(outdir, 'train.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['train']))
+    outfile = os.path.join(outdir, 'dev.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['dev']))
+
 
 print('Finished outputting mu_train qa datasets...')
 
@@ -428,6 +489,7 @@ for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_dec
 print('Finished outputting mu_dev qa datasets...')
 
 
+####################################################################################################
 # check number of tokens in the longest decomp answer...
 tokenizer = load_model(loadwhat='tokenizer_only')
 tok_counts = []
