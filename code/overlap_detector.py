@@ -1215,6 +1215,10 @@ def run_sim_detail_reports(logdir, sim_results_file, model_results_file, trainin
         logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformatted eval questions for ssvise train datasets
         model_results_file='/data/thar011/out/unifiedqa_bart_large_s6_v4_musique_qa_plus_all_decomps/eval_metrics.json'
+        training_subsets_list = [ ['musique_qa_paras_full'],
+                                  ['musique_qa_full'],
+                                  ['musique_decomp_new_dev_in_train_full']
+                                ]
         training_subsets_list = [ ['strategy_qa'],
                                   ['strategy_qa_facts_dev_in_train_selfsvised'],
                                   ['qasc_dev_facts_selfsvised'],
@@ -1224,7 +1228,10 @@ def run_sim_detail_reports(logdir, sim_results_file, model_results_file, trainin
                                   ['musique_qa'],
                                   ['musique_mu_dev_decomp'],
                                   ['musique_decomp_new_dev_in_train'],
-                                  ['musique_qa_paras']
+                                  ['musique_qa_paras'],
+                                  ['musique_qa_paras_full'],
+                                  ['musique_qa_full'],
+                                  ['musique_decomp_new_dev_in_train_full']
                                 ]
         run_sim_detail_reports(logdir, sim_results_file, model_results_file, training_subsets_list)
         run_sim_detail_reports(logdir, sim_results_file, model_results_file, training_subsets_list, add_uqa=False)
