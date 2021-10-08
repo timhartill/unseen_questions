@@ -1266,7 +1266,7 @@ def run_summary_thresh_reports(logdir, sim_results_file, results_list):
         and this is the subset of training datasets similarity is calculated over.
     Usage:
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformat
-        results_list = ['/data/thar011/out/unifiedqa_bart_large_s6_v10_musique_qa_plus_qa_decomp_ans_plus_new_decomps/eval_metrics.json',
+        results_list = ['/data/thar011/out/unifiedqa_bart_large_s6_v11_musique_qa_paras_plus_qa_paras_decomp_ans_plus_new_decomps/eval_metrics.json'
                         ]
         results_list = ['/data/thar011/out/unifiedqa_bart_large_v3/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_metrics.json',
@@ -1287,7 +1287,8 @@ def run_summary_thresh_reports(logdir, sim_results_file, results_list):
                         '/data/thar011/out/unifiedqa_bart_large_s6_v9_musique_qa_plus_qa_decomp_ans_plus_all_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v10_musique_qa_plus_qa_decomp_ans_plus_new_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v8_musique_qa_decomp_ans_plus_new_decomps/eval_metrics.json',
-                        '/data/thar011/out/unifiedqa_bart_large_s6_v6_musique_qa_paras_plus_all_decomps/eval_metrics.json'
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v6_musique_qa_paras_plus_all_decomps/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v11_musique_qa_paras_plus_qa_paras_decomp_ans_plus_new_decomps/eval_metrics.json',
                        ]
         logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
         run_summary_thresh_reports(logdir, sim_results_file, results_list)

@@ -519,12 +519,14 @@ class DatasetMetrics:
     def format_eval_summary(self, ret_dict):
         """ Format ret_dict for text file output """
         out_list = []
+        summary = f"{self.short_name},{ret_dict['eval_dataset']}"
         out_list.append(self.short_name +': EVAL DATASET:' + ret_dict['eval_dataset'])
         out_str = 'OVERALL METRICS: '
         for k in ret_dict['metrics']:
             key = list(k.keys())[0]
             val = list(k.values())[0]
             out_str += f"{key}: {val:.2f}   "
+            summary += f",{val:.2f}"
         out_list.append(out_str.strip())
         out_list.append('')
         out_list.append('Random Samples:')
@@ -539,7 +541,7 @@ class DatasetMetrics:
                     out_str += f"{key}: {val:.2f}   "
             out_list.append(out_str.strip())
             out_list.append('')
-        return out_list
+        return out_list, summary
                     
                
     def get_all_pref_values(self, dsets, use_current=True):
@@ -861,6 +863,7 @@ def output_summary(logdir, results_list, include_list, number_samples=3, metric=
                         '/data/thar011/out/unifiedqa_bart_large_s6_v8_musique_qa_decomp_ans_plus_new_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v9_musique_qa_plus_qa_decomp_ans_plus_all_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v10_musique_qa_plus_qa_decomp_ans_plus_new_decomps/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v11_musique_qa_paras_plus_qa_paras_decomp_ans_plus_new_decomps/eval_metrics.json',
                        ]
         logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
         output_summary(logdir, results_list, include_list, number_samples=3, metric='ALL', outname='eval_dataset_performance_summary.txt')
@@ -869,19 +872,27 @@ def output_summary(logdir, results_list, include_list, number_samples=3, metric=
         logdir += '/'        
     os.makedirs(logdir, exist_ok=True)
     outfile = os.path.join(logdir, outname)
-    print(f'Report will be output to {outfile}')
+    print(f'Detail Report will be output to {outfile}')
+    summary_file = 'summary_' + outname
+    summary_file = os.path.join(logdir, summary_file)
+    print(f'Summary Report will be output to {summary_file}')
     out_list = []
+    out_summary = ['Dataset,Eval Dataset,EM,F1-OverallAns,F1-DecompAns,SARI-Decomp,SARI-DecompAns']
     for result in results_list:
         print(f"Processing: {result}")
         dsmetrics = DatasetMetrics(result)
         for ds in include_list:
             ret_dict = dsmetrics.get_summary_plus_single_preds(ds, number_samples=number_samples, metric=metric)
-            ds_output_list = dsmetrics.format_eval_summary(ret_dict)
+            ds_output_list, summary = dsmetrics.format_eval_summary(ret_dict)
             ds_output_list.append('')
             ds_output_list.append('')
             out_list += ds_output_list
+            out_summary.append(summary)
     with open(outfile, 'w') as f:
         f.write('\r\n'.join(out_list))
+    with open(summary_file, 'w') as f:
+        f.write('\r\n'.join(out_summary))
+    
     return
 
                 
@@ -911,7 +922,8 @@ def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', '
                         '/data/thar011/out/unifiedqa_bart_large_s6_v9_musique_qa_plus_qa_decomp_ans_plus_all_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v10_musique_qa_plus_qa_decomp_ans_plus_new_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v8_musique_qa_decomp_ans_plus_new_decomps/eval_metrics.json',
-                        '/data/thar011/out/unifiedqa_bart_large_s6_v6_musique_qa_paras_plus_all_decomps/eval_metrics.json'
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v6_musique_qa_paras_plus_all_decomps/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v11_musique_qa_paras_plus_qa_paras_decomp_ans_plus_new_decomps/eval_metrics.json',
                        ]
         logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
         run_all(logdir, results_list, include_list=['unseen4'])
