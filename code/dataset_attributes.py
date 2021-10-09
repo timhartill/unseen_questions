@@ -287,7 +287,11 @@ replace_sim_with = {'cwwv_selfsvised': 'cwwv',
                 'cwwv_premask_selfsvised': 'cwwv', 
                 'atomic_premask_selfsvised': 'atomic',
                 'musique_qa_decomp_ans': 'musique_qa',
+                'musique_qa_plus_qa_decomp_ans': 'musique_qa',
                 'musique_qa_paras_decomp_ans': 'musique_qa_paras',
+                'musique_qa_paras_plus_qa_paras_decomp_ans': 'musique_qa_paras',
+                'musique_qa_plus_qa_decomp_ans_full': 'musique_qa_full',
+                'musique_qa_paras_plus_qa_paras_decomp_ans_full': 'musique_qa_paras_full',
                 'musique_mu_dev_qa_decomp_ans': 'musique_mu_dev_qa',
                 'musique_mu_dev_qa_paras_decomp_ans': 'musique_mu_dev_qa_paras'
                 }
