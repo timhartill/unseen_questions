@@ -30,7 +30,7 @@ from text_processing import white_space_fix, replace_chars
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
 
-MU_DIR_IN = '/data/thar011/data/musique/musique_v0.1/'
+MU_DIR_IN = '/home/thar011/data/musique/musique_v0.1/'
 MU_TRAIN_FILE = 'musique_ans_v0.1_train.jsonl'
 MU_DEV_FILE = 'musique_ans_v0.1_dev.jsonl'
 
@@ -168,6 +168,9 @@ def process_musique(mu_data, make_all_dev=True):
             decomp_step['context_para'] = decomp_para
             
         mu_sample['decomp_ans_str'] = answer + decomp_ans_str
+        dc_len = len(decomp_ans_str)
+        last_ans_start = dc_len - decomp_ans_str[::-1].find('?')
+        mu_sample['decomp_context'] = decomp_ans_str[:last_ans_start].replace('##','.').replace(' .','.')[2:]
 
         ans = mu_sample['answer'].lower().strip()
         ans_last_decomp = ans + mu_sample['question_decomposition'][-1]['question_subst'].lower().strip()
@@ -294,7 +297,8 @@ def get_qa_datasets(mu_data, train_splits = ['train']):
     mu_qa_dict = {'qa':copy.deepcopy(ds_template),
                   'qa_paras':copy.deepcopy(ds_template),
                   'qa_decomp_ans':copy.deepcopy(ds_template),
-                  'qa_paras_decomp_ans':copy.deepcopy(ds_template) }
+                  'qa_paras_decomp_ans':copy.deepcopy(ds_template), 
+                  'qa_decomp_context':copy.deepcopy(ds_template) }
 
     for i, mu_sample in enumerate(mu_data):
         key =  mu_sample['split']
@@ -308,7 +312,9 @@ def get_qa_datasets(mu_data, train_splits = ['train']):
             sample = create_uqa_example("add decomp: " + mu_sample['question'], None, mu_sample['decomp_ans_str'] )    
             mu_qa_dict['qa_decomp_ans'][key].append(sample)
             sample = create_uqa_example("add decomp: " + mu_sample['question'], mu_sample['context_paras'], mu_sample['decomp_ans_str'] )
-            mu_qa_dict['qa_paras_decomp_ans'][key].append(sample)       
+            mu_qa_dict['qa_paras_decomp_ans'][key].append(sample) 
+            sample = create_uqa_example(mu_sample['question'], mu_sample['decomp_context'], mu_sample['answer'] )
+            mu_qa_dict['qa_decomp_context'][key].append(sample)
         if i % 1000 == 0:
             print(f'Processed: {i}')
     print(f"Train count: {len(mu_qa_dict['qa']['train'])}  Dev count:{len(mu_qa_dict['qa']['dev'])}")
@@ -415,7 +421,7 @@ with open(outfile, 'w') as f:
 # create and ouput mu_train qa datasets
 mu_qa_dict = get_qa_datasets(mu_train)  #Train count: 2057  Dev count:382
 
-for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans']
+for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans', 'qa_decomp_context']
     ds = 'musique_' + k
     outdir = os.path.join(UQA_DIR, ds)
     print(f"Creating {outdir}")
@@ -478,7 +484,7 @@ print('Finished outputting mu_train qa datasets...')
 
 # create and ouput mu_dev qa datasets
 mu_qa_dict = get_qa_datasets(mu_dev)  #Train count: 0  Dev count:2417
-for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans']
+for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans', 'qa_decomp_context']
     ds = 'musique_mu_dev_' + k
     outdir = os.path.join(UQA_DIR, ds)
     print(f"Creating {outdir}")

@@ -865,6 +865,8 @@ def output_summary(logdir, results_list, include_list, number_samples=3, metric=
                         '/data/thar011/out/unifiedqa_bart_large_s6_v10_musique_qa_plus_qa_decomp_ans_plus_new_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v11_musique_qa_paras_plus_qa_paras_decomp_ans_plus_new_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v12_musique_qa_paras_plus_qa_paras_decomp_ans/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v13_musique_qa_plus_qa_decomp_ans_full_plus_new_decomps_full/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v14_musique_qa_paras_plus_qa_paras_decomp_ans_full/eval_metrics.json',
                        ]
         logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
         output_summary(logdir, results_list, include_list, number_samples=3, metric='ALL', outname='eval_dataset_performance_summary.txt')
@@ -926,6 +928,8 @@ def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', '
                         '/data/thar011/out/unifiedqa_bart_large_s6_v6_musique_qa_paras_plus_all_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v11_musique_qa_paras_plus_qa_paras_decomp_ans_plus_new_decomps/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v12_musique_qa_paras_plus_qa_paras_decomp_ans/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v13_musique_qa_plus_qa_decomp_ans_full_plus_new_decomps_full/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s6_v14_musique_qa_paras_plus_qa_paras_decomp_ans_full/eval_metrics.json',
                        ]
         logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
         run_all(logdir, results_list, include_list=['unseen4'])

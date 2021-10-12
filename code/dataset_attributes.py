@@ -37,7 +37,7 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'newsqa_lowsim_tdnd', 'strategy_qa', 'cwwv', 'atomic',
             'musique_qa', 'musique_qa_paras', 'musique_mu_dev_qa', 'musique_mu_dev_qa_paras',
             'musique_qa_decomp_ans', 'musique_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_ans',
-            'musique_mu_dev_qa_paras_decomp_ans']
+            'musique_mu_dev_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_context']
 
 #Add to this list to create predictions/calc metrics for corresponding test.tsv:
 test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
@@ -65,7 +65,7 @@ dev_eval_all = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_s
             'newsqa_lowsim_tdnd', 'strategy_qa', 'cwwv', 'atomic',
             'musique_qa', 'musique_qa_paras', 'musique_mu_dev_qa', 'musique_mu_dev_qa_paras',
             'musique_qa_decomp_ans', 'musique_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_ans',
-            'musique_mu_dev_qa_paras_decomp_ans']
+            'musique_mu_dev_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_context']
 
 test_eval_all = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
              'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string', 
@@ -274,6 +274,7 @@ dataset_attribs = {
     'musique_qa_plus_qa_decomp_ans_full': {'type':'EX', 'prefer':''},
     'musique_qa_paras_plus_qa_paras_decomp_ans': {'type':'EX', 'prefer':''},
     'musique_qa_paras_plus_qa_paras_decomp_ans_full': {'type':'EX', 'prefer':''},
+    'musique_mu_dev_qa_decomp_context': {'type':'EX', 'prefer':''},
     }
 
 
@@ -360,6 +361,7 @@ unifiedqa_unseen_4 = [
     'musique_qa_paras_decomp_ans',
     'musique_mu_dev_qa_paras',
     'musique_mu_dev_qa_paras_decomp_ans',
+    'musique_mu_dev_qa_decomp_context',
     ]
 
 unifiedqa_unseen_4_map = {
@@ -381,7 +383,8 @@ unifiedqa_unseen_4_map = {
     'musique_qa_decomp_ans': 'dev.tsv',
     'musique_qa_paras_decomp_ans': 'dev.tsv',
     'musique_mu_dev_qa_decomp_ans': 'dev.tsv',
-    'musique_mu_dev_qa_paras_decomp_ans': 'dev.tsv'   
+    'musique_mu_dev_qa_paras_decomp_ans': 'dev.tsv',
+    'musique_mu_dev_qa_decomp_context': 'dev.tsv'
     }
 
 # Not used
