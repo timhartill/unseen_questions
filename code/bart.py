@@ -48,6 +48,7 @@ class MyBart(BartForConditionalGeneration):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        cross_attn_head_mask=None,
     ):
         # Added for compatibility with 4.4.2
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -79,6 +80,7 @@ class MyBart(BartForConditionalGeneration):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            cross_attn_head_mask=cross_attn_head_mask,
         )
         
         lm_logits = F.linear(outputs[0], self.model.shared.weight, bias=self.final_logits_bias)

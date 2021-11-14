@@ -12,12 +12,17 @@ generate arbitrary predictions from a model
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForPreTraining
+from transformers import GPTJForCausalLM
 from bart import MyBart
 from data import normalize_num, split_digits_special
 from utils import load_model, run_model, get_single_result
 
 model_name = "facebook/bart-large"
-#'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'
+#'gpt2', 'gpt2-medium', 'gpt2-large', plastic
+# model_name = "EleutherAI/gpt-neo-1.3B"
+# model_name = "EleutherAI/gpt-neo-2.7B"
+# model_name = "EleutherAI/gpt-j-6B"
+# GPTJForCausalLM.from_pretrained("EleutherAI/gpt-j-6B", revision="float16", torch_dtype=torch.float16, low_cpu_mem_usage=True)
 #checkpoint = None
 #checkpoint = "/data/thar011/ckpts/unifiedqa-bart-large-allenai/unifiedQA-uncased/best-model.pt" # path to the downloaded checkpoint
 checkpoint = "/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/best-model-150000.pt"
@@ -32,6 +37,10 @@ norm=''
 tokenizer, model = load_model(model_name, checkpoint)
 
 input_string = 'In a shocking finding, scientists discovered a herd of unicorns living in a remote, previously unexplored valley, in the Andes Mountains. Even more surprising to the researchers was the fact that the unicorns spoke perfect English.'
+input_string = 'Question: What type of water formation is formed by clouds? Explanation: Beads of water are formed by water vapor condensing. Clouds are made of water vapor. Question: What happens to the heat energy during condensation? Explanation: Beads of water are formed by water vapor condensing. When water vapor condenses, energy in the form of heat is given to the remaining air molecules. Question: What can infection or injury of the lungs result in? Explanation: Pneumonia may be caused by an infection or injury of the lungs. Death was attributed to pneumonia. Question: What can cause harm to living things? Explanation: Poison causes harm to living things. Arsenic compounds are poisonous. Question: Which of the following uses energy that comes from body heat? Explanation: Evaporation of sweat uses energy, and the energy comes from body heat. Diaphoresis is a fancy medical term for perspiration or sweating. Question: Wind and rain cause what to become deeper and wider? Explanation: '
+input_string = 'Question: What type of water formation is formed by clouds? Answer: Beads. Explanation: Beads of water are formed by water vapor condensing. Clouds are made of water vapor. Question: What happens to the heat energy during condensation? Answer: It goes to the remaining air molecules. Explanation: Beads of water are formed by water vapor condensing. When water vapor condenses, energy in the form of heat is given to the remaining air molecules. Question: What can infection or injury of the lungs result in? Answer: Death. Explanation: Pneumonia may be caused by an infection or injury of the lungs. Death was attributed to pneumonia. Question: What can cause harm to living things? Answer: Arsenic. Explanation: Poison causes harm to living things. Arsenic compounds are poisonous. Question: Which of the following uses energy that comes from body heat? Answer: Evaporation of perspiration. Explanation: Evaporation of sweat uses energy, and the energy comes from body heat. Diaphoresis is a fancy medical term for perspiration or sweating. Question: Wind and rain cause what to become deeper and wider? Answer: River. Explanation: '
+input_string = 'Question: What type of water formation is formed by clouds? \nAnswer: Beads. \nExplanation: Beads of water are formed by water vapor condensing. Clouds are made of water vapor. \nQuestion: What happens to the heat energy during condensation? \nAnswer: It goes to the remaining air molecules. \nExplanation: Beads of water are formed by water vapor condensing. When water vapor condenses, energy in the form of heat is given to the remaining air molecules. \nQuestion: What can infection or injury of the lungs result in? \nAnswer: Death. \nExplanation: Pneumonia may be caused by an infection or injury of the lungs. Death was attributed to pneumonia. \nQuestion: What can cause harm to living things? \nAnswer: Arsenic. \nExplanation: Poison causes harm to living things. Arsenic compounds are poisonous. \nQuestion: Which of the following uses energy that comes from body heat? \nAnswer: Evaporation of perspiration. \nExplanation: Evaporation of sweat uses energy, and the energy comes from body heat. Diaphoresis is a fancy medical term for perspiration or sweating. \nQuestion: Wind and rain cause what to become deeper and wider? \nAnswer: River. \nExplanation: '
+
 
 input_string = "<s> What is the population of Albany, Georgia? \\n"  # <no answer>
 input_string = "<s> What is the population of Albany, Georgia? \\n Albany, GA has around 75,000 people"  # 75000! ie [' 75000\n']
@@ -131,6 +140,7 @@ res = run_model(input_string, model, tokenizer, temperature=0.9, num_return_sequ
 #res.scores returns tuple of scores - detailed score for each sequence: (output num_toks entries of [num_beams, vocab_size])
 
 run_model("<s> is plastic harder than metal? \\n", model, tokenizer)
+run_model("<s> is metal harder than plastic? \\n", model, tokenizer)
 
 res = run_model([input_string,input_string], model, tokenizer, indiv_digits=False, norm_numbers=False, 
                 lower=False, num_return_sequences=1, num_beams=4, early_stopping=True, max_length=150,
@@ -141,14 +151,21 @@ res = run_model([input_string,input_string], model, tokenizer, indiv_digits=Fals
 #res.scores is tuple of output num_toks entries of [#beams*#samples, vocab size] if input_string is a list of #samples
 
 # GPT2 tests: added append_eos=False, prepend_bos=False,
-res = run_model([input_string,input_string], model, tokenizer, indiv_digits=False, norm_numbers=False, 
+res = run_model(input_string, model, tokenizer, indiv_digits=False, norm_numbers=False, 
                 append_eos=False, prepend_bos=False,
-                lower=False, temperature=0.9, num_return_sequences=1, num_beams=4,  max_length=150, no_repeat_ngram_size=2,
+                lower=False, temperature=0.9, num_return_sequences=1, num_beams=4,  max_length=512, no_repeat_ngram_size=2,
                 output_scores=True, return_dict_in_generate=True)
-#res.sequences_scores returns overall score (final beam score) of each returned seq [num_sequences]
+res.preds
 
 res = run_model(input_string, model, tokenizer, indiv_digits=False, norm_numbers=False, 
                 lower=False, append_eos=False, prepend_bos=False,
-                max_length=150, do_sample=True, top_k=50, #top_p=0.92, 
+                max_length=512, do_sample=True, top_k=50, #top_p=0.92, 
+                output_scores=True, return_dict_in_generate=True)
+res.preds
+
+res = run_model(input_string, model, tokenizer, indiv_digits=False, norm_numbers=False, 
+                max_input_length=512, verbose=True,
+                lower=False, append_eos=False, prepend_bos=False,
+                max_length=512, do_sample=True, top_k=0, top_p=0.92, 
                 output_scores=True, return_dict_in_generate=True)
 res.preds

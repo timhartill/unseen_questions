@@ -14,6 +14,7 @@ import os
 import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForPreTraining
+from transformers import GPTJForCausalLM, AutoModelForCausalLM
 from bart import MyBart
 from data import normalize_num, split_digits_special
 
@@ -288,7 +289,8 @@ def get_parsed_decomp_by_key(decomp_list, key, join_list=True):
 # HF Utils
 #######################
 
-def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both', to_cuda=True):
+def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both', 
+               to_cuda=True, use_fp16=False):
     """ Load a model and set for prediction
     Usage: tokenizer, model = load_model(model_name, checkpoint)
     """
@@ -299,6 +301,10 @@ def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both
     else:
         if model_name == "facebook/bart-large":   
             my_model = MyBart
+        elif model_name in ["EleutherAI/gpt-neo-1.3B", "EleutherAI/gpt-neo-2.7B"]:
+            my_model = AutoModelForCausalLM
+        elif model_name == "EleutherAI/gpt-j-6B":
+            my_model = AutoModelForCausalLM
         else:
             my_model = AutoModelForPreTraining  # HF documentation indicates this gives right models for T5 and gpt2 as well as vanilla bart
         
@@ -308,7 +314,10 @@ def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both
             model = my_model.from_pretrained(model_name, state_dict=torch.load(checkpoint))  
         else:
             print("No checkpoint loaded. Training from base pretrained model.")
-            model = my_model.from_pretrained(model_name) 
+            if use_fp16 and model_name == "EleutherAI/gpt-j-6B":
+                model = GPTJForCausalLM.from_pretrained("EleutherAI/gpt-j-6B", torch_dtype=torch.float16)
+            else:
+                model = my_model.from_pretrained(model_name) 
         
         if to_cuda:
             model.to(torch.device("cuda"))
