@@ -318,8 +318,10 @@ def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both
 
 
 def string_to_ids(input_string, tokenizer, indiv_digits=False, norm_numbers=True, norm='', special='Ġ', 
-                  verbose=False, truncation=True, max_input_length=512, lower=True):
-    """ Convert single input string to model-ready ids using cut-down version of tokenisation and pipeline
+                  verbose=False, truncation=True, max_input_length=512, lower=True, 
+                  append_eos=True, prepend_bos=True):
+    """ Convert single input string to model-ready ids using cut-down version 
+        of tokenisation pipeline
     """
     if verbose:
         print(f"Approx word count: {len(input_string.split())}")
@@ -331,7 +333,7 @@ def string_to_ids(input_string, tokenizer, indiv_digits=False, norm_numbers=True
     if indiv_digits:
         toks = split_digits_special(toks, special=special)
     ids = tokenizer.convert_tokens_to_ids(toks)
-    if tokenizer.bos_token_id is not None:
+    if prepend_bos and tokenizer.bos_token_id is not None:
         ids = [tokenizer.bos_token_id] + ids
     numtoks = len(ids)
     if verbose:
@@ -340,7 +342,8 @@ def string_to_ids(input_string, tokenizer, indiv_digits=False, norm_numbers=True
         ids = ids[:max_input_length-1]
         if verbose:
             print(f"Truncated to {max_input_length} tokens.")
-    ids = ids + [tokenizer.eos_token_id]    
+    if append_eos:        
+        ids = ids + [tokenizer.eos_token_id]    
     return ids
 
 
@@ -357,21 +360,49 @@ def decode_ids(res, tokenizer, skip_special_tokens=True, clean_up_tokenization_s
 
 def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up_tokenization_spaces=True,
               indiv_digits=False, norm_numbers=True, norm='', special='Ġ', verbose=False,
-              truncation=True, max_input_length=512, lower=True, **generator_args):
+              truncation=True, max_input_length=512, lower=True, to_cuda=True,
+              append_eos=True, prepend_bos=True, **generator_args):
     """ Run cut-down version of tokenisation and generation pipeline for single input string
     Usage:
+    # input_string is either a sinle string of a list of strings
+    # ** generator_args:
+    #    greedy: model.generate(input_ids, max_length=50) 
+    #    beam: model.generate(input_ids, max_length=50, num_beams=5, early_stopping=True,num_return_sequences=2,no_repeat_ngram_size=2)
+    #    sample: model.generate(input_ids, do_sample=True, max_length=50, top_k=0, temperature=0.7) # the lower the temp the greater the chance of picking high prob words
+    #    topk: model.generate(input_ids, do_sample=True, max_length=50, top_k=50) # only sample from the top 50 words by prob each time
+    #    nucleus: model.generate(input_ids, do_sample=True, max_length=50, top_p=0.92, top_k=0) # (also called topP) choose from the top words whose collective prob exceeds p
+    #    combo: model.generate(input_ids,do_sample=True, max_length=50, top_k=50, top_p=0.95, num_return_sequences=3)
+    
+    # for gpt2 add: append_eos=False, prepend_bos=False,
     res = run_model(input_string, model, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers,
                     num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=100,
                     output_scores=True, return_dict_in_generate=True)  # res.keys(): odict_keys(['sequences', 'sequences_scores', 'scores', 'preds'])
-    pred, score = get_single_result(res)        
+    # returns num_return_sequences outputs * num input samples = #samples
+    #res.preds has ["pred1 sentence", "pred2 sentence"] for #samples = 2
+    #res.sequences has output tokens as ids shape [#samples, max output len]
+    #res.sequences_scores returns overall score (final beam score) of each returned seq [#samples]
+    #res.scores is tuple of output num_toks entries of [#beams*#samples, vocab size] if input_string is a list of #samples
+    
+    pred, score = get_single_result(res, idx=0)        
     """
-    ids = string_to_ids(input_string, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers, 
-                        norm=norm, special=special, verbose=verbose, truncation=truncation, 
-                        max_input_length=max_input_length, lower=lower)
-    ids = [ids]
+    ids = []
+    if type(input_string) == list:
+        for istr in input_string:
+            idsingle = string_to_ids(input_string, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers, 
+                                norm=norm, special=special, verbose=verbose, truncation=truncation, 
+                                max_input_length=max_input_length, lower=lower, append_eos=append_eos,
+                                prepend_bos=prepend_bos)
+            ids.append(idsingle)
+    else:    
+        ids = string_to_ids(input_string, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers, 
+                            norm=norm, special=special, verbose=verbose, truncation=truncation, 
+                            max_input_length=max_input_length, lower=lower, append_eos=append_eos,
+                            prepend_bos=prepend_bos)
+        ids = [ids]
     #input_ids = tokenizer.encode(input_string, return_tensors="pt")
     input_ids = torch.LongTensor(ids)
-    input_ids = input_ids.to(torch.device("cuda"))
+    if to_cuda:
+        input_ids = input_ids.to(torch.device("cuda"))
     res = model.generate(input_ids, **generator_args)
     if isinstance(res, dict):        
         res['preds'] = decode_ids(res['sequences'], tokenizer, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
@@ -379,11 +410,11 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
     return decode_ids(res, tokenizer, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
 
 
-def get_single_result(res):
+def get_single_result(res, idx=0):
     """ Process single result from a res object
-    Usage: pred, score = get_single_result(res)
+    Usage: pred, score = get_single_result(res, idx=the index into res)
     """
-    return res.preds[0].strip(), float(res.sequences_scores.detach().cpu().numpy()[0])
+    return res.preds[idx].strip(), float(res.sequences_scores.detach().cpu().numpy()[idx])
 
 
 
