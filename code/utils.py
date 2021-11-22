@@ -205,6 +205,22 @@ def create_uqa_example(question, context=None, answer=None, append_nl=True):
     return sample
 
 
+def find_mc_answer(context, correct_option='(A)'):
+    """ Parse a uqa formatted MC sample and return the answer matching an option key """
+    if correct_option[0] != '(':
+        correct_option = '(' + correct_option + ')'
+    start_idx = context.find(correct_option)
+    if start_idx == -1:
+        return ''
+    start_idx += 3
+    end_idx = context[start_idx:].find('(')
+    if end_idx == -1:
+        ans = context[start_idx:].strip()
+    else:
+        ans = context[start_idx:start_idx + end_idx].strip()
+    return ans   
+
+
 def format_decomp_ans(decomp_q, decomp_a, decomp_id, prior_answers):
     """ Return formatted decomp question plus answer after substituting prior answers into vars of form #1, #2 etc
         where #1 refers to the answer of the first decomp in the list (i.e. decomp[0])

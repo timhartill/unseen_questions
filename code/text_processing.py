@@ -5,8 +5,7 @@ Created on Wed Aug 11 14:22:47 2021
 
 @author: tim hartill 
 
-Code taken from various other places is noted in comments above 
-respective functions.
+Code taken from various other places is noted in comments by respective functions.
 
 """
 
@@ -94,9 +93,23 @@ def white_space_fix(text):
     """ Remove repeated white space in a string"""
     return ' '.join(text.split())
 
+
 def replace_chars(instr): 
-    outstr = instr.replace("’", "'").replace("‘", "'")
+    """ Very basic text preprocessing """
+    outstr = instr.replace("’", "'").replace("‘", "'").replace(" .", ".").replace(" ?", "?").replace(" !", "!")
     return outstr.replace('“', '"').replace('”','"').replace("\t", " ").replace("\n", "")
+
+
+def format_sentence(sentence, capitalize=True, add_endchar=True, endchar='.'):
+    """ Format sentence with basic preprocessing then optionally by capitalizing first letter and putting 'endchar' on end if there isn't one. """
+    sentence = replace_chars(white_space_fix(sentence))
+    if sentence != '':
+        if add_endchar and sentence[-1] not in ['.', '?', '!']:
+            sentence += endchar
+        if capitalize:
+            sentence = sentence[0].upper() + sentence[1:]        
+    return sentence
+
 
 # Adapted from https://github.com/Neutralzz/RefQA (Li et al)
 def identity_translate(cloze_question, mask_type=''):
