@@ -133,7 +133,7 @@ def convert_pararules(all_json_list):
     return questions, answers
 
 
-def load_uqa_supervised(file, ans_lower=True, verbose=True):
+def load_uqa_supervised(file, ans_lower=True, verbose=True, return_parsed=False):
     """ Load a unifiedqa formatted .tsv file and return question+context as list of str and answers as list of str
     """
     if verbose:
@@ -154,6 +154,8 @@ def load_uqa_supervised(file, ans_lower=True, verbose=True):
             ctr += 1
     if verbose:
         print(f"Successfully loaded {len(questions)} rows.")
+    if return_parsed:
+        return parse_uqa_supervised(questions, answers)
     return questions, answers
 
 
@@ -173,6 +175,30 @@ def load_uqa_selfsupervised(file, verbose=True):
     if verbose:
         print(f"Successfully loaded {len(questions)} rows.")
     return questions, answers
+
+
+def parse_uqa_supervised(questions, answers):
+    """ Convert [questions], [answers] into jsonl style format:
+        [{'question': 'q txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
+    """
+    uqa_parsed = []
+    for q, a in zip(questions, answers):
+        curr = {'question': q, 'answer': a}
+        q_list = q.split('\\n')
+        curr['q_only'] = q_list[0].strip()
+        if len(q_list) >= 2:
+            q2 = q_list[1].strip()
+            if q2.startswith('(A)'):
+                curr['mc_options'] = q2
+                if len(q_list) >= 3:
+                    curr['context'] = q_list[2].strip()
+                else:
+                    curr['context'] = ''
+            else:
+                curr['mc_options'] = ''
+                curr['context'] = q2
+        uqa_parsed.append(curr)
+    return uqa_parsed
 
 
 def flatten(alist):
@@ -302,6 +328,49 @@ def get_parsed_decomp_by_key(decomp_list, key, join_list=True):
     
 
 #######################
+#LM Prompt Parsing Utils
+#######################
+
+def load_prompt_template(infile):
+    """ Load a prompt file """
+    with open(infile, 'r') as fp: 
+        template = fp.read()
+    if template[-1] == '\n':
+        template = template[:-1]  # strip final \n if exists
+    return template
+
+
+def fill_prompt_template(template, query=None, taskprompt=None, example_inputs=[], example_outputs=[]):
+    """ Fill slots in a template
+    Will replace all:
+        {question} or {QUESTION} with query
+        {taskprompt} or {TASKPROMPT} with taskprompt
+        {EXAMPLE}Input '{EXAMPLENUM}: {EXAMPLEINPUT}
+        Knowledge: {EXAMPLEOUTPUT} with k examples. Assumes {EXAMPLEOUTPUT} is the end of the example template and this and {EXAMPLE} only occur once.
+    """
+    prompt = template
+    if taskprompt is not None:
+        prompt = prompt.replace('{taskprompt}', taskprompt, 1).replace('{TASKPROMPT}', taskprompt, 1)
+    if query is not None:
+        prompt = prompt.replace('{question}', query).replace('{QUESTION}', query)
+    start_example = prompt.find('{EXAMPLE}')
+    if start_example != -1:
+        end_example = prompt.find('{EXAMPLEOUTPUT}')
+        if end_example != -1:
+            end_example += len('{EXAMPLEOUTPUT}')
+            if prompt[end_example] == '\n':
+                end_example += 1
+            example_template = prompt[start_example+len('{EXAMPLE}'):end_example]
+            new_examples = ''
+            for i, (ex_in, ex_out) in enumerate(zip(example_inputs, example_outputs)):
+                curr = example_template.replace('{EXAMPLEINPUT}', ex_in).replace('{EXAMPLEOUTPUT}', ex_out).replace('{EXAMPLENUM}', str(i+1))
+                new_examples += curr
+            prompt = prompt.replace('{EXAMPLE}' + example_template, new_examples)
+            prompt = prompt.replace('{EXAMPLENUM}', str(i+2))
+    return prompt.lstrip()
+    
+
+#######################
 # HF Utils
 #######################
 
@@ -386,7 +455,7 @@ def decode_ids(res, tokenizer, skip_special_tokens=True, clean_up_tokenization_s
 def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up_tokenization_spaces=True,
               indiv_digits=False, norm_numbers=True, norm='', special='Ġ', verbose=False,
               truncation=True, max_input_length=512, lower=True, to_cuda=True,
-              append_eos=True, prepend_bos=True, **generator_args):
+              append_eos=True, prepend_bos=True, only_decode_new=False, cut_at_nl=False, **generator_args):
     """ Run cut-down version of tokenisation and generation pipeline for single input string
     Usage:
     # input_string is either a sinle string of a list of strings
@@ -411,26 +480,46 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
     pred, score = get_single_result(res, idx=0)        
     """
     ids = []
+    start_decode = 99999999
     if type(input_string) == list:
         for istr in input_string:
             idsingle = string_to_ids(input_string, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers, 
                                 norm=norm, special=special, verbose=verbose, truncation=truncation, 
                                 max_input_length=max_input_length, lower=lower, append_eos=append_eos,
                                 prepend_bos=prepend_bos)
+            if len(idsingle) < start_decode:
+                start_decode = len(idsingle)
             ids.append(idsingle)
     else:    
         ids = string_to_ids(input_string, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers, 
                             norm=norm, special=special, verbose=verbose, truncation=truncation, 
                             max_input_length=max_input_length, lower=lower, append_eos=append_eos,
                             prepend_bos=prepend_bos)
+        start_decode = len(ids)
         ids = [ids]
     #input_ids = tokenizer.encode(input_string, return_tensors="pt")
     input_ids = torch.LongTensor(ids)
     if to_cuda:
         input_ids = input_ids.to(torch.device("cuda"))
     res = model.generate(input_ids, **generator_args)
-    if isinstance(res, dict):        
-        res['preds'] = decode_ids(res['sequences'], tokenizer, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
+    if isinstance(res, dict):     
+        if only_decode_new:
+            res['preds'] = decode_ids(res['sequences'][:, start_decode:], tokenizer, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
+            res['start_decode'] = start_decode
+            if cut_at_nl:
+                res['preds'] = [p.strip().split('\n')[0] for p in res['preds']]
+        else:
+            res['preds'] = decode_ids(res['sequences'], tokenizer, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
+            res['start_decode'] = 0
+            
+        res['sequences'] = res.sequences.cpu().numpy()
+        if res.get('scores') is not None:
+            scores = []
+            for score in res['scores']:
+                scores.append(score.cpu().numpy())
+            res['scores'] = scores
+        if res.get('sequences_scores') is not None:
+            res['sequences_scores'] = res.sequences_scores.cpu().numpy()
         return res
     return decode_ids(res, tokenizer, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
 
@@ -439,7 +528,7 @@ def get_single_result(res, idx=0):
     """ Process single result from a res object
     Usage: pred, score = get_single_result(res, idx=the index into res)
     """
-    return res.preds[idx].strip(), float(res.sequences_scores.detach().cpu().numpy()[idx])
+    return res.preds[idx].strip(), float(res.sequences_scores[idx]) # float(res.sequences_scores.detach().cpu().numpy()[idx])
 
 
 
