@@ -19,14 +19,33 @@ from utils import load_model, run_model, get_single_result, load_prompt_template
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
 PROMPT_DIR = os.path.join(UQA_DIR, 'prompts')
-QASC_DIR = os.path.join(UQA_DIR, 'qasc')
-QASC_DEV = os.path.join(QASC_DIR, 'dev.tsv')
+QASC_DEV = os.path.join(UQA_DIR, 'qasc', 'dev.tsv')
+QASC_EXPLANATION_FILE = os.path.join(UQA_DIR, 'qasc_od_expl', 'train.tsv')
 
 model_name = "EleutherAI/gpt-j-6B"
 
 tokenizer, model = load_model(model_name, checkpoint=None)
 
 qasc_dev = load_uqa_supervised(QASC_DEV, return_parsed=True)
+
+qasc_train_expl = load_uqa_supervised(QASC_EXPLANATION_FILE, ans_lower=False, return_parsed=True)
+num_q = len(qasc_train_expl)
+np.random.seed(42)
+prompt_indices = np.random.choice(num_q, 100, replace=False)
+# array([5914, 5425, 1430, 7324, 4028, 1009, 3172, 2892, 3985, 5023, 4074,
+#       1302, 4471, 7541,  554, 6864,  483, 6908, 6159, 5057, 5170, 2199,
+#       3837, 2345, 5137, 7331, 4825, 1242, 1882, 5519, 4525, 1730, 5861,
+#       6091, 2406, 2302,  233,  794,  866, 3333, 1400, 1744, 7937, 6224,
+#       4510, 4922,  932, 3567, 4151, 1737,  318, 2995, 2338, 5513, 7743,
+#       1926, 3012, 1575, 4113,  349, 3355, 7716, 4606, 3942, 1010, 3844,
+#        239, 6438, 3238, 6879,  748, 6218, 5324, 3149, 1295, 7685, 2867,
+#       7977, 3217, 6642, 4270, 7165, 6968, 5815, 6594, 3018, 4394, 2663,
+#       6084,  453, 3995, 7780, 6612, 6075, 4668, 5548, 2348, 8088, 4674,
+#       6195])
+prompt_5 = prompt_indices[:5]
+prompt_10 = prompt_indices[:10]
+prompt_32 = prompt_indices[:32]
+prompt_rand = prompt_indices[np.random.choice(prompt_indices.shape[0], 20, replace=False)]
 
 qasc_1_fact = load_prompt_template('/data/thar011/data/unifiedqa/prompts/qasc_single_fact_liu_v1.txt')
 qasc_2_fact = load_prompt_template('/data/thar011/data/unifiedqa/prompts/qasc_multi_fact_sameliuquestions_v1.txt')
