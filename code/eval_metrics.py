@@ -93,6 +93,43 @@ def load_uqa_supervised(file, ans_lower=True, verbose=True):
         print(f"Successfully loaded {len(questions)} rows.")
     return questions, answers
 
+
+def preds_basic_filter(preds, min_length=4):
+    """ Given a list of predicted explanations, perform basic filtering
+    - remove with length < min_length
+    - remove duplicates
+    - remove where one is a substring of another
+    """
+    preds = [p.strip() for p in preds if len(p.strip()) >= min_length]
+    preds_norm = [normalize_answer(p) for p in preds]
+    delete_idx = []
+    for i, pred in enumerate(preds_norm):
+        for j, pred_comp in enumerate(preds_norm):
+            if i != j:
+                if pred in pred_comp and j not in delete_idx:
+                    delete_idx.append(i)
+                    break
+    #print('delete:', delete_idx)
+    pred_tuple = []
+    for i, pred in enumerate(preds):
+        if i in delete_idx:
+            pred_tuple.append( (pred, True) )
+        else:
+            pred_tuple.append( (pred, False) )
+    preds = [pt[0] for pt in pred_tuple if pt[1] == False]        
+    return preds
+
+
+def calc_measure_basic(preds, compareto, measure_fn=None):
+    """ Return a basic relevance measure of each item in list preds to compareto """
+    if measure_fn is None:
+        measure_fn = get_f1
+    scores = []
+    for pred in preds:
+        score = measure_fn(pred, compareto)    
+        scores.append(score)
+    return scores
+
 # the standard "squad" normalization
 def normalize_answer(s):
     def remove_articles(text):

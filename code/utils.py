@@ -201,6 +201,14 @@ def parse_uqa_supervised(questions, answers):
     return uqa_parsed
 
 
+def return_sublist(sample_list, indices):
+    """ Return sublist of list entries matching the list of indices. Note: updating an entry in pointers will update the original list """
+    sublist = []
+    for idx in indices:
+        sublist.append(sample_list[idx])
+    return sublist
+
+
 def flatten(alist):
     """ flatten a list of nested lists
     """
@@ -368,7 +376,7 @@ def fill_prompt_template(template, query=None, taskprompt=None, example_inputs=[
             prompt = prompt.replace('{EXAMPLE}' + example_template, new_examples)
             prompt = prompt.replace('{EXAMPLENUM}', str(i+2))
     return prompt.lstrip()
-    
+
 
 #######################
 # HF Utils
