@@ -150,7 +150,7 @@ for qa in sqa_train:
     qa[MC_ANS] = utils.create_uqa_example(question_od, "(A) yes (B) no", answer)
     qa[OD_ANS] = utils.create_uqa_example(question_od, None, answer)
     qa[EXPL_ANS] = utils.create_uqa_example(question_od, f, answer)
-    qa[OD_EXPL] = utils.create_uqa_example(question_od, None, f)
+    qa[OD_EXPL] = utils.create_uqa_example(Q_PREFIX + question_od, None, f)
 
 qa_train = []
 qa_dev = []
