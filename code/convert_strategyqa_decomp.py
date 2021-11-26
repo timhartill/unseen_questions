@@ -32,7 +32,7 @@ from utils import flatten, load_jsonl, create_uqa_example, load_model, run_model
 #UQA_DIR = '/data/thar011/data/unifiedqa/'
 #UQA_SQA_FACTS_DIR = 'strategy_qa_facts_selfsvised'
 #UQA_SQA_Q_DIR = 'strategy_qa' 
-SQA_DIR_IN = '/data/thar011/data/strategyqa/'
+SQA_DIR_IN = '/home/thar011/data/strategyqa/'
 SQA_TRAIN_FILE = 'strategyqa_train.json'
 SQA_PARA_FILE = 'strategyqa_train_paragraphs.json'
 

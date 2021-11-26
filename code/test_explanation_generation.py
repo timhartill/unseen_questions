@@ -276,4 +276,5 @@ print(*zip(preds,scores))
 
 #TODO F1 between question and each pred seems to correlate with usefulness
 #TODO WORLDTREE Facts don't seem to be terribly useful. Try hand-authoring explanations that are better
+#TODO SQA explanations from facts
 
