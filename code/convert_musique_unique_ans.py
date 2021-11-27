@@ -8,25 +8,30 @@ Created on Wed Sep 15 15:10:14 2021
 Convert Musique (ans) into uqa formatted datasets 
 
 Notes:
-1.  Converting "ans" versions only, not "full" versions (which contain unanswerable questions where one+ of the decomp steps is unanswerable since no supporting para given)
+1.  Converting musique "ans" versions only, not "full" versions (which contain unanswerable questions where one+ of the decomp steps is unanswerable since no supporting para given)
     musique_ans_v0.1_dev.jsonl is constructed to not have answer overlap with musique_ans_v0.1_train.jsonl
     Therefore we treat musique_ans_v0.1_dev.jsonl as an OOD eval only dataset but we create a training dataset from the decomps + paras
     and construct a separate in-domain dev split from musique_ans_v0.1_train.jsonl
+    NB: Confusingly below we  use the term "full" to mean all the musique "ans" train split samples vs just those with unique answers
 2. label format with decomp steps: "<s> the answer ## decomp step 1? decomp ans ## decomp step 2? decomp ans ## decomp step 3? decomp ans </s>"
-3. This version, in contrast to convert_musique.py creates a train set of musique samples with unique answers
+3. This version, in contrast to convert_musique.py creates a train set of musique samples with unique answers (plus "full" versions)
    and a new dev set which has unique answers within dev and with an answer+last decomp that's not in train.
    This is because Musique contains a lot of very similar questions with the same answer and the same final decomp step
    which makes it easy for a model to learn a probabalistic bias.
-
+4. Added output of "explanations" versions which are formed by removing the '>>', format_sentencing both sub q and sub ans and randomly shuffling the (pairs) of sentences.
+    od_ans: q \\n \t ans
+    od_expl: Add explanation: q \\n \t explanation
+    expl_ans: q \\n explanation \t ans
 """
 import os
 import copy
+import random
 import numpy as np
 from collections import Counter
 from utils import load_jsonl, create_uqa_example, format_decomp_ans, load_model, string_to_ids
-from text_processing import white_space_fix, replace_chars
+from text_processing import white_space_fix, replace_chars, format_sentence
 
-
+Q_PREFIX = 'Add Explanation: '
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
 
@@ -166,11 +171,23 @@ def process_musique(mu_data, make_all_dev=True):
             else:
                 decomp_para = ''
             decomp_step['context_para'] = decomp_para
-            
+        
         mu_sample['decomp_ans_str'] = answer + decomp_ans_str
         dc_len = len(decomp_ans_str)
         last_ans_start = dc_len - decomp_ans_str[::-1].find('?')
         mu_sample['decomp_context'] = decomp_ans_str[:last_ans_start].replace('##','.').replace(' .','.')[2:]
+
+        # reformat decomp into explanation:
+        facts = decomp_ans_str.split(' ## ')
+        facts = [f for f in facts if f.strip() != '']
+        for i, f in enumerate(facts):
+            qa = f.split('? ')
+            if len(qa) == 2 : # otherwise multiple '?', use as-is without processing
+                q = format_sentence(qa[0], endchar='?', strip=['>>'])
+                a = format_sentence(qa[1], endchar='.')
+                facts[i] = q + ' ' + a
+        random.shuffle(facts)
+        mu_sample['explanation'] = ' '.join(facts)
 
         ans = mu_sample['answer'].lower().strip()
         ans_last_decomp = ans + mu_sample['question_decomposition'][-1]['question_subst'].lower().strip()
@@ -283,22 +300,37 @@ def get_facts_datasets(mu_data, train_splits = ['train']):
 
 def get_qa_datasets(mu_data, train_splits = ['train']):
     """ Output qa datasets:
+    NB: if train_splits = ['train','unassigned']  will output "full" datasets vs 'unique_ans_ versions' if train_splits = ['train'] 
+        
     musique_qa: q \\n \t ans                                                train=mu train, dev=new dev from mu train
     musique_qa_paras: q \\n paras \t ans                                    train=mu train, dev=new dev from mu train
-    musique_qa_decomp_ans: q \\n \t ans ## decomps+ans ## ..                train=mu train, dev=new dev from mu train
-    musique_qa_paras_decomp_ans: q \\n paras \t ans  ## decomps+ans ## ..   train=mu train, dev=new dev from mu train
+    musique_qa_decomp_ans: Add decomp: q \\n \t ans ## decomps+ans ## ..                train=mu train, dev=new dev from mu train
+    musique_qa_paras_decomp_ans: Add decomp: q \\n paras \t ans  ## decomps+ans ## ..   train=mu train, dev=new dev from mu train
     
     musique_mu_dev_qa: q \\n \t ans                                                dev only = musique dev
     musique_mu_dev_qa_paras: q \\n paras \t ans                                    dev only = musique dev
-    musique_mu_dev_qa_decomp_ans: q \\n \t ans ## decomps+ans ## ..                dev only = musique dev
-    musique_mu_dev_qa_paras_decomp_ans: q \\n paras \t ans  ## decomps+ans ## ..   dev only = musique dev
+    musique_mu_dev_qa_decomp_ans: Add decomp: q \\n \t ans ## decomps+ans ## ..                dev only = musique dev
+    musique_mu_dev_qa_paras_decomp_ans: Add decomp: q \\n paras \t ans  ## decomps+ans ## ..   dev only = musique dev
+    
+    musique_qa_full_od_ans: q \\n \t ans
+    musique_qa_full_od_expl: Add explanation: q \\n \t explanation
+    musique_qa_full_expl_ans: q \\n explanation \t ans
+
+    musique_mu_dev_qa_od_ans: q \\n \t ans
+    musique_mu_dev_qa_od_expl: Add explanation: q \\n \t explanation
+    musique_mu_dev_qa_expl_ans: q \\n explanation \t ans
+
     """
     ds_template = {'train':[], 'dev':[]}
     mu_qa_dict = {'qa':copy.deepcopy(ds_template),
                   'qa_paras':copy.deepcopy(ds_template),
                   'qa_decomp_ans':copy.deepcopy(ds_template),
                   'qa_paras_decomp_ans':copy.deepcopy(ds_template), 
-                  'qa_decomp_context':copy.deepcopy(ds_template) }
+                  'qa_decomp_context':copy.deepcopy(ds_template),
+                  'qa_od_ans':copy.deepcopy(ds_template),
+                  'qa_od_expl':copy.deepcopy(ds_template),
+                  'qa_expl_ans':copy.deepcopy(ds_template),
+                 }
 
     for i, mu_sample in enumerate(mu_data):
         key =  mu_sample['split']
@@ -307,6 +339,7 @@ def get_qa_datasets(mu_data, train_splits = ['train']):
         if key in ['dev','train']:
             sample = create_uqa_example(mu_sample['question'], None, mu_sample['answer'] )    
             mu_qa_dict['qa'][key].append(sample)
+            mu_qa_dict['qa_od_ans'][key].append(sample) #keep separate for consistency..
             sample = create_uqa_example(mu_sample['question'], mu_sample['context_paras'], mu_sample['answer'] )    
             mu_qa_dict['qa_paras'][key].append(sample)
             sample = create_uqa_example("add decomp: " + mu_sample['question'], None, mu_sample['decomp_ans_str'] )    
@@ -315,6 +348,10 @@ def get_qa_datasets(mu_data, train_splits = ['train']):
             mu_qa_dict['qa_paras_decomp_ans'][key].append(sample) 
             sample = create_uqa_example(mu_sample['question'], mu_sample['decomp_context'], mu_sample['answer'] )
             mu_qa_dict['qa_decomp_context'][key].append(sample)
+            sample = create_uqa_example(Q_PREFIX + mu_sample['question'], None, mu_sample['explanation'] )
+            mu_qa_dict['qa_od_expl'][key].append(sample)
+            sample = create_uqa_example(mu_sample['question'], mu_sample['explanation'], mu_sample['answer'] )
+            mu_qa_dict['qa_expl_ans'][key].append(sample)
         if i % 1000 == 0:
             print(f'Processed: {i}')
     print(f"Train count: {len(mu_qa_dict['qa']['train'])}  Dev count:{len(mu_qa_dict['qa']['dev'])}")
@@ -421,7 +458,7 @@ with open(outfile, 'w') as f:
 # create and ouput mu_train qa datasets
 mu_qa_dict = get_qa_datasets(mu_train)  #Train count: 2057  Dev count:382
 
-for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans', 'qa_decomp_context']
+for k in mu_qa_dict.keys():   #dict_keys(['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans', 'qa_decomp_context', 'qa_od_ans', 'qa_od_expl', 'qa_expl_ans'])
     ds = 'musique_' + k
     outdir = os.path.join(UQA_DIR, ds)
     print(f"Creating {outdir}")
@@ -449,6 +486,7 @@ for k in ['qa_plus_qa_decomp_ans', 'qa_paras_plus_qa_paras_decomp_ans']:
         f.write(''.join(mu_qa_dict[k]['dev']))
 
 # create and ouput mu_train FULL qa datasets
+# dict_keys(['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans', 'qa_decomp_context', 'qa_od_ans', 'qa_od_expl', 'qa_expl_ans'])
 mu_qa_dict = get_qa_datasets(mu_train, train_splits=['train','unassigned'])  # Train count: 19556  Dev count:382
 for k in ['qa', 'qa_paras']:
     ds = 'musique_' + k + '_full'
@@ -479,12 +517,26 @@ for k in ['qa_plus_qa_decomp_ans_full', 'qa_paras_plus_qa_paras_decomp_ans_full'
     with open(outfile, 'w') as f:
         f.write(''.join(mu_qa_dict[k]['dev']))
 
+#output mu_train full qa explanation datasets:
+for k in ['qa_od_ans', 'qa_od_expl', 'qa_expl_ans']:
+    ds = 'musique_full_' + k  # note change in naming convention
+    outdir = os.path.join(UQA_DIR, ds)
+    print(f"Creating {outdir}")
+    os.makedirs(outdir, exist_ok=True)    
+    outfile = os.path.join(outdir, 'train.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['train']))
+    outfile = os.path.join(outdir, 'dev.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(mu_qa_dict[k]['dev']))
+
+
 
 print('Finished outputting mu_train qa datasets...')
 
 # create and ouput mu_dev qa datasets
 mu_qa_dict = get_qa_datasets(mu_dev)  #Train count: 0  Dev count:2417
-for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans', 'qa_decomp_context']
+for k in mu_qa_dict.keys():   #['qa', 'qa_paras', 'qa_decomp_ans', 'qa_paras_decomp_ans', 'qa_decomp_context', 'qa_od_ans', 'qa_od_expl', 'qa_expl_ans']
     ds = 'musique_mu_dev_' + k
     outdir = os.path.join(UQA_DIR, ds)
     print(f"Creating {outdir}")

@@ -96,18 +96,26 @@ def white_space_fix(text):
 
 def replace_chars(instr): 
     """ Very basic text preprocessing """
-    outstr = instr.replace("’", "'").replace("‘", "'").replace(" .", ".").replace(" ?", "?").replace(" !", "!")
+    outstr = instr.replace("’", "'").replace("‘", "'").replace(" .", ".").replace(" ?", "?").replace(" !", "!").replace(" ,", ",")
     return outstr.replace('“', '"').replace('”','"').replace("\t", " ").replace("\n", "")
 
 
-def format_sentence(sentence, capitalize=True, add_endchar=True, endchar='.'):
-    """ Format sentence with basic preprocessing then optionally by capitalizing first letter and putting 'endchar' on end if there isn't one. """
+def format_sentence(sentence, capitalize=True, add_endchar=True, endchar='.', strip=[]):
+    """ Format sentence with basic preprocessing then optionally by capitalizing first letter 
+        and putting 'endchar' on end if there isn't one.
+        Optionally strip any strings in [strip] from sentence
+    """
+    if strip is not None and strip != []:
+        if type(strip) == str:
+            strip = [strip]
+        for s in strip:
+            sentence = sentence.replace(s, '')        
     sentence = replace_chars(white_space_fix(sentence))
     if sentence != '':
         if add_endchar and sentence[-1] not in ['.', '?', '!']:
             sentence += endchar
         if capitalize:
-            sentence = sentence[0].upper() + sentence[1:]        
+            sentence = sentence[0].upper() + sentence[1:]            
     return sentence
 
 
