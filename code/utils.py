@@ -398,7 +398,7 @@ def generate_continuations(templates, model, tokenizer, queries, example_inputs=
                            max_input_length=512, **generator_args):
     """ Generate LM continuations for [templates] filled with [queries] and optionally with [example_inputs] & [example_outputs]
     Generally, [templates] previously loaded with load_templates() above.
-    Returns [ { template_idx:['output 0', 'output 1', ..., 'output 9'] } ] where each row idx corresponds to query idx
+    Returns [ { template_idx: 'raw': ['output 0', 'output 1', ..., 'output 9'] } ] where each row idx corresponds to query idx
     """
     if verbose:
         print(f"Generating continuations for max in len:{max_input_length} Generator params: {generator_args}")
@@ -419,7 +419,8 @@ def generate_continuations(templates, model, tokenizer, queries, example_inputs=
                             max_input_length=max_input_length, verbose=verbose,
                             lower=lower, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
                             **generator_args)
-            out[i] = res.preds.copy()
+            out[str(i)] = {}
+            out[str(i)]['raw'] = res.preds.copy()
         outlist.append(out)
     return outlist
 
@@ -554,7 +555,7 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
     #    beam: model.generate(input_ids, max_length=50, num_beams=5, early_stopping=True,num_return_sequences=2,no_repeat_ngram_size=2)
     #    sample: model.generate(input_ids, do_sample=True, max_length=50, top_k=0, temperature=0.7) # the lower the temp the greater the chance of picking high prob words
     #    topk: model.generate(input_ids, do_sample=True, max_length=50, top_k=50) # only sample from the top 50 words by prob each time
-    #    nucleus: model.generate(input_ids, do_sample=True, max_length=50, top_p=0.92, top_k=0) # (also called topP) choose from the top words whose collective prob exceeds p
+    #    nucleus: model.generate(input_ids, do_sample=True, max_length=50, top_p=0.92, top_k=0) # (also called topP) choose from the top words whose collective prob exceeds p so lower p = fewer but higher prob words to choose from
     #    combo: model.generate(input_ids,do_sample=True, max_length=50, top_k=50, top_p=0.95, num_return_sequences=3)
     
     # for gpt2 add: append_eos=False, prepend_bos=False,

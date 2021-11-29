@@ -15,7 +15,7 @@ Notes:
 """
 import os
 import numpy as np
-
+import utils
 from utils import load_model, run_model, empty_cache, load_uqa_supervised, return_sublist
 from utils import load_prompt_template, load_templates, fill_prompt_template, generate_continuations
 from text_processing import format_sentence
@@ -245,31 +245,27 @@ qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, te
                                           example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
                                           do_sample=True, max_new_tokens=64, top_k=0, top_p=0.9, temperature=0.7,
                                           num_return_sequences=10, output_scores=False, return_dict_in_generate=True)
+utils.saveas_json(qasc_completions, os.path.join(PROMPT_DIR, 'qasc_50_train_completions_p0.9_t0.7_raw.json'))
+
+qasc_completions = utils.loadas_json(os.path.join(PROMPT_DIR, 'qasc_50_train_completions_p0.9_t0.7_raw.json'))
+# qasc_completions[0]['0']['raw']
 
 scores0 = eval_metrics.calc_measure_basic(qasc_completions[0][0], compareto=test_questions[0])
 scores1 = eval_metrics.calc_measure_basic(qasc_completions[0][1], compareto=test_questions[0])
 
-#Beam search gives error:
+#Beam search:
 qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
                                           example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
                                           num_beams=4, early_stopping=True, min_length=1, max_new_tokens=64,
                                           num_return_sequences=1, output_scores=False, return_dict_in_generate=True)
+#top k:
+qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
+                                          example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
+                                          do_sample=True, max_new_tokens=64, top_k=50, temperature=0.7,
+                                          num_return_sequences=10, output_scores=False, return_dict_in_generate=True)
 
 
 
-#test beam search:
-p_qasc_5_cleaned = fill_prompt_template(qasc_2_templates[1], query=test_questions[0])
-res = run_model(p_qasc_5_cleaned, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=512, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=64,
-                output_scores=True, return_dict_in_generate=True) 
-
-res = run_model(p_qasc_5_cleaned, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=512, verbose=True, 
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.5, num_return_sequences=10, temperature=0.7,
-                output_scores=False, return_dict_in_generate=True) 
 
 preds = eval_metrics.preds_basic_filter(res.preds)  
 scores = eval_metrics.calc_measure_basic(preds, compareto=test_questions[0])
