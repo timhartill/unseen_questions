@@ -15,16 +15,39 @@ Notes:
 """
 import os
 import numpy as np
-from utils import load_model, run_model, get_single_result, load_prompt_template, fill_prompt_template, load_uqa_supervised, return_sublist
+
+from utils import load_model, run_model, empty_cache, load_uqa_supervised, return_sublist
+from utils import load_prompt_template, load_templates, fill_prompt_template, generate_continuations
 from text_processing import format_sentence
 import eval_metrics
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
 PROMPT_DIR = os.path.join(UQA_DIR, 'prompts')
+cuda_device = 0
 
 
 model_name = "EleutherAI/gpt-j-6B"
-tokenizer, model = load_model(model_name, checkpoint=None)
+#tokenizer, model = load_model(model_name, checkpoint=None)
+tokenizer, model = load_model(model_name, checkpoint=None, cuda_device=cuda_device)
+
+
+eval_model_name = 'facebook/bart-large'
+eval_model_ckpt = '/data/thar011/out/unifiedqa_bart_large_v3/best-model.pt'
+tokenizer_eval, model_eval = load_model(eval_model_name, checkpoint=eval_model_ckpt, cuda_device=cuda_device)
+
+tstin = "Answer yes or no: Is 16 greater than 6? Answer:"
+tstin = [tstin, tstin]
+res = run_model(tstin, model, tokenizer, indiv_digits=False, norm_numbers=False, 
+                max_input_length=50, verbose=True,
+                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
+                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=2, temperature=0.7,
+                output_scores=False, return_dict_in_generate=True)
+
+res_eval = run_model(tstin, model_eval, tokenizer_eval, indiv_digits=False, norm_numbers=False, 
+                max_input_length=50, verbose=True,
+                lower=True, 
+                num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=130,
+                output_scores=True, return_dict_in_generate=True)
 
 
 
@@ -33,11 +56,13 @@ tokenizer, model = load_model(model_name, checkpoint=None)
 ###############
 
 QASC_DEV = os.path.join(UQA_DIR, 'qasc', 'dev.tsv')
-QASC_EXPLANATION_FILE = os.path.join(UQA_DIR, 'qasc_od_expl', 'train.tsv')
+QASC_EXPLANATION_FILE = os.path.join(UQA_DIR, 'qasc_mc_ans', 'train.tsv')
 qasc_dev = load_uqa_supervised(QASC_DEV, return_parsed=True)
 qasc_train_expl = load_uqa_supervised(QASC_EXPLANATION_FILE, ans_lower=False, return_parsed=True)
 qasc_train_questions = [format_sentence(s['q_only'].replace('Add Explanation:', '', 1), endchar='') for s in qasc_train_expl]
-qasc_train_explanations = [s['answer'] for s in qasc_train_expl]
+qasc_train_explanations = [s['context'] for s in qasc_train_expl]
+qasc_train_answers = [s['answer'] for s in qasc_train_expl]
+
 num_q = len(qasc_train_expl)
 np.random.seed(42)
 prompt_indices = np.random.choice(num_q, 100, replace=False)
@@ -181,6 +206,8 @@ res = run_model(p_qasc_2_numbered_k15, model, tokenizer, indiv_digits=False, nor
 
 inputs = return_sublist(qasc_train_questions, prompt_indices[:7])
 outputs = return_sublist(qasc_train_explanations, prompt_indices[:7])
+test_questions = return_sublist(qasc_train_questions, prompt_indices[50:])  #create small "test" set from unused train for evaluating explanation quality based on answer accuracy
+test_answers = return_sublist(qasc_train_answers, prompt_indices[50:])
 p_qasc_2_numbered_k7 = fill_prompt_template(qasc_2_fact_numbered_vark, query=qasc_dev[0]['q_only'], 
                                             example_inputs=inputs, example_outputs=outputs)
 
@@ -206,6 +233,48 @@ q: 'Climate is generally described in terms of what?'
 """
 preds = eval_metrics.preds_basic_filter(res.preds)
 
+# test multi template:
+qasc_2_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/qasc_var_numbered_examples_v1.txt',
+                                            '/data/thar011/data/unifiedqa/prompts/qasc_5_cleaned.txt'])
+test_samples = return_sublist(qasc_train_expl, prompt_indices[98:])
+test_questions = [format_sentence(s['q_only'], endchar='') for s in test_samples]
+test_answers = [s['answer'] for s in test_samples]
+example_inputs = return_sublist(qasc_train_expl, prompt_indices[:7], key='q_only')
+example_outputs = return_sublist(qasc_train_expl, prompt_indices[:7], key='context')
+qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
+                                          example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
+                                          do_sample=True, max_new_tokens=64, top_k=0, top_p=0.9, temperature=0.7,
+                                          num_return_sequences=10, output_scores=False, return_dict_in_generate=True)
+
+scores0 = eval_metrics.calc_measure_basic(qasc_completions[0][0], compareto=test_questions[0])
+scores1 = eval_metrics.calc_measure_basic(qasc_completions[0][1], compareto=test_questions[0])
+
+#Beam search gives error:
+qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
+                                          example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
+                                          num_beams=4, early_stopping=True, min_length=1, max_new_tokens=64,
+                                          num_return_sequences=1, output_scores=False, return_dict_in_generate=True)
+
+
+
+#test beam search:
+p_qasc_5_cleaned = fill_prompt_template(qasc_2_templates[1], query=test_questions[0])
+res = run_model(p_qasc_5_cleaned, model, tokenizer, indiv_digits=False, norm_numbers=False, 
+                max_input_length=512, verbose=True,
+                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
+                num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=64,
+                output_scores=True, return_dict_in_generate=True) 
+
+res = run_model(p_qasc_5_cleaned, model, tokenizer, indiv_digits=False, norm_numbers=False, 
+                max_input_length=512, verbose=True, 
+                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
+                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.5, num_return_sequences=10, temperature=0.7,
+                output_scores=False, return_dict_in_generate=True) 
+
+preds = eval_metrics.preds_basic_filter(res.preds)  
+scores = eval_metrics.calc_measure_basic(preds, compareto=test_questions[0])
+
+
 #TODO Having both facts seems to work better than just one fact.
 #TODO Adding example numbering seems to work better at keeping outputs centered on the query topic
 #TODO 0.9 seems to work a bit better than 0.5 - 0.5 has > proportion of blank knowledge and not obviously more diversity
@@ -218,13 +287,14 @@ preds = eval_metrics.preds_basic_filter(res.preds)
 #######################
 
 TEST = os.path.join(UQA_DIR, 'worldtree_mc_ans', 'test.tsv')
-EXPLANATION_FILE = os.path.join(UQA_DIR, 'worldtree_od_expl', 'train.tsv')
+EXPLANATION_FILE = os.path.join(UQA_DIR, 'worldtree_mc_ans', 'train.tsv')
 dset_dev = load_uqa_supervised(TEST, return_parsed=True)
 question = dset_dev[0]['q_only']
 gold_expl = dset_dev[0]['context']
 dset_train_expl = load_uqa_supervised(EXPLANATION_FILE, ans_lower=False, return_parsed=True)
 dset_train_questions = [format_sentence(s['q_only'].replace('Add Explanation:', '', 1), endchar='') for s in dset_train_expl]
-dset_train_explanations = [s['answer'] for s in dset_train_expl]
+dset_train_explanations = [s['context'] for s in dset_train_expl]
+dset_train_answers = [s['answer'] for s in dset_train_expl]
 num_q = len(dset_train_expl)
 np.random.seed(42)
 prompt_indices = np.random.choice(num_q, 100, replace=False)

@@ -201,11 +201,16 @@ def parse_uqa_supervised(questions, answers):
     return uqa_parsed
 
 
-def return_sublist(sample_list, indices):
-    """ Return sublist of list entries matching the list of indices. Note: updating an entry in pointers will update the original list """
+def return_sublist(sample_list, indices, key=None):
+    """ Return sublist of list entries matching the list of indices. 
+    If key is specified assumes sample_list in jsonl format and returns a simple list of values
+    """
     sublist = []
     for idx in indices:
-        sublist.append(sample_list[idx])
+        if key is None:
+            sublist.append(sample_list[idx])
+        else:
+            sublist.append(sample_list[idx][key])           
     return sublist
 
 
@@ -348,6 +353,17 @@ def load_prompt_template(infile):
     return template
 
 
+def load_templates(infiles):
+    """ load a set of prompt templates """
+    if type(infiles) != list:
+        infiles = [infiles]
+    template_list = []    
+    for infile in infiles:
+        template = load_prompt_template(infile)
+        template_list.append(template)
+    return template_list
+
+
 def fill_prompt_template(template, query=None, taskprompt=None, example_inputs=[], example_outputs=[]):
     """ Fill slots in a template
     Will replace all:
@@ -378,13 +394,76 @@ def fill_prompt_template(template, query=None, taskprompt=None, example_inputs=[
     return prompt.lstrip()
 
 
+def generate_continuations(templates, model, tokenizer, queries, example_inputs=[], example_outputs=[], verbose=False, lower=False,
+                           max_input_length=512, **generator_args):
+    """ Generate LM continuations for [templates] filled with [queries] and optionally with [example_inputs] & [example_outputs]
+    Generally, [templates] previously loaded with load_templates() above.
+    Returns [ { template_idx:['output 0', 'output 1', ..., 'output 9'] } ] where each row idx corresponds to query idx
+    """
+    if verbose:
+        print(f"Generating continuations for max in len:{max_input_length} Generator params: {generator_args}")
+    if type(templates) != list:
+        templates = [templates]
+    if type(queries) != list:
+        queries = [queries]
+    outlist = []
+    num_q = len(queries)
+    for j, query in enumerate(queries):
+        print(f"Processing {len(templates)} templates for query {j+1} of {num_q}..")
+        out = {}
+        for i, template in enumerate(templates):
+            prompt = fill_prompt_template(template, query=query, 
+                                            example_inputs=example_inputs, example_outputs=example_outputs)
+
+            res = run_model(prompt, model, tokenizer, indiv_digits=False, norm_numbers=False, 
+                            max_input_length=max_input_length, verbose=verbose,
+                            lower=lower, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
+                            **generator_args)
+            out[i] = res.preds.copy()
+        outlist.append(out)
+    return outlist
+
+
+#######################
+# Pytorch utils
+#######################
+
+def num_gpus():
+    """ return number of visible gpus 
+        Note: visible gpus will be numbered 0, 1,.. num_visible_gpus-1
+    """
+    return torch.cuda.device_count()
+
+def empty_cache():
+    """ empty pytorch cache, sometimes solves issue of OOM not "resetting" and continuing to cause OOM errors """
+    torch.cuda.empty_cache()
+
+def check_mem():
+    """ return list of free memory per visible gpu """
+    os.environ['TOKENIZERS_PARALLELISM']='true'
+    mem = os.popen('"nvidia-smi" --query-gpu=memory.total,memory.used --format=csv,nounits,noheader').read()
+    mem = mem.strip().split('\n')
+    mem = [float(m.split(', ')[0])-float(m.split(', ')[1]) for m in mem]
+    gpus = os.environ.get('CUDA_VISIBLE_DEVICES')
+    if gpus is not None:
+        gpus = [int(g) for g in gpus.split(',')]
+        vis_mem = []
+        for gpu in gpus:
+            for i, m in enumerate(mem):
+                if gpu == i:
+                    vis_mem.append(mem[i])
+                    break
+        return vis_mem
+    return mem
+
+
 #######################
 # HF Utils
 #######################
 
 def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both', 
-               to_cuda=True, use_fp16=False):
-    """ Load a model and set for prediction
+               to_cuda=True, use_fp16=False, cuda_device=None):
+    """ Load a model and set for eval
     Usage: tokenizer, model = load_model(model_name, checkpoint)
     """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -413,7 +492,9 @@ def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both
                 model = my_model.from_pretrained(model_name) 
         
         if to_cuda:
-            model.to(torch.device("cuda"))
+            if cuda_device is None:  # else typically cuda_device = 0-based int id of particular device
+                cuda_device = "cuda"
+            model.to(torch.device(cuda_device))
         model.eval()
         print("Model loaded!")
     return tokenizer, model
@@ -462,11 +543,12 @@ def decode_ids(res, tokenizer, skip_special_tokens=True, clean_up_tokenization_s
 
 def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up_tokenization_spaces=True,
               indiv_digits=False, norm_numbers=True, norm='', special='Ġ', verbose=False,
-              truncation=True, max_input_length=512, lower=True, to_cuda=True,
+              truncation=True, max_input_length=512, lower=True, #to_cuda=True, cuda_device=None,
               append_eos=True, prepend_bos=True, only_decode_new=False, cut_at_nl=False, **generator_args):
     """ Run cut-down version of tokenisation and generation pipeline for single input string
     Usage:
-    # input_string is either a sinle string of a list of strings
+    # input_string is either a single string of a list of strings
+    # for LM typically: append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True (non-LM typically use defaults)
     # ** generator_args:
     #    greedy: model.generate(input_ids, max_length=50) 
     #    beam: model.generate(input_ids, max_length=50, num_beams=5, early_stopping=True,num_return_sequences=2,no_repeat_ngram_size=2)
@@ -482,7 +564,7 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
     # returns num_return_sequences outputs * num input samples = #samples
     #res.preds has ["pred1 sentence", "pred2 sentence"] for #samples = 2
     #res.sequences has output tokens as ids shape [#samples, max output len]
-    #res.sequences_scores returns overall score (final beam score) of each returned seq [#samples]
+    #res.sequences_scores returns overall score (final beam score) of each returned seq [#samples]  NOTE: don't get sequences_scores for nucleus sampling'
     #res.scores is tuple of output num_toks entries of [#beams*#samples, vocab size] if input_string is a list of #samples
     
     pred, score = get_single_result(res, idx=0)        
@@ -491,7 +573,7 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
     start_decode = 99999999
     if type(input_string) == list:
         for istr in input_string:
-            idsingle = string_to_ids(input_string, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers, 
+            idsingle = string_to_ids(istr, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers, 
                                 norm=norm, special=special, verbose=verbose, truncation=truncation, 
                                 max_input_length=max_input_length, lower=lower, append_eos=append_eos,
                                 prepend_bos=prepend_bos)
@@ -507,14 +589,18 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
         ids = [ids]
     #input_ids = tokenizer.encode(input_string, return_tensors="pt")
     input_ids = torch.LongTensor(ids)
-    if to_cuda:
-        input_ids = input_ids.to(torch.device("cuda"))
+    if model.device != input_ids.device:
+        input_ids = input_ids.to(model.device)
+    #if to_cuda:
+    #    if cuda_device is None:  # else typically cuda_device = 0-based int id of particular device
+    #        cuda_device = "cuda"
+    #    input_ids = input_ids.to(torch.device(cuda_device))
     res = model.generate(input_ids, **generator_args)
     if isinstance(res, dict):     
-        if only_decode_new:
+        if only_decode_new:  #LMs output orig input + preds, skip orig input decode
             res['preds'] = decode_ids(res['sequences'][:, start_decode:], tokenizer, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
             res['start_decode'] = start_decode
-            if cut_at_nl:
+            if cut_at_nl:  #truncate to first \n to prevent additional babble 
                 res['preds'] = [p.strip().split('\n')[0] for p in res['preds']]
         else:
             res['preds'] = decode_ids(res['sequences'], tokenizer, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
