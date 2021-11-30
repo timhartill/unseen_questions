@@ -16,106 +16,13 @@ import torch
 from torch.utils.data import Dataset, TensorDataset, DataLoader, RandomSampler, SequentialSampler
 
 from eval_metrics import get_exact_match
-
-from w2n import word_to_num   # from https://github.com/ag1988/injecting_numeracy/blob/master/pre_training/gen_bert/create_examples_n_features.py
-import spacy
-nlp = spacy.load("en_core_web_sm")
+from text_processing import ner, normalize_num, split_digits_special
+#from w2n import word_to_num   # from https://github.com/ag1988/injecting_numeracy/blob/master/pre_training/gen_bert/create_examples_n_features.py
+#import spacy
+#nlp = spacy.load("en_core_web_sm")
 selfsupervisedkey = "_selfsvised"   # dataset names ending in this will be processed as self supervised
 force_ans_start = '[#'              # if self supervised, can force a specific mask by using eg 'The rain in [#Spain#] lies mainly on the plain.'
 force_ans_end = '#]'
-
-
-# from https://github.com/castorini/transformers-arithmetic/blob/main/main.py
-def convert_to_base(num: int, base: int, numerals="0123456789abcdefghijklmnopqrstuvwxyz") -> str:
-    return ((num == 0) and numerals[0]) or (
-        convert_to_base(num // base, base, numerals).lstrip(numerals[0]) + numerals[num % base])
-
-
-# adapted from https://github.com/castorini/transformers-arithmetic/blob/main/main.py
-def convert_to_10ebased(number: str, split_type: str=None, invert_number: bool=False) -> str:
-    signal = None
-    if number[0] == '-':
-        signal = '-'
-        number = number[1:]
-
-    digitpos = number.find('.')
-    if digitpos != -1:
-        number = number.replace('.', '')
-        i = (len(number) - digitpos) * -1
-    else:
-        i = 0
-        
-    output = []
-    for digit in number[::-1]:
-        if split_type is None:
-            output.append('10e' + str(i))
-        elif split_type == 'underscore':
-            output.append('10e_' + str(i))
-        elif split_type == 'character':
-            output.append(' '.join('D' + str(i) + 'E'))
-        else:
-            raise Exception(f'Wrong split_type: {split_type}')
-        output.append(digit)
-        i += 1
-
-    if signal:
-        output.append(signal)
-
-    # The output is already inverted. If we want it to _not_ be inverted, then we invert it.
-    if not invert_number:
-        output = output[::-1]
-    return ' '.join(output)
-
-
-#Adapted from https://github.com/ag1988/injecting_numeracy/blob/master/pre_training/gen_bert/create_examples_n_features.py    
-def convert_word_to_number(word: str):
-    """
-    Returns number if convertable from word string otherwise None
-    """
-    # strip all punctuations from the sides of the word, except for the negative sign
-    punctuations = string.punctuation.replace('-', '')
-    if word[0] == '.':
-        punctuations = punctuations.replace('.', '')
-    word = word.strip(punctuations)
-    # some words may contain the comma as deliminator
-    word = word.replace(",", "")
-    # word2num will convert hundred, thousand ... to number, but we skip it.
-    if word in ["hundred", "thousand", "million", "billion", "trillion"]:
-        return None
-    try:
-        number = word_to_num(word)
-    except ValueError:
-        try:
-            number = int(word)
-        except ValueError:
-            try:
-                number = float(word)
-            except ValueError:
-                number = None
-    return number
-
-
-def normalize_num(instr, norm=''):
-    """ Normalise numbers found in input string and return normalised string
-    """
-    doc = nlp(instr)  #spacy tokenization
-    newtext = []
-    for token in doc:
-        if token.pos_ == 'NUM' or (len(token.text)>1 and set(token.text).issubset(set('0123456789,-.'))):
-            norm_word = convert_word_to_number(token.text)
-            if norm_word is not None:
-                norm_num = str(norm_word)
-                if norm == '10e':
-                    norm_num = convert_to_10ebased(norm_num)
-                if token.text_with_ws[-1] == ' ':
-                    norm_num += ' '
-                newtext.append(norm_num)
-            else:
-                newtext.append(token.text_with_ws)        
-        else:
-            newtext.append(token.text_with_ws)
-    outstr = ''.join(newtext)   
-    return outstr    
 
 
 def normalize_num_batch(instrlist, norm=''):
@@ -127,27 +34,6 @@ def normalize_num_batch(instrlist, norm=''):
         outstr = normalize_num(instr, norm=norm)
         outstrlist.append(outstr)
     return outstrlist    
-
-
-# Adapted from BERT/wordpiece version split_digits from https://github.com/ag1988/injecting_numeracy/blob/master/pre_training/gen_bert/create_examples_n_features.py:
-def split_digits_special(wps, special='Ġ'): #-> List[str]:
-    """
-    Further split numeric tokens accommodating arbitrary special char 
-    For t5 special='▁'  (not underscore)
-    For bart/roberta special='Ġ'
-    eg tokenizer_bart.tokenize('124567890')-> ['12', '45', '678', '90']
-      split_digits_special(tokenizer_bart.tokenize('124567890'), special='Ġ') -> ['1', '2', '4', '5', '6', '7', '8', '9', '0']
-    eg2 split_digits_special(tokenizer_t5.tokenize('the rain in 124567890 99 999 is similar to a55.'), special='▁')
-    """
-    toks = []
-    for wp in wps:
-        if set(wp).issubset(set(special+'0123456789.-$,^')) and set(wp) != {special}: # numeric wp - split digits
-            for i, dgt in enumerate(list(wp.replace(special, ''))):
-                prefix = special if (wp.startswith(special) and i == 0) else ''
-                toks.append(prefix + dgt)
-        else:
-            toks.append(wp)
-    return toks
 
 
 def pad_list(ids, attention_mask, max_length, pad_token_id):
@@ -175,28 +61,6 @@ def get_word_starts(toks, specialchar = 'Ġ', bos_token='<s>'):
     if word_starts[0] != 1:  # first non bos token is always a word start
         word_starts = [1] + word_starts
     return word_starts
-
-
-def ner(instr, add_nphrases = True, verbose=False):
-    """ Perform named entity recognition on text and return a list of named entities, numbers, dates etc
-        Optionally also extract noun phrases
-    """
-    ner_list = []
-    just_ners = []
-    tmpstr = instr.rstrip()
-    tmpstr = tmpstr.rstrip('\\n')
-    doc = nlp(tmpstr)    
-    for ent in doc.ents:
-        if verbose: print(ent.text, '"' + ent.text_with_ws + '"', ent.start_char, ent.end_char, ent.label_)
-        ner_list.append(ent.text_with_ws)
-        just_ners.append(ent.text.strip(string.punctuation+' '))
-        #ner_list.append( {'txt_with_ws': ent.text_with_ws, 'start':ent.start_char, 'end': ent.end_char, 'type': ent.label_} )
-    if add_nphrases:    
-        for n in doc.noun_chunks:  #Noun Chunks
-            if verbose: print('NOUN CHUNK',n.text_with_ws, n.start_char, n.end_char)
-            if not [ne for ne in just_ners if ne.find(n.text.strip(string.punctuation+' ')) != -1]: # don't include noun phrases that are part of a named entity
-                ner_list.append(n.text.strip(string.punctuation+' '))
-    return ner_list
 
 
 def find_sub_list(sublst1, sublst2, lst):

@@ -19,7 +19,6 @@ import utils
 from utils import load_model, run_model, empty_cache, load_uqa_supervised, return_sublist
 from utils import load_prompt_template, load_templates, fill_prompt_template, generate_continuations
 from text_processing import format_sentence
-import eval_metrics
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
 PROMPT_DIR = os.path.join(UQA_DIR, 'prompts')
@@ -231,7 +230,7 @@ q: 'Climate is generally described in terms of what?'
  'Climate is the average of all weather patterns that occur during a year or over a decade or the temperature of the atmosphere surrounding the earth.',
  'The basic facts of climate are: Temperature has a large influence over most weather.']
 """
-preds = eval_metrics.preds_basic_filter(res.preds)
+preds = utils.preds_basic_filter(res.preds)
 
 # test multi template:
 qasc_2_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/qasc_var_numbered_examples_v1.txt',
@@ -250,8 +249,12 @@ utils.saveas_json(qasc_completions, os.path.join(PROMPT_DIR, 'qasc_50_train_comp
 qasc_completions = utils.loadas_json(os.path.join(PROMPT_DIR, 'qasc_50_train_completions_p0.9_t0.7_raw.json'))
 # qasc_completions[0]['0']['raw']
 
-scores0 = eval_metrics.calc_measure_basic(qasc_completions[0][0], compareto=test_questions[0])
-scores1 = eval_metrics.calc_measure_basic(qasc_completions[0][1], compareto=test_questions[0])
+test_samples = utils.add_key(test_samples, qasc_completions, key='expls')  # [ {'question':'full question with context', 'answer':'ans', 'q_only', 'mc_options': 'mc options, 'context':'non-mc context if any', 'expls':{'0':{'raw':['expl 1', 'expl 2', ...]} } }]
+utils.filter_continuations(test_samples)
+
+
+scores0 = utils.calc_measure_basic(qasc_completions[0][0], compareto=test_questions[0])
+scores1 = utils.calc_measure_basic(qasc_completions[0][1], compareto=test_questions[0])
 
 #Beam search:
 qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
@@ -267,8 +270,8 @@ qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, te
 
 
 
-preds = eval_metrics.preds_basic_filter(res.preds)  
-scores = eval_metrics.calc_measure_basic(preds, compareto=test_questions[0])
+preds = utils.preds_basic_filter(res.preds)  
+scores = utils.calc_measure_basic(preds, compareto=test_questions[0])
 
 
 #TODO Having both facts seems to work better than just one fact.
@@ -333,8 +336,8 @@ res = run_model(prompt_clean, model, tokenizer, indiv_digits=False, norm_numbers
                 max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=10,
                 output_scores=True, return_dict_in_generate=True)  # 696 tokens
 
-preds = eval_metrics.preds_basic_filter(res.preds)
-scores = eval_metrics.calc_measure_basic(preds, compareto=question)
+preds = utils.preds_basic_filter(res.preds)
+scores = utils.calc_measure_basic(preds, compareto=question)
 print(*zip(preds,scores))
 """
 ('An astronomical object may be moved with respect to the sky, but it always remains in the same place in the sky (or in the same part of the sky). The Sun, Moon, and planets are astronomical objects. A location in the sky is a location in the sky where something is located. A property of something', 0.2456140350877193) ('At noon the sun is directly overhead and is said to be at its highest point in the sky. The crescent moon is above the horizon and is directly above the sun. The sun rises in the east and sets in the west. The moon moves east to west because it is the moon and the earth is spinning.', 0.1) ('The stars are fixed in place, and in the sky. Because it is fixed, it cannot be displaced or moved. Because it cannot be moved, it remains in the same place in the sky each night. Some of the fixed objects that do not move are the sun, moon, stars, and planets. Planets', 0.2711864406779661) ('_______ moon comes up in the east at sunset and goes down in the west at dawn, giving rise to the ______ ___ phenomena. _______', 0.13333333333333333) ('For at least two hundred years, two celestial bodies have had a daily motion in the sky. These are called the Sun and the Moon. What remains in the same location is the Sun. The Sun does not move in the sky. As a result, the motion is called the diurnal (or day) motion', 0.2545454545454546) ('The stars rise in the east,', 0.125) ('An astronomical object that rises in the morning and sets in the evening is called an _______ object. A nautical object that rises in the morning and sets in the evening is called a _______ object. Skyline, i.e. horizon line. a meteor, a shooting star. Sunset, i.e.', 0.0851063829787234) ('The north star is a fixed point of reference used to navigate the sky. Throughout the night, the north star remains in the same place. Throughout the year, the north star remains in the same place. Throughout the night, the north star is a constant reference point in the sky. What remains in the same place is', 0.2909090909090909) ('A spotlight shines over the same location in the sky at night; a spotlight light only. As the light of the spotlight gets lower and lower, then more and more of the sky is left in darkness. Shadow is the opposite of light. Light is a property of something. Shine means to direct energy.', 0.2456140350877193) ('Nights are the opposite of days. The word diurnal means things that occur during the night (e.g., sleep, danger, and darkness). The rotation of the Earth around the sun causes all the Earth to change from night to day (daytime) and then back to night (nighttime). In the Northern', 0.15094339622641506)

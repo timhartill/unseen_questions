@@ -14,8 +14,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForPreTraining
 from transformers import GPTJForCausalLM
 from bart import MyBart
-from data import normalize_num, split_digits_special
-from utils import load_model, run_model, get_single_result
+from utils import load_model, run_model, get_single_result, normalize_num, split_digits_special
 
 model_name = "facebook/bart-large"
 #'gpt2', 'gpt2-medium', 'gpt2-large', plastic

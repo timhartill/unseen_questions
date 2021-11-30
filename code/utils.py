@@ -12,11 +12,13 @@ import json
 import pickle
 import os
 import numpy as np
+import copy
 import torch
 from transformers import AutoTokenizer, AutoModelForPreTraining
 from transformers import GPTJForCausalLM, AutoModelForCausalLM
 from bart import MyBart
-from data import normalize_num, split_digits_special
+from text_processing import normalize_num, split_digits_special
+from eval_metrics import normalize_answer, get_f1
 
 
 #####################################
@@ -212,6 +214,24 @@ def return_sublist(sample_list, indices, key=None):
         else:
             sublist.append(sample_list[idx][key])           
     return sublist
+
+
+def add_key(sample_list, new_data, key, make_copy=True):
+    """ Add new data into new key of samples (which is assumed 'jsonl' format).
+    |sample_list| must equal |new_data|...
+    """
+    if make_copy:
+        sample_list = copy.deepcopy(sample_list)
+    for s,n in zip(sample_list, new_data):
+        s[key] = n
+    return sample_list
+
+
+# from https://github.com/castorini/transformers-arithmetic/blob/main/main.py
+def convert_to_base(num: int, base: int, numerals="0123456789abcdefghijklmnopqrstuvwxyz") -> str:
+    """ convert base 10 integer into another base """
+    return ((num == 0) and numerals[0]) or (
+        convert_to_base(num // base, base, numerals).lstrip(numerals[0]) + numerals[num % base])
 
 
 def flatten(alist):
@@ -424,6 +444,60 @@ def generate_continuations(templates, model, tokenizer, queries, example_inputs=
         outlist.append(out)
     return outlist
 
+def preds_basic_filter(preds, min_length=4):
+    """ Given a list of predicted explanations, perform basic filtering
+    - remove with length < min_length
+    - remove duplicates
+    - remove substring sample where it is a substring of another
+    """
+    preds = [p.strip() for p in preds if len(p.strip()) >= min_length]
+    preds_norm = [normalize_answer(p) for p in preds]
+    delete_idx = []
+    for i, pred in enumerate(preds_norm):
+        for j, pred_comp in enumerate(preds_norm):
+            if i != j:
+                if pred in pred_comp and j not in delete_idx:
+                    delete_idx.append(i)
+                    break
+    #print('delete:', delete_idx)
+    pred_tuple = []
+    for i, pred in enumerate(preds):
+        if i in delete_idx:
+            pred_tuple.append( (pred, True) )
+        else:
+            pred_tuple.append( (pred, False) )
+    preds = [pt[0] for pt in pred_tuple if pt[1] == False]        
+    return preds
+
+
+def calc_measure_basic(preds, compareto, measure_fn=None):
+    """ Return a basic relevance measure of each item in list preds to compareto """
+    if measure_fn is None:
+        measure_fn = get_f1
+    scores = []
+    for pred in preds:
+        score = measure_fn(pred, compareto)    
+        scores.append(score)
+    return scores
+
+
+def filter_continuations(sample_list):
+    """ Apply various heuristic fns to refine continuations to relevant subset
+    sample_list format (after running add_key()): 
+        [ {'question':'full question with context in UQA format', 
+           'answer':'ans', 'q_only':'Question only?', 
+           'mc_options': 'mc options, 'context':'non-mc context if any', 
+           'expls':{'0':{'raw':['expl 1', 'expl 2', ...]} } }]
+    Adds keys to 'expls': eg 
+    """
+    for i, s in enumerate(sample_list):
+        q = s['q_only']
+        for k in s['expls']:  # basic filtering on individual prompt template preds '0', '1', ..
+            e = s['expls'][k]
+            e['filtered'] = preds_basic_filter(e['raw'], min_length=4)
+            e['f1_to_q'] = calc_measure_basic(e['filtered'], compareto=q, measure_fn=get_f1)
+    return
+    
 
 #######################
 # Pytorch utils
