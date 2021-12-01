@@ -15,12 +15,10 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, TensorDataset, DataLoader, RandomSampler, SequentialSampler
 
-from eval_metrics import get_exact_match
+from eval_metrics import get_exact_match, selfsupervisedkey
 from text_processing import ner, normalize_num, split_digits_special
-#from w2n import word_to_num   # from https://github.com/ag1988/injecting_numeracy/blob/master/pre_training/gen_bert/create_examples_n_features.py
-#import spacy
-#nlp = spacy.load("en_core_web_sm")
-selfsupervisedkey = "_selfsvised"   # dataset names ending in this will be processed as self supervised
+
+#selfsupervisedkey = "_selfsvised"   # dataset names ending in this will be processed as self supervised
 force_ans_start = '[#'              # if self supervised, can force a specific mask by using eg 'The rain in [#Spain#] lies mainly on the plain.'
 force_ans_end = '#]'
 

@@ -5,21 +5,32 @@ Created on Tue Sep 21 13:19:09 2021
 
 @author: Tim Hartill
 
-Edit this file to add new datasets to evaluation routines:
+Edit this file to add new datasets to evaluation/similarity routines:
     
 - Add to dev_eval to produce preds, metrics for a dataset's dev.tsv - each dataset must be in either dev_eval or test_eval but not both!
 - Add to test_eval to produce preds, metrics for a dataset's test.tsv - each dataset must be in either dev_eval or test_eval but not both!
-- Add to dataset_attribs to configure the set of metrics to be produced for a given dataset
-
-
+- Add to dataset_attribs to include in eval and/or similarity calc plus to configure the set of metrics to be produced for a given dataset
+- Add to replace_sim_with to use sembs from another dataset as proxy in calculating similarity for a given dataset
 - Edit the following to add/remove datasets from sets of current output reports:
-unifiedqa_unseen_4
-unifiedqa_unseen_4_map  # must configure this to identify whether dev.tsv or test.tsv is the file to be used for calculation
-unifiedqa_unseen_6
-unifiedqa_seen_1
+    unifiedqa_unseen_4
+    unifiedqa_unseen_4_map  # must configure this to identify whether dev.tsv or test.tsv is the file to be used for calculation
+    unifiedqa_unseen_6
+    unifiedqa_seen_1
+- Edit UQA_DIR to point to base directory for unified-qa formatted datasets.
+- Edit create_datasets_dynamic to add new datasets to dynamically create explations for (i.e from q[+mc]->a make q[+mc]+e->a). 
+    Datasets added here must be in dev_eval/test_eval and in dataset_attribs..
+    Dynamically created versions i.e /UQA_DIR/qasc_svised_expl_ans_modeloutputdir_timestamp will be added to dev_eval/test_eval and dataset_attribs when this module is loaded..
 
 
 """
+import os
+import fnmatch
+SVISED_EXPL_ANS = '_dyn_expl_ans_'
+selfsupervisedkey = "_selfsvised"   # dataset names ending in this will be processed as self supervised
+
+
+UQA_DIR = '/data/thar011/data/unifiedqa/' # datasets base directory
+
 
 #Add to this list to create predictions/calc metrics for corresponding dev.tsv:
 dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
@@ -37,13 +48,14 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'newsqa_lowsim_tdnd', 'strategy_qa', 'cwwv', 'atomic',
             'musique_qa', 'musique_qa_paras', 'musique_mu_dev_qa', 'musique_mu_dev_qa_paras',
             'musique_qa_decomp_ans', 'musique_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_ans',
-            'musique_mu_dev_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_context']
+            'musique_mu_dev_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_context', 
+            'musique_mu_dev_qa_expl_ans', 'qasc_mc_ans', 'strategy_qa_expl_ans', 'strategy_qa_od_ans']
 
 #Add to this list to create predictions/calc metrics for corresponding test.tsv:
 test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
              'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string',  
              'mmlu_elementary_to_college_math_test',  
-             'mmlu_elementary_to_college_math_test_lowsim_tdnd']
+             'mmlu_elementary_to_college_math_test_lowsim_tdnd', 'worldtree_mc_ans']
 
 
 #Unused, just to keep complete list of everything ever used in eval handy..
@@ -106,9 +118,11 @@ metric_groups = {
     'DC': {'compute':['EM', 'F1A', 'F1DA', 'SARID', 'SARIDA'], 'prefer':'F1A'}  #F1A = F1 on answer only so comparable to other datasets
 }
 
-
+########################################################
 #Map datasets to dataset types and optional override for preferred reporting metric (must be one in above 'compute' key)
 #NOTE: Any dataset used in evaluation metrics calculation and/or similarity calculation must be added to dataset_attribs
+########################################################
+
 dataset_attribs = {
     'ai2_science_elementary': {'type':'MC', 'prefer':''},
     'ai2_science_middle': {'type':'MC', 'prefer':''},
@@ -275,14 +289,21 @@ dataset_attribs = {
     'musique_qa_paras_plus_qa_paras_decomp_ans': {'type':'EX', 'prefer':''},
     'musique_qa_paras_plus_qa_paras_decomp_ans_full': {'type':'EX', 'prefer':''},
     'musique_mu_dev_qa_decomp_context': {'type':'EX', 'prefer':''},
+    'strategy_qa_od_ans': {'type':'YN', 'prefer':''},
+    'strategy_qa_expl_ans': {'type':'YN', 'prefer':''},
+    'qasc_mc_ans': {'type':'MC', 'prefer':''},
+    'worldtree_mc_ans': {'type':'MC', 'prefer':''},
+    'musique_mu_dev_qa_expl_ans': {'type':'EX', 'prefer':''},
     }
-
 
 unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
                         "arc_hard", "arc_easy", "mctest_corrected_the_separator",
                         "squad1_1", "squad2", "boolq", "race_string", "openbookqa"]
 
+########################################################
 # where same train dataset in difft formats, just calc sim against one format and map similarity for others against that...
+########################################################
+
 replace_sim_with = {'cwwv_selfsvised': 'cwwv', 
                 'atomic_selfsvised': 'atomic', 
                 'cwwv_premask_selfsvised': 'cwwv', 
@@ -294,9 +315,17 @@ replace_sim_with = {'cwwv_selfsvised': 'cwwv',
                 'musique_qa_plus_qa_decomp_ans_full': 'musique_qa_full',
                 'musique_qa_paras_plus_qa_paras_decomp_ans_full': 'musique_qa_paras_full',
                 'musique_mu_dev_qa_decomp_ans': 'musique_mu_dev_qa',
-                'musique_mu_dev_qa_paras_decomp_ans': 'musique_mu_dev_qa_paras'
+                'musique_mu_dev_qa_paras_decomp_ans': 'musique_mu_dev_qa_paras',
+                'strategy_qa_od_ans': 'strategy_qa',
+                'strategy_qa_expl_ans': 'strategy_qa',
+                'qasc_mc_ans': 'qasc',
+                'musique_mu_dev_qa_expl_ans': 'musique_mu_dev_qa',
                 }
 
+
+########################################################
+# Sets of Eval datasets used in generating reports...
+########################################################
 
 # Not used
 unifiedqa_unseen_1 = [
@@ -362,8 +391,17 @@ unifiedqa_unseen_4 = [
     'musique_mu_dev_qa_paras',
     'musique_mu_dev_qa_paras_decomp_ans',
     'musique_mu_dev_qa_decomp_context',
+    'strategy_qa_od_ans',
+    'strategy_qa_expl_ans',
+    'qasc_mc_ans',
+    'musique_mu_dev_qa_expl_ans',
+    'worldtree_mc_ans',
     ]
 
+
+# Note: This is only used in create_least_similar_versions.py and check_least_similar_answer.py
+# These two py files have now been modified s.t. if a datasets isn't in this map, the file defaults to 'dev.tsv'..
+# So only need to add datasets to this map if 'test.tsv' is the one needed..
 unifiedqa_unseen_4_map = {
     'drop_dedup': 'dev.tsv',
     'contrast_sets_drop_dedup': 'dev.tsv',
@@ -384,22 +422,11 @@ unifiedqa_unseen_4_map = {
     'musique_qa_paras_decomp_ans': 'dev.tsv',
     'musique_mu_dev_qa_decomp_ans': 'dev.tsv',
     'musique_mu_dev_qa_paras_decomp_ans': 'dev.tsv',
-    'musique_mu_dev_qa_decomp_context': 'dev.tsv'
+    'musique_mu_dev_qa_decomp_context': 'dev.tsv',
+    'worldtree_mc_ans': 'test.tsv'
     }
 
-# Not used
-unifiedqa_unseen_5 = [
-    'drop_dedup_lowsim_uqa',
-    'contrast_sets_drop_dedup_lowsim_uqa',
-    'mmlu_elementary_to_college_math_test_lowsim_uqa',
-    'physical_iqa_lowsim_uqa',
-    'social_iqa_dedup_lowsim_uqa',
-    'commonsenseqa_lowsim_uqa',
-    'qasc_lowsim_uqa',
-    'qasc_with_ir_lowsim_uqa',
-    'ropes_lowsim_uqa',
-    'newsqa_lowsim_uqa'
-    ]
+
 
 # The filtered versions of the 10 unseen datasets used in our paper
 unifiedqa_unseen_6 = [
@@ -494,4 +521,50 @@ mmlu_unseen_1 = [
      'mmlu_college_chemistry_test']
 
 
+########################################################
+# Eval Datasets q[+mc]->a to take as input and output to new dir as q[+mc]+e->a i.e to generate e for
+# New dynamically created datasets will be created as e.g /UQA_DIR/qasc_dyn_expl_ans_modeloutputdir_timestamp
+# NOTE: Each of these datasets must be in dataset_attribs and in one of dev_eval or test_eval as using the dev.tsv or test.tsv will be inferred from this
+# NOTE2: The dynamically created versions will be added "on the fly" to dev_eval and test_eval and to a special "unseen" dataset
+########################################################
+
+create_datasets_dynamic = ['musique_mu_dev_qa', 'strategy_qa_od_ans', 'qasc', 'arc_easy', 'arc_hard' ]
+
+# Not used
+unifiedqa_unseen_5 = []
+
+def list_files_pattern(dirtolist, pattern='*'):
+    """ Returns a list of files in a dictionary matching a pattern
+    """
+    return [file for file in os.listdir(dirtolist) if fnmatch.fnmatch(file, pattern)]
+
+
+for dset in create_datasets_dynamic:
+    curr_dir = os.path.join(UQA_DIR, dset)
+    if not os.path.exists(curr_dir):
+        print(f"ERROR: dataset_attributes.py: {curr_dir} doesn't exist! Skipping...")
+        continue
+    attrib = dataset_attribs.get(dset)
+    if attrib is None:
+        print(f"ERROR: dataset_attributes.py: {attrib} hasn't been added to dataset_attribs! Skipping...")
+        continue
+    if dset in dev_eval:
+        evaltype = 'dev'
+    elif dset in test_eval:
+        evaltype = 'test'
+    else:
+        print(f"ERROR: dataset_attributes.py: {dset} hasn't been added to one of dev_eval or test_eval! Skipping...")
+        continue
+    dyn_dsets = list_files_pattern(UQA_DIR, dset+SVISED_EXPL_ANS+'*')  
+    if dyn_dsets == []:
+        print(f"WARNING: dataset_attributes.py: No dynamically created datasets from {dset} were found in {UQA_DIR}! Skipping...")
+        continue
+    for dyn_ds in dyn_dsets:
+        dataset_attribs[dyn_ds] = attrib
+        if evaltype == 'dev':
+            dev_eval.append(dyn_ds)
+        else:
+            test_eval.append(dyn_ds)
+    unifiedqa_unseen_5.append(dyn_ds)    
+        
 

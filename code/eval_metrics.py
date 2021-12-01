@@ -38,6 +38,7 @@ import datasets
 from sari import SARI
 from dataset_attributes import dev_eval, test_eval, metric_groups, dataset_attribs, unifiedqa_base_train, replace_sim_with
 from dataset_attributes import unifiedqa_unseen_1, unifiedqa_unseen_2, unifiedqa_unseen_3, unifiedqa_unseen_4, unifiedqa_unseen_4_map, unifiedqa_unseen_5, unifiedqa_unseen_6, unifiedqa_seen_1, mmlu_unseen_1
+from dataset_attributes import UQA_DIR, SVISED_EXPL_ANS, selfsupervisedkey
 
 
 def replace_sim(datasets, mixture_file_key):
@@ -944,6 +945,8 @@ def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', '
         res.crosstab_x_tasks(dsetset='seen1', outname='eval_across_models_seen1.txt') # 'final' set - 10 unrestricted eval datasets
     if 'unseen4' in include_list:
         res.crosstab_x_tasks(dsetset='unseen4', outname='eval_across_models_us4.txt') # 'final' set - 10 unrestricted eval datasets
+    if 'unseen5' in include_list:
+        res.crosstab_x_tasks(dsetset='unseen5', outname='eval_across_models_us5dyn.txt') # 'final' set - 10 unrestricted eval datasets
     if 'unseen6' in include_list:
         res.crosstab_x_tasks(dsetset='unseen6', outname='eval_across_models_us6lowsimtdnd.txt') # 'final' set - 10 unrestricted eval datasets        
     if 'mmlu_unseen1' in include_list:

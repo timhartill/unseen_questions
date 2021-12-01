@@ -38,7 +38,7 @@ def main():
     parser.add_argument("--do_train", action='store_true')
     parser.add_argument("--do_predict", action='store_true')
     parser.add_argument("--do_predict_all", action='store_true',
-                        help="Output predictions for all datasets in dataset_attributes.py dev_aval and test_eval.")
+                        help="Output predictions for all datasets in dataset_attributes.py dev_eval and test_eval.")
     parser.add_argument("--is_unifiedqa", action='store_true',
                         help="If set and --do_train will train on the mixture specified in --mixture.")
     parser.add_argument("--skip_inference", action='store_true')

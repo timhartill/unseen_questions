@@ -856,9 +856,8 @@ def calc_similarity_embeddings(args, logger):
     else:
         logger.info(f"No existing sim_results file {results_file_out}. Starting from empty file.")
 
-        
+    changed = False       
     for i, trainset in enumerate(train_data.data.keys()):
-        changed = False
         ssvised = train_data.selfsupervised[i]
         logger.info(f"Calculating embedding similarity for {trainset} against:")
         train_reformat = []
@@ -921,13 +920,13 @@ def calc_similarity_embeddings(args, logger):
                                                   'test_scores': scores}
                 changed = True
 
-        if changed:
-            logger.info(f"Finished calculating test-train embedding similarities for {trainset}. Saving results into {results_file_out}..")
-            with open(results_file_out, 'w') as f:
-                json.dump(sim_results, f)
-        else:
-            logger.info(f"No updates for {trainset} so {results_file_out} not updated...")
-    logger.info(f"Finished saving results into {results_file_out}!")
+    if changed:
+        logger.info(f"Finished calculating test-train embedding similarities. Saving results into {results_file_out}..")
+        with open(results_file_out, 'w') as f:
+            json.dump(sim_results, f)
+        logger.info(f"Finished saving results into {results_file_out}!")
+    else:
+        logger.info(f"No updates so {results_file_out} not updated...")
     return
 
 

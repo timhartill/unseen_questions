@@ -44,6 +44,8 @@ def calc_answer_set(s, dsetset, ngram='Unigram'):
         for k in DSET_MAP:
             if dset.startswith(k):
                 file = DSET_MAP[k]
+        if file == '':
+            file = 'dev.tsv'
         infile = os.path.join(indir, file)
              
 

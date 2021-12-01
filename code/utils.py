@@ -13,6 +13,8 @@ import pickle
 import os
 import numpy as np
 import copy
+import time
+import fnmatch
 import torch
 from transformers import AutoTokenizer, AutoModelForPreTraining
 from transformers import GPTJForCausalLM, AutoModelForCausalLM
@@ -24,6 +26,19 @@ from eval_metrics import normalize_answer, get_f1
 #####################################
 # General utils
 #####################################
+
+def get_timestamp():
+    """ Return a timestamp of the current local time in filename-friendly format
+    """
+    t = time.localtime()
+    return str(t.tm_year) + '_' + str(t.tm_mon) + '_' + str(t.tm_mday) + '_' + str(t.tm_hour).zfill(2) + str(t.tm_min).zfill(2) + '_' + str(t.tm_sec)
+
+
+def list_files_pattern(dirtolist, pattern='*'):
+    """ Returns a list of files in a dictionary matching a pattern
+    """
+    return [file for file in os.listdir(dirtolist) if fnmatch.fnmatch(file, pattern)]
+
 
 def load_jsonl(file, verbose=True):
     """ Load a list of json msgs from a file formatted as 

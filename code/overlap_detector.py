@@ -1259,7 +1259,7 @@ def run_sim_detail_reports(logdir, sim_results_file, model_results_file, trainin
     return
 
 
-def run_summary_thresh_reports(logdir, sim_results_file, results_list):
+def run_summary_thresh_reports(logdir, sim_results_file, results_list, include_list=['unseen4']):
     """ Run the summary by sim threshold report for a set of model runs 
         The training mixture for each model run is read from the mixture key 
         in current-model-config.json file in each directory
@@ -1294,7 +1294,7 @@ def run_summary_thresh_reports(logdir, sim_results_file, results_list):
                         '/data/thar011/out/unifiedqa_bart_large_s6_v14_musique_qa_paras_plus_qa_paras_decomp_ans_full/eval_metrics.json',
                        ]
         logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
-        run_summary_thresh_reports(logdir, sim_results_file, results_list)
+        run_summary_thresh_reports(logdir, sim_results_file, results_list, include_list=['unseen4'])
     """
     if logdir[-1] != '/':
         logdir += '/'
@@ -1314,9 +1314,14 @@ def run_summary_thresh_reports(logdir, sim_results_file, results_list):
         result_as_list = [result]
         s_uqaplus_summary = SimilarityAggregator(sim_results, no_overlap_thresh=1000.0, results_list=result_as_list,
                                                  compare_over=test_similarity_over, thresh_buckets = [0,60,90,101], logdir=logdir)
-        s_uqaplus_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_4, output_metrics = ['mean_pred_score_str'], 
-                                                          output_results = 'ALL', ngram='Unigram', column='combo', 
-                                                          outname = f'crosstab_summary_us4_{result_name}{mixture_key}.txt')
+        if 'unseen4' in include_list:
+            s_uqaplus_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_4, output_metrics = ['mean_pred_score_str'], 
+                                                              output_results = 'ALL', ngram='Unigram', column='combo', 
+                                                              outname = f'crosstab_summary_us4_{result_name}{mixture_key}.txt')
+        if 'unseen5' in include_list:
+            s_uqaplus_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_5, output_metrics = ['mean_pred_score_str'], 
+                                                              output_results = 'ALL', ngram='Unigram', column='combo', 
+                                                              outname = f'crosstab_summary_us5dyn_{result_name}{mixture_key}.txt')
     print("Finished!")
     return
 
@@ -1348,6 +1353,8 @@ def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqap
                                                   output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqa_summary_us4.txt')
     s_uqa_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_6, output_metrics = ['mean_pred_score_str'], 
                                                   output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqa_summary_us6lowsimtdnd.txt')
+    s_uqa_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_5, output_metrics = ['mean_pred_score_str'], 
+                                                  output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqa_summary_us5dyn.txt')
 
     # run these steps to process summary results generated after adding td and nd tasks
     s_uqaplus_summary = SimilarityAggregator(sim_results, no_overlap_thresh=1000.0, results_list=results_list_uqaplus,
@@ -1356,6 +1363,8 @@ def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqap
                                                    output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqaplus_summary_us4.txt')
     s_uqaplus_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_6, output_metrics = ['mean_pred_score_str'], 
                                                    output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqaplus_summary_us6lowsimtdnd.txt')
+    s_uqaplus_summary.crosstab_x_train_y_evalbythresh(dsetset=eval_metrics.unifiedqa_unseen_5, output_metrics = ['mean_pred_score_str'], 
+                                                   output_results = 'ALL', ngram='Unigram', column='combo', outname = 'crosstab_uqaplus_summary_us5dyn.txt')
 
 
     # Then run these steps to produce detail over UQA training sets, output csv files and prepare for the interleaving fn below:

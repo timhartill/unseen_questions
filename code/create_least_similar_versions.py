@@ -66,7 +66,10 @@ def calc_no_answer_overlap(s, ngram='Unigram', writefile=True):
     for dset in DSETSET:     # for each eval dataset
         print(f'Processing {dset} ...')
         indir = os.path.join(DATASET_DIR, dset)
-        file = DSET_MAP[dset]
+        if DSET_MAP.get(dset) is not None:
+            file = DSET_MAP[dset]
+        else:
+            file = 'dev.tsv'
         infile = os.path.join(indir, file)
         outdir = os.path.join(DATASET_DIR, dset + dir_add)
         outfile = os.path.join(outdir, file)

@@ -1,7 +1,7 @@
 #!/bin/bash
 # add information for incremental eval datasets to existing eval_metrics.json files
 # (0) add each new eval or train dataset to the dataset_attribs dict etc in dataset_attributes.py following instns there, then update this script to add any new output dirs 
-# run (1) predictions + (2) calc metrics - Run this script  
+# run (1) predictions + (2) calc metrics - by running this script  
 # once this done (3) create sentence embeddings for each new dataset by running runsembeddings_bart_indivdigits_tdnd_V7.sh 
 # then (4) update similarity json file for new datasets to existing model outputs by running runsim_for_sembeddings_bart_indivdigits_tdnd_V7.sh
 # /data/thar011/out/unifiedqa_bart_large_v3                             script: runevalall_v2_bartlarge_pick_bestmodel.sh
