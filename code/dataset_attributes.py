@@ -26,7 +26,8 @@ Edit this file to add new datasets to evaluation/similarity routines:
 import os
 import fnmatch
 SVISED_EXPL_ANS = '_dyn_expl_ans_'
-selfsupervisedkey = "_selfsvised"   # dataset names ending in this will be processed as self supervised
+selfsupervisedkey = '_selfsvised'   # dataset names ending in this will be processed as self supervised
+add_explanationkey = 'Add Explanation:'
 
 
 UQA_DIR = '/data/thar011/data/unifiedqa/' # datasets base directory
@@ -562,9 +563,11 @@ for dset in create_datasets_dynamic:
     for dyn_ds in dyn_dsets:
         dataset_attribs[dyn_ds] = attrib
         if evaltype == 'dev':
-            dev_eval.append(dyn_ds)
+            if dyn_ds not in dev_eval:
+                dev_eval.append(dyn_ds)
         else:
-            test_eval.append(dyn_ds)
-    unifiedqa_unseen_5.append(dyn_ds)    
+            if dyn_ds not in test_eval:
+                test_eval.append(dyn_ds)
+        unifiedqa_unseen_5.append(dyn_ds)    
         
 

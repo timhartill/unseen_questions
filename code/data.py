@@ -321,7 +321,9 @@ class QAData(object):
         metadata = [(0, len(new_answers))]
         return new_answers, metadata
 
-    def load_dataset(self, tokenizer, do_return=False):
+    def load_dataset(self, tokenizer, do_return=False, load_preprocessed=True):
+        if not load_preprocessed: 
+            self.load = False  # don't load or save tokenised data to file
         self.tokenizer = tokenizer
         postfix = tokenizer.__class__.__name__.replace("zer", "zed")
         preprocessed_path = os.path.join(

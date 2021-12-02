@@ -127,6 +127,10 @@ def main():
     parser.add_argument("--add_mask_ctr", action='store_true',
                         help="Add a counter to <mask> e.g. make it <mask>_2")
 
+    parser.add_argument("--gen_explanations_all", action='store_true',
+                        help="Generate explanations e for datasets specified in dataset_attibutes.create_datasets_dynamic, append as q[+mc]+e->a and save as new uqa-formatted datasets in dataset_attributes.UQA_DIR")
+
+
 
     # Other parameters
     parser.add_argument("--verbose", action='store_true',
@@ -171,8 +175,8 @@ def main():
     if not args.do_train and not args.do_predict \
         and not args.calc_metrics and not args.calc_similarity \
         and not args.calc_similarity_numeric and not args.create_embeddings and not args.calc_similarity_embeddings \
-        and not args.do_predict_all and not args.calc_metrics_all:
-        raise ValueError("At least one of `do_train` or `do_predict` or `do_predict_all` or 'calc_metrics' or 'calc_metrics_all' or calc_similarity or calc_similarity_numeric or create_embeddings or calc_similarity_embeddings must be True.")
+        and not args.do_predict_all and not args.calc_metrics_all and not args.gen_explanations_all:
+        raise ValueError("At least one of `do_train` or `do_predict` or `do_predict_all` or 'calc_metrics' or 'calc_metrics_all' or calc_similarity or calc_similarity_numeric or create_embeddings or calc_similarity_embeddings or gen_explanations_all must be True.")
 
     if args.do_train:
         if not args.train_file:

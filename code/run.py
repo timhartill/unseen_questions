@@ -30,9 +30,12 @@ from bart import MyBart
 import eval_metrics  
 from overlap_detector import UQADataset
 from sentence_embeddings import Embedder, restate_qa_all
-from utils import get_parsed_decomp_str, get_parsed_decomp_by_key, load_model
+from utils import get_parsed_decomp_str, get_parsed_decomp_by_key, load_model, run_model, get_checkpoint
+from utils import load_uqa_supervised, create_uqa_example, add_key, get_timestamp
 
 def run(args, logger):
+    model = None
+    
     if args.do_train or args.calc_metrics:
         tokenizer = AutoTokenizer.from_pretrained(args.model)
     
@@ -60,9 +63,9 @@ def run(args, logger):
 
 
         if args.checkpoint is not None:
+            logger.info("Loading checkpoint from {}".format(args.checkpoint))       
             model = my_model.from_pretrained(args.model,
                                            state_dict=torch.load(args.checkpoint))  
-            logger.info("Loading checkpoint from {}".format(args.checkpoint))       
         else:
             model = my_model.from_pretrained(args.model) 
             logger.info("No checkpoint loaded. Training from base pretrained model.")
@@ -97,26 +100,26 @@ def run(args, logger):
                                         num_training_steps=args.num_scheduler_steps)  #TJH added num_scheduler_steps param default 250k, was 100k
         train(args, logger, model, train_data, dev_data, optimizer, scheduler)
 
+        
+    if args.gen_explanations_all:  # generate explanations and create new eval datasets using them..
+        if model is None:
+            checkpoint = get_checkpoint(args, logger)
+            logger.info(f"Running Explanation Generation. Checkpoint={checkpoint}")    
+            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
+        gen_explanations_all(tokenizer, model, args, logger)
+
     if args.do_predict:
-        if args.checkpoint is not None and not os.path.exists(args.checkpoint):
-            logger.info(f"Error running Predict: Specified checkpoint doesnt exist: Checkpoint={args.checkpoint}") 
-            assert os.path.exists(args.checkpoint), "Exiting. Please remediate and restart."
-        checkpoint = os.path.join(args.output_dir, 'best-model.pt') if args.checkpoint is None else args.checkpoint
-        if not os.path.exists(checkpoint):
-            checkpoint = None
-        logger.info(f"Running Predict. Checkpoint={checkpoint}")    
-        tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
+        if model is None:
+            checkpoint = get_checkpoint(args, logger)
+            logger.info(f"Running Predict. Checkpoint={checkpoint}")    
+            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
         inference_wrapper(tokenizer, model, args, logger, predict_file=args.predict_file)
 
     if args.do_predict_all:
-        if args.checkpoint is not None and not os.path.exists(args.checkpoint):
-            logger.info(f"Error running Predict All: Specified checkpoint doesnt exist: Checkpoint={args.checkpoint}") 
-            assert os.path.exists(args.checkpoint), "Exiting. Please remediate and restart."
-        checkpoint = os.path.join(args.output_dir, 'best-model.pt') if args.checkpoint is None else args.checkpoint
-        if not os.path.exists(checkpoint):
-            checkpoint = None
-        logger.info(f"Running Predict All. Checkpoint={checkpoint}")    
-        tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
+        if model is None:
+            checkpoint = get_checkpoint(args, logger)
+            logger.info(f"Running Predict All. Checkpoint={checkpoint}")    
+            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
         uqa_dir = args.predict_file
         if uqa_dir[-4:] == '.tsv':  # eg specified as '/data/thar011/data/unifiedqa/dev.tsv' like uqa train format
             uqa_dir = os.path.split(uqa_dir)[0]  # base uqa directory
@@ -170,7 +173,7 @@ def run(args, logger):
                 logger.info(f"Skipping calc metrics for {ftype} data of {ds} as key already exists in eval_metrics.json")
                 continue
             dspath = os.path.join(uqa_dir, ds, ftype+'.tsv')
-            calc_metrics_wrapper(tokenizer, args, logger, predict_file=dspath)        
+            calc_metrics_wrapper(tokenizer, args, logger, predict_file=dspath)
 
         
     if args.calc_similarity:
@@ -342,13 +345,12 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
             break
 
 
-def inference(model, dev_data, save_predictions=False, return_details=False):
+def inference(model, dev_data, save_predictions=False, return_details=False, return_preds=False):
     predictions = []
-    bos_token_id = dev_data.tokenizer.bos_token_id
     if dev_data.args.verbose:
         dev_data.dataloader = tqdm(dev_data.dataloader)
     for i, batch in enumerate(dev_data.dataloader):
-        batch = [b.to(torch.device("cuda")) for b in batch]
+        batch = [b.to(model.device) for b in batch]  # was torch.device("cuda")
         outputs = model.generate(input_ids=batch[0],
                                  attention_mask=batch[1],
                                  num_beams=dev_data.args.num_beams,
@@ -363,6 +365,8 @@ def inference(model, dev_data, save_predictions=False, return_details=False):
     if return_details:
         ems = dev_data.evaluate(predictions)  # if unifiedqa: [dset1 pred mean, dset2 pred mean, ...] else [pred1, pred2, ...]
         return np.mean(ems), ems
+    if return_preds:
+        return predictions
     return np.mean(dev_data.evaluate(predictions))
 
 
@@ -930,7 +934,49 @@ def calc_similarity_embeddings(args, logger):
     return
 
 
-
+def gen_explanations_all(tokenizer, model, args, logger):
+    """ Generate explanations e for datasets specified in dataset_attibutes.create_datasets_dynamic, 
+        append as q[+mc]+e->a and save as new uqa-formatted datasets in dataset_attributes.UQA_DIR
+        
+        args.output_dir = '/data/thar011/out/unifiedqa_bart_large_TEST'
+        args.checkpoint = '/data/thar011/out/unifiedqa_bart_large_s7_v1_uqa_sqa_mqa_expl_mswq_explans_msw/best-model-150000.pt'
+        args.verbose=True
+        args.predict_batch_size = 32
+    """
+    logger.info(f"Generating explanation augmented datasets for: {eval_metrics.create_datasets_dynamic} ...")
+    for dset in eval_metrics.create_datasets_dynamic:
+        if dset in eval_metrics.dev_eval:
+            file = 'dev.tsv'
+        else:
+            file = 'test.tsv'
+        dset_file = os.path.join(eval_metrics.UQA_DIR, dset, file) 
+        logger.info(f"Loading source file: {dset_file} ...")
+        source_dset = load_uqa_supervised(dset_file, ans_lower=False, verbose=False, return_parsed=True)
+        q_expl = [eval_metrics.add_explanationkey + ' ' + s['q_only'] + ' \\n ' for s in source_dset]
+        dev_data = QAData(logger, args, dset_file, False)
+        add_key(dev_data.data, q_expl, key='question', make_copy=False)
+        dev_data.load_dataset(tokenizer, load_preprocessed=False)
+        dev_data.load_dataloader()
+        preds = inference(model, dev_data, save_predictions=False, return_details=False, return_preds=True)
+        if source_dset[0]['mc_options'].strip() != '':
+            for i, p in enumerate(preds):
+                preds[i] = source_dset[i]['mc_options'].strip() + '\\n' + p
+        add_key(source_dset, preds, key='context', make_copy=False)
+        out = [create_uqa_example(s['q_only'], s['context'], s['answer']) for s in source_dset]
+        out_dset = dset + eval_metrics.SVISED_EXPL_ANS + os.path.split(args.output_dir)[-1] + '_' + get_timestamp()
+        out_dset_dir = os.path.join(eval_metrics.UQA_DIR, out_dset)    
+        logger.info(f"Saving new dataset into: {out_dset_dir} as {file}...")
+        os.makedirs(out_dset_dir, exist_ok=True)
+        outfile = os.path.join(out_dset_dir, file)
+        print(f'Saving {outfile} ...')
+        with open(outfile, 'w') as f:
+            f.write(''.join(out))    
+        if file == 'dev.tsv': # add newly created datasets to dev_eval/test_eval so that --do_predict_all will pick them up - but in reality will call separately as doing eval for possibly different models
+            eval_metrics.dev_eval.append(out_dset)
+        else:
+            eval_metrics.test_eval.append(out_dset)
+    logger.info("Finished explanation generation!")
+    return
 
 
 

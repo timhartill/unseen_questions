@@ -84,7 +84,9 @@ class UnifiedQAData(QAData):
     def decode_batch(self, tokens):
         return [self.decode(_tokens) for _tokens in tokens]
 
-    def load_dataset(self, tokenizer):
+    def load_dataset(self, tokenizer, load_preprocessed=True):
+        if not load_preprocessed: 
+            self.load = False  # don't load or save tokenised data to file
         self.tokenizer = tokenizer
         postfix = self.tokenizer.__class__.__name__.replace("zer", "zed")
         preprocessed_path = os.path.join(

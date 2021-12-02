@@ -239,7 +239,9 @@ def add_key(sample_list, new_data, key, make_copy=True):
         sample_list = copy.deepcopy(sample_list)
     for s,n in zip(sample_list, new_data):
         s[key] = n
-    return sample_list
+    if make_copy:
+        return sample_list
+    return
 
 
 # from https://github.com/castorini/transformers-arithmetic/blob/main/main.py
@@ -374,6 +376,18 @@ def get_parsed_decomp_by_key(decomp_list, key, join_list=True):
         key_list.append( val )
     return key_list
     
+
+def get_checkpoint(args, logger):
+    """ Return checkpoint if there is one
+    """
+    if args.checkpoint is not None and not os.path.exists(args.checkpoint):
+        logger.info(f"Error running Predict: Specified checkpoint doesnt exist: Checkpoint={args.checkpoint}") 
+        assert os.path.exists(args.checkpoint), "Exiting. Please remediate and restart."
+    checkpoint = os.path.join(args.output_dir, 'best-model.pt') if args.checkpoint is None else args.checkpoint
+    if not os.path.exists(checkpoint):
+        checkpoint = None
+    return checkpoint
+
 
 #######################
 #LM Prompt Parsing Utils
@@ -632,7 +646,7 @@ def decode_ids(res, tokenizer, skip_special_tokens=True, clean_up_tokenization_s
 
 
 def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up_tokenization_spaces=True,
-              indiv_digits=False, norm_numbers=True, norm='', special='Ġ', verbose=False,
+              indiv_digits=False, norm_numbers=False, norm='', special='Ġ', verbose=False,
               truncation=True, max_input_length=512, lower=True, #to_cuda=True, cuda_device=None,
               append_eos=True, prepend_bos=True, only_decode_new=False, cut_at_nl=False, **generator_args):
     """ Run cut-down version of tokenisation and generation pipeline for single input string
