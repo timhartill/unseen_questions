@@ -1,9 +1,10 @@
 #!/bin/bash
 # add information for incremental eval datasets to existing eval_metrics.json files
-# (0) add each new eval or train dataset to the dataset_attribs dict etc in dataset_attributes.py following instns there, then update this script to add any new output dirs 
-# run (1) predictions + (2) calc metrics - by running this script  
-# once this done (3) create sentence embeddings for each new dataset by running runsembeddings_bart_indivdigits_tdnd_V7.sh 
-# then (4) update similarity json file for new datasets to existing model outputs by running runsim_for_sembeddings_bart_indivdigits_tdnd_V7.sh
+# (0) Add each new eval or train dataset to the dataset_attribs dict etc in dataset_attributes.py following instns there, then update this script to add any new output dirs 
+# (1) If needed run rungen_expl_bartlarge_pick_ckpt150k.sh to generate any new dynamic expl datasets (create q[+mc]e->a from models trained to do q->e)
+# (2) run predictions + (3) calc metrics - by running this script  
+# (4) Once this done, create sentence embeddings for each new dataset by running runsembeddings_bart_indivdigits_tdnd_V7.sh 
+# (5) Then update similarity json file for new datasets to existing model outputs by running runsim_for_sembeddings_bart_indivdigits_tdnd_V7.sh
 # /data/thar011/out/unifiedqa_bart_large_v3                             script: runevalall_v2_bartlarge_pick_bestmodel.sh
 # /data/thar011/out/unifiedqa_2gputest_from_uqackpt              	 script: runevalall_v2_bartlarge_pick_bestmodel.sh
 # /data/thar011/out/unifiedqa_bart_large_v4indiv_digits        script: runevalall_v2_bartlarge_pick_ckpt150k_indivdigits.sh

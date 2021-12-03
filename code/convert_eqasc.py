@@ -11,10 +11,13 @@ QASC Paper: 'A Dataset for Question Answering via Sentence Composition'
 eQASC Paper: 'Learning to Explain: Datasets and Models for Identifying Valid Reasoning Chains in Multihop Question-Answering'
 
 Outputs facts files into:
-    UQA_QASC_FACTS_DIR combining QASC and EQASC gold facts
+    UQA_QASC_FACTS_DIR combining QASC and EQASC gold facts. train only facts excl all dev facts in train.tsv. dev facts in dev.tsv
+    UQA_QASC_FACTS_DEV_IN_TRAIN_DIR - combined dev+train facts in train.tsv, same dev.tsv as UQA_QASC_FACTS_DIR
     UQA_QASC_GRC_FACTS_DIR (generalised reasoning chain versions from eQASC only which also have the qasc golds in them)
     UQA_QASC_CORPUS_FACTS_EXCL_TRAINDEV The QASC corpus excluding facts in QASC+eQASC train and dev
     
+Note: 'qasc_dev_facts_selfsvised' was created manually by copying dev.tsv in new dir from 'qasc_facts_selfsvised' as both traintsv and dev.tsv
+
 Edit the below directories and filenames before running...
 
 """
@@ -25,11 +28,12 @@ import numpy as np
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
 UQA_QASC_FACTS_DIR = 'qasc_facts_selfsvised'
+UQA_QASC_FACTS_DEV_IN_TRAIN_DIR = 'qasc_facts_dev_in_train_selfsvised'
 UQA_QASC_GRC_FACTS_DIR = 'qasc_grc_facts_selfsvised'
 UQA_QASC_CORPUS_FACTS_EXCL_TRAINDEV = 'qasc_corpus_excl_traindev_selfsvised'
-QASC_DIR_IN = '/data/thar011/data/qasc/QASC_Dataset/'
-QASC_CORPUS_FILE = '/data/thar011/data/qasc/QASC_Corpus/QASC_Corpus.txt'
-EQASC_DIR_IN = '/data/thar011/data/eqasc/'
+QASC_DIR_IN = '/home/thar011/data/qasc/QASC_Dataset/'
+QASC_CORPUS_FILE = '/home/thar011/data/qasc/QASC_Corpus/QASC_Corpus.txt'
+EQASC_DIR_IN = '/home/thar011/data/eqasc/'
 EQASC_DEV_FILE = 'eqasc_dev_grc.json'
 EQASC_TRAIN_FILE = 'eqasc_train_grc.json'
 
@@ -144,7 +148,7 @@ dev_facts = dev_facts.union(eqasc_dev_facts)
 
 print(f"Final Train facts: {len(train_facts)}  Dev Facts: {len(dev_facts)}")
 
-eqasc_both_gfacts = eqasc_train_gfacts.intersection(eqasc_train_gfacts) #122
+eqasc_both_gfacts = eqasc_train_gfacts.intersection(eqasc_dev_gfacts) #122
 
 eqasc_train_gfacts = eqasc_train_gfacts - eqasc_both_gfacts
 
@@ -160,6 +164,18 @@ outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write('\\n \n'.join(dev_facts))
 
+
+both_train_dev_facts = train_facts.union(dev_facts)
+outdir = os.path.join(UQA_DIR, UQA_QASC_FACTS_DEV_IN_TRAIN_DIR)
+os.makedirs(outdir, exist_ok=True)
+outfile = os.path.join(outdir, 'train.tsv')
+with open(outfile, 'w') as f:
+    f.write('\\n \n'.join(both_train_dev_facts))
+outfile = os.path.join(outdir, 'dev.tsv')
+with open(outfile, 'w') as f:
+    f.write('\\n \n'.join(dev_facts))
+
+
 outdir = os.path.join(UQA_DIR, UQA_QASC_GRC_FACTS_DIR)
 os.makedirs(outdir, exist_ok=True)
 outfile = os.path.join(outdir, 'train.tsv')
@@ -167,7 +183,7 @@ with open(outfile, 'w') as f:
     f.write('\\n \n'.join(eqasc_train_gfacts))
 outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
-    f.write('\\n \n'.join(eqasc_train_gfacts))
+    f.write('\\n \n'.join(eqasc_dev_gfacts))
 
 num_q = len(corpus_facts)
 corpus_facts = list(corpus_facts)

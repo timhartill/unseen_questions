@@ -14,7 +14,7 @@ Notes:
     and construct a separate in-domain dev split from musique_ans_v0.1_train.jsonl
     NB: Confusingly below we  use the term "full" to mean all the musique "ans" train split samples vs just those with unique answers
 2. label format with decomp steps: "<s> the answer ## decomp step 1? decomp ans ## decomp step 2? decomp ans ## decomp step 3? decomp ans </s>"
-3. This version, in contrast to convert_musique.py creates a train set of musique samples with unique answers (plus "full" versions)
+3. This version, in contrast to (deprecated) convert_musique.py creates a train set of musique samples with unique answers (plus "full" versions)
    and a new dev set which has unique answers within dev and with an answer+last decomp that's not in train.
    This is because Musique contains a lot of very similar questions with the same answer and the same final decomp step
    which makes it easy for a model to learn a probabalistic bias.
@@ -22,6 +22,7 @@ Notes:
     od_ans: q \\n \t ans
     od_expl: Add explanation: q \\n \t explanation
     expl_ans: q \\n explanation \t ans
+5. Added output of self-supervised facts dataset in "dev in train" form..
 """
 import os
 import copy
@@ -32,6 +33,7 @@ from utils import load_jsonl, create_uqa_example, format_decomp_ans, load_model,
 from text_processing import white_space_fix, replace_chars, format_sentence
 
 Q_PREFIX = 'Add Explanation: '
+selfsupervisedkey = '_selfsvised'
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
 
@@ -165,7 +167,8 @@ def process_musique(mu_data, make_all_dev=True):
             decomp_step['question_subst'] = subst_decomp
             para_idx = decomp_step['paragraph_support_idx']
             if para_idx is not None:
-                decomp_para = replace_chars(mu_sample['paragraphs'][para_idx]['paragraph_text'].strip())
+                decomp_para = '(' + replace_chars(mu_sample['paragraphs'][para_idx]['title'].strip()) + ') '
+                decomp_para += replace_chars(mu_sample['paragraphs'][para_idx]['paragraph_text'].strip())
                 if decomp_para[-1] not in ['.', '?', '!']:
                     decomp_para += '.'
             else:
@@ -274,18 +277,24 @@ def get_paras(mu_data):
     return paras, titles
 
 
-def get_facts_datasets(mu_data, train_splits = ['train']):
+def get_facts_datasets(mu_data, train_splits = ['train'], dataset_format = 'qa'):
     """ Output facts datasets:
-    musique_decomp_train: decomp q \\n para \t decomp ans                   train=decomps from mu train; dev=decomps from new dev (setting where qa dataset train can see it's facts but dev can't)
-    musique_decomp_new_dev_in_train: decomp q \\n para \t decomp ans        train=decomps from mu train + decomps from new dev; dev=decomps from new dev (setting where qa dataset is allowed to have seen train & dev facts)
-    musique_mu_dev_decomp: decomp q \\n para \t decomp ans                  train=decomps from musique dev; dev=same (dev is just to check how well decomps are learned) 
-    musique_decomp_all_dev_in_train decomp q \\n para \t decomp ans         train=decomps from mu train + decomps from new dev + decomps from musique dev; dev=decomps from musique dev
+    dataset_format = 'qa':
+        musique_decomp_train: decomp q \\n para \t decomp ans                   train=decomps from mu train; dev=decomps from new dev (setting where qa dataset train can see it's facts but dev can't)
+        musique_decomp_new_dev_in_train: decomp q \\n para \t decomp ans        train=decomps from mu train + decomps from new dev; dev=decomps from new dev (setting where qa dataset is allowed to have seen train & dev facts)
+        musique_mu_dev_decomp: decomp q \\n para \t decomp ans                  train=decomps from musique dev; dev=same (dev is just to check how well decomps are learned) 
+        musique_decomp_all_dev_in_train decomp q \\n para \t decomp ans         train=decomps from mu train + decomps from new dev + decomps from musique dev; dev=decomps from musique dev
+    dataset_format = 'anything else':
+        all: para \\n \n
     """
     train_list = []
     dev_list = []
     for i, mu_sample in enumerate(mu_data):
         for j, decomp_step in enumerate(mu_sample['question_decomposition']):   # list of decomps each of dict_keys(['id', 'question', 'answer', 'paragraph_support_idx', 'question_subst', 'context_para'])
-            sample = create_uqa_example(decomp_step['question_subst'], decomp_step['context_para'], decomp_step['answer'].strip() )    
+            if dataset_format == 'qa':
+                sample = create_uqa_example(decomp_step['question_subst'], decomp_step['context_para'], decomp_step['answer'].strip() )
+            else:
+                sample = create_uqa_example(decomp_step['context_para'], ' ', None, append_q_char='.')    
             if mu_sample['split'] == 'dev':
                 dev_list.append(sample)
             elif mu_sample['split'] in train_splits:
@@ -453,6 +462,46 @@ with open(outfile, 'w') as f:
 outfile = os.path.join(outdir, 'dev.tsv')
 with open(outfile, 'w') as f:
     f.write(''.join(dev_list))
+
+
+# Create/output mu_train_full + mu_dev fact datasets in self supervised format
+train_list, dev_list = get_facts_datasets(mu_train, train_splits=['train','unassigned'], dataset_format='ssvise')
+both_list = list(set(train_list + dev_list))  #13672
+
+outdir = os.path.join(UQA_DIR, 'musique_full_new_dev_in_train'+selfsupervisedkey)
+print(f"Creating {outdir}")
+os.makedirs(outdir, exist_ok=True)
+outfile = os.path.join(outdir, 'train.tsv')
+with open(outfile, 'w') as f:
+    f.write(''.join(both_list)) # mu train + new dev but not mu dev..
+outfile = os.path.join(outdir, 'dev.tsv')
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_list)) # note samples in difft order due to set() but same actual samples as musique_decomp_new_dev_in_train dev.tsv
+
+
+train_list_mudev, dev_list_mudev = get_facts_datasets(mu_dev, train_splits=['train','unassigned'], dataset_format='ssvise')
+#train_list_mudev=[], len(dev_list_mudev) = 2629
+
+outdir = os.path.join(UQA_DIR, 'musique_mu_dev'+selfsupervisedkey)
+print(f"Creating {outdir}")
+os.makedirs(outdir, exist_ok=True)
+outfile = os.path.join(outdir, 'train.tsv')
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_list_mudev)) # mu dev only..
+outfile = os.path.join(outdir, 'dev.tsv')
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_list_mudev)) # also mu dev only..
+
+all_list = list(set(both_list + dev_list_mudev))  #16301
+outdir = os.path.join(UQA_DIR, 'musique_full_all_dev_in_train'+selfsupervisedkey)
+print(f"Creating {outdir}")
+os.makedirs(outdir, exist_ok=True)
+outfile = os.path.join(outdir, 'train.tsv')
+with open(outfile, 'w') as f:
+    f.write(''.join(all_list)) # mu train + new dev + mu dev..
+outfile = os.path.join(outdir, 'dev.tsv')
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_list)) # 'new' dev
 
 
 # create and ouput mu_train qa datasets

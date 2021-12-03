@@ -5,7 +5,7 @@ Created on Fri Nov 19 15:35:44 2021
 
 @author: tim hartill
 
-Import and convert WorldTree data 
+Import and convert WorldTree data into explanation datasets and self-supervised datasets of facts
 
 Zhengnan Xie, Sebastian Thiem, Jaycie Martin, Elizabeth Wainwright, Steven Marmorstein, and Peter Jansen. 2020. 
 WorldTree V2: A corpus of science-domain structured explanations and inference patterns supporting multi-hop inference. 
@@ -39,6 +39,7 @@ wt_od_completion = 'od_expl'
 wt_mc_ans = 'mc_ans'
 wt_od_ans = 'od_ans'
 q_prefix= 'Add Explanation: '
+selfsupervisedkey = '_selfsvised'
 
 tokenizer = utils.load_model(model_name="facebook/bart-large", loadwhat='tokenizer_only')
 random.seed(42)
@@ -192,7 +193,21 @@ def save_datasets(dev, test, train):
     print('Finished saving uqa-formatted explanation datasets!')
     return
         
-
+def save_facts_dataset(out_dset, train_list, dev_list, devfile='dev.tsv'):
+    """ Save self-supervised facts dataset
+    """
+    out_train = [utils.create_uqa_example(t, ' ', None, append_q_char='.') for t in train_list]
+    out_dev = [utils.create_uqa_example(t, ' ', None, append_q_char='.') for t in dev_list]
+    outdir = uqa_dir + out_dset
+    print(f'Saving dataset to {outdir} ...')
+    os.makedirs(outdir, exist_ok=True)
+    outfile = os.path.join(outdir, 'train.tsv')
+    with open(outfile, 'w') as f:
+        f.write(''.join(out_train))
+    outfile = os.path.join(outdir, devfile)
+    with open(outfile, 'w') as f:
+        f.write(''.join(out_dev))    
+    return
 
 fact_dict = load_facts(explanation_dir)
 
@@ -201,6 +216,18 @@ questions_test = load_questions(os.path.join(question_dir, 'questions.test.tsv')
 questions_train = load_questions(os.path.join(question_dir, 'questions.train.tsv'), fact_dict, tokenizer)
 
 save_datasets(questions_dev, questions_test, questions_train)
+
+# build facts lists for self supervised datasets:
+facts_dev =  list(set(utils.flatten([s['explanation_sentences'] for s in questions_dev])))   #1839
+facts_test =  list(set(utils.flatten([s['explanation_sentences'] for s in questions_test]))) #4017
+facts_train =  list(set(utils.flatten([s['explanation_sentences'] for s in questions_train]))) #5198
+
+facts_train_dev = list(set(facts_train+facts_dev)) #5889
+facts_all = list(set(facts_train_dev+facts_test)) #7626
+
+save_facts_dataset('testfactsonly'+selfsupervisedkey, facts_test, facts_dev, devfile='dev.tsv')
+save_facts_dataset('all_dev_in_train'+selfsupervisedkey, facts_all, facts_dev, devfile='dev.tsv')
+save_facts_dataset('dev_in_train_excl_test'+selfsupervisedkey, facts_train_dev, facts_dev, devfile='dev.tsv')
 
 
 #TODO: FORMAT FOR GPT-J

@@ -129,6 +129,8 @@ def main():
 
     parser.add_argument("--gen_explanations_all", action='store_true',
                         help="Generate explanations e for datasets specified in dataset_attibutes.create_datasets_dynamic, append as q[+mc]+e->a and save as new uqa-formatted datasets in dataset_attributes.UQA_DIR")
+    parser.add_argument("--dont_save_train_token_file", action='store_true',
+                        help="If set the preprocessed token file for train mixtures won't be saved to disk or loaded from disk")
 
 
 

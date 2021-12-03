@@ -1212,7 +1212,7 @@ def run_sim_detail_reports(logdir, sim_results_file, model_results_file, trainin
         Note:   model_results_file will supply the predictions in the output but these will only be valid 
                 for the particular combination of training datasets the model was trained against...
     Usage: 
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
+        logdir='/data/thar011/out/unifiedqa_averages/s7_v1/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformatted eval questions for ssvise train datasets
         model_results_file='/data/thar011/out/unifiedqa_bart_large_s6_v4_musique_qa_plus_all_decomps/eval_metrics.json'
         training_subsets_list = [ ['musique_qa_paras_full'],
@@ -1293,7 +1293,7 @@ def run_summary_thresh_reports(logdir, sim_results_file, results_list, include_l
                         '/data/thar011/out/unifiedqa_bart_large_s6_v13_musique_qa_plus_qa_decomp_ans_full_plus_new_decomps_full/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v14_musique_qa_paras_plus_qa_paras_decomp_ans_full/eval_metrics.json',
                        ]
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4s5s6_v1/'
+        logdir='/data/thar011/out/unifiedqa_averages/s7_v1/'
         run_summary_thresh_reports(logdir, sim_results_file, results_list, include_list=['unseen4'])
     """
     if logdir[-1] != '/':
@@ -1329,7 +1329,7 @@ def run_summary_thresh_reports(logdir, sim_results_file, results_list, include_l
 def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqaplus_results_file):
     """ Runs all reports used in our paper and a few more...
     Usage: 
-        logdir='/data/thar011/out/unifiedqa_averages/s2s3s4_v2/'
+        logdir='/data/thar011/out/unifiedqa_averages/s7_v1/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformat
         #sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1 (backup after ssvise but before use ssvise eval embeddings).json'
         run_all_reports(logdir=logdir,

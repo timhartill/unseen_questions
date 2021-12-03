@@ -45,7 +45,7 @@ def run(args, logger):
             dev_data = QAData(logger, args, args.predict_file, False)
     
         if not args.skip_inference:
-            dev_data.load_dataset(tokenizer)
+            dev_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
             dev_data.load_dataloader()
 
     if args.do_train:
@@ -53,7 +53,7 @@ def run(args, logger):
             train_data = UnifiedQAData(logger, args, args.train_file, True)
         else:
             train_data = QAData(logger, args, args.train_file, True)
-        train_data.load_dataset(tokenizer)
+        train_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
         train_data.load_dataloader()
         
         if args.model == "facebook/bart-large":   
@@ -834,6 +834,7 @@ def calc_similarity_embeddings(args, logger):
         testset = 'drop' 
         args.add_only_missing = True
         args.use_question_only = False
+        args.reformat_question_ssvise = True
         manually run relevant lines below..
     """
     logger.info("Calculating sentence embedding cosine similarity between train and test sets..")
@@ -910,7 +911,7 @@ def calc_similarity_embeddings(args, logger):
                         emb_file_test = 'dev_emb.pkl'
                 out_dir = os.path.join(out_dir_base, testset)
                 out_file = os.path.join(out_dir, emb_file_test)
-                logger.info(f" ... {testset} using {out_file}")
+                logger.info(f" ... {testset} using {out_file} (vs {trainset})")
 
                 with open(out_file, "rb") as f:
                     test_emb = pickle.load(f)

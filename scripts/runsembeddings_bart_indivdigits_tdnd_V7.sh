@@ -9,7 +9,7 @@ python cli.py --create_embeddings --output_dir /data/thar011/out/unifiedqa_bart_
         --verbose \
         --predict_batch_size 20 \
         --add_only_missing \
-        --mixture unifiedqa,synthetic_textual,synthetic_numeric,strategy_qa,cwwv,atomic,qasc_dev_facts_selfsvised,qasc_facts_selfsvised,strategy_qa_facts_selfsvised,strategy_qa_facts_dev_in_train_selfsvised,musique_qa,musique_qa_paras,musique_decomp_all_dev_in_train,musique_decomp_new_dev_in_train,musique_decomp_train,musique_mu_dev_decomp,musique_qa_full,musique_qa_paras_full,musique_decomp_new_dev_in_train_full
+        --mixture unifiedqa,synthetic_textual,synthetic_numeric,strategy_qa,cwwv,atomic,qasc_dev_facts_selfsvised,qasc_facts_selfsvised,strategy_qa_facts_selfsvised,strategy_qa_facts_dev_in_train_selfsvised,musique_qa,musique_qa_paras,musique_decomp_all_dev_in_train,musique_decomp_new_dev_in_train,musique_decomp_train,musique_mu_dev_decomp,musique_qa_full,musique_qa_paras_full,musique_decomp_new_dev_in_train_full,musique_full_qa_od_ans,strategy_qa_od_ans,musique_full_qa_expl_ans,strategy_qa_expl_ans,worldtree_mc_ans
 
 
 echo "Creating sentence embeddings with qa reformatted into self-supervised format..."
@@ -20,6 +20,6 @@ python cli.py --create_embeddings --output_dir /data/thar011/out/unifiedqa_bart_
         --predict_batch_size 20 \
         --add_only_missing \
         --reformat_question_ssvise \
-        --mixture unifiedqa,synthetic_textual,synthetic_numeric,strategy_qa,cwwv,atomic,qasc_dev_facts_selfsvised,qasc_facts_selfsvised,strategy_qa_facts_selfsvised,strategy_qa_facts_dev_in_train_selfsvised,musique_qa,musique_qa_paras,musique_decomp_all_dev_in_train,musique_decomp_new_dev_in_train,musique_decomp_train,musique_mu_dev_decomp,musique_qa_full,musique_qa_paras_full,musique_decomp_new_dev_in_train_full
+        --mixture unifiedqa,synthetic_textual,synthetic_numeric,strategy_qa,cwwv,atomic,qasc_dev_facts_selfsvised,qasc_facts_selfsvised,strategy_qa_facts_selfsvised,strategy_qa_facts_dev_in_train_selfsvised,musique_qa,musique_qa_paras,musique_decomp_all_dev_in_train,musique_decomp_new_dev_in_train,musique_decomp_train,musique_mu_dev_decomp,musique_qa_full,musique_qa_paras_full,musique_decomp_new_dev_in_train_full,musique_full_qa_od_ans,strategy_qa_od_ans,musique_full_qa_expl_ans,strategy_qa_expl_ans,worldtree_mc_ans
 
 
