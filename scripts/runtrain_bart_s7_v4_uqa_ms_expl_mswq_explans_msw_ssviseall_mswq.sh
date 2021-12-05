@@ -17,6 +17,8 @@ python cli.py --do_train --output_dir /data/thar011/out/unifiedqa_bart_large_s7_
         --learning_rate 2e-5 \
         --model facebook/bart-large \
         --seed 42 \
+        --ssm_prob 1.0 \
+        --add_mask_char NONE \
         --max_output_length 130 \
         --dont_save_train_token_file \
         --mixture unifiedqa,musique_full_qa_od_ans,strategy_qa_od_ans,musique_full_qa_od_expl,strategy_qa_od_expl,worldtree_od_expl,qasc_od_expl,musique_full_qa_expl_ans,strategy_qa_expl_ans,worldtree_mc_ans,musique_full_all_dev_in_train_selfsvised,strategy_qa_facts_dev_in_train_selfsvised,worldtree_all_dev_in_train_selfsvised,qasc_facts_dev_in_train_selfsvised
