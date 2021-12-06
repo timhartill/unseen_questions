@@ -11,13 +11,17 @@ Test different prompting formats with GPT-J
 Notes: 
     Liu params: few-shot (k)=5, generate inferences (m)=20, nucleus p = 0.5, max 64 tokens or when hit \n
     West params: few-shot (k)=10, generate inferences (m)=10, nucleus p = 0.9, number examples, freq penalty=0.5
+    
+    
+  
 
 """
 import os
 import numpy as np
 import utils
 from utils import load_model, run_model, empty_cache, load_uqa_supervised, return_sublist
-from utils import load_prompt_template, load_templates, fill_prompt_template, generate_continuations
+from language_modelling import load_prompt_template, load_templates, fill_prompt_template, generate_continuations, filter_continuations
+import language_modelling
 from text_processing import format_sentence
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
@@ -34,244 +38,69 @@ eval_model_name = 'facebook/bart-large'
 eval_model_ckpt = '/data/thar011/out/unifiedqa_bart_large_v3/best-model.pt'
 tokenizer_eval, model_eval = load_model(eval_model_name, checkpoint=eval_model_ckpt, cuda_device=cuda_device)
 
-tstin = "Answer yes or no: Is 16 greater than 6? Answer:"
-tstin = [tstin, tstin]
-res = run_model(tstin, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=50, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=2, temperature=0.7,
-                output_scores=False, return_dict_in_generate=True)
+#tstin = "Answer yes or no: Is 16 greater than 6? Answer:"
+#tstin = [tstin, tstin]
+#res = run_model(tstin, model, tokenizer, indiv_digits=False, norm_numbers=False, 
+#                max_input_length=50, verbose=True,
+#                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
+#                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=2, temperature=0.7,
+#                output_scores=False, return_dict_in_generate=True)
 
-res_eval = run_model(tstin, model_eval, tokenizer_eval, indiv_digits=False, norm_numbers=False, 
-                max_input_length=50, verbose=True,
-                lower=True, 
-                num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=130,
-                output_scores=True, return_dict_in_generate=True)
+#res_eval = run_model(tstin, model_eval, tokenizer_eval, indiv_digits=False, norm_numbers=False, 
+#                max_input_length=50, verbose=True,
+#                lower=True, 
+#                num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=130,
+#                output_scores=True, return_dict_in_generate=True)
 
 
 
 ###############
 # QASC
 ###############
+#qasc_dev = load_uqa_supervised(os.path.join(UQA_DIR, 'qasc', 'dev.tsv'), return_parsed=True)
 
-QASC_DEV = os.path.join(UQA_DIR, 'qasc', 'dev.tsv')
-QASC_EXPLANATION_FILE = os.path.join(UQA_DIR, 'qasc_mc_ans', 'train.tsv')
-qasc_dev = load_uqa_supervised(QASC_DEV, return_parsed=True)
+QASC_EXPLANATION_FILE = os.path.join(UQA_DIR, 'qasc_mc_ans', 'train.tsv')  # q[+mc]+e->a
 qasc_train_expl = load_uqa_supervised(QASC_EXPLANATION_FILE, ans_lower=False, return_parsed=True)
-qasc_train_questions = [format_sentence(s['q_only'].replace('Add Explanation:', '', 1), endchar='') for s in qasc_train_expl]
-qasc_train_explanations = [s['context'] for s in qasc_train_expl]
-qasc_train_answers = [s['answer'] for s in qasc_train_expl]
 
-num_q = len(qasc_train_expl)
-np.random.seed(42)
-prompt_indices = np.random.choice(num_q, 100, replace=False)
-# array([5914, 5425, 1430, 7324, 4028, 1009, 3172, 2892, 3985, 5023, 4074,
-#       1302, 4471, 7541,  554, 6864,  483, 6908, 6159, 5057, 5170, 2199,
-#       3837, 2345, 5137, 7331, 4825, 1242, 1882, 5519, 4525, 1730, 5861,
-#       6091, 2406, 2302,  233,  794,  866, 3333, 1400, 1744, 7937, 6224,
-#       4510, 4922,  932, 3567, 4151, 1737,  318, 2995, 2338, 5513, 7743,
-#       1926, 3012, 1575, 4113,  349, 3355, 7716, 4606, 3942, 1010, 3844,
-#        239, 6438, 3238, 6879,  748, 6218, 5324, 3149, 1295, 7685, 2867,
-#       7977, 3217, 6642, 4270, 7165, 6968, 5815, 6594, 3018, 4394, 2663,
-#       6084,  453, 3995, 7780, 6612, 6075, 4668, 5548, 2348, 8088, 4674,
-#       6195])
-#prompt_rand = prompt_indices[np.random.choice(prompt_indices.shape[0], 20, replace=False)]
+prompt_indices, test_indices, rand_indices = language_modelling.get_prompt_samples_and_eval_samples(qasc_train_expl, select_total=100, select_prompt=7, select_eval=30, seed=42)
+# rand_indices:
+# array([5914, 5425, 1430, 7324, 4028, 1009, 3172, 2892, 3985, 5023, 4074, 1302, 4471, 7541,  554, 6864,  483, 6908, 6159, 5057, 5170, 2199, 3837, 2345, 5137, 7331, 4825, 1242, 1882, 5519, 4525, 1730, 5861, 6091, 2406, 2302,  233,  794,  866, 3333, 1400, 1744, 7937, 6224, 4510, 4922,  932, 3567, 4151, 1737,  318, 2995, 2338, 5513, 7743, 1926, 3012, 1575, 4113,  349, 3355, 7716, 4606, 3942, 1010, 3844, 239, 6438, 3238, 6879,  748, 6218, 5324, 3149, 1295, 7685, 2867, 7977, 3217, 6642, 4270, 7165, 6968, 5815, 6594, 3018, 4394, 2663, 6084,  453, 3995, 7780, 6612, 6075, 4668, 5548, 2348, 8088, 4674, 6195])
+#prompt_rand = rand_indices[np.random.choice(rand_indices.shape[0], 20, replace=False)]
 
-qasc_1_fact = load_prompt_template('/data/thar011/data/unifiedqa/prompts/qasc_single_fact_liu_v1.txt')
-qasc_2_fact = load_prompt_template('/data/thar011/data/unifiedqa/prompts/qasc_multi_fact_sameliuquestions_v1.txt')
-qasc_2_fact_numbered = load_prompt_template('/data/thar011/data/unifiedqa/prompts/qasc_multi_fact_numbered_sameliuquestions_v1.txt')
-qasc_5_cleaned = load_prompt_template('/data/thar011/data/unifiedqa/prompts/qasc_5_cleaned.txt')
-
+######################
+# Initially fill and save a template as a raw prompt leaving {question} unfilled:
 qasc_2_fact_numbered_vark = load_prompt_template('/data/thar011/data/unifiedqa/prompts/qasc_var_numbered_examples_v1.txt')
+example_inputs = return_sublist(qasc_train_expl, prompt_indices, key='q_only')
+example_outputs = return_sublist(qasc_train_expl, prompt_indices, key='context')
+p_qasc_2_k7= fill_prompt_template(qasc_2_fact_numbered_vark, 
+                                  example_inputs=example_inputs,
+                                  example_outputs=example_outputs,
+                                  saveas='/data/thar011/data/unifiedqa/prompts/qasc_k7_raw.txt')
+######################
 
-p_qasc_1 = fill_prompt_template(qasc_1_fact, query=qasc_dev[0]['q_only'])
-p_qasc_2 = fill_prompt_template(qasc_2_fact, query=qasc_dev[0]['q_only'])
-p_qasc_2_numbered = fill_prompt_template(qasc_2_fact_numbered, query=qasc_dev[0]['q_only'])
-p_qasc_5_cleaned = fill_prompt_template(qasc_2_fact_numbered, query=qasc_dev[0]['q_only'])
-
-
-
-res = run_model(p_qasc_1, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=512, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=10,
-                output_scores=True, return_dict_in_generate=True)
-
-res = run_model(p_qasc_2, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=512, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=10,
-                output_scores=True, return_dict_in_generate=True)
-
-res = run_model(p_qasc_2_numbered, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=512, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=10,
-                output_scores=True, return_dict_in_generate=True)
-"""
-['A climate is described as having wet and dry periods.',
- 'Climate is described in terms of temperature and precipitation. It also depends on the interaction between the land and the sea.',
- 'Climate is generally described in terms of average weather patterns. E.g. average monthly temperatures.',
- 'Humans generally describe climate in terms of temperature and precipitation.  ',
- 'Climate is described in terms of temperature, rainfall, and the sea level.',
- 'Extreme changes in temperature cause all living things to change their state of life. Warm air is a force of climate change.',
- 'It is more common to talk about climate in terms of weather patterns and the atmosphere.',
- 'The environment or conditions experienced by a particular organism.',
- 'Weather is generally described in terms of temperature, precipitation, and winds. The climate is generally described in terms of temperature and precipitation.',
- 'Temperate and oceanic climates are generally defined by seasonal temperature differences. Oceanic climates are warm during the summer and cold during the winter. Temperate climates are warmer during the summer and colder during the winter.']
-"""
-res = run_model(p_qasc_2_numbered, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=512, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.5, num_return_sequences=10,
-                output_scores=True, return_dict_in_generate=True)
-
-# test k = 5 random
-inputs = return_sublist(qasc_train_questions, prompt_indices[:5])
-outputs = return_sublist(qasc_train_explanations, prompt_indices[:5])
-p_qasc_2_numbered_k5 = fill_prompt_template(qasc_2_fact_numbered_vark, query=qasc_dev[0]['q_only'], 
-                                            example_inputs=inputs, example_outputs=outputs)
-
-res = run_model(p_qasc_2_numbered_k5, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=512, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=10,
-                output_scores=True, return_dict_in_generate=True)
-"""
-['Climate is generally described in terms of temperature, precipitation, and wind.',
- 'Climates are the sets of conditions such as atmospheric pressure, water supply, humidity, air temperature,    precipitation, and solar radiation that affect the physical, biological, chemical, and human systems of an area over an extended period of time, such as the present day or the past.',
- 'climate is generally described in terms of temperature, pressure, and composition of atmosphere',
- 'Climate is generally described in terms of precipitation.',
- 'Climate is generally described in terms of the average temperature. However it also involves the pressure of the atmosphere and other factors.',
- 'A general descriptions of climate is moisture and temperature.',
- 'Change in air temperature. ',
- 'A variable climate requires some kind of condition that varies from one location to another. Climate cannot be considered a single thing. There are so many variables like temperature and precipitation that makes climate hard to consider a single thing.',
- 'The seasons of the year and long periods of time is the climate of the earth.',
- 'Temperature temperature is generally measured in degrees.']
-"""
-
-# Not better:
-res = run_model(p_qasc_5_cleaned, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=512, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=10,
-                output_scores=True, return_dict_in_generate=True)
-
-inputs = return_sublist(qasc_train_questions, prompt_indices[:10])
-outputs = return_sublist(qasc_train_explanations, prompt_indices[:10])
-p_qasc_2_numbered_k10 = fill_prompt_template(qasc_2_fact_numbered_vark, query=qasc_dev[0]['q_only'], 
-                                            example_inputs=inputs, example_outputs=outputs)
-
-res = run_model(p_qasc_2_numbered_k10, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=512, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=10,
-                output_scores=True, return_dict_in_generate=True) #input 442 tokens
-"""
-["As the atmosphere cools, the polar ice caps shrink and melt. This is called the ice cap's albedo effect.",
- "Climate refers to  Earth's average state of temperature, temperature, precipitation, water vapor pressure, winds, radiation, gases, etc. over a given period of time.",
- 'Generally, climatic conditions are described in terms of: temp, humidity, rainfall.',
- 'Climatology is a field that studies climate and is used in forecasting.',
- 'Temperature extremes. High temperature and low temperature are main characteristics of climate.',
- '',
- 'Average temperature averages the weather over a long time period. ',
- 'Climate is generally described in terms of temperature, precipitation,  vegetation, drought, storm, typhoon, or tornado.',
- 'Climate is generally described in terms of temperature, precipitation and average humidity.',
- 'and are key environmental variables. Climate is the average weather conditions of a region. Climate is long-term and temporal and region-specific.']
-"""
-
-inputs = return_sublist(qasc_train_questions, prompt_indices[:32])
-outputs = return_sublist(qasc_train_explanations, prompt_indices[:32])
-p_qasc_2_numbered_k32 = fill_prompt_template(qasc_2_fact_numbered_vark, query=qasc_dev[0]['q_only'], 
-                                            example_inputs=inputs, example_outputs=outputs)
-
-res = run_model(p_qasc_2_numbered_k32, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=1500, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=10,
-                output_scores=True, return_dict_in_generate=True) #input 1332 tokens OOM
-
-inputs = return_sublist(qasc_train_questions, prompt_indices[:15])
-outputs = return_sublist(qasc_train_explanations, prompt_indices[:15])
-p_qasc_2_numbered_k15 = fill_prompt_template(qasc_2_fact_numbered_vark, query=qasc_dev[0]['q_only'], 
-                                            example_inputs=inputs, example_outputs=outputs)
-
-res = run_model(p_qasc_2_numbered_k15, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=1000, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=10,
-                output_scores=True, return_dict_in_generate=True) #input 660 tokens Output not obviously better
-
-
-inputs = return_sublist(qasc_train_questions, prompt_indices[:7])
-outputs = return_sublist(qasc_train_explanations, prompt_indices[:7])
-test_questions = return_sublist(qasc_train_questions, prompt_indices[50:])  #create small "test" set from unused train for evaluating explanation quality based on answer accuracy
-test_answers = return_sublist(qasc_train_answers, prompt_indices[50:])
-p_qasc_2_numbered_k7 = fill_prompt_template(qasc_2_fact_numbered_vark, query=qasc_dev[0]['q_only'], 
-                                            example_inputs=inputs, example_outputs=outputs)
-
-res = run_model(p_qasc_2_numbered_k7, model, tokenizer, indiv_digits=False, norm_numbers=False, 
-                max_input_length=1000, verbose=True,
-                lower=False, append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True,
-                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, num_return_sequences=10,
-                output_scores=True, return_dict_in_generate=True)  #317 tokens
-
-"""
-q: 'Climate is generally described in terms of what?'
-
-["Climatology is a scientific and statistical discipline concerned with general circulation of the atmosphere in the Earth's atmosphere.",
- 'Climate is generally described in terms of temperature and precipitation.',
- 'Climate is generally described in terms of temperature and precipitation.',
- 'Cold weather is typically cold temperatures and precipitation. Hot weather is typically hot temperatures and precipitation.',
- 'Warm weather will produce flowering.',
- "'Climate is generally described in terms of change in temperature'",
- 'It is generally described in terms of heat and moisture.',
- 'Climate is generally described in terms of temperature.',
- 'Climate is the average of all weather patterns that occur during a year or over a decade or the temperature of the atmosphere surrounding the earth.',
- 'The basic facts of climate are: Temperature has a large influence over most weather.']
-"""
-preds = utils.preds_basic_filter(res.preds)
-
-# test multi template:
-qasc_2_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/qasc_var_numbered_examples_v1.txt',
-                                            '/data/thar011/data/unifiedqa/prompts/qasc_5_cleaned.txt'])
-test_samples = return_sublist(qasc_train_expl, prompt_indices[98:])
+######################
+# Generate explanations for a set of templates
+qasc_2_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/qasc_k7_raw.txt',
+                                   '/data/thar011/data/unifiedqa/prompts/qasc_5_cleaned.txt'])
+test_samples = return_sublist(qasc_train_expl, test_indices)
 test_questions = [format_sentence(s['q_only'], endchar='') for s in test_samples]
 test_answers = [s['answer'] for s in test_samples]
-example_inputs = return_sublist(qasc_train_expl, prompt_indices[:7], key='q_only')
-example_outputs = return_sublist(qasc_train_expl, prompt_indices[:7], key='context')
 qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
                                           example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
                                           do_sample=True, max_new_tokens=64, top_k=0, top_p=0.9, temperature=0.7,
                                           num_return_sequences=10, output_scores=False, return_dict_in_generate=True)
-utils.saveas_json(qasc_completions, os.path.join(PROMPT_DIR, 'qasc_50_train_completions_p0.9_t0.7_raw.json'))
+utils.saveas_json(qasc_completions, os.path.join(PROMPT_DIR, 'qasc_30_train_completions_p0.9_t0.7_raw.json'))
 
-qasc_completions = utils.loadas_json(os.path.join(PROMPT_DIR, 'qasc_50_train_completions_p0.9_t0.7_raw.json'))
+# load previously generated explanations
+qasc_completions = utils.loadas_json(os.path.join(PROMPT_DIR, 'qasc_30_train_completions_p0.9_t0.7_raw.json'))
 # qasc_completions[0]['0']['raw']
 
+#####
 test_samples = utils.add_key(test_samples, qasc_completions, key='expls')  # [ {'question':'full question with context', 'answer':'ans', 'q_only', 'mc_options': 'mc options, 'context':'non-mc context if any', 'expls':{'0':{'raw':['expl 1', 'expl 2', ...]} } }]
-utils.filter_continuations(test_samples)
+filter_continuations(test_samples)
+utils.saveas_json(test_samples, os.path.join(PROMPT_DIR, 'qasc_30_train_completions_p0.9_t0.7_raw.json'))
 
 
-scores0 = utils.calc_measure_basic(qasc_completions[0][0], compareto=test_questions[0])
-scores1 = utils.calc_measure_basic(qasc_completions[0][1], compareto=test_questions[0])
-
-#Beam search:
-qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
-                                          example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
-                                          num_beams=4, early_stopping=True, min_length=1, max_new_tokens=64,
-                                          num_return_sequences=1, output_scores=False, return_dict_in_generate=True)
-#top k:
-qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
-                                          example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
-                                          do_sample=True, max_new_tokens=64, top_k=50, temperature=0.7,
-                                          num_return_sequences=10, output_scores=False, return_dict_in_generate=True)
-
-
-
-
-preds = utils.preds_basic_filter(res.preds)  
-scores = utils.calc_measure_basic(preds, compareto=test_questions[0])
 
 
 #TODO Having both facts seems to work better than just one fact.
@@ -296,12 +125,12 @@ dset_train_explanations = [s['context'] for s in dset_train_expl]
 dset_train_answers = [s['answer'] for s in dset_train_expl]
 num_q = len(dset_train_expl)
 np.random.seed(42)
-prompt_indices = np.random.choice(num_q, 100, replace=False)
+rand_indices = np.random.choice(num_q, 100, replace=False)
 template_fact_numbered_var_k = load_prompt_template('/data/thar011/data/unifiedqa/prompts/qasc_var_numbered_examples_v1.txt')
 template_7_clean = load_prompt_template('/data/thar011/data/unifiedqa/prompts/worldtree_7.txt')
 
-inputs = return_sublist(dset_train_questions, prompt_indices[:7])
-outputs = return_sublist(dset_train_explanations, prompt_indices[:7])
+inputs = return_sublist(dset_train_questions, rand_indices[:7])
+outputs = return_sublist(dset_train_explanations, rand_indices[:7])
 prompt = fill_prompt_template(template_fact_numbered_var_k, query=question, 
                                             example_inputs=inputs, example_outputs=outputs)
 prompt_clean = fill_prompt_template(template_7_clean, query=question, 

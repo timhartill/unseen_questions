@@ -348,7 +348,57 @@ class Rouge:
             groundtruths_norm = groundtruths
         self.last_scores = self.rouge.compute(predictions=predictions_norm, references=groundtruths_norm) 
         return self.last_scores["rougeL"].mid.fmeasure * 100.0
+
+
+class Bleu:
+    """ Return Bleu metric
+    print(metric.inputs_description) for details
+    Usage: bscorer = Bleu()
+    bleu2score = bscorer.compute_metric(predictions, groundtruth) 
+        predictions = ['pred1 text', 'pred2 text']
+        groundtruths = [['gt1.1 text', 'gt1.2 text'], ['gt2.1 text', 'gt2.2 text']]  #note extra nesting
+    """
+    def __init__(self, N=2, smooth=False):
+        self.metric = datasets.load_metric('bleu')
+        self.N = N            # max n-gram datasets default 4
+        self.smooth = smooth  # Lin 2004 smoothing datasets default False
+        self.last_scores = None
         
+    def compute_metric(self, predictions, groundtruths, norm=False):
+        if norm:
+            predictions_norm = [get_tokens(p) for p in predictions]
+            groundtruths_norm = [[get_tokens(gt) for gt in gtl] for gtl in groundtruths]
+        else:   #Note: empirically 
+            predictions_norm = [p.lower().split() for p in predictions]
+            groundtruths_norm = [[gt.lower().split() for gt in gtl] for gtl in groundtruths]
+        self.last_scores = self.metric.compute(predictions=predictions_norm, references=groundtruths_norm, 
+                                               max_order = self.N, smooth=self.smooth) 
+        return self.last_scores["bleu"] * 100.0
+
+
+class SelfBleu:
+    """ Calculate self-bleu from:
+        Yaoming Zhu, Sidi Lu, Lei Zheng, Jiaxian Guo, Weinan Zhang, Jun Wang, and Yong Yu. 2018. Texygen: A Benchmarking Platform for Text Generation Models. In The 41st International ACM SIGIR Conference on Research & Development in Information Retrieval, pages 1097–1100, Ann Arbor, MI, USA. Association for Computing Machinery.
+        As measure of diversity of list of sentences
+    """
+    def __init__(self, N=2, smooth=False):
+        self.bleu = Bleu(N=N, smooth=smooth)
+        self.N = N            # max n-gram datasets default 4
+        self.smooth = smooth  # Lin 2004 smoothing datasets default False. If true: Add 1 to both numerator and denominator
+        self.last_scores = {}
+        self.self_bleus = []
+        
+    def compute_metric(self, predictions, norm=False):
+        self.self_bleus = []
+        ref_count = len(predictions)
+        for idx in range(ref_count):
+            prediction = predictions[idx]
+            references = predictions[:idx] + predictions[idx+1:]
+            score = self.bleu.compute_metric([prediction], [references], norm=norm)
+            self.self_bleus.append(score)
+        self.last_scores['selfbleu'] = sum(self.self_bleus) / len(self.self_bleus)
+        return self.last_scores['selfbleu']
+    
 
 class YN:
     """ Return accuracy metric for yes/no datasets (label is always yes or no)
