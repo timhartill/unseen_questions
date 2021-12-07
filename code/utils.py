@@ -219,7 +219,7 @@ def parse_uqa_supervised(questions, answers):
 
 def return_sublist(sample_list, indices, key=None):
     """ Return sublist of list entries matching the list of indices. 
-    If key is specified assumes sample_list in jsonl format and returns a simple list of values
+    If key is specified assumes sample_list in jsonl format and returns a simple list of values from that key
     """
     sublist = []
     for idx in indices:
@@ -231,8 +231,9 @@ def return_sublist(sample_list, indices, key=None):
 
 
 def add_key(sample_list, new_data, key, make_copy=True):
-    """ Add new data into new key of samples (which is assumed 'jsonl' format).
+    """ Add [new data] into new key of [sample_list] (which is assumed 'jsonl' format).
     |sample_list| must equal |new_data|...
+    new_data can be a simple list or a jsonl style list
     """
     if make_copy:
         sample_list = copy.deepcopy(sample_list)
@@ -240,6 +241,13 @@ def add_key(sample_list, new_data, key, make_copy=True):
         s[key] = n
     if make_copy:
         return sample_list
+    return
+
+
+def add_constant(sample_list, const, key):
+    """ Add a specific value to a new key of each element of a jsonl-formatted list """
+    for s in sample_list:
+        s[key] = const
     return
 
 

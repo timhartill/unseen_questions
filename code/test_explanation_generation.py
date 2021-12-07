@@ -89,17 +89,16 @@ qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, te
                                           example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
                                           do_sample=True, max_new_tokens=64, top_k=0, top_p=0.9, temperature=0.7,
                                           num_return_sequences=10, output_scores=False, return_dict_in_generate=True)
-utils.saveas_json(qasc_completions, os.path.join(PROMPT_DIR, 'qasc_30_train_completions_p0.9_t0.7_raw.json'))
 
-# load previously generated explanations
-qasc_completions = utils.loadas_json(os.path.join(PROMPT_DIR, 'qasc_30_train_completions_p0.9_t0.7_raw.json'))
-# qasc_completions[0]['0']['raw']
 
 #####
 test_samples = utils.add_key(test_samples, qasc_completions, key='expls')  # [ {'question':'full question with context', 'answer':'ans', 'q_only', 'mc_options': 'mc options, 'context':'non-mc context if any', 'expls':{'0':{'raw':['expl 1', 'expl 2', ...]} } }]
 filter_continuations(test_samples)
 utils.saveas_json(test_samples, os.path.join(PROMPT_DIR, 'qasc_30_train_completions_p0.9_t0.7_raw.json'))
 
+# load previously generated explanations
+test_samples = utils.loadas_json(os.path.join(PROMPT_DIR, 'qasc_30_train_completions_p0.9_t0.7_raw.json'))
+# qasc_completions[0]['0']['raw']
 
 
 

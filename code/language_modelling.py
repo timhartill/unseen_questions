@@ -10,6 +10,7 @@ Routines for language modelling e.g. using GPT-x
 
 """
 import numpy as np
+import copy
 
 import utils
 import eval_metrics
@@ -106,7 +107,7 @@ def generate_continuations(templates, model, tokenizer, queries, example_inputs=
                                               num_return_sequences=10, output_scores=False, return_dict_in_generate=True)  
         
     Generally, [templates] previously loaded with load_templates() above.
-    Returns [ { template_idx: 'raw': ['output 0', 'output 1', ..., 'output 9'] } ] where each row idx corresponds to query idx
+    Returns [ { 'template_idx': 'raw': ['output 0', 'output 1', ..., 'output 9'] } ] where each row idx corresponds to query idx
     """
     if verbose:
         print(f"Generating continuations for max in len:{max_input_length} Generator params: {generator_args}")
@@ -185,11 +186,11 @@ def filter_continuations(sample_list, min_length=4, remove_strings=['input']):
     Adds keys to 'expls': eg 
     """
     for i, s in enumerate(sample_list):
-        q = s['q_only']
+        #q = s['q_only']
         for k in s['expls']:  # basic filtering on individual prompt template preds '0', '1', ..
             e = s['expls'][k]
             e['filtered'] = preds_basic_filter(e['raw'], min_length=min_length, remove_strings=remove_strings)
-            e['f1_to_q'] = calc_measure_basic(e['filtered'], compareto=q, measure_fn=eval_metrics.get_f1)
+            #e['f1_to_q'] = calc_measure_basic(e['filtered'], compareto=q, measure_fn=eval_metrics.get_f1)
     return
     
 
@@ -210,6 +211,47 @@ def make_soft_unique(preds, stop_when_lessthan=50, N=2, smooth=True, norm=True, 
             print(f"Selfbleu:{selfbleu} Preds remaining:{len(newpreds)}")
     return newpreds        
             
+
+def gen_expl(templates, model, tokenizer, queries, example_inputs=[], example_outputs=[], verbose=False, lower=False,
+             max_input_length=1000, gen_depth=1, su_stage_1_stop=60, su_final_stop=50, max_output_length=512, **generator_args):
+    """ Iteratively generate explanation using a set of general templates. 
+    First: Generate candidate explanation components for "queries". Combine these, do basic filtering and make "slightly" soft-unique
+    Then for each remaining component generate an explanation component as above. Repeat gen_depth times.
+    Finally, do soft-unique down to max_output_length tokens
+    """
+    test_questions = queries  # list of str
+    outlist = [{'question':q, 'expl_depth':[]} for q in queries]  #expl_depth = list of expl components generated at each depth
+    for d in range(gen_depth):
+        if verbose:
+            print(f"Generating explanation components at depth: {d} ...")
+        #Returns [ { 'template_idx': 'raw': ['output 0', 'output 1', ..., 'output 9'] } ] where each row idx corresponds to query idx
+        curr_completions = generate_continuations(templates, model, tokenizer, test_questions, verbose=verbose, lower=lower,
+                                                  example_inputs=example_inputs, example_outputs=example_outputs, 
+                                                  max_input_length=max_input_length, 
+                                                  **generator_args)
+        if verbose:
+            print("Combining preds from each template together and performing basic filtering...")
+        for i, c in enumerate(curr_completions):
+            combo = []
+            for t in c.keys():
+                combo += c[t]['raw']
+            c['combo_filtered'] = preds_basic_filter(combo, min_length=4, remove_strings=['input'])
+            c['query'] = test_questions[i]  # add question text for later decipherability
+            c['depth'] = str(d)
+            #TODO Add soft unique here
+            outlist[i]['expl_depth'].append(copy.deepcopy(c))
+        if d != gen_depth - 1:  #now have multiple questions per orig input question: need to map back...
+            new_test_questions = []
+            q_map = []
+            end_idx = 0
+            for i, c in outlist:  #build test_questions for next iteration plus a map from test_question idx -> orig question idx
+                num_q = len(c['expl_depth'][-1]['combo_filtered'])
+                start_idx = end_idx
+                end_idx += num_q
+                new_test_questions += c['expl_depth'][-1]['combo_filtered']
+                q_map.append( (start_idx, end_idx, i) )
+                
+    return outlist
 
 
 

@@ -983,6 +983,8 @@ def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', '
                         '/data/thar011/out/unifiedqa_bart_large_s6_v13_musique_qa_plus_qa_decomp_ans_full_plus_new_decomps_full/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s6_v14_musique_qa_paras_plus_qa_paras_decomp_ans_full/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s7_v1_uqa_sqa_mqa_expl_mswq_explans_msw/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s7_v3_uqa_ms_explans_msw/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s7_v4_uqa_ms_expl_mswq_explans_msw_ssviseall_mswq/eval_metrics.json',
                        ]
         logdir='/data/thar011/out/unifiedqa_averages/s7_v1/'
         run_all(logdir, results_list, include_list=['unseen4', 'unseen5', 'seen1'])

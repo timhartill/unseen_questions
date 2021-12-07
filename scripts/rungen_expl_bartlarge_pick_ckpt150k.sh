@@ -3,7 +3,7 @@
 # Creates new explanation datasets for existing eval datasets specified in dataset_attributes.py create_datasets_dynamic
 # with dataset subdir UQA_DIR/sourcedataset__dyn_expl_ans_explgeneratormodeloutputdir_timestamp and filename either dev.tsv or test.tsv
 # usage: run with /data/thar011/out/unifiedqa_bart_large_s7_v1_uqa_sqa_mqa_expl_mswq_explans_msw
-# or: /data/thar011/out/unifiedqa_bart_large_s7_v2_expl_mswq
+# or: /data/thar011/out/unifiedqa_bart_large_s7_v2_expl_mswq etc
 
 cd ../code
 
