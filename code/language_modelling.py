@@ -118,7 +118,8 @@ def generate_continuations(templates, model, tokenizer, queries, example_inputs=
     outlist = []
     num_q = len(queries)
     for j, query in enumerate(queries):
-        print(f"Processing {len(templates)} templates for query {j+1} of {num_q}..")
+        if verbose:
+            print(f"Processing {len(templates)} templates for query {j+1} of {num_q}..")
         out = {}
         for i, template in enumerate(templates):
             prompt = fill_prompt_template(template, query=query, 
@@ -213,43 +214,38 @@ def make_soft_unique(preds, stop_when_lessthan=50, N=2, smooth=True, norm=True, 
             
 
 def gen_expl(templates, model, tokenizer, queries, example_inputs=[], example_outputs=[], verbose=False, lower=False,
-             max_input_length=1000, gen_depth=1, su_stage_1_stop=60, su_final_stop=50, max_output_length=512, **generator_args):
+             max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, **generator_args):
     """ Iteratively generate explanation using a set of general templates. 
-    First: Generate candidate explanation components for "queries". Combine these, do basic filtering and make "slightly" soft-unique
-    Then for each remaining component generate an explanation component as above. Repeat gen_depth times.
-    Finally, do soft-unique down to max_output_length tokens
+    (A) Generate num_return_sequences candidate explanation components for "queries". Combine these, do basic filtering and make "slightly" soft-unique unless su_stage_1_stop=-1
+    (B) Then for each remaining explanation component generate num_return_sequences explanation components per (A). Repeat gen_depth times.
+    Returns: outlist list of {'question':q, 'expl_depth':[ ['depth 0 expl components 1', 'd0 ec 2', ..], ['depth 1 expl components', ..], .. ]}
     """
-    test_questions = queries  # list of str
-    outlist = [{'question':q, 'expl_depth':[]} for q in queries]  #expl_depth = list of expl components generated at each depth
+    num_t = len(queries)
+    outlist = [{'question':q, 'expl_depth':[]} for q in queries]  #expl_depth = list of [expl components] generated at each depth
     for d in range(gen_depth):
         if verbose:
             print(f"Generating explanation components at depth: {d} ...")
-        #Returns [ { 'template_idx': 'raw': ['output 0', 'output 1', ..., 'output 9'] } ] where each row idx corresponds to query idx
-        curr_completions = generate_continuations(templates, model, tokenizer, test_questions, verbose=verbose, lower=lower,
-                                                  example_inputs=example_inputs, example_outputs=example_outputs, 
-                                                  max_input_length=max_input_length, 
-                                                  **generator_args)
-        if verbose:
-            print("Combining preds from each template together and performing basic filtering...")
-        for i, c in enumerate(curr_completions):
+        for t in range(num_t):
+            if d == 0:
+                test_questions = outlist[t]['question']
+            else:
+                test_questions = outlist[t]['expl_depth'][d-1]
+            #Returns [ { 'template_idx': 'raw': ['output 0', 'output 1', ..., 'output 9'] } ] where each row idx corresponds to input [test_questions] idx
+            curr_completions = generate_continuations(templates, model, tokenizer, test_questions, verbose=verbose, lower=lower,
+                                                      example_inputs=example_inputs, example_outputs=example_outputs, 
+                                                      max_input_length=max_input_length, 
+                                                      **generator_args)
+            if verbose:
+                print(f"{t} Combining preds from each template together and performing basic filtering...")
             combo = []
-            for t in c.keys():
-                combo += c[t]['raw']
-            c['combo_filtered'] = preds_basic_filter(combo, min_length=4, remove_strings=['input'])
-            c['query'] = test_questions[i]  # add question text for later decipherability
-            c['depth'] = str(d)
-            #TODO Add soft unique here
-            outlist[i]['expl_depth'].append(copy.deepcopy(c))
-        if d != gen_depth - 1:  #now have multiple questions per orig input question: need to map back...
-            new_test_questions = []
-            q_map = []
-            end_idx = 0
-            for i, c in outlist:  #build test_questions for next iteration plus a map from test_question idx -> orig question idx
-                num_q = len(c['expl_depth'][-1]['combo_filtered'])
-                start_idx = end_idx
-                end_idx += num_q
-                new_test_questions += c['expl_depth'][-1]['combo_filtered']
-                q_map.append( (start_idx, end_idx, i) )
+            for i, c in enumerate(curr_completions):
+                for tem in c.keys():  #combine outputs from each input template
+                    combo += c[tem]['raw']
+            expl_components = preds_basic_filter(combo, min_length=4, remove_strings=['input'])
+            # soft unique here
+            if su_stage_1_stop != -1:
+                expl_components = make_soft_unique(expl_components, stop_when_lessthan=su_stage_1_stop, verbose=verbose)  
+            outlist[t]['expl_depth'].append(expl_components)
                 
     return outlist
 
