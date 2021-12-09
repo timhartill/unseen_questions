@@ -539,7 +539,8 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
     #res.sequences has output tokens as ids shape [#samples, max output len]
     #res.sequences_scores returns overall score (final beam score) of each returned seq [#samples]  NOTE: don't get sequences_scores for nucleus sampling'
     #res.scores is tuple of output num_toks entries of [#beams*#samples, vocab size] if input_string is a list of #samples
-    
+    #   see https://huggingface.co/docs/transformers/internal/generation_utils
+            https://discuss.huggingface.co/t/generation-probabilities-how-to-compute-probabilities-of-output-scores-for-gpt2/3175
     pred, score = get_single_result(res, idx=0)        
     """
     ids = []

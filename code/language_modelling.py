@@ -85,22 +85,36 @@ def fill_prompt_template(template, query=None, taskprompt=None, example_inputs=[
     return prompt
 
 
+def create_template(orig_template_file, new_template_file, ds_jsonl, prompt_indices, qkey = 'q_only', explkey='context'):
+    """ create and save a new prompt template based on an existing template and some examples
+    Set new_template_file to None to not save the new template as a file
+    """
+    orig_template = load_prompt_template(orig_template_file)
+    example_inputs = utils.return_sublist(ds_jsonl, prompt_indices, key=qkey)
+    example_outputs = utils.return_sublist(ds_jsonl, prompt_indices, key=explkey)
+    new_template= fill_prompt_template(orig_template, 
+                                      example_inputs=example_inputs,
+                                      example_outputs=example_outputs,
+                                      saveas=new_template_file)
+    return new_template
+
+
 def generate_continuations(templates, model, tokenizer, queries, example_inputs=[], example_outputs=[], verbose=False, lower=False,
                            max_input_length=512, **generator_args):
     """ Generate LM continuations for [templates] filled with [queries] and optionally with [example_inputs] & [example_outputs]
 
     Examples:
-    #Nucleus/top p:
+    #Nucleus/top p: (will not return sequences_scores if output_scores=True)
     qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
                                               example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
                                               do_sample=True, max_new_tokens=64, top_k=0, top_p=0.9, temperature=0.7,
                                               num_return_sequences=10, output_scores=False, return_dict_in_generate=True)    
-    #Beam search:
+    #Beam search: (will return sequences_scores if output_scores=True)
     qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
                                               example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
                                               num_beams=4, early_stopping=True, min_length=1, max_new_tokens=64,
                                               num_return_sequences=1, output_scores=False, return_dict_in_generate=True)
-    #top k:
+    #top k: (will not return sequences_scores if output_scores=True)
     qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
                                               example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
                                               do_sample=True, max_new_tokens=64, top_k=50, temperature=0.7,
@@ -131,6 +145,8 @@ def generate_continuations(templates, model, tokenizer, queries, example_inputs=
                             **generator_args)
             out[str(i)] = {}
             out[str(i)]['raw'] = res.preds.copy()
+            if verbose and j==0 and i==0:
+                print(f"RESULTS KEYS: {res.keys()}")
         outlist.append(out)
     return outlist
 

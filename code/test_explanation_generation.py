@@ -28,7 +28,7 @@ UQA_DIR = '/data/thar011/data/unifiedqa/'
 PROMPT_DIR = os.path.join(UQA_DIR, 'prompts')
 cuda_device = 0
 
-
+#model_name = 'gpt2', model_name = 'gpt2-medium', model_name = 'gpt2-large', model_name = 'gpt2-xl'
 model_name = "EleutherAI/gpt-j-6B"
 #tokenizer, model = load_model(model_name, checkpoint=None)
 tokenizer, model = load_model(model_name, checkpoint=None, cuda_device=cuda_device)
@@ -62,39 +62,62 @@ tokenizer_eval, model_eval = load_model(eval_model_name, checkpoint=eval_model_c
 QASC_EXPLANATION_FILE = os.path.join(UQA_DIR, 'qasc_mc_ans', 'train.tsv')  # q[+mc]+e->a
 qasc_train_expl = load_uqa_supervised(QASC_EXPLANATION_FILE, ans_lower=False, return_parsed=True)
 
-prompt_indices, test_indices, rand_indices = language_modelling.get_prompt_samples_and_eval_samples(qasc_train_expl, select_total=100, select_prompt=7, select_eval=2, seed=42)
+prompt_indices, test_indices, rand_indices = language_modelling.get_prompt_samples_and_eval_samples(qasc_train_expl, 
+                                                                                                    select_total=100, 
+                                                                                                    select_prompt=7, 
+                                                                                                    select_eval=2, seed=42)
 # rand_indices:
 # array([5914, 5425, 1430, 7324, 4028, 1009, 3172, 2892, 3985, 5023, 4074, 1302, 4471, 7541,  554, 6864,  483, 6908, 6159, 5057, 5170, 2199, 3837, 2345, 5137, 7331, 4825, 1242, 1882, 5519, 4525, 1730, 5861, 6091, 2406, 2302,  233,  794,  866, 3333, 1400, 1744, 7937, 6224, 4510, 4922,  932, 3567, 4151, 1737,  318, 2995, 2338, 5513, 7743, 1926, 3012, 1575, 4113,  349, 3355, 7716, 4606, 3942, 1010, 3844, 239, 6438, 3238, 6879,  748, 6218, 5324, 3149, 1295, 7685, 2867, 7977, 3217, 6642, 4270, 7165, 6968, 5815, 6594, 3018, 4394, 2663, 6084,  453, 3995, 7780, 6612, 6075, 4668, 5548, 2348, 8088, 4674, 6195])
 #prompt_rand = rand_indices[np.random.choice(rand_indices.shape[0], 20, replace=False)]
 
 ######################
 # Initially fill and save a template as a raw prompt leaving {question} unfilled:
-qasc_2_fact_numbered_vark = load_prompt_template('/data/thar011/data/unifiedqa/prompts/qasc_var_numbered_examples_v1.txt')
-example_inputs = return_sublist(qasc_train_expl, prompt_indices, key='q_only')
-example_outputs = return_sublist(qasc_train_expl, prompt_indices, key='context')
-p_qasc_2_k7= fill_prompt_template(qasc_2_fact_numbered_vark, 
-                                  example_inputs=example_inputs,
-                                  example_outputs=example_outputs,
-                                  saveas='/data/thar011/data/unifiedqa/prompts/qasc_k7_raw.txt')
+new_template = language_modelling.create_template(orig_template_file='/data/thar011/data/unifiedqa/prompts/qasc_var_numbered_examples_v1.txt', 
+                                                  new_template_file='/data/thar011/data/unifiedqa/prompts/qasc_k7_raw.txt', 
+                                                  ds_jsonl=qasc_train_expl, 
+                                                  prompt_indices=prompt_indices)
+
 ######################
 
 ######################
 # Generate explanations for a set of templates
-qasc_2_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/qasc_k7_raw.txt',
+test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/qasc_k7_raw.txt',
                                    '/data/thar011/data/unifiedqa/prompts/qasc_5_cleaned.txt'])
 test_samples = return_sublist(qasc_train_expl, test_indices)
 test_questions = [format_sentence(s['q_only'], endchar='') for s in test_samples]
 test_answers = [s['answer'] for s in test_samples]
 
-test_completions = language_modelling.gen_expl(qasc_2_templates, model, tokenizer, test_questions, verbose=True, lower=False,
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, [test_questions[1]], verbose=True, lower=False,
                                                 max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
-                                                do_sample=True, max_new_tokens=64, top_k=0, top_p=0.5, temperature=0.7,
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
                                                 num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
                                                 pad_token_id=tokenizer.eos_token_id)
 
-# , top_k=0, top_p=0.9, temperature=0.7, = < 50% falsehoods but lots of falsehoods - did tend to identify key terms - best found thus far...
-# top_k=0, top_p=0.5, temperature=1.0, = good diversity but lots of falsehoods
-# top_k=0, top_p=0.5, temperature=0.7 = low diversity and lots of falsehoods!
+# do_sample=True, top_k=0, top_p=0.9, temperature=0.7, = < 50% falsehoods but lots of falsehoods - did tend to identify key terms - best found thus far...
+# do_sample=True, top_k=0, top_p=0.9, temperature=0.5, = >50% false!
+# do_sample=True, top_k=0, top_p=0.5, temperature=1.0, = good diversity but lots of falsehoods
+# do_sample=True, top_k=0, top_p=0.5, temperature=0.7 = low diversity and lots of falsehoods!
+# do_sample=True, top_k=50, temperature=0.7, = good diversity, fair number of falsehoods. did identify key terms. Seems similar in efficacy to p0.9 t0.7
+# num_beams=4, early_stopping=True, min_length=1, num_return_sequences=1  # generates falsehood.. Does return sequences_scores
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Did Aristotle use a laptop?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=60, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  #generates lots of fantasy
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Aristotle'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  # generates good factual knowledge
+
+test_completions2 = language_modelling.gen_expl(test_templates, model, tokenizer, ['laptop'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  # generates good factual knowledge but no time period
+
 
 #qasc_completions = generate_continuations(qasc_2_templates, model, tokenizer, test_questions, verbose=True,
 #                                          example_inputs=example_inputs, example_outputs=example_outputs, max_input_length=1000, 
@@ -119,6 +142,70 @@ test_samples = utils.loadas_json(os.path.join(PROMPT_DIR, 'qasc_30_train_complet
 #TODO Need to test with having more examples in the prompt - settle on k=7. Not obviously better using k > 5.
 
 #TODO Can we use the cosine similarity of each sentence in order to determine which ones to select?
+
+#######################
+# StrategyQA
+#######################
+SQA_EXPLANATION_FILE = os.path.join(UQA_DIR, 'strategy_qa_expl_ans', 'train.tsv')  # q[+mc]+e->a
+sqa_train_expl = load_uqa_supervised(SQA_EXPLANATION_FILE, ans_lower=False, return_parsed=True)
+
+prompt_indices, test_indices, rand_indices = language_modelling.get_prompt_samples_and_eval_samples(sqa_train_expl, 
+                                                                                                    select_total=100, 
+                                                                                                    select_prompt=7, 
+                                                                                                    select_eval=2, seed=42)
+
+new_template = language_modelling.create_template(orig_template_file='/data/thar011/data/unifiedqa/prompts/qasc_var_numbered_examples_v1.txt', 
+                                                  new_template_file='/data/thar011/data/unifiedqa/prompts/sqa_k7_raw.txt', 
+                                                  ds_jsonl=sqa_train_expl, 
+                                                  prompt_indices=prompt_indices)
+
+#test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/sqa_k7_v2.txt'])
+test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/sqa_k7_temporal.txt']) # works for "laptop"!
+#test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/sqa_k7_raw.txt'])
+test_samples = return_sublist(sqa_train_expl, test_indices)
+test_questions = [format_sentence(s['q_only'], endchar='') for s in test_samples]
+test_answers = [s['answer'] for s in test_samples]
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Did Aristotle use a laptop?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id) #generates various mainly but not always true facts about Aristotle. Generally writes bs about him using a laptop, mouse etc when it does mention computers
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Did Aristotle use a laptopor not?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id) #generates many more false claims about computers
+
+
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Aristotle'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  #Generates mainly true good facts about Aristotle
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['laptop'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  # lots of mainly true facts about laptops
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['The second-largest invertebrate group reproduce how?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  # QASC question. generates diverse mixture of true and false items
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['second-largest invertebrate group'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  # QASC question. generates diverse mixture of true and false items mainly unrelated to the topic
+
+
+
 
 #######################
 # WORLDTREE
