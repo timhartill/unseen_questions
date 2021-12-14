@@ -273,6 +273,7 @@ def flatten(alist):
 def create_uqa_example(question, context=None, answer=None, append_nl=True, append_q_char='?'):
     """ Returns an example in uqa format
     Note: to create a self supervised example put the input para in question and set context = ' ' and append_q_char='.'
+            to create a closed book example likewise set context = ' ' but append_q_char='' or '?'
     """
     sample = question.strip()
     if sample[-1] in ['.','!','?'] and append_q_char != '':

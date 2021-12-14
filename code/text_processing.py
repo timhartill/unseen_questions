@@ -484,17 +484,19 @@ def verb_chunks(instr, add_dot=True, verbose=False):
     matches = matcher(doc)  #Verb chunks
     spans = [doc[start:end] for _, start, end in matches]  # matches = [(id,start_char, end_char),..]
     out_spans = filter_spans(spans)
+    out_spans = [v.text.strip() for v in out_spans]
     if verbose:
         print ('VERB CHUNK', out_spans)
     return out_spans
 
 
-def ner(instr, add_nphrases = True, add_dot=True, verbose=False):
+def ner(instr, add_nphrases = True, add_dot=True, verbose=False, return_types=False):
     """ Perform named entity recognition on text and return a list of named entities, numbers, dates etc
         Optionally also extract noun phrases
         Note: optionally add full stop if missing for slightly better results on the last word
     """
     ner_list = []
+    ner_types = []
     just_ners = []
     tmpstr = instr.rstrip()
     tmpstr = tmpstr.rstrip('\\n').rstrip()
@@ -507,6 +509,7 @@ def ner(instr, add_nphrases = True, add_dot=True, verbose=False):
     for ent in doc.ents:
         if verbose: print(ent.text, '"' + ent.text_with_ws + '"', ent.start_char, ent.end_char, ent.label_)
         ner_list.append(ent.text_with_ws.strip())
+        ner_types.append(str(ent.label_))
         just_ners.append(ent.text.strip(string.punctuation+' '))
         #ner_list.append( {'txt_with_ws': ent.text_with_ws, 'start':ent.start_char, 'end': ent.end_char, 'type': ent.label_} )
     if add_nphrases:    
@@ -514,6 +517,9 @@ def ner(instr, add_nphrases = True, add_dot=True, verbose=False):
             if verbose: print('NOUN CHUNK',n.text_with_ws, n.start_char, n.end_char)
             if not [ne for ne in just_ners if ne.find(n.text.strip(string.punctuation+' ')) != -1]: # don't include noun phrases that are part of a named entity
                 ner_list.append(n.text.strip(string.punctuation+' '))
+                ner_types.append(NOUNPHRASE_LABEL)
+    if return_types:
+        return ner_list, ner_types
     return ner_list
 
 

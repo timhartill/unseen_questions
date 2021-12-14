@@ -19,13 +19,19 @@ Notes:
 import os
 import numpy as np
 import utils
-from utils import load_model, run_model, empty_cache, load_uqa_supervised, return_sublist
+from utils import load_model, run_model, empty_cache, load_uqa_supervised, return_sublist, create_uqa_example
 from language_modelling import load_prompt_template, load_templates, fill_prompt_template, generate_continuations, filter_continuations
 import language_modelling
 from text_processing import format_sentence
+import text_processing
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
 PROMPT_DIR = os.path.join(UQA_DIR, 'prompts')
+plausibility_template = os.path.join(PROMPT_DIR, 'qa_gpt3_v1.txt') # 'plausibility_v1.txt'
+test_plausibility = load_templates([plausibility_template])
+temporal_template = os.path.join(PROMPT_DIR, 'temporal_v1.txt') # 
+test_temporal = load_templates([temporal_template])
+
 cuda_device = 0
 
 #model_name = 'gpt2', model_name = 'gpt2-medium', model_name = 'gpt2-large', model_name = 'gpt2-xl'
@@ -35,7 +41,8 @@ tokenizer, model = load_model(model_name, checkpoint=None, cuda_device=cuda_devi
 
 
 eval_model_name = 'facebook/bart-large'
-eval_model_ckpt = '/data/thar011/out/unifiedqa_bart_large_v3/best-model.pt'
+#eval_model_ckpt = '/data/thar011/out/unifiedqa_bart_large_v3/best-model.pt'
+eval_model_ckpt = '/data/thar011/out/unifiedqa_bart_large_s7_v4_uqa_ms_expl_mswq_explans_msw_ssviseall_mswq/best-model-150000.pt'
 tokenizer_eval, model_eval = load_model(eval_model_name, checkpoint=eval_model_ckpt, cuda_device=cuda_device)
 
 #tstin = "Answer yes or no: Is 16 greater than 6? Answer:"
@@ -82,7 +89,7 @@ new_template = language_modelling.create_template(orig_template_file='/data/thar
 ######################
 # Generate explanations for a set of templates
 test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/qasc_k7_raw.txt',
-                                   '/data/thar011/data/unifiedqa/prompts/qasc_5_cleaned.txt'])
+                                 '/data/thar011/data/unifiedqa/prompts/qasc_5_cleaned.txt'])
 test_samples = return_sublist(qasc_train_expl, test_indices)
 test_questions = [format_sentence(s['q_only'], endchar='') for s in test_samples]
 test_answers = [s['answer'] for s in test_samples]
@@ -149,31 +156,40 @@ test_samples = utils.loadas_json(os.path.join(PROMPT_DIR, 'qasc_30_train_complet
 SQA_EXPLANATION_FILE = os.path.join(UQA_DIR, 'strategy_qa_expl_ans', 'train.tsv')  # q[+mc]+e->a
 sqa_train_expl = load_uqa_supervised(SQA_EXPLANATION_FILE, ans_lower=False, return_parsed=True)
 
+# NOTE: don't use test_indices with BART since it's been trained on those... 
 prompt_indices, test_indices, rand_indices = language_modelling.get_prompt_samples_and_eval_samples(sqa_train_expl, 
                                                                                                     select_total=100, 
-                                                                                                    select_prompt=7, 
+                                                                                                    select_prompt=12, 
                                                                                                     select_eval=2, seed=42)
 
 new_template = language_modelling.create_template(orig_template_file='/data/thar011/data/unifiedqa/prompts/qasc_var_numbered_examples_v1.txt', 
-                                                  new_template_file='/data/thar011/data/unifiedqa/prompts/sqa_k7_raw.txt', 
+                                                  new_template_file='/data/thar011/data/unifiedqa/prompts/sqa_k15_raw.txt', 
                                                   ds_jsonl=sqa_train_expl, 
                                                   prompt_indices=prompt_indices)
 
-#test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/sqa_k7_v2.txt'])
-test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/sqa_k7_temporal.txt']) # works for "laptop"!
-#test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/sqa_k7_raw.txt'])
+#test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/sqa_k7_v2_true_factual_knowledge.txt'])  # doesnt work
+#test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/sqa_k7_temporal.txt']) # works for "laptop", "aristotle"!
+test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/sqa_k12_raw.txt'])  #equally good/bad as k7? Was better on "second-largest invertebrate group"
+#test_templates = load_templates(['/data/thar011/data/unifiedqa/prompts/sqa_k15_raw.txt'])  #equally good/bad as k7? 
 test_samples = return_sublist(sqa_train_expl, test_indices)
 test_questions = [format_sentence(s['q_only'], endchar='') for s in test_samples]
 test_answers = [s['answer'] for s in test_samples]
 
 test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Did Aristotle use a laptop?'], verbose=True, lower=False,
-                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                add_noun=['general', 'where', 'when', 'size'], add_verb=['general'],
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Did Aristotle use a laptop?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
                                                 max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
                                                 num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
                                                 pad_token_id=tokenizer.eos_token_id) #generates various mainly but not always true facts about Aristotle. Generally writes bs about him using a laptop, mouse etc when it does mention computers
 
-test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Did Aristotle use a laptopor not?'], verbose=True, lower=False,
-                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Did Aristotle use a laptop or not?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
                                                 max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
                                                 num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
                                                 pad_token_id=tokenizer.eos_token_id) #generates many more false claims about computers
@@ -181,29 +197,214 @@ test_completions = language_modelling.gen_expl(test_templates, model, tokenizer,
 
 
 test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Aristotle'], verbose=True, lower=False,
-                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
                                                 max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
                                                 num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
                                                 pad_token_id=tokenizer.eos_token_id)  #Generates mainly true good facts about Aristotle
 
-test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['laptop'], verbose=True, lower=False,
-                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['When did aristotle exist?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  #Generates mainly true good facts about Aristotle
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['What size is aristotle?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['a laptop'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
                                                 max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
                                                 num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
                                                 pad_token_id=tokenizer.eos_token_id)  # lots of mainly true facts about laptops
 
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['When did a laptop exist?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  # lots of mainly true facts about laptops
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['What size is a laptop?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)
+
 test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['The second-largest invertebrate group reproduce how?'], verbose=True, lower=False,
-                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
                                                 max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
                                                 num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
                                                 pad_token_id=tokenizer.eos_token_id)  # QASC question. generates diverse mixture of true and false items
 
-test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['second-largest invertebrate group'], verbose=True, lower=False,
-                                                max_input_length=1000, gen_depth=2, su_stage_1_stop=-1, 
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['The second-largest invertebrate group'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
                                                 max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
                                                 num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
                                                 pad_token_id=tokenizer.eos_token_id)  # QASC question. generates diverse mixture of true and false items mainly unrelated to the topic
 
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['When did the second-largest invertebrate group exist?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  # QASC question. generates diverse mixture of true and false items mainly unrelated to the topic
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['What size is the second-largest invertebrate group?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['reproduce'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  # QASC question. generates diverse mixture of true and false items mainly unrelated to the topic
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['a nickel'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  # good facts in terms of "order of magnitude"
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['What is the size of a nickel?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  #
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['a koala pouch'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  #
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['What size is a koala pouch?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  #
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['the average giraffe'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  #
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['What size is the average giraffe?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  #
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Javier Sotomayor'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  #
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['What size is Javier Sotomayor?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  #
+
+
+##########################
+# test temporal template
+test_completions = language_modelling.gen_expl(test_temporal, model, tokenizer, ['Aristotle'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id) # Does well
+
+test_completions = language_modelling.gen_expl(test_temporal, model, tokenizer, ['a laptop'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id) # Does directionally well but almost everything fabricated
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['When did a laptop exist?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id) # Actually no worse and perhaps slightly better than the temporal template
+
+test_completions = language_modelling.gen_expl(test_temporal, model, tokenizer, ['The second-largest invertebrate group'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id) # didnt generate any dates and all claims false
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['When did the second-largest invertebrate group exist?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id) #as per temporal - didnt generate any dates and everything false
+
+test_completions = language_modelling.gen_expl(test_temporal, model, tokenizer, ['The average giraffe'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id) # all claims false
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['When did the average giraffe exist?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id) #as per temporal - everything false
+
+test_completions = language_modelling.gen_expl(test_templates, model, tokenizer, ['Did giraffes first appear in the Mesozoic?'], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, 
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=10, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id) # this is the best but still lots of bs. Shows that GPT-J might know that giraffes first appeared in the Miocene!!
+
+
+##################################
+# Run template that outputs 1 answer per input question...
+questions = utils.flatten([ql.split('.') for ql in test_completions[0]['expl_depth'][0]])
+questions = [q.strip()+'.' for q in questions if q.strip() != '']
+
+plausibility = language_modelling.gen_expl(test_plausibility, model, tokenizer, test_completions[0]['expl_depth'][0], verbose=True, lower=False,
+                                                max_input_length=1000, gen_depth=1, su_stage_1_stop=-1, filter_min_len=0,
+                                                max_new_tokens=64, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
+                                                num_return_sequences=1, output_scores=False, return_dict_in_generate=True, 
+                                                pad_token_id=tokenizer.eos_token_id)  # doesnt work well on multi-sentence outputs or single sentences...
+##################################
+
+
+
+
+ners, ner_types = text_processing.ner('Would a nickel fit inside a koala pouch?', return_types=True)  # ['a nickel', 'a koala pouch']
+vphrases = text_processing.verb_chunks('Would a nickel fit inside a koala pouch?') # []
+
+ners, ner_types = text_processing.ner('Could Javier Sotomayor jump over the head of the average giraffe?', return_types=True)  # ['Javier Sotomayor', 'the head', 'the average giraffe']
+vphrases = text_processing.verb_chunks('Could Javier Sotomayor jump over the head of the average giraffe?') # ['jump']
+
+
+
+ners, ner_types = text_processing.ner('The second-largest invertebrate group reproduce how?', return_types=True)  # ['second', 'The second-largest invertebrate group']
+ners = language_modelling.preds_basic_filter(ners, min_length=0, remove_strings=[])
+vphrases = text_processing.verb_chunks('The second-largest invertebrate group reproduce how?')  # [reproduce]
+vphrases = language_modelling.preds_basic_filter(vphrases, min_length=0, remove_strings=[])
+
+vphrases = text_processing.verb_chunks('Did Aristotle use a laptop?') # ['use']
+ners, ner_types = text_processing.ner('Did Aristotle use a laptop?', return_types=True) # ['use']
+
+uqa_example = create_uqa_example('Invertebrates are animals that do not have a backbone. The second largest invertebrate group is the arthropods. The largest invertebrate group is the chordates.', context='(A) yes (B) no', append_q_char='')
+uqa_example = create_uqa_example('The largest invertebrate group is the arthropods. The second largest invertebrate group is the mollusks.', context='(A) yes (B) no', append_q_char='')
+
+uqa_example = create_uqa_example('Did Aristotle use a laptop?', context = ' ', append_q_char='') # correctly returns no without context...
+uqa_example = create_uqa_example('Would a nickel fit inside a koala pouch?', context = ' ', append_q_char='') # gt=yes correctly returns yes..
+uqa_example = create_uqa_example('Could Javier Sotomayor jump over the head of the average giraffe?', context = ' ', append_q_char='') # gt=no, correctly returns no. It has seen these questions in training! CANNOT eval on test questions...
+
+
+res_eval = run_model(uqa_example, model_eval, tokenizer_eval, indiv_digits=False, norm_numbers=False, 
+                max_input_length=50, verbose=True, lower=True, 
+                num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=130,
+                output_scores=True, return_dict_in_generate=True)
 
 
 
