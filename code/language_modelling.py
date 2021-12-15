@@ -247,7 +247,10 @@ def gen_expl(templates, model, tokenizer, queries, example_inputs=[], example_ou
     add_verb = list of question_templates keys to apply to verbs using first template in templates only for depth 0 only
     (A) Generate num_return_sequences candidate explanation components for "queries". Combine these, do basic filtering and make "slightly" soft-unique unless su_stage_1_stop=-1
     (B) Then for each remaining explanation component generate num_return_sequences explanation components per (A). Repeat gen_depth times.
-    Returns: outlist list of {'question':q, 'expl_depth':[ ['depth 0 expl components 1', 'd0 ec 2', ..], ['depth 1 expl components', ..], .. ]}
+    Returns: outlist list of {'question':q, 'expl_depth':[ ['depth 0 expl components 1', 'd0 ec 2', ..], ['depth 1 expl components', ..], .. ],
+                              'noun':{'general':{'Aristotle':['Sentence 1', 'Sentence 2', ...], 'a laptop':[...]}, ...}
+                              'verb':{'general':{'running':[...], 'jumping':[...]}}
+                             }
     """
     num_t = len(queries)
     outlist = [{'question':q, 'expl_depth':[], 'noun':{}, 'verb':{}} for q in queries]  #expl_depth = list of [expl components] generated at each depth
