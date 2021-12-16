@@ -21,6 +21,8 @@ import numpy as np
 import utils
 import language_modelling
 import text_processing
+import eval_metrics
+
 
 MAX_INPUT_LENGTH=1000
 GEN_DEPTH=1
@@ -31,6 +33,7 @@ ADD_NOUN=['general', 'where', 'when', 'size']
 ADD_VERB=['general']
 MAX_NEW_TOKENS=64
 NUM_RETURN_SEQUENCES=10
+EXPL_MODEL='' # key for the model being used. '' for GPT-J or '_newlm' for something else
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
 PROMPT_DIR = os.path.join(UQA_DIR, 'prompts')
@@ -52,7 +55,7 @@ def save_candidates(dset='strategy_qa_expl_ans', file='train'):
                              }
     """
     infile = os.path.join(UQA_DIR, dset, file+'.tsv')  # usually the q[+mc]+e->a version but any uqa formatted file will work
-    outfile = os.path.join(UQA_DIR, dset, file+'_expl_components.jsonl')
+    outfile = os.path.join(UQA_DIR, dset, file + EXPL_MODEL + eval_metrics.EXPL_COMP_KEY +'.jsonl')
 
     if VERBOSE:
         print(f"Loading: {infile}")
@@ -69,6 +72,10 @@ def save_candidates(dset='strategy_qa_expl_ans', file='train'):
     return components
 
 c = save_candidates(dset='strategy_qa_expl_ans', file='dev')
+c = save_candidates(dset='qasc_mc_ans', file='dev')
+
 c = save_candidates(dset='strategy_qa_expl_ans', file='train')
+c = save_candidates(dset='qasc_mc_ans', file='train')
+
 
 

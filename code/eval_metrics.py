@@ -38,7 +38,7 @@ import datasets
 from sari import SARI
 from dataset_attributes import dev_eval, test_eval, metric_groups, dataset_attribs, unifiedqa_base_train, replace_sim_with
 from dataset_attributes import unifiedqa_unseen_1, unifiedqa_unseen_2, unifiedqa_unseen_3, unifiedqa_unseen_4, unifiedqa_unseen_4_map, unifiedqa_unseen_5, unifiedqa_unseen_6, unifiedqa_seen_1, mmlu_unseen_1
-from dataset_attributes import UQA_DIR, SVISED_EXPL_ANS, selfsupervisedkey, add_explanationkey
+from dataset_attributes import UQA_DIR, SVISED_EXPL_ANS, selfsupervisedkey, add_explanationkey, EXPL_COMP_KEY
 from dataset_attributes import create_datasets_dynamic
 
 def replace_sim(datasets, mixture_file_key):

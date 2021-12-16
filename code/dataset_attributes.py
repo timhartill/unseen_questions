@@ -28,6 +28,7 @@ import fnmatch
 SVISED_EXPL_ANS = '_dyn_expl_ans_'
 selfsupervisedkey = '_selfsvised'   # dataset names ending in this will be processed as self supervised
 add_explanationkey = 'Add Explanation:'
+EXPL_COMP_KEY = '_expl_components'
 
 
 UQA_DIR = '/data/thar011/data/unifiedqa/' # datasets base directory
