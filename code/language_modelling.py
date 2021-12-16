@@ -9,6 +9,7 @@ Routines for language modelling e.g. using GPT-x
 
 
 """
+import os
 import numpy as np
 import copy
 
@@ -240,7 +241,8 @@ def make_soft_unique(preds, stop_when_lessthan=50, N=2, smooth=True, norm=True, 
 
 def gen_expl(templates, model, tokenizer, queries, example_inputs=[], example_outputs=[], verbose=False, lower=False,
              max_input_length=1000, gen_depth=1, filter_min_len=4, filter_remove_strings=['input'], su_stage_1_stop=-1, 
-             add_noun=['general', 'where', 'when', 'size'], add_verb=['general'], **generator_args):
+             add_noun=['general', 'where', 'when', 'size'], add_verb=['general'], outfile=None,
+             **generator_args):
     """ Iteratively generate explanation using a set of general templates. 
     templates: list of generic template(s) to apply
     add_noun = list of question_templates keys to apply to nouns using first template in templates only for depth 0 only
@@ -254,57 +256,73 @@ def gen_expl(templates, model, tokenizer, queries, example_inputs=[], example_ou
     """
     num_t = len(queries)
     outlist = [{'question':q, 'expl_depth':[], 'noun':{}, 'verb':{}} for q in queries]  #expl_depth = list of [expl components] generated at each depth
-    for d in range(gen_depth):
+    num_partial = 0
+    initial_mode = 'w'
+    if outfile is not None:
+        if os.path.exists(outfile):
+            partial_outfile = utils.load_jsonl(outfile)
+            num_partial = len(partial_outfile)
+            assert num_partial <= num_t, f"ERROR: query count {num_t} is less than partial count {num_partial} from {outfile}. Exiting!"
+            if num_partial > 0:
+                initial_mode = 'a'
+            for t,p in enumerate(partial_outfile):
+                if p['question'] != outlist[t]['question']:
+                    assert num_partial <= num_t, f"ERROR: File question {t} doesnt match input question: File:{p['question']} Input:{outlist[t]['question']}. File name:{outfile}. Exiting!"
+                outlist[t] = p
+                
+    for t in range(num_partial, num_t):
         if verbose:
-            print(f"Generating explanation components at depth: {d} ...")
-        for t in range(num_t):
-            if d == 0:
-                if verbose:
-                    print(f"Processing Q:{t} {outlist[t]['question']}")
-                test_questions = outlist[t]['question']
-                if add_noun != []:
-                    ners, ner_types = text_processing.ner(test_questions, return_types=True)
-                    ners_filtered = []
-                    for i, ntype in enumerate(ner_types):
-                        if ntype not in exclude_ner_types:
-                            ners_filtered.append(ners[i])
-                    ners_filtered = preds_basic_filter(ners_filtered, min_length=0, remove_strings=[]) # filter substrings in favour of longest noun phrases
-                    curr_out = {}  # {'general':{'Aristotle':[...], 'a laptop':[...]}, ...}
-                    for tem in question_templates.keys():
-                        if tem in add_noun:                        
-                            curr_out[tem]={}
-                            for ner in ners_filtered:
-                                question = question_templates[tem].replace('{phrase}', ner)
-                                if verbose:
-                                    print(f"QT:{tem} NP: {ner} Question:{question}...")
-                                curr_completions = generate_continuations(templates[0], model, tokenizer, 
-                                                                          question, verbose=verbose, lower=lower,
-                                                                          example_inputs=example_inputs, example_outputs=example_outputs, 
-                                                                          max_input_length=max_input_length, 
-                                                                          **generator_args)
-                                expl_components = preds_basic_filter(curr_completions[0]['0']['raw'], min_length=filter_min_len, remove_strings=filter_remove_strings)
-                                curr_out[tem][ner] = expl_components
-                    outlist[t]['noun'] = copy.deepcopy(curr_out)                          
-                        
-                if add_verb != []:
-                    vphrases = text_processing.verb_chunks(test_questions)
-                    tem = 'general'
-                    curr_out = {tem:{}}
-                    for vp in vphrases:
-                        question = question_templates[tem].replace('{phrase}', vp)
+            print(f"Processing Q:{t} {outlist[t]['question']}")
+        test_questions = outlist[t]['question']
+        if add_noun != []:
+            ners, ner_types = text_processing.ner(test_questions, return_types=True)
+            ners_filtered = []
+            for i, ntype in enumerate(ner_types):
+                if ntype not in exclude_ner_types:
+                    ners_filtered.append(ners[i])
+            ners_filtered = preds_basic_filter(ners_filtered, min_length=0, remove_strings=[]) # filter substrings in favour of longest noun phrases
+            curr_out = {}  # {'general':{'Aristotle':[...], 'a laptop':[...]}, ...}
+            for tem in question_templates.keys():
+                if tem in add_noun:                        
+                    curr_out[tem]={}
+                    for ner in ners_filtered:
+                        question = question_templates[tem].replace('{phrase}', ner)
                         if verbose:
-                            print(f"QT:{tem} VP: {vp} Question:{question}...")
-                            curr_completions = generate_continuations(templates[0], model, tokenizer, 
-                                                                      question, verbose=verbose, lower=lower,
-                                                                      example_inputs=example_inputs, example_outputs=example_outputs, 
-                                                                      max_input_length=max_input_length, 
-                                                                      **generator_args)
-                            expl_components = preds_basic_filter(curr_completions[0]['0']['raw'], min_length=filter_min_len, remove_strings=filter_remove_strings)
-                            curr_out[tem][vp] = expl_components
-                    outlist[t]['verb'] = copy.deepcopy(curr_out)                          
-                        
-            else:
+                            print(f"Q:{t} QT:{tem} NP: {ner} Question:{question}...")
+                        curr_completions = generate_continuations(templates[0], model, tokenizer, 
+                                                                  question, verbose=verbose, lower=lower,
+                                                                  example_inputs=example_inputs, example_outputs=example_outputs, 
+                                                                  max_input_length=max_input_length, 
+                                                                  **generator_args)
+                        expl_components = preds_basic_filter(curr_completions[0]['0']['raw'], min_length=filter_min_len, remove_strings=filter_remove_strings)
+                        curr_out[tem][ner] = expl_components
+            outlist[t]['noun'] = copy.deepcopy(curr_out)                          
+                
+        if add_verb != []:
+            vphrases = text_processing.verb_chunks(test_questions)
+            tem = 'general'
+            curr_out = {tem:{}}
+            for vp in vphrases:
+                question = question_templates[tem].replace('{phrase}', vp)
+                if verbose:
+                    print(f"Q:{t} QT:{tem} VP: {vp} Question:{question}...")
+                    curr_completions = generate_continuations(templates[0], model, tokenizer, 
+                                                              question, verbose=verbose, lower=lower,
+                                                              example_inputs=example_inputs, example_outputs=example_outputs, 
+                                                              max_input_length=max_input_length, 
+                                                              **generator_args)
+                    expl_components = preds_basic_filter(curr_completions[0]['0']['raw'], min_length=filter_min_len, remove_strings=filter_remove_strings)
+                    curr_out[tem][vp] = expl_components
+            outlist[t]['verb'] = copy.deepcopy(curr_out)                          
+                
+        for d in range(gen_depth):
+            if verbose:
+                print(f"{t} Generating explanation components at depth: {d} ...")
+            if d == 0:
+                test_questions = outlist[t]['question']
+            else:  # d > 0
                 test_questions = outlist[t]['expl_depth'][d-1] #list of 'questions' being prior generated completions
+
             #Returns [ { 'template_idx': 'raw': ['output 0', 'output 1', ..., 'output 9'] } ] where each row idx corresponds to input [test_questions] idx
             curr_completions = generate_continuations(templates, model, tokenizer, test_questions, verbose=verbose, lower=lower,
                                                       example_inputs=example_inputs, example_outputs=example_outputs, 
@@ -319,9 +337,13 @@ def gen_expl(templates, model, tokenizer, queries, example_inputs=[], example_ou
             expl_components = preds_basic_filter(combo, min_length=filter_min_len, remove_strings=filter_remove_strings)
             # soft unique here
             if su_stage_1_stop != -1:
-                expl_components = make_soft_unique(expl_components, stop_when_lessthan=su_stage_1_stop, verbose=verbose)  
+                expl_components = make_soft_unique(expl_components, stop_when_lessthan=su_stage_1_stop, verbose=verbose)
             outlist[t]['expl_depth'].append(expl_components)
-                
+            
+        if outfile is not None:
+            utils.saveas_jsonl([outlist[t]], outfile, initial_mode=initial_mode, verbose=verbose)
+            initial_mode = 'a'
+            
     return outlist
 
 

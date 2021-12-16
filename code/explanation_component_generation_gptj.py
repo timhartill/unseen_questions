@@ -45,28 +45,30 @@ def save_candidates(dset='strategy_qa_expl_ans', file='train'):
     Output jsonl format: [{'question':'full question with context', 'answer':'ans', 'q_only':'..', 
                            'mc_options': 'mc options', 'context':'non-mc context if any', 
                            'expl_components':{ expl_components format} }]
+    
     expl_components format: {'question':q, 'expl_depth':[ ['depth 0 expl components 1', 'd0 ec 2', ..], ['depth 1 expl components', ..], .. ],
                               'noun':{'general':{'Aristotle':['Sentence 1', 'Sentence 2', ...], 'a laptop':[...]}, ...}
                               'verb':{'general':{'running':[...], 'jumping':[...]}}
                              }
     """
     infile = os.path.join(UQA_DIR, dset, file+'.tsv')  # usually the q[+mc]+e->a version but any uqa formatted file will work
+    outfile = os.path.join(UQA_DIR, dset, file+'_expl_components.jsonl')
+
     if VERBOSE:
         print(f"Loading: {infile}")
     samples = utils.load_uqa_supervised(infile, ans_lower=False, return_parsed=True)
     questions = [text_processing.format_sentence(s['q_only'], endchar='') for s in samples]    
     components = language_modelling.gen_expl(TEST_TEMPLATES, model, tokenizer, questions, verbose=VERBOSE, lower=LOWER,
                                                 max_input_length=MAX_INPUT_LENGTH, gen_depth=GEN_DEPTH, su_stage_1_stop=SUNIQUE, 
-                                                add_noun=ADD_NOUN, add_verb=ADD_VERB,
+                                                add_noun=ADD_NOUN, add_verb=ADD_VERB, outfile=outfile,
                                                 max_new_tokens=MAX_NEW_TOKENS, do_sample=True, top_k=0, top_p=0.9, temperature=0.7,
                                                 num_return_sequences=NUM_RETURN_SEQUENCES, output_scores=False, return_dict_in_generate=True, 
                                                 pad_token_id=tokenizer.eos_token_id)
-    samples = utils.add_key(samples, components, key='expl_components')
-    outfile = os.path.join(UQA_DIR, dset, file+'_expl_components.jsonl')
-    utils.saveas_jsonl(samples, outfile, verbose=VERBOSE)    
-    return
+    #samples = utils.add_key(samples, components, key='expl_components')
+    #utils.saveas_jsonl(samples, outfile, verbose=VERBOSE)    
+    return components
 
-save_candidates(dset='strategy_qa_expl_ans', file='dev')
-save_candidates(dset='strategy_qa_expl_ans', file='train')
+c = save_candidates(dset='strategy_qa_expl_ans', file='dev')
+c = save_candidates(dset='strategy_qa_expl_ans', file='train')
 
 

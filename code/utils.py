@@ -108,7 +108,7 @@ def saveas_jsonl(obj_list, file, initial_mode = 'w', verbose=True, update=5000):
             add_nl = True
             mode = 'a'
             if verbose:
-                if i % update == 0:
+                if i > 0 and i % update == 0:
                     print('Processed:', i)
     if verbose:
         print('Finished adding to:', file)        
