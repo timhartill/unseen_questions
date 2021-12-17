@@ -12,6 +12,7 @@ Routines for language modelling e.g. using GPT-x
 import os
 import numpy as np
 import copy
+import random
 
 import utils
 import eval_metrics
@@ -161,8 +162,9 @@ def generate_continuations(templates, model, tokenizer, queries, example_inputs=
     return outlist
 
 
-def preds_basic_filter(preds, min_length=4, remove_strings=[]):
-    """ Given a list of predicted explanations, perform basic filtering
+def preds_basic_filter(preds, min_length=4, remove_strings=[], extra_list=None):
+    """ Given a list of predicted explanations, perform basic filtering on preds 
+        and optionally on an extra list of same length
     - remove with length < min_length
     - remove duplicates
     - remove substring sample where it is a substring of another
@@ -189,6 +191,9 @@ def preds_basic_filter(preds, min_length=4, remove_strings=[]):
         else:
             pred_tuple.append( (pred, False) )
     preds = [pt[0] for pt in pred_tuple if pt[1] == False]
+    if extra_list is not None:
+        extra_list = [e for i, e in enumerate(extra_list) if pred_tuple[i][1] == False]
+        return preds, extra_list
     return preds
 
 
@@ -221,8 +226,9 @@ def filter_continuations(sample_list, min_length=4, remove_strings=['input']):
     return
     
 
-def make_soft_unique(preds, stop_when_lessthan=50, N=2, smooth=True, norm=True, verbose=False):
-    """ Return a selection of predictions that are maximally diverse by progressively eliminating preds with high overlap to other preds
+def make_soft_unique(preds, stop_when_lessthan=50, N=2, smooth=True, norm=True, verbose=False, extra_list=None):
+    """ Return a selection of predictions that are maximally diverse by progressively eliminating preds 
+        with high overlap to other preds. Optionally filter a second list of same length.
     preds: list of strings
     """
     scorer = eval_metrics.SelfBleu(N, smooth)
@@ -233,9 +239,13 @@ def make_soft_unique(preds, stop_when_lessthan=50, N=2, smooth=True, norm=True, 
     while selfbleu > stop_when_lessthan and len(newpreds) > 2:
         most_similar_idx = np.argmax(scorer.self_bleus)
         newpreds.pop(most_similar_idx)
+        if extra_list is not None:
+            extra_list.pop(most_similar_idx)
         selfbleu = scorer.compute_metric(newpreds, norm=norm)
         if verbose:
             print(f"Selfbleu:{selfbleu} Preds remaining:{len(newpreds)}")
+    if extra_list is not None:
+        return newpreds, extra_list
     return newpreds        
             
 
@@ -357,27 +367,57 @@ def extract_candidates(samples, include_keys=['expl_depth', 'noun', 'verb', 'gen
     expl_components format: {'question':q, 'expl_depth':[ ['depth 0 expl components 1', 'd0 ec 2', ..], ['depth 1 expl components', ..], .. ],
                               'noun':{'general':{'Aristotle':['Sentence 1', 'Sentence 2', ...], 'a laptop':[...]}, ...}
                               'verb':{'general':{'running':[...], 'jumping':[...]}}
-                             }    """
+                             }
+    """
     for s in samples:
         include_comps = []
+        include_comps_keys = []
         ec = s['expl_components']
         for k in ec.keys():  # k = 'expl_depth', 'noun', 'verb'
             if k not in include_keys:
                 continue
             if k == 'expl_depth':
-                include_comps.extend( utils.flatten(ec[k]) )
+                inc = utils.flatten(ec[k])
+                include_comps.extend( inc )
+                include_comps_keys.extend(['-' + k] * len(inc))
             else:
                for t in ec[k].keys():  # t = eg 'general', 'where', 'when' or 'size'
                    if t not in include_keys:
                        continue
                    for p in ec[k][t].keys():  # p = noun phrases or verbs
-                       include_comps.extend( ec[k][t][p] )
-        s['expl_components_flattened'] = preds_basic_filter(include_comps, min_length=0, remove_strings=[])
+                       inc = ec[k][t][p]
+                       include_comps.extend( inc )
+                       include_comps_keys.extend(['-' + k + '-' + t + '-' + p] * len(inc))
+
+        s['expl_components_flattened'], s['expl_components_flattened_keys'] = preds_basic_filter(include_comps, min_length=0, remove_strings=[], extra_list=include_comps_keys)
     return
 
 
-def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', method='rand', su_stop=-1, 
-                soft_max_tokens=300, verbose=True,
+def create_sample_rand(samples, soft_max_tokens=350, seed=42):
+    """ Randomly create explanations and add to new key 'sample_rand'
+        plus return 'sample_rand' as a list ready for saving
+    """
+    np.random.seed(seed)
+    for s in samples:
+        num_ec = len(s['expl_components_flattened'])
+        rand_indices = np.random.permutation(num_ec)
+        tok_count= s['question_token_count']
+        curr_idx = 0
+        curr_context = ''
+        while tok_count < soft_max_tokens and curr_idx < num_ec:
+            rand_idx = rand_indices[curr_idx]
+            curr_context += text_processing.format_sentence(s['expl_components_flattened'][rand_idx]) + ' '
+            tok_count += s['ec_token_counts'][rand_idx] 
+            curr_idx += 1
+        s['sample_rand'] = utils.create_uqa_example(s['q_only'], 
+                                                    utils.create_uqa_context(s['mc_options'], curr_context), 
+                                                    s['answer'])
+    out = [s['sample_rand'] for s in samples]
+    return out
+
+
+def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', methods=['rand'], su_stop=-1, 
+                soft_max_tokens=350, verbose=True, seed=42, save=True,
                 include_keys=['expl_depth', 'noun', 'verb', 'general', 'where', 'when', 'size']):
     """ Create a new 'dynamic' dataset with explanations from existing "source" dataset 
         and corresponding expl component candidates generated/saved in gen_expl() above.
@@ -386,18 +426,17 @@ def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', method
         expl_dset: dset containing explanation component jsonl file - must have same # rows as infile
         file: 'dev', 'test' or 'train'
         expl_model: '' for GPT-J or some string for some other model
-        method: the method of choosing explanation candidates: 
+        methods: list of methods of choosing explanation candidates: 
             'rand': flatten included keys in expl_file then randomly select
         su_stop: force diversity by trying to make the selection as diverse as possible. -1 means don't apply.
         soft_max_tokens: stop adding expl components after this count is exceeded (includes # toks in question)
-        hard_max_tokens: truncate expls such that this count is never exceeded
         include_keys: the keys in expl_file to consider expl component candidates from
         
         expl_dset = 'strategy_qa_expl_ans'
         in_dset = 'strategy_qa_od_ans'
         
         tokenizer = utils.load_model(model_name="facebook/bart-large", loadwhat='tokenizer_only')
-        random.seed(42)
+        
     """
     infile = os.path.join(eval_metrics.UQA_DIR, in_dset, file+'.tsv')
     if verbose:
@@ -408,15 +447,19 @@ def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', method
         print(f"Loading Explanation component candidates jsonl file: {explfile}")
     components = utils.load_jsonl(explfile)   
     samples = utils.add_key(samples, components, key='expl_components')
+
     if verbose:
         print(f"Selecting and flattening explanation component candidates with these keys: {include_keys}")
     extract_candidates(samples, include_keys=include_keys)
+
     if su_stop != -1:  # eliminate components until reach a diversity threshold
         for i, s in enumerate(samples):
             if verbose:
                 print(f"Making soft-unique: {i}")
-            s['expl_components_flattened'] = make_soft_unique(s['expl_components_flattened'], stop_when_lessthan=su_stop, verbose=verbose)
-
+            s['expl_components_flattened'], s['expl_components_flattened_keys'] = make_soft_unique(s['expl_components_flattened'], 
+                                                                                                   stop_when_lessthan=su_stop, 
+                                                                                                   verbose=verbose,
+                                                                                                   extra_list=s['expl_components_flattened_keys'])
     for i, s in enumerate(samples):
         if verbose and i % 500 == 0:
             print(f"Calculating token counts: {i}")
@@ -426,11 +469,20 @@ def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', method
         for ec in s['expl_components_flattened']:
             s['ec_token_counts'].append( len(utils.string_to_ids(ec, tokenizer, truncation=False,
                                                         norm_numbers=False, append_eos=False, prepend_bos=False)) )
-            
-    if method == 'rand':
-        pass  # random.shuffle() then add until > soft max tokens then truncate to hard max tokens - remove this
     
-    return
+    outdir_base = os.path.join(eval_metrics.UQA_DIR, in_dset + 
+                               eval_metrics.SVISED_EXPL_ANS + expl_model + 
+                               '_' + '_'.join(include_keys) + '_su' + str(su_stop) + '_t' + str(soft_max_tokens) + '_')
+    if 'rand' in methods:
+        if verbose:
+            print("Creating samples with random context...")
+        out = create_sample_rand(samples, soft_max_tokens=soft_max_tokens, seed=seed)     
+        if save:
+            out_dset_dir = outdir_base + 'rand'
+            utils.save_uqa(out, out_dset_dir, file)
+    if verbose:
+        print("Finished create_expl(..)")
+    return samples
 
 
 

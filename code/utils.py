@@ -290,6 +290,39 @@ def create_uqa_example(question, context=None, answer=None, append_nl=True, appe
     return sample
 
 
+def create_uqa_context(mc_options=None, para_context=None):
+    """ Create a UQA context depending on whether there are multi-choice options and/or a paragraph context as either:
+        mc options
+        mc options\\npara_context
+        para_context
+        or None
+    """
+    context = ''
+    if para_context is not None and para_context.strip() != '':
+        context = para_context.strip()
+    if mc_options is not None and mc_options.strip() != '':
+        if context != '':
+            context = mc_options.strip() + '\\n' + context
+        else:
+            context = mc_options.strip()
+    if context == '':
+        context = None
+    return context
+
+
+def save_uqa(out, out_dset_dir, file):
+    """ Save uqa datafile from list of uqa formatted examples that end in \n
+    """
+    if os.path.splitext(file)[1] != '.tsv':
+       file += '.tsv' 
+    os.makedirs(out_dset_dir, exist_ok=True)
+    outfile = os.path.join(out_dset_dir, file)
+    print(f'Saving {outfile} ...')
+    with open(outfile, 'w') as f:
+        f.write(''.join(out))
+    return
+
+
 def find_mc_answer(context, correct_option='(A)'):
     """ Parse a uqa formatted MC sample and return the answer matching an option key """
     if correct_option[0] != '(':

@@ -2,6 +2,7 @@
 # Improved bart-large eval script using --do_predict_all and --calc_metrics_all
 # use for bart-large on base uqa datasets
 # run predictions on multiple dev and test sets using test set where available, dev set otherwise
+# Will include dynamic datasets whose base eval dataset is specified in dataset_attributes.py
 
 cd ../code
 

@@ -35,7 +35,7 @@ MAX_NEW_TOKENS=64
 NUM_RETURN_SEQUENCES=10
 EXPL_MODEL='' # key for the model being used. '' for GPT-J or '_newlm' for something else
 
-UQA_DIR = '/data/thar011/data/unifiedqa/'
+UQA_DIR = eval_metrics.UQA_DIR
 PROMPT_DIR = os.path.join(UQA_DIR, 'prompts')
 TEST_TEMPLATES = language_modelling.load_templates([os.path.join(PROMPT_DIR, 'sqa_k12_raw.txt')])
 
