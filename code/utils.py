@@ -21,6 +21,7 @@ from transformers import GPTJForCausalLM, AutoModelForCausalLM
 from bart import MyBart
 from text_processing import normalize_num, split_digits_special
 
+MULTI_ANS_SEP = '#!#'
 
 #####################################
 # General utils
@@ -163,10 +164,20 @@ def load_uqa_supervised(file, ans_lower=True, verbose=True, return_parsed=False)
                 question, answer = line.split("\t")
             except:
                 print(f"ERROR loading line: {ctr} ##{line}##")
+            
             if ans_lower:
                 answer = answer.lower()
+
+            if answer.lstrip().startswith(MULTI_ANS_SEP): # #!# answer 1#!# answer 2 #!# -> ['answer 1','answer 2']
+                answer = answer.strip().strip(MULTI_ANS_SEP).split(MULTI_ANS_SEP)
+                    
+            if type(answer) == list:
+                answer = [a.strip() for a in answer]
+            else:
+                answer = answer.strip()
+                
             questions.append( question.strip() )
-            answers.append ( answer.strip() )
+            answers.append ( answer )
             ctr += 1
     if verbose:
         print(f"Successfully loaded {len(questions)} rows.")
@@ -283,8 +294,13 @@ def create_uqa_example(question, context=None, answer=None, append_nl=True, appe
     sample += ' \\n'
     if context is not None and context != '':
         sample += ' ' + context.strip()
-    if answer is not None and answer != '':
-        sample += ' \t' + answer.strip()
+        
+    if answer is not None:
+        if type(answer) == str and answer != '':
+            sample += ' \t' + answer.strip()
+        elif type(answer) == list and len(answer) != 0:
+            sample += ' \t' + MULTI_ANS_SEP + MULTI_ANS_SEP.join(answer) + MULTI_ANS_SEP    
+        
     if append_nl:
         sample += '\n'
     return sample

@@ -18,6 +18,7 @@ from transformers import AutoTokenizer
 
 from data import QAData, MyDataLoader, manual_batch_encode, normalize_num_batch, selfsupervisedkey, pad_list, self_supervise
 
+import utils
 from eval_metrics import get_exact_match, parse_mixture
 
 
@@ -55,6 +56,14 @@ class UnifiedQAData(QAData):
                         question = line.strip()
                     else:
                         question, answer = line.split("\t")
+                        
+                        #always train with single answers but can eval EM/F1 with multiple answers
+                        if answer.lstrip().startswith(utils.MULTI_ANS_SEP): # #!# answer 1#!# answer 2 #!# -> ['answer 1','answer 2']
+                            answer = answer.strip().strip(utils.MULTI_ANS_SEP).split(utils.MULTI_ANS_SEP)
+                            answer = [a + '\n' for a in answer]
+                        else:
+                            answer = answer # note always ends in \n                     
+
                     self.data[dataset]["id"].append("{}-{}-{}".format(dataset, self.data_type, cnt))
                     self.data[dataset]["question"].append(question)
                     self.data[dataset]["answer"].append(answer)
@@ -110,7 +119,7 @@ class UnifiedQAData(QAData):
             for dataset in self.unified_dataset:  # metadata = [(start idx ds1, end idx ds1), (start ds2, end ds2),...]
                 metadata.append((len(questions), len(questions)+len(self.data[dataset]["question"])))  # store start & end indices of each dataset in metadata
                 questions += self.data[dataset]["question"]  # final questions = single list concatenating questions from each constituent ds
-                answers += self.data[dataset]["answer"]
+                answers += [ d if type(d) == str else d[0] for d in self.data[dataset]["answer"] ]  #only tokenise 1st answer if list
                 
             print("Encoding questions...")
             question_input = manual_batch_encode(questions, 

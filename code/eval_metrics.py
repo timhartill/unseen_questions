@@ -165,8 +165,12 @@ def get_exact_match(prediction, groundtruth):
     return (normalize_answer(prediction) == normalize_answer(groundtruth))
 
 
-# from https://github.com/huggingface/datasets/blob/86e66e7be32f96a625314b8e7d4b16d703eba82d/metrics/squad_v2/evaluate.py#L104
+# adapted from https://github.com/huggingface/datasets/blob/86e66e7be32f96a625314b8e7d4b16d703eba82d/metrics/squad_v2/evaluate.py#L104
 def get_f1(prediction, groundtruth):
+    if type(groundtruth)==list:
+        if len(groundtruth)==0:
+            return 0
+        return np.max([get_f1(prediction, gt) for gt in groundtruth])    
     gold_toks = get_tokens(groundtruth)
     pred_toks = get_tokens(prediction)
     common = collections.Counter(gold_toks) & collections.Counter(pred_toks)
@@ -293,7 +297,7 @@ class Sari:
 class F1:
     """ Return f1 metric as defined for squad 
         predictions = ['pred1 text', 'pred2 text']
-        groundtruths = ['gt1 text', 'gt2 text']
+        groundtruths = ['gt1 text', 'gt2 text'] or [['gt1.1 text', 'gt1.2 text'], ['gt2.1 text', 'gt2.2 text']]
     """
     def __init__(self):
         self.last_scores = {}
@@ -312,7 +316,7 @@ class F1:
 class EM:
     """ Return em accuracy metric
         predictions = ['pred1 text', 'pred2 text']
-        groundtruths = ['gt1 text', 'gt2 text']
+        groundtruths = ['gt1 text', 'gt2 text'] or [['gt1.1 text', 'gt1.2 text'], ['gt2.1 text', 'gt2.2 text']]
     """
     def __init__(self):
         self.last_scores = {}
@@ -640,64 +644,7 @@ class DatasetMetrics:
             json.dump(self.results_dict, f)
         print(f"Saved to {save_file}")
             
-    def update_rouge_ss(self):
-        """ Early results contained an error in how rougeL was calculated 
-        and also used the solver.py overlap calculation instead of f1 for the SS metric
-        """
-        for ds in self.results_dict:
-            result_ds = self.results_dict[ds]
-            if 'RL' in result_ds['comp_metrics']:
-                scorer = Rouge()
-                score = scorer.compute_metric(predictions=result_ds['predictions'], 
-                                              groundtruths=result_ds['groundtruths'],
-                                              norm=False)
-                print(f'Dataset: {ds} {result_ds["eval_file_type"]}: RougeL: {score}')
-                result_ds['RL'] = {'score': score,
-                           'scores': [],
-                           'newpreds': [],
-                           'choices': []}
-            if 'SS' in result_ds['comp_metrics']:
-                scorer = StringSimilarity()
-                scorer.choices = result_ds['SS']['choices']
-                score = scorer.compute_metric(predictions=result_ds['predictions'], 
-                                              groundtruths=result_ds['groundtruths'],
-                                              usesolver_preproc=False, use_f1=True)
-                print(f'Dataset: {ds} {result_ds["eval_file_type"]}: SS: {score}')
-                result_ds['SS'] = {'score': score,
-                           'scores': scorer.simscores,
-                           'newpreds': scorer.newpreds,
-                           'choices': scorer.choices}
-        
-    
-    def test_rouge_ss(self):
-        """ test rougeL with/without normalising prediction first and ss using difft normalisation and overlap approaches
-        """
-        for ds in self.results_dict:
-            result_ds = self.results_dict[ds]
-            if 'RL' in result_ds['comp_metrics']:
-                scorer = Rouge()
-                score_norm = scorer.compute_metric(predictions=result_ds['predictions'], 
-                                              groundtruths=result_ds['groundtruths'],
-                                              norm=True)
-                score_nonorm = scorer.compute_metric(predictions=result_ds['predictions'], 
-                                              groundtruths=result_ds['groundtruths'],
-                                              norm=False)
-                print(f'Dataset: {ds} {result_ds["eval_file_type"]}: RougeL with norm: {score_norm} without norm:{score_nonorm}')
-
-            if 'SS' in result_ds['comp_metrics']:
-                scorer = StringSimilarity()
-                scorer.choices = result_ds['SS']['choices']
-                score_norm = scorer.compute_metric(predictions=result_ds['predictions'], 
-                                              groundtruths=result_ds['groundtruths'],
-                                              usesolver_preproc=False, use_f1=False)
-                score_nonorm = scorer.compute_metric(predictions=result_ds['predictions'], 
-                                              groundtruths=result_ds['groundtruths'],
-                                              usesolver_preproc=True, use_f1=False)
-                score_f1 = scorer.compute_metric(predictions=result_ds['predictions'], 
-                                              groundtruths=result_ds['groundtruths'],
-                                              usesolver_preproc=False, use_f1=True)
-                print(f'Dataset: {ds} {result_ds["eval_file_type"]}: SS with norm: {score_norm} without norm (solver preproc instead):{score_nonorm} with F1: {score_f1}')
-                            
+ 
 
 class OutputResults:
     """ Output results across different models/training runs into a 

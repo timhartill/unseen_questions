@@ -25,6 +25,11 @@ question_templates = {'who': "Who is {phrase}?",
                         'when': 'When did {phrase} exist?',
                         'size':'What size is {phrase}?',}
 
+RAND = 'rand'
+F1OVERALL = 'f1overall'
+F1MAX = 'f1max'
+ 
+
 exclude_ner_types = set(['DATE','TIME','PERCENT','MONEY','QUANTITY','ORDINAL','CARDINAL'])
 
 def load_prompt_template(infile):
@@ -393,6 +398,63 @@ def extract_candidates(samples, include_keys=['expl_depth', 'noun', 'verb', 'gen
     return
 
 
+def score_similarity_single(ec, gold_expl, separated_golds):
+    """ Score similarity of single expl component ec against both the gold expl in totality and max(separated gold components)
+    """
+    overall = eval_metrics.get_f1(ec, gold_expl)
+    sep_max = np.max([eval_metrics.get_f1(ec, g) for g in separated_golds])
+    return overall, sep_max
+        
+    
+
+def score_similarity_to_gold(samples, verbose=True):
+    """ Score expl component candidates for similarity to gold explanations
+    """
+    if verbose:
+        print(f"Starting similarity calc to Gold explanations using F1 for {len(samples)} samples...")
+    for i, sample in enumerate(samples):
+        sample[F1OVERALL] = []
+        sample[F1MAX] = []
+        separated_golds = [s.strip()+'.' for s in sample['gold_expl'].split('.') if s.strip() != '']
+        for ec in sample['expl_components_flattened']:
+            overall, sep_max = score_similarity_single(ec, sample['gold_expl'], separated_golds)
+            sample[F1OVERALL].append(overall)
+            sample[F1MAX].append(sep_max)
+        if i != 0 and i % 1000 == 0:
+            print(f"Processed: {i}")
+    if verbose:
+        print(f"Finished similarity calc to Gold explanations using F1 for {len(samples)} samples!")
+    return
+
+
+def create_sample_gold_sim(samples, soft_max_tokens=350, min_sim=0.2, key=F1MAX):
+    """ Create explanations and add to new key 'sample_' + key and return this as list ready for saving
+    """
+    for s in samples:
+        ecs = [{'c':z[0], 'ec':z[1], 'tc':z[2], 'score': z[3]} for z in zip(s['expl_components_flattened_keys'], 
+                                                                  s['expl_components_flattened'],
+                                                                  s['ec_token_counts'],
+                                                                  s[key]) if z[3] >= min_sim]  # convert to jsonl
+        ecs = sorted(ecs, key=lambda d: d['c']+str(1.0001 - d['score']))
+        cats = set(s['expl_components_flattened_keys'])
+        tok_count= s['question_token_count']
+        curr_context = ''
+
+        while tok_count < soft_max_tokens and len(ecs) > 0:
+            for c in cats:
+                for i, e in enumerate(ecs):
+                    if e['c'] == c:
+                        curr_context += text_processing.format_sentence(e['ec']) + ' '
+                        tok_count += e['tc']  
+                        ecs.pop(i)
+                        break
+        s['sample_'+key] = utils.create_uqa_example(s['q_only'], 
+                                                    utils.create_uqa_context(s['mc_options'], curr_context), 
+                                                    s['answer'])
+    out = [s['sample_'+key] for s in samples]
+    return out
+
+
 def create_sample_rand(samples, soft_max_tokens=350, seed=42):
     """ Randomly create explanations and add to new key 'sample_rand'
         plus return 'sample_rand' as a list ready for saving
@@ -409,15 +471,16 @@ def create_sample_rand(samples, soft_max_tokens=350, seed=42):
             curr_context += text_processing.format_sentence(s['expl_components_flattened'][rand_idx]) + ' '
             tok_count += s['ec_token_counts'][rand_idx] 
             curr_idx += 1
-        s['sample_rand'] = utils.create_uqa_example(s['q_only'], 
+        s['sample_'+RAND] = utils.create_uqa_example(s['q_only'], 
                                                     utils.create_uqa_context(s['mc_options'], curr_context), 
                                                     s['answer'])
-    out = [s['sample_rand'] for s in samples]
+    out = [s['sample_'+RAND] for s in samples]
     return out
 
 
-def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', methods=['rand'], su_stop=-1, 
-                soft_max_tokens=350, verbose=True, seed=42, save=True,
+def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', 
+                methods=[RAND, F1OVERALL, F1MAX], su_stop=-1, 
+                soft_max_tokens=350, min_sim=0.2, verbose=True, seed=42, save=True,
                 include_keys=['expl_depth', 'noun', 'verb', 'general', 'where', 'when', 'size']):
     """ Create a new 'dynamic' dataset with explanations from existing "source" dataset 
         and corresponding expl component candidates generated/saved in gen_expl() above.
@@ -434,7 +497,13 @@ def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', method
         
         expl_dset = 'strategy_qa_expl_ans'
         in_dset = 'strategy_qa_od_ans'
-        
+        file='dev'
+        expl_model=''
+        methods=[RAND]
+        su_stop=-1
+        soft_max_tokens=350
+        verbose=True
+        include_keys=['expl_depth', 'noun', 'verb', 'general', 'where', 'when', 'size']
         tokenizer = utils.load_model(model_name="facebook/bart-large", loadwhat='tokenizer_only')
         
     """
@@ -447,6 +516,13 @@ def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', method
         print(f"Loading Explanation component candidates jsonl file: {explfile}")
     components = utils.load_jsonl(explfile)   
     samples = utils.add_key(samples, components, key='expl_components')
+    
+    gold_explfile = os.path.join(eval_metrics.UQA_DIR, expl_dset, file+'.tsv')
+    if verbose:
+        print(f"Loading gold explanation file: {gold_explfile}")
+    goldfile = utils.load_uqa_supervised(gold_explfile, ans_lower=False, return_parsed=True)
+    golds = [g['context'] for g in goldfile]
+    samples = utils.add_key(samples, golds, key='gold_expl')
 
     if verbose:
         print(f"Selecting and flattening explanation component candidates with these keys: {include_keys}")
@@ -460,6 +536,9 @@ def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', method
                                                                                                    stop_when_lessthan=su_stop, 
                                                                                                    verbose=verbose,
                                                                                                    extra_list=s['expl_components_flattened_keys'])
+            
+    score_similarity_to_gold(samples, verbose=verbose)
+        
     for i, s in enumerate(samples):
         if verbose and i % 500 == 0:
             print(f"Calculating token counts: {i}")
@@ -473,13 +552,28 @@ def create_expl(tokenizer, in_dset, expl_dset, file='dev', expl_model='', method
     outdir_base = os.path.join(eval_metrics.UQA_DIR, in_dset + 
                                eval_metrics.SVISED_EXPL_ANS + expl_model + 
                                '_' + '_'.join(include_keys) + '_su' + str(su_stop) + '_t' + str(soft_max_tokens) + '_')
-    if 'rand' in methods:
+    if RAND in methods:
         if verbose:
             print("Creating samples with random context...")
         out = create_sample_rand(samples, soft_max_tokens=soft_max_tokens, seed=seed)     
         if save:
-            out_dset_dir = outdir_base + 'rand'
+            out_dset_dir = outdir_base + RAND
             utils.save_uqa(out, out_dset_dir, file)
+    if F1OVERALL in methods:
+        if verbose:
+            print("Creating samples with context of max F1 similarity to overall gold explanation...")
+        out = create_sample_gold_sim(samples, soft_max_tokens=soft_max_tokens, min_sim=min_sim, key=F1OVERALL)
+        if save:
+            out_dset_dir = outdir_base + 'm' + str(min_sim) + '_' + F1OVERALL
+            utils.save_uqa(out, out_dset_dir, file)
+    if F1MAX in methods:
+        if verbose:
+            print("Creating samples with context of max F1 similarity to max gold explanation component...")
+        out = create_sample_gold_sim(samples, soft_max_tokens=soft_max_tokens, min_sim=min_sim, key=F1MAX)
+        if save:
+            out_dset_dir = outdir_base + 'm' + str(min_sim) + '_' + F1MAX
+            utils.save_uqa(out, out_dset_dir, file)
+        
     if verbose:
         print("Finished create_expl(..)")
     return samples

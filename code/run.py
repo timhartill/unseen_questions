@@ -416,9 +416,11 @@ def calc_metrics(args, logger, dev_data, predict_file):
     logger.info(f"Loading eval questions and answers for {ds_name} from {predict_file} ...")
     questions = []
     groundtruths = []
+    groundtruths_list = [] # for EM and F1 can have multiple answers in a list
     for sample in dev_data.data:
         questions.append(sample['question'])
-        groundtruths.append(sample['answer'][0])  #answer is stored as a list
+        groundtruths.append(sample['answer'][0])    # first answer in list for metrics like YN, MC for which multple answers arent applicable
+        groundtruths_list.append(sample['answer'])  # answer is stored as a list for EM / F1 which can take the max over multiple answers
         
     if ds_type == 'DC':
         logger.info(f"Dataset {ds_name} is type {ds_type} so parsing decompositions...")
@@ -444,7 +446,7 @@ def calc_metrics(args, logger, dev_data, predict_file):
     if 'EM' in comp_metrics:
         logger.info("Calculating Exact Match Metric ...")
         scorer = eval_metrics.EM()
-        score = scorer.compute_metric(predictions, groundtruths)
+        score = scorer.compute_metric(predictions, groundtruths_list)
         results = {'score': score,
                    'scores': scorer.ems,
                    'newpreds': [],
@@ -456,7 +458,7 @@ def calc_metrics(args, logger, dev_data, predict_file):
     if 'F1' in comp_metrics:
         logger.info("Calculating F1 Metric ...")
         scorer = eval_metrics.F1()
-        score = scorer.compute_metric(predictions, groundtruths)
+        score = scorer.compute_metric(predictions, groundtruths_list)
         results = {'score': score,
                    'scores': scorer.f1s,
                    'newpreds': [],
@@ -721,7 +723,7 @@ def create_sentence_embeddings(args, logger):
         ssvised = train_data.selfsupervised[i]
         logger.info(f"Calculating embeddings for train data of {trainset} self-supervised:{ssvised}:")
         questions = train_data.data[trainset]['question']
-        answers = train_data.data[trainset]['answer']
+        answers = [ d if type(d) == str else d[0] for d in train_data.data[trainset]['answer'] ]
         if args.use_question_only:  # not used
             questions = s.strip_context(questions)    
         questions = [q.strip() for q in questions]

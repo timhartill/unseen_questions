@@ -15,8 +15,10 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, TensorDataset, DataLoader, RandomSampler, SequentialSampler
 
+import utils
 from eval_metrics import get_exact_match, selfsupervisedkey
 from text_processing import ner, normalize_num, split_digits_special
+
 
 #selfsupervisedkey = "_selfsvised"   # dataset names ending in this will be processed as self supervised
 force_ans_start = '[#'              # if self supervised, can force a specific mask by using eg 'The rain in [#Spain#] lies mainly on the plain.'
@@ -265,13 +267,18 @@ class QAData(object):
                         question = line.strip()
                     else:
                         question, answer = line.split("\t")
+                        if answer.lstrip().startswith(utils.MULTI_ANS_SEP): # #!# answer 1#!# answer 2 #!# -> ['answer 1','answer 2']
+                            answer = answer.strip().strip(utils.MULTI_ANS_SEP).split(utils.MULTI_ANS_SEP)
+                            answer = [a + '\n' for a in answer]
+                        else:
+                            answer = [answer] # note always ends in \n                     
                 except Exception:
                     invalid_lines += 1
                     continue
                 self.data.append({
                     "id": "{}-{}".format(self.data_type, cnt),
                     "question": question,
-                    "answer": [answer]
+                    "answer": answer
                 })
                 cnt += 1
             if invalid_lines > 0:
@@ -310,14 +317,16 @@ class QAData(object):
     def decode_batch(self, tokens):
         return [self.decode(_tokens) for _tokens in tokens]
 
-    def flatten(self, answers):  # Note: With input [['abc\n'],[...]] returns ['abc\n', '...']
+    def flatten(self, answers):  # Note: With input [['abc\n', 'sample1 ans2\n'],[...]] returns ['abc\n', '...']
                                 # and originally metadata [(0, 1), (1, 2), (2, 3), ..]
                                 # changed metadata to [(0, len(answers))] to match uqa format
+        """ For training each sample must only have 1 answer - others will be ignored
+            For dev/eval - can have multiple answers for EM and F1 calc which come from self.data.answer but only the 1st answer is tokenised (tokenised dev answer not actually used for anything)
+        """
         new_answers, metadata = [], []
         for answer in answers:
             assert type(answer)==list
-            #metadata.append((len(new_answers), len(new_answers)+len(answer)))
-            new_answers += answer  # Note: can only have 1 answer now
+            new_answers.append(answer[0])  # Note: can still have multiple answers for eval but only 1st one will be tokenised. 
         metadata = [(0, len(new_answers))]
         return new_answers, metadata
 
@@ -352,7 +361,7 @@ class QAData(object):
             questions = [d["question"] if d["question"].endswith("?") else d["question"]+"?"
                         for d in self.data]
             answers = [d["answer"] for d in self.data]
-            answers, metadata = self.flatten(answers)
+            answers, metadata = self.flatten(answers)  # "flatten" means "take 1st answer only". For training, dev only tokenise 1st answer. For dev tokeinised answer not actually used for anything..
 
             question_input = manual_batch_encode(questions, 
                                                  self.tokenizer,

@@ -127,7 +127,7 @@ def format_sentence(sentence, capitalize=True, add_endchar=True, endchar='.', st
 def identity_translate(cloze_question, mask_type=''):
     """ Replace mask with WH word..."""
     if mask_type != '':
-        return cloze_question.replace(mask_type, random.choice(HEURISTIC_CLOZE_TYPE_QUESTION_MAP[mask_type]))        
+        return cloze_question.replace(mask_type, random.choice(HEURISTIC_CLOZE_TYPE_QUESTION_MAP[mask_type]))
     for mask in HEURISTIC_CLOZE_TYPE_QUESTION_MAP:
         if mask in cloze_question:
             return cloze_question.replace(mask, random.choice(HEURISTIC_CLOZE_TYPE_QUESTION_MAP[mask]))
