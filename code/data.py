@@ -361,7 +361,7 @@ class QAData(object):
             questions = [d["question"] if d["question"].endswith("?") else d["question"]+"?"
                         for d in self.data]
             answers = [d["answer"] for d in self.data]
-            answers, metadata = self.flatten(answers)  # "flatten" means "take 1st answer only". For training, dev only tokenise 1st answer. For dev tokeinised answer not actually used for anything..
+            answers, metadata = self.flatten(answers)  # "flatten" means "take 1st answer only". For training, dev only tokenise 1st answer. For dev tokenised answer not actually used for anything..
 
             question_input = manual_batch_encode(questions, 
                                                  self.tokenizer,

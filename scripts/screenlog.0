@@ -1,0 +1,24 @@
+RESULTS KEYS: odict_keys(['sequences', 'preds', 'start_decode'])
+Q:1077 QT:size NP: the character Question:What size is the character?...
+Generating continuations for max in len:1000 Generator params: {'max_new_tokens': 64, 'do_sample': True, 'top_k': 0, 'top_p': 0.9, 'temperature': 0.7, 'num_return_sequences': 10, 'output_scores': False, 'return_dict_in_generate': True, 'pad_token_id': 50256}
+Processing 1 templates for query 1 of 1..
+Approx word count: 498
+Number of tokens: 688
+RESULTS KEYS: odict_keys(['sequences', 'preds', 'start_decode'])
+Q:1077 QT:size NP: Mr. Peabody Question:What size is Mr. Peabody?...
+Generating continuations for max in len:1000 Generator params: {'max_new_tokens': 64, 'do_sample': True, 'top_k': 0, 'top_p': 0.9, 'temperature': 0.7, 'num_return_sequences': 10, 'output_scores': False, 'return_dict_in_generate': True, 'pad_token_id': 50256}
+Processing 1 templates for query 1 of 1..
+Approx word count: 498
+Number of tokens: 691
+RESULTS KEYS: odict_keys(['sequences', 'preds', 'start_decode'])
+Q:1077 QT:general VP: educated Question:educated...
+Generating continuations for max in len:1000 Generator params: {'max_new_tokens': 64, 'do_sample': True, 'top_k': 0, 'top_p': 0.9, 'temperature': 0.7, 'num_return_sequences': 10, 'output_scores': False, 'return_dict_in_generate': True, 'pad_token_id': 50256}
+Processing 1 templates for query 1 of 1..
+Approx word count: 494
+Number of tokens: 683
+RESULTS KEYS: odict_keys(['sequences', 'preds', 'start_decode'])
+Q:1077 QT:general VP: plays Question:plays...
+Generating continuations for max in len:1000 Generator params: {'max_new_tokens': 64, 'do_sample': True, 'top_k': 0, 'top_p': 0.9, 'temperature': 0.7, 'num_return_sequences': 10, 'output_scores': False, 'return_dict_in_generate': True, 'pad_token_id': 50256}
+Processing 1 templates for query 1 of 1..
+Approx word count: 494
+Number of tokens: 683

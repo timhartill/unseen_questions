@@ -62,7 +62,7 @@ class UnifiedQAData(QAData):
                             answer = answer.strip().strip(utils.MULTI_ANS_SEP).split(utils.MULTI_ANS_SEP)
                             answer = [a + '\n' for a in answer]
                         else:
-                            answer = answer # note always ends in \n                     
+                            answer = answer # note always ends in \n  and if singular is str not list unlike data.py                   
 
                     self.data[dataset]["id"].append("{}-{}-{}".format(dataset, self.data_type, cnt))
                     self.data[dataset]["question"].append(question)

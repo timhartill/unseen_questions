@@ -262,6 +262,13 @@ def add_constant(sample_list, const, key):
     return
 
 
+def build_dict_from_jsonl(jsonl, key):
+    """ Convert jsonl list into a dict with key 'key'.
+    """
+    out_dict = {q[key]:q for q in jsonl}
+    return out_dict
+
+
 # from https://github.com/castorini/transformers-arithmetic/blob/main/main.py
 def convert_to_base(num: int, base: int, numerals="0123456789abcdefghijklmnopqrstuvwxyz") -> str:
     """ convert base 10 integer into another base """

@@ -6,13 +6,18 @@ Created on Fri Nov 19 15:35:44 2021
 @author: tim hartill
 
 Import and convert WorldTree data into explanation datasets and self-supervised datasets of facts
+Import and convert ARC Direct answer (ARC-DA), incorporating explantions from Worldtree
 
 Zhengnan Xie, Sebastian Thiem, Jaycie Martin, Elizabeth Wainwright, Steven Marmorstein, and Peter Jansen. 2020. 
 WorldTree V2: A corpus of science-domain structured explanations and inference patterns supporting multi-hop inference. 
 In Proceedings of the 12th Language Resources and Evaluation Conference, pages 5456-5473
 
+Sumithra Bhakthavatsalam, Daniel Khashabi, Tushar Khot, Bhavana Dalvi Mishra, Kyle Richardson, Ashish Sabharwal, Carissa Schoenick, Oyvind Tafjord, and Peter Clark. 2021. 
+Think you have solved direct-answer question answering? Try ARC-DA, the direct-answer AI2 Reasoning Challenge. 
+arXiv:2102.03315 [cs.CL].
 
 1. Download and unzip Worldtree: http://www.cognitiveai.org/dist/WorldtreeExplanationCorpusV2.1_Feb2020.zip
+1.1 Download and unzip ARC-DA: https://allenai.org/data/arc-da 
 2. Update directory variables below
 3. Run. New datasets in UQA format with explanations as labels will be in .../uqa_dir/worldtree_mc_expl and .../uqa_dir/worldtree_od_expl
 
@@ -22,12 +27,17 @@ import os
 import pandas as pd
 import copy
 import random
+import numpy as np
 
 import utils
 import text_processing
 
 MAX_OUTPUT_TOKENS = 127 #max token size of total explanation text excl BOS & EOS tokens
 
+MAX_TRAIN_SAMPLES = 4
+
+arcda_dir = '/home/thar011/data/arc-da/ARC-DA-v1.1/'
+arcda_uqa_dir = '/data/thar011/data/unifiedqa/arc_da_'
 
 worldtree_dir = '/home/thar011/data/worldtree/WorldtreeExplanationCorpusV2.1_Feb2020/'
 explanation_dir = os.path.join(worldtree_dir, 'tablestore/v2.1/tables/')
@@ -38,6 +48,7 @@ wt_mc_completion = 'mc_expl'
 wt_od_completion = 'od_expl'
 wt_mc_ans = 'mc_ans'
 wt_od_ans = 'od_ans'
+wt_expl_ans = 'expl_ans'
 q_prefix= 'Add Explanation: '
 selfsupervisedkey = '_selfsvised'
 
@@ -174,17 +185,20 @@ def load_questions(question_file, fact_dict, tokenizer, verbose=False):
 
 def save_single(split, outdir, ds_type, file):
     """ save a single dataset split """
-    out = [s[ds_type] for s in split]
+    out = [s[ds_type] for s in split if s[ds_type] is not None]
+    out = utils.flatten(out)
     outfile = os.path.join(outdir, file)
     print(f'Saving {outfile} ...')
     with open(outfile, 'w') as f:
         f.write(''.join(out))    
     return
 
-def save_datasets(dev, test, train):
+def save_datasets(dev, test, train, 
+                  ds_list=[wt_mc_completion, wt_od_completion, wt_mc_ans, wt_od_ans],
+                  dir_ = uqa_dir):
     """ save uqa-formatted dataset """
-    for ds_type in [wt_mc_completion, wt_od_completion, wt_mc_ans, wt_od_ans]:
-        outdir = uqa_dir + ds_type
+    for ds_type in ds_list:
+        outdir = dir_ + ds_type
         print(f'Saving dataset to {outdir} ...')
         os.makedirs(outdir, exist_ok=True)
         save_single(dev, outdir, ds_type, 'dev.tsv')
@@ -209,13 +223,51 @@ def save_facts_dataset(out_dset, train_list, dev_list, devfile='dev.tsv'):
         f.write(''.join(out_dev))    
     return
 
+
+def process_arcda(arcda, wt_all, dset_type='train'):
+    """ Add Worldtree expl to arcda jsonl
+    """
+    no_match = 0
+    for a in arcda:
+        a['qid_wt'] = '_'.join(a['question_id'].split('_')[1:])    
+        a['wt_match'] = wt_all.get( a['qid_wt'] )
+        q = a['question']
+        ans = [aa.replace('\n', '') for aa in a['answers']]
+        sel_indices = set(np.random.choice(len(ans), min(MAX_TRAIN_SAMPLES, len(ans)), replace=False))
+
+        if a['wt_match'] is None:
+            no_match += 1
+            a['explanation_sentences_final'] = None
+            a[wt_od_completion] = None
+            a[wt_expl_ans] = None
+        else:
+            a['explanation_sentences_final'] = a['wt_match']['explanation_sentences_final']
+            a[wt_od_completion] = utils.create_uqa_example(q_prefix + q, None, a['explanation_sentences_final'])
+            if dset_type != 'train':
+                a[wt_expl_ans] = utils.create_uqa_example(q, a['explanation_sentences_final'], ans)
+            else:
+                a[wt_expl_ans] = [utils.create_uqa_example(q, a['explanation_sentences_final'], ans_single) for i, ans_single in enumerate(ans) if i in sel_indices]
+        if dset_type != 'train':
+            a[wt_od_ans] = utils.create_uqa_example(q, None, ans)
+        else:
+            a[wt_od_ans] = [utils.create_uqa_example(q, None, ans_single) for i, ans_single in enumerate(ans) if i in sel_indices]
+            
+    print(f"Total count: {len(arcda)}  No match: {no_match}")
+            
+    return
+    
+
+##########################
+# Build expl and output Worldtree
+##########################
+
 fact_dict = load_facts(explanation_dir)
 
 questions_dev = load_questions(os.path.join(question_dir, 'questions.dev.tsv'), fact_dict, tokenizer)
 questions_test = load_questions(os.path.join(question_dir, 'questions.test.tsv'), fact_dict, tokenizer)
 questions_train = load_questions(os.path.join(question_dir, 'questions.train.tsv'), fact_dict, tokenizer)
 
-save_datasets(questions_dev, questions_test, questions_train)
+save_datasets(questions_dev, questions_test, questions_train)  # save worldtree datasets
 
 # build facts lists for self supervised datasets:
 facts_dev =  list(set(utils.flatten([s['explanation_sentences'] for s in questions_dev])))   #1839
@@ -228,6 +280,26 @@ facts_all = list(set(facts_train_dev+facts_test)) #7626
 save_facts_dataset('testfactsonly'+selfsupervisedkey, facts_test, facts_dev, devfile='dev.tsv')
 save_facts_dataset('all_dev_in_train'+selfsupervisedkey, facts_all, facts_dev, devfile='dev.tsv')
 save_facts_dataset('dev_in_train_excl_test'+selfsupervisedkey, facts_train_dev, facts_dev, devfile='dev.tsv')
+
+############################
+# Output ARC-DA
+############################
+
+arcda_dev = utils.load_jsonl(os.path.join(arcda_dir, 'dev.jsonl'))
+arcda_test = utils.load_jsonl(os.path.join(arcda_dir, 'test.jsonl'))
+arcda_train = utils.load_jsonl(os.path.join(arcda_dir, 'train.jsonl'))
+
+wt_all = utils.build_dict_from_jsonl(questions_dev, key='QuestionID')
+wt_all.update(utils.build_dict_from_jsonl(questions_test, key='QuestionID'))
+wt_all.update(utils.build_dict_from_jsonl(questions_train, key='QuestionID'))
+
+np.random.seed(42)
+process_arcda(arcda_dev, wt_all, dset_type='dev')  # Total count: 338  No match: 119
+process_arcda(arcda_test, wt_all, dset_type='dev')  # Total count: 1397  No match: 665
+process_arcda(arcda_train, wt_all, dset_type='train')  # Total count: 1250  No match: 337
+
+save_datasets(arcda_dev, arcda_test, arcda_train, dir_ = arcda_uqa_dir,
+              ds_list=[wt_od_completion, wt_expl_ans, wt_od_ans])  # save arc-da datasets
 
 
 #TODO: FORMAT FOR GPT-J
