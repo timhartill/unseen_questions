@@ -161,16 +161,16 @@ def get_exact_match(prediction, groundtruth):
     if type(groundtruth)==list:
         if len(groundtruth)==0:
             return 0
-        return np.max([get_exact_match(prediction, gt) for gt in groundtruth])
-    return (normalize_answer(prediction) == normalize_answer(groundtruth))
+        return int(np.max([get_exact_match(prediction, gt) for gt in groundtruth]))
+    return int(normalize_answer(prediction) == normalize_answer(groundtruth))
 
 
 # adapted from https://github.com/huggingface/datasets/blob/86e66e7be32f96a625314b8e7d4b16d703eba82d/metrics/squad_v2/evaluate.py#L104
 def get_f1(prediction, groundtruth):
     if type(groundtruth)==list:
         if len(groundtruth)==0:
-            return 0
-        return np.max([get_f1(prediction, gt) for gt in groundtruth])    
+            return 0.0
+        return float(np.max([get_f1(prediction, gt) for gt in groundtruth]) )   
     gold_toks = get_tokens(groundtruth)
     pred_toks = get_tokens(prediction)
     common = collections.Counter(gold_toks) & collections.Counter(pred_toks)
@@ -179,7 +179,7 @@ def get_f1(prediction, groundtruth):
         # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
         return int(gold_toks == pred_toks)
     if num_same == 0:
-        return 0
+        return 0.0
     precision = 1.0 * num_same / len(pred_toks)
     recall = 1.0 * num_same / len(gold_toks)
     f1 = (2 * precision * recall) / (precision + recall)

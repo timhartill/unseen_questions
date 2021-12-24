@@ -58,7 +58,8 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
 test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
              'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string',  
              'mmlu_elementary_to_college_math_test',  
-             'mmlu_elementary_to_college_math_test_lowsim_tdnd', 'worldtree_mc_ans']
+             'mmlu_elementary_to_college_math_test_lowsim_tdnd', 'worldtree_mc_ans', 
+             'nq_open_od_ans', 'arc_da_expl_ans', 'arc_da_od_ans']
 
 
 #Unused, just to keep complete list of everything ever used in eval handy..
@@ -297,6 +298,9 @@ dataset_attribs = {
     'qasc_mc_ans': {'type':'MC', 'prefer':''},
     'worldtree_mc_ans': {'type':'MC', 'prefer':''},
     'musique_mu_dev_qa_expl_ans': {'type':'EX', 'prefer':''},
+    'nq_open_od_ans': {'type':'EX', 'prefer':'EM'}, 
+    'arc_da_expl_ans': {'type':'EX', 'prefer':''}, 
+    'arc_da_od_ans': {'type':'EX', 'prefer':''},
     }
 
 unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
@@ -395,10 +399,13 @@ unifiedqa_unseen_4 = [
     'musique_mu_dev_qa_paras_decomp_ans',
     'musique_mu_dev_qa_decomp_context',
     'strategy_qa_od_ans',
+    'nq_open_od_ans',
+    'arc_da_od_ans',
     'strategy_qa_expl_ans',
     'qasc_mc_ans',
     'musique_mu_dev_qa_expl_ans',
     'worldtree_mc_ans',
+    'arc_da_expl_ans',
     ]
 
 
@@ -426,7 +433,10 @@ unifiedqa_unseen_4_map = {
     'musique_mu_dev_qa_decomp_ans': 'dev.tsv',
     'musique_mu_dev_qa_paras_decomp_ans': 'dev.tsv',
     'musique_mu_dev_qa_decomp_context': 'dev.tsv',
-    'worldtree_mc_ans': 'test.tsv'
+    'worldtree_mc_ans': 'test.tsv',
+    'nq_open_od_ans': 'test.tsv',
+    'arc_da_od_ans': 'test.tsv',
+    'arc_da_expl_ans': 'test.tsv',
     }
 
 
@@ -531,7 +541,8 @@ mmlu_unseen_1 = [
 # NOTE2: The dynamically created versions will be added "on the fly" to dev_eval and test_eval and to a special "unseen" dataset
 ########################################################
 
-create_datasets_dynamic = ['musique_mu_dev_qa', 'strategy_qa_od_ans', 'qasc', 'arc_easy', 'arc_hard' ]
+create_datasets_dynamic = ['musique_mu_dev_qa', 'strategy_qa_od_ans', 'qasc', 
+                           'arc_easy', 'arc_hard', 'nq_open_od_ans', 'arc_da_od_ans' ]
 
 # Not used
 unifiedqa_unseen_5 = []

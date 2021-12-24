@@ -293,20 +293,20 @@ def create_uqa_example(question, context=None, answer=None, append_nl=True, appe
     Note: to create a self supervised example put the input para in question and set context = ' ' and append_q_char='.'
             to create a closed book example likewise set context = ' ' but append_q_char='' or '?'
     """
-    sample = question.strip()
+    sample = question.strip().replace('\n', '').replace('\t', '')
     if sample[-1] in ['.','!','?'] and append_q_char != '':
         sample = sample[:-1]
     if sample[-1] != append_q_char:
         sample += append_q_char
     sample += ' \\n'
     if context is not None and context != '':
-        sample += ' ' + context.strip()
+        sample += ' ' + context.strip().replace('\n','').replace('\t', '')
         
     if answer is not None:
         if type(answer) == str and answer != '':
-            sample += ' \t' + answer.strip()
+            sample += ' \t' + answer.strip().replace('\n', '').replace('\t', '')
         elif type(answer) == list and len(answer) != 0:
-            sample += ' \t' + MULTI_ANS_SEP + MULTI_ANS_SEP.join(answer) + MULTI_ANS_SEP    
+            sample += ' \t' + MULTI_ANS_SEP + MULTI_ANS_SEP.join(answer).replace('\n', '').replace('\t', '') + MULTI_ANS_SEP
         
     if append_nl:
         sample += '\n'

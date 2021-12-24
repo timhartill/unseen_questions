@@ -952,6 +952,13 @@ def gen_explanations_all(tokenizer, model, args, logger):
             file = 'dev.tsv'
         else:
             file = 'test.tsv'
+        out_dset = dset + eval_metrics.SVISED_EXPL_ANS + os.path.split(args.output_dir)[-1] #+ '_' + get_timestamp()
+        out_dset_dir = os.path.join(eval_metrics.UQA_DIR, out_dset)    
+        outfile = os.path.join(out_dset_dir, file)
+        if args.add_only_missing and os.path.exists(outfile):
+            logger.info(f"Skipping expl generation to create {outfile} as it already exists.")
+            continue
+        
         dset_file = os.path.join(eval_metrics.UQA_DIR, dset, file) 
         logger.info(f"Loading source file: {dset_file} ...")
         source_dset = load_uqa_supervised(dset_file, ans_lower=False, verbose=False, return_parsed=True)
@@ -966,11 +973,8 @@ def gen_explanations_all(tokenizer, model, args, logger):
                 preds[i] = source_dset[i]['mc_options'].strip() + '\\n' + p
         add_key(source_dset, preds, key='context', make_copy=False)
         out = [create_uqa_example(s['q_only'], s['context'], s['answer']) for s in source_dset]
-        out_dset = dset + eval_metrics.SVISED_EXPL_ANS + os.path.split(args.output_dir)[-1] + '_' + get_timestamp()
-        out_dset_dir = os.path.join(eval_metrics.UQA_DIR, out_dset)    
         logger.info(f"Saving new dataset into: {out_dset_dir} as {file}...")
         os.makedirs(out_dset_dir, exist_ok=True)
-        outfile = os.path.join(out_dset_dir, file)
         print(f'Saving {outfile} ...')
         with open(outfile, 'w') as f:
             f.write(''.join(out))    

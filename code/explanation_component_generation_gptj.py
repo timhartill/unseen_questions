@@ -71,14 +71,16 @@ def save_candidates(dset='strategy_qa_expl_ans', file='train'):
     #utils.saveas_jsonl(samples, outfile, verbose=VERBOSE)    
     return components
 
-c = save_candidates(dset='strategy_qa_expl_ans', file='dev')
-c = save_candidates(dset='qasc_mc_ans', file='dev')
-c = save_candidates(dset='musique_mu_dev_qa_expl_ans', file='dev')
-c = save_candidates(dset='worldtree_mc_ans', file='test')
+#c = save_candidates(dset='strategy_qa_expl_ans', file='dev') DONE
+#c = save_candidates(dset='qasc_mc_ans', file='dev') DONE
+#c = save_candidates(dset='musique_mu_dev_qa_expl_ans', file='dev') IN PROGRESS screen 2523882
+#c = save_candidates(dset='worldtree_mc_ans', file='test') WILL CANCEL - on 2523882
+c = save_candidates(dset='arc_da_expl_ans', file='test')
+c = save_candidates(dset='nq_open_od_ans', file='test')
 
 
-#c = save_candidates(dset='strategy_qa_expl_ans', file='train')
-#c = save_candidates(dset='qasc_mc_ans', file='train')
+#c = save_candidates(dset='strategy_qa_expl_ans', file='train') DONE
+#c = save_candidates(dset='qasc_mc_ans', file='train') 1000 DONE
 
 
 

@@ -19,6 +19,7 @@ python cli.py --output_dir $1 \
         --max_output_length 130 \
         --ssm_prob 1.0 \
         --add_mask_char NONE \
+        --add_only_missing \
         --gen_explanations_all
 
 
