@@ -932,6 +932,7 @@ def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', '
                         '/data/thar011/out/unifiedqa_bart_large_s7_v1_uqa_sqa_mqa_expl_mswq_explans_msw/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s7_v3_uqa_ms_explans_msw/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s7_v4_uqa_ms_expl_mswq_explans_msw_ssviseall_mswq/eval_metrics.json',
+                        '/data/thar011/out/unifiedqa_bart_large_s7_v5_uqa_msan_expl_mswqa_explans_mswa_ssviseall_mswq/eval_metrics.json',
                        ]
         logdir='/data/thar011/out/unifiedqa_averages/s7_v1/'
         run_all(logdir, results_list, include_list=['unseen4', 'unseen5', 'seen1'])
