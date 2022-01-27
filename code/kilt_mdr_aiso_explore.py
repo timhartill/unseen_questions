@@ -7,6 +7,7 @@ Created on Sat Jan 15 11:38:21 2022
 
 Explore KILT processed wiki dump without MongoDB
 Also Explore MDR HPQA data
+And AISO data
 
 1. git clone kilt and cd into kilt dir
 2. mkdir .../kilt/data
@@ -17,17 +18,26 @@ Also Explore MDR HPQA data
 
 """
 import os
+import pandas as pd
 import utils
 
-
+#KILT:
 KILT_DATA_DIR = '/data/thar011/gitrepos/KILT/data/'
 KILT_WIKI = 'kilt_knowledgesource.json'
 KILT_HPQA_DEV = 'hotpotqa-dev-kilt.jsonl'
 KILT_FEVER_DEV = 'fever-dev-kilt.jsonl'
 KILT_NQ_DEV = 'nq-dev-kilt.jsonl'
 
+#MDR:
 HPQA_DATA_DIR = '/data/thar011/gitrepos/multihop_dense_retrieval/data/hotpot/'
 HPQA_DEV = 'hotpot_dev_with_neg_v0.json'  # retrieval training dev set
+
+#AISO:
+AISO_DATA_DIR = '/data/thar011/gitrepos/AISO/data/'
+AISO_STEP_TRAIN = 'hotpot-step-train.strict.refined.jsonl'
+AISO_STEP_DEV = 'hotpot-step-dev.strict.refined.jsonl'
+AISO_CORPUS = 'corpus/hotpot-paragraph-5.strict.refined.tsv'
+
 
 wiki = utils.load_jsonl(os.path.join(KILT_DATA_DIR, KILT_WIKI))  # 5903531 rows -> 5903530 final
 
@@ -161,6 +171,8 @@ hpqa[0]
 #     'section': 'Section::::Abstract.'}]}]}
 
 
+########### MDR ####################
+
 mdr_hpqa = utils.load_jsonl(os.path.join(HPQA_DATA_DIR, HPQA_DEV) ) # 7405
 mdr_hpqa[0].keys() # dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id'])  comparison type
 mdr_hpqa[0]['question'] # 'Were Scott Derrickson and Ed Wood of the same nationality?'
@@ -197,6 +209,53 @@ mdr_hpqa[1]['neg_paras'][0]
 mdr_hpqa[1]['bridge'] # 'Shirley Temple'  TITLE Of SECOND PARA FOR BRIDGE QUESTIONS FOR ORDERING IN mhop_dataset.py
 
 
+#### AISO #######################
+
+aiso_corpus = pd.read_csv(os.path.join(AISO_DATA_DIR, AISO_CORPUS), sep='\t')   # (249461, 4). Header corrupted and should be 5M+ rows...
+# 0   id               249460 non-null  object
+# 1   text             249460 non-null  object
+# 2   itle\hyperlinks  249458 non-null  object
+# 3   sentence_spans   249458 non-null  object
+
+aiso_dev = utils.load_jsonl(os.path.join(AISO_DATA_DIR, AISO_STEP_DEV))     #7405
+aiso_train = utils.load_jsonl(os.path.join(AISO_DATA_DIR, AISO_STEP_TRAIN)) #90447
+
+aiso_dev[0].keys()   # dict_keys(['_id', 'question', 'answer', 'sp_facts', 'hard_negs', 'hn_scores', 'state2action'])
+aiso_train[0].keys() # dict_keys(['_id', 'question', 'answer', 'sp_facts', 'hard_negs', 'hn_scores', 'state2action'])
+
+aiso_dev[0]['_id']      # '5a8b57f25542995d1e6f1371'  #matches MDR/KILT/HPQA
+aiso_dev[0]['question'] # 'Were Scott Derrickson and Ed Wood of the same nationality?'
+aiso_dev[0]['answer']   # 'yes'
+aiso_dev[0]['sp_facts'] # {'Scott Derrickson': [0], 'Ed Wood': [0]}
+len(aiso_dev[0]['hard_negs'])  # 10
+aiso_dev[0]['hard_negs'][0] # '528464_0'
+aiso_dev[0]['hn_scores']  # [0.0018630551639944315, 0.0005404593539424241, 0.000537772080861032, 0.0005160804139450192, 0.0005122957518324256, 0.0005065873847343028, 0.0005059774266555905, 0.0004960809019394219, 0.0004910272546112537, 0.0004873361031059176]
+aiso_dev[0]['state2action'] # {'initial': {   'query': 'Scott Derrickson', 'action': 'MDR',
+#                                          'sp_ranks': {'BM25': {'2816539_0': 0, '10520_0': 2000},
+#                                                  'BM25+Link': {'2816539_0': 1, '10520_0': 2000},
+#                                                        'MDR': {'2816539_0': 1, '10520_0': 0},
+#                                                   'MDR+Link': {'2816539_0': 2000, '10520_0': 34}}},
+#                     'Scott Derrickson': {   'query': 'Ed Wood', 'action': 'BM25',
+#                                         'sp2_ranks': {'BM25': 0, 'BM25+Link': 1, 'MDR': 0, 'MDR+Link': 53}},
+#                              'Ed Wood': {   'query': 'Ed Wood', 'action': 'MDR',
+#                                         'sp2_ranks': {'BM25': 2000, 'BM25+Link': 2000, 'MDR': 0, 'MDR+Link': 2000}}}
+
+aiso_dev[1]['_id']      # '5a8c7595554299585d9e36b6'  #matches MDR/KILT/HPQA
+aiso_dev[1]['question'] # 'What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?'
+aiso_dev[1]['answer']   # 'Chief of Protocol'
+aiso_dev[1]['sp_facts'] # {'Kiss and Tell (1945 film)': [0], 'Shirley Temple': [0, 1]}
+len(aiso_dev[1]['hard_negs'])  # 10
+aiso_dev[1]['hard_negs'][0] # '43034001_0'
+aiso_dev[1]['hn_scores']  # [... desc order like 1st example]
+aiso_dev[1]['state2action'] # {'initial': {'query': 'Corliss Archer in the film Kiss and Tell', 'action': 'BM25',
+#                                       'sp_ranks': {'BM25': {'804602_0': 2000, '33022480_0': 0},
+#                                               'BM25+Link': {'804602_0': 0, '33022480_0': 2},
+#                                                     'MDR': {'804602_0': 2000, '33022480_0': 0},
+#                                                'MDR+Link': {'804602_0': 0, '33022480_0': 417}}},
+#                       'Shirley Temple': {'query': 'Corliss Archer in the film Kiss and Tell', 'action': 'BM25',
+#                                      'sp2_ranks': {'BM25': 0, 'BM25+Link': 2, 'MDR': 0, 'MDR+Link': 331}},
+#            'Kiss and Tell (1945 film)': {'query': 'Shirley Temple', 'action': 'LINK',
+#                                      'sp2_ranks': {'BM25': 0, 'BM25+Link': 2, 'MDR': 0, 'MDR+Link': 66}}}
 
 
 
