@@ -51,7 +51,6 @@ Crawford County, Ohio
 """
 
 import os
-import utils
 import json
 import bz2
 import glob
@@ -61,6 +60,7 @@ import copy
 
 
 ####### MDR:
+import utils #Duplicate "utils" with AISO so must run MDR and AISO portions separately from different working directories
 
 OUTDIR = '/data/thar011/gitrepos/compgen_mdr/data/hpqa_raw_tim'
 
@@ -78,10 +78,42 @@ utils.saveas_jsonl(mdr_out, os.path.join(OUTDIR, 'hpqa_abstracts_tim.jsonl'))
 
 ###### AISO
 INDIR_BASE = '/data/thar011/gitrepos/compgen_mdr/data/hpqa_raw_tim/enwiki-20171001-pages-meta-current-withlinks-abstracts'
-AISO_FILE = '/data/thar011/gitrepos/AISO/data/corpus/hotpot-paragraph.strict.tjh.tsv'
-
+AISO_FILE = '/data/thar011/gitrepos/AISO/data/corpus/hotpot-paragraph.strict.tjh_v2.tsv'
+AISO_DEV = '/data/thar011/gitrepos/AISO/data/hotpot-step-dev.strict.refined.jsonl'
+AISO_TRAIN = '/data/thar011/gitrepos/AISO/data/hotpot-step-train.strict.refined.jsonl'
 
 #tstfile = '/AA/wiki_00.bz2'
+
+def load_jsonl(file, verbose=True):
+    """ Load a list of json msgs from a file formatted as 
+           {json msg 1}
+           {json msg 2}
+           ...
+    """
+    if verbose:
+        print('Loading json file: ', file)
+    with open(file, "r") as f:
+        all_json_list = f.read()
+    all_json_list = all_json_list.split('\n')
+    num_jsons = len(all_json_list)
+    if verbose:
+        print('JSON as text successfully loaded. Number of json messages in file is ', num_jsons)
+    all_json_list = [json.loads(j) for j in all_json_list if j.strip() != '']
+    if verbose:
+        print('Text successfully converted to JSON.')
+    return all_json_list
+
+def flatten(alist):
+    """ flatten a list of nested lists
+    """
+    t = []
+    for i in alist:
+        if not isinstance(i, list):
+             t.append(i)
+        else:
+             t.extend(flatten(i))
+    return t
+
 
 def load_bz2_to_jsonl(infile, verbose=False):
     source_file = bz2.BZ2File(infile, "r")
@@ -95,6 +127,26 @@ def load_bz2_to_jsonl(infile, verbose=False):
         print(f"Read {count} rows from {infile}")
     return out
 
+
+def build_title_idx(paras):
+    """ The HPQA corpus files contain some hrefs that have casing different to the actual title casing.
+    Simply making everything lowercase wont work as this creates a smallish number of duplicates.
+    So we build a dict with key title.lower():
+        {'title_lower': [{'title': the title, 'id': id of this title}]}
+    """
+    titledict = {}
+    dupdict = {}
+    for para in paras:
+        tlower = para['title'].lower()
+        title_entry = {'title': para['title'], 'id':para['id']}
+        if titledict.get(tlower) is None:
+            titledict[tlower] = [title_entry]
+        else:
+            titledict[tlower].append(title_entry)
+            print(f"Dup lowercase: {tlower}  New Entry:{title_entry}")
+            dupdict[tlower] = titledict[tlower]
+    return titledict, dupdict
+            
 
 def get_para(paras, idx=None, title=None):
     if idx is not None:
@@ -116,7 +168,7 @@ def adj_token_boundaries(toks):
     return toks
 
 
-def add_processed_keys(para, verbose=False):
+def add_processed_keys(para, titledict, verbose=False):
     """ Add keys to para: 
     text_final (currently (should be) same as flattened 'text'), 
     hyperlinks
@@ -126,7 +178,7 @@ def add_processed_keys(para, verbose=False):
     """
     # identify hyperlinks, anchor text spans and remove links from text_with_links s.t. should = text
     tl = ''.join(para['text_with_links'])
-    toks = utils.flatten(para['charoffset_with_links']) #[start1, end1, start2, end2,...]
+    toks = flatten(para['charoffset_with_links']) #[start1, end1, start2, end2,...]
     toks = adj_token_boundaries(toks)
     currtext = ""
     startref=False
@@ -192,6 +244,29 @@ def add_processed_keys(para, verbose=False):
     if status != '':  # tokenising error for hyperlinks or corrupt hyperlinks, just use text minus hyperlinks
         links_dict = {}
         currtext = ''.join(para['text'])                
+
+    # Map title casing
+    links_dict_mapped = {}  
+    if links_dict != {}:
+        for l in links_dict:
+            tlower = l.lower()
+            tmap = titledict.get(tlower)
+            if tmap is None:
+                links_dict_mapped[l] = links_dict[l]  # href not in corpus, just copy existing
+            else:
+                if len(tmap) == 1:
+                    hlink = tmap[0]['title'] # only one candidate, use that
+                else:
+                    hlink == ''
+                    for t in tmap:
+                        if l == t['title']: # exact match amongst candidates found, use that
+                            hlink = l
+                            break
+                    if hlink == '':
+                        hlink = tmap[0]['title']
+                        print(f"id:{para['id']}: No exact match for href #{l}# casing found and multiple candidates. Assigning first one #{hlink}#")
+                links_dict_mapped[hlink] = links_dict[l]
+            
     
     # identify sentence spans - use HPQA form - no trailing space on 1st sent then leading space for each after that.
     sentence_spans = []
@@ -204,10 +279,10 @@ def add_processed_keys(para, verbose=False):
         for span in sentence_spans:
             print(f"span#{span}#{currtext[span[0]: span[1]]}#")
     para['text_final'] = currtext
-    para['hyperlinks'] = links_dict
+    para['hyperlinks'] = links_dict_mapped
     para['sentence_spans'] = sentence_spans
     para['status'] = status
-    para['id_new'] = para['id'] + '_0'
+    para['id_new'] = para['id'] + '_0'        
     return
 
 
@@ -238,6 +313,10 @@ for i, infile in enumerate(filelist):
 # ''.join(paras[x]['text'])
 # see https://github.com/qipeng/golden-retriever/blob/master/scripts/index_processed_wiki.py
 
+titledict, dupdict = build_title_idx(paras) # 2607 dups
+
+dupkeys = list(dupdict.keys())
+
 
 #utils.saveas_jsonl(paras, os.path.join(OUTDIR, 'hpqa_paras_combo_raw.jsonl')) # 5233329
 #paratest = copy.deepcopy(paras[2])
@@ -251,11 +330,11 @@ for i, infile in enumerate(filelist):
 #para = get_para(paras, idx='356443')  # mismatch
 #para = get_para(paras, idx='356454')  # mismatch
 #para2=copy.deepcopy(para)
-#add_processed_keys(para2, verbose=True)
+#add_processed_keys(para2, titledict, verbose=True)
 
 # Create output data as extra keys
 for i, para in enumerate(paras):
-    add_processed_keys(para)    
+    add_processed_keys(para, titledict)    
     if i % 250000 == 0:
         print(f"Processed: {i}") # Outputting 5233235 non-blank paras of 5233329 originally..MATCHES MDR counts
 
@@ -263,7 +342,7 @@ cnt = 0
 for para in paras:
     if para['text_final'].strip() != '':
         cnt += 1
-print(f"Outputting {cnt} non-blank paras of {len(paras)} originally..")        
+print(f"Outputting {cnt} non-blank paras of {len(paras)} originally..")   # Outputting 5233235 non-blank paras of 5233329 originally.. MATCHES MDR counts    
         
 save_aiso(paras)
 
@@ -272,5 +351,90 @@ save_aiso(paras)
 #TODO check any other text cleanup AISO probably does...  
 
 #TODO How to tell if AISO train/dev jsonl titles maps to this corpus?? - load and compare...
+
+# working dir /data/thar011/gitrepos/AISO
+import utils.data_utils
+
+corpus, title2id = utils.data_utils.load_corpus(AISO_FILE, for_hotpot=True, require_hyperlinks=True)
+corpus['12_0']  
+# {'title': 'Anarchism', 'text': 'Anarchism is a political philosophy that advocates self-governed societies based on voluntary institutions. These are often described as stateless societies, although several authors have defined them more specifically as institutions based on non-hierarchical free associations. Anarchism holds the state to be undesirable, unnecessary and harmful.',
+# 'sentence_spans': [(0, 107), (107, 279), (279, 349)],
+# 'hyperlinks': {'Political philosophy': [(15, 35)],  'Self-governance': [(51, 64)],  'Stateless society': [(137, 156)],  'Hierarchy': [(248, 260)],  'Free association (communism and anarchism)': [(261, 278)],  'State (polity)': [(300, 305)]}}
+title2id['Anarchism'] # '12_0'
+
+title2id['Stateless society']
+title2id['Political philosophy']
+
+len(title2id)  # 5233235
+
+#tlower = list(title2id.keys())
+#tlower = [t.lower() for t in tlower]
+#print(f"correct Len:{len(title2id)}  LOWER len:{len(set(tlower))}")  # correct Len:5233235  LOWER len:5230617
+
+def check_match(corpus, title2id, sample, verbose=False):
+    """ Check AISO question title and id links match corpus
+    {'_id': '5a8b57f25542995d1e6f1371', 'question': 'Were Scott Derrickson and Ed Wood of the same nationality?', 'answer': 'yes',
+     'sp_facts': {'Scott Derrickson': [0], 'Ed Wood': [0]},
+     'hard_negs': ['528464_0',  '39514096_0',  '22418962_0',  '7102461_0',  '3745444_0',  '41668588_0',  '18110_0',  '36528221_0',  '2571604_0',  '27306717_0'],
+     'hn_scores': [0.0018630551639944315,  0.0005404593539424241,  0.000537772080861032,  0.0005160804139450192,  0.0005122957518324256,  0.0005065873847343028,  0.0005059774266555905,  0.0004960809019394219,  0.0004910272546112537,  0.0004873361031059176],
+     'state2action': {'initial': {'query': 'Scott Derrickson',  'action': 'MDR',
+                                   'sp_ranks': {'BM25': {'2816539_0': 0, '10520_0': 2000},
+                                                'BM25+Link': {'2816539_0': 1, '10520_0': 2000},
+                                                'MDR': {'2816539_0': 1, '10520_0': 0},
+                                                'MDR+Link': {'2816539_0': 2000, '10520_0': 34}}},
+                      'Scott Derrickson': {'query': 'Ed Wood',   'action': 'BM25',   'sp2_ranks': {'BM25': 0, 'BM25+Link': 1, 'MDR': 0, 'MDR+Link': 53}},
+                      'Ed Wood': {'query': 'Ed Wood',   'action': 'MDR',   'sp2_ranks': {'BM25': 2000,    'BM25+Link': 2000,    'MDR': 0,    'MDR+Link': 2000}}}}
+    """
+    sp_facts_bad = []
+    for k in sample['sp_facts'].keys():
+        if title2id.get(k) is None:
+            sp_facts_bad.append(k)
+            if verbose:
+                print(f"{sample['_id']}: sp_facts: Can't find: {k}")
+    hard_negs_bad = []
+    for n in sample['hard_negs']:
+        if corpus.get(n) is None:
+            hard_negs_bad.append(n)
+            if verbose:
+                print(f"{sample['_id']}: hard_negs: Can't find: {n}")
+    s2a_bad = {}
+    for k in sample['state2action']['initial']['sp_ranks'].keys():
+        s2a_bad[k] = []
+        for n in sample['state2action']['initial']['sp_ranks'][k].keys(): 
+            if corpus.get(n) is None:
+                s2a_bad[k].append(n)
+                if verbose:
+                    print(f"{sample['_id']}: state2action initial {k}: Can't find: {n}")
+    out = {'sp_facts_bad':sp_facts_bad, 'hard_negs_bad': hard_negs_bad, 's2a_bad': s2a_bad}
+    return out
+
+
+def check_all(corpus, title2id, hpqa_split, verbose=True):
+    log = []
+    sp_facts_count = 0
+    hn_count = 0
+    s2a_count = {'BM25':0, 'BM25+Link':0, 'MDR':0, 'MDR+Link':0}
+    for s in hpqa_split:
+        log.append( check_match(corpus, title2id, s, verbose=verbose) )
+        if len(log[-1]['sp_facts_bad']) > 0:
+            sp_facts_count += 1
+        if len(log[-1]['hard_negs_bad']) > 0:
+            hn_count += 1
+        for k in ['BM25', 'BM25+Link', 'MDR', 'MDR+Link']:
+            if len(log[-1]['s2a_bad'][k]) > 0:
+                s2a_count[k] += 1
+            
+    print(f"Finished: Total:{len(log)}  Bad sp_facts:{sp_facts_count}  Bad hn: {hn_count}  Bad s2a initial: {s2a_count}") 
+    return log
+
+
+aiso_dev = load_jsonl(AISO_DEV)
+#check_match(corpus, title2id, aiso_dev[1119], verbose=True)
+log_dev = check_all(corpus, title2id, aiso_dev, verbose=False)  # Finished: Total:7405  Bad sp_facts:0  Bad hn: 134  Bad s2a initial: {'BM25': 11, 'BM25+Link': 11, 'MDR': 11, 'MDR+Link': 11}
+
+aiso_train = load_jsonl(AISO_TRAIN)
+log_train = check_all(corpus, title2id, aiso_train, verbose=False)  # Finished: Total:90447  Bad sp_facts:0  Bad hn: 1766  Bad s2a initial: {'BM25': 123, 'BM25+Link': 123, 'MDR': 123, 'MDR+Link': 123}
+
+
 
 

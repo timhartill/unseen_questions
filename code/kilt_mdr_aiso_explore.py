@@ -230,20 +230,20 @@ aiso_dev[0]['sp_facts'] # {'Scott Derrickson': [0], 'Ed Wood': [0]}
 len(aiso_dev[0]['hard_negs'])  # 10
 aiso_dev[0]['hard_negs'][0] # '528464_0'
 aiso_dev[0]['hn_scores']  # [0.0018630551639944315, 0.0005404593539424241, 0.000537772080861032, 0.0005160804139450192, 0.0005122957518324256, 0.0005065873847343028, 0.0005059774266555905, 0.0004960809019394219, 0.0004910272546112537, 0.0004873361031059176]
-aiso_dev[0]['state2action'] # {'initial': {   'query': 'Scott Derrickson', 'action': 'MDR',
+aiso_dev[0]['state2action'] # {'initial': {   'query': 'Scott Derrickson', 'action': 'MDR', # take action MDR(q+'Scott Derrickson')
 #                                          'sp_ranks': {'BM25': {'2816539_0': 0, '10520_0': 2000},
 #                                                  'BM25+Link': {'2816539_0': 1, '10520_0': 2000},
 #                                                        'MDR': {'2816539_0': 1, '10520_0': 0},
 #                                                   'MDR+Link': {'2816539_0': 2000, '10520_0': 34}}},
-#                     'Scott Derrickson': {   'query': 'Ed Wood', 'action': 'BM25',
+#                     'Scott Derrickson': {   'query': 'Ed Wood', 'action': 'BM25', #take action BM25(q + 'Scott Derrickson'+'Ed Wood')
 #                                         'sp2_ranks': {'BM25': 0, 'BM25+Link': 1, 'MDR': 0, 'MDR+Link': 53}},
-#                              'Ed Wood': {   'query': 'Ed Wood', 'action': 'MDR',
+#                              'Ed Wood': {   'query': 'Ed Wood', 'action': 'MDR',  #actually at the answer, "action MDR(ed wood)' seems to be a leftover - or is it the final action of 3 ie get to final ed wood through intermediate para 10520
 #                                         'sp2_ranks': {'BM25': 2000, 'BM25+Link': 2000, 'MDR': 0, 'MDR+Link': 2000}}}
 
 aiso_dev[1]['_id']      # '5a8c7595554299585d9e36b6'  #matches MDR/KILT/HPQA
 aiso_dev[1]['question'] # 'What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?'
 aiso_dev[1]['answer']   # 'Chief of Protocol'
-aiso_dev[1]['sp_facts'] # {'Kiss and Tell (1945 film)': [0], 'Shirley Temple': [0, 1]}
+aiso_dev[1]['sp_facts'] # {'Kiss and Tell (1945 film)': [0], 'Shirley Temple': [0, 1]}  # sentence # in para relevance ie sent 0 in 'Kiss and Tell (1945 film)' is relevant and sents 0 & 1 in 'Shirley Temple' are relevant
 len(aiso_dev[1]['hard_negs'])  # 10
 aiso_dev[1]['hard_negs'][0] # '43034001_0'
 aiso_dev[1]['hn_scores']  # [... desc order like 1st example]
@@ -257,7 +257,72 @@ aiso_dev[1]['state2action'] # {'initial': {'query': 'Corliss Archer in the film 
 #            'Kiss and Tell (1945 film)': {'query': 'Shirley Temple', 'action': 'LINK',
 #                                      'sp2_ranks': {'BM25': 0, 'BM25+Link': 2, 'MDR': 0, 'MDR+Link': 66}}}
 
+        """
+ADDITIONAL_SPECIAL_TOKENS
+{'YES': '[unused0]', # 1
+ 'NO': '[unused1]',  # 2
+ 'SOP': '[unused2]', # 3
+ 'NONE': '[unused3]'} # 4 = "answerable score"
+BOS/CLS = 101, EOS/SEP both 102
+FUNCTIONS = ("ANSWER", "BM25", "MDR", "LINK")
+FUNC2ID = {func: idx for idx, func in enumerate(FUNCTIONS)}
+NA_POS = 3
 
+eval_dataset[0]: Each time call evaldataset[0] get difft para combination for same question
+{'q_id': '5a8b57f25542995d1e6f1371',
+ 'context_ids': ['2816539_0'],  # 'Scott Derrickson'. Can be list of at least 3 ids
+ 'context': 'Scott Derrickson [unused2] Scott Derrickson (born July 16, 1966) is an American director, screenwriter and producer. He lives in Los Angeles, California. He is best known for directing horror films such as "Sinister", "The Exorcism of Emily Rose", and "Deliver Us From Evil", as well as the 2016 Marvel Cinematic Universe installment, "Doctor Strange."',
+ 'context_token_spans': [(0, 5),  (6, 13),  (13, 16),  (17, 26),  (27, 32),  (33, 40),  (40, 43),  (44, 45),  (45, 49),  (50, 54),  (55, 57),  (57, 58),  (59, 63),  (63, 64),  (65, 67),  (68, 70),  (71, 79),  (80, 88),  (88, 89),  (90, 102),  (103, 106),  (107, 115),  (115, 116),  (117, 119),  (120, 125),  (126, 128),  (129, 132),  (133, 140),  (140, 141),  (142, 152),  (152, 153),
+  (154, 156),  (157, 159),  (160, 164),  (165, 170),  (171, 174),  (175, 184),  (185, 191),  (192, 197),  (198, 202),  (203, 205),  (206, 207),  (207, 215),  (215, 216),  (216, 217),  (218, 219),  (219, 222),  (223, 225),  (225, 227),  (227, 230),  (230, 231),  (232, 234),  (235, 240),  (241, 245),  (245, 246),  (246, 247),  (248, 251),  (252, 253),  (253, 260),  (261, 263),  (264, 268),
+  (269, 273),  (273, 274),  (274, 275),  (276, 278),  (279, 283),  (284, 286),  (287, 290),  (291, 295),  (296, 302),  (303, 312),  (313, 321),  (322, 333),  (333, 334),  (335, 336),  (336, 342),  (343, 350),  (350, 351),  (351, 352)],
+ 'sents_map': [('Scott Derrickson', 0),  ('Scott Derrickson', 1),  ('Scott Derrickson', 2)], #3 sentences in context - can have multiple aras in this list. Each sent idx is 0 based from that para not from context start
+ 'sparse_query': 'Ed Wood',
+ 'dense_expansion_id': '2816539_0', # 'Scott Derrickson' i.e. para_id to expand from if next action is MDR
+ 'link_targets': ['[unused3]',  'California',  'Deliver Us from Evil (2014 film)',  'Doctor Strange (2016 film)',
+  'Horror film',  'Los Angeles',  'Marvel Cinematic Universe',  'Sinister (film)',  'The Exorcism of Emily Rose'],
+ #input_ids has q + context
+ 'input_ids': tensor([  101,     1,     2,     4,  2020,  3660, 18928,  3385,  1998,  3968,  3536,  1997,  1996,  2168, 10662,  1029,   102,  3660, 18928,  3385,  3,  3660, 18928,  3385,  1006,  2141,  2251,  2385,  1010,  3547, 1007,  2003,  2019,  2137,  2472,  1010, 11167,  1998,  3135,  1012, 2002,  3268,  1999,  3050,  3349,  1010,  2662,  1012,  2002,  2003,
+          2190,  2124,  2005,  9855,  5469,  3152,  2107,  2004,  1000, 16491, 1000,  1010,  1000,  1996,  4654,  2953, 22987,  2213,  1997,  6253, 3123,  1000,  1010,  1998,  1000,  8116,  2149,  2013,  4763,  1000, 1010,  2004,  2092,  2004,  1996,  2355,  8348, 21014,  5304, 18932, 1010,  1000,  3460,  4326,  1012,  1000,   102]),
+ 'token_type_ids': tensor([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+ # Y N NONE ...title...para:
+ 'answer_mask': tensor([0., 1., 1., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., 0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 0.]),
+ 'context_token_offset': tensor(17),  # 1st context token in input_ids right after SEP
+ 'paras_mark': [20],                  # 1st SOP/3
+ 'paras_span': [(17, 95)],
+ 'paras_label': tensor([1.]),                  # evidence/no evidence, for multiple paras can be list eg [1., 0.]
+ 'sents_span': [(21, 39), (40, 47), (48, 95)], # 3 sentences
+ 'sents_label': tensor([1., 0., 0.]),          # sentence is evidence/not evidence (in .jsonl but how derived?) - 1 entry per sent even over multiple paras
+ 'answer_starts': tensor([-1]),                # if answer in context would contain offset to start eg "Yes" = 1
+ 'answer_ends': tensor([-1]),
+ 'sparse_start': tensor(9),   #3968 #span of sparse query to exacute if action_label = BM25/1
+ 'sparse_end': tensor(10),    #3536
+ 'dense_expansion': tensor(0), # idx of para to expand from in context_ids if action_label = MDR/2 - uses the SOP token associated with this para in the context
+ 'links_spans': [[(3, 3)],  [(46, 46)],  [(75, 78)],  [(92, 93)],  [(54, 55)],  [(43, 44)],  [(86, 88)],  [(59, 59)],  [(63, 70)]],
+ 'link_label': tensor(0),      # idx in link_targets/link_spans to expand if action_label = LINK/3
+ 'action_label': tensor(1)}      #  ("ANSWER"/0, "BM25"/1, "MDR"/2, "LINK"/3)
+    
+    
+MODEL HEADS:
+  (reranker): Linear(in_features=1024, out_features=1, bias=True)
+  (sp_cls): Linear(in_features=1024, out_features=1, bias=True)
+  (answerer): Answerer(
+    (qa_outputs): Linear(in_features=1024, out_features=2, bias=True)
+  )
+  (linker): Linker(
+    (scorer): Linear(in_features=1024, out_features=1, bias=True)
+  )
+  (commander): Commander(
+    (ffn): FFN(
+      (dense1): Linear(in_features=3072, out_features=4096, bias=True)
+      (dense2): Linear(in_features=4096, out_features=1024, bias=True)
+      (dropout): Dropout(p=0.1, inplace=False)
+    )
+    (act_scorer): Linear(in_features=1024, out_features=1, bias=True)
+  )
+  (bce_loss): BCEWithLogitsLoss()
+  (ce_loss): CrossEntropyLoss()
+)    
+        """
 
 
 
