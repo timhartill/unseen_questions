@@ -257,7 +257,7 @@ aiso_dev[1]['state2action'] # {'initial': {'query': 'Corliss Archer in the film 
 #            'Kiss and Tell (1945 film)': {'query': 'Shirley Temple', 'action': 'LINK',
 #                                      'sp2_ranks': {'BM25': 0, 'BM25+Link': 2, 'MDR': 0, 'MDR+Link': 66}}}
 
-        """
+"""
 ADDITIONAL_SPECIAL_TOKENS
 {'YES': '[unused0]', # 1
  'NO': '[unused1]',  # 2
@@ -287,31 +287,49 @@ eval_dataset[0]: Each time call evaldataset[0] get difft para combination for sa
  # Y N NONE ...title...para:
  'answer_mask': tensor([0., 1., 1., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1., 1., 0., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 0.]),
  'context_token_offset': tensor(17),  # 1st context token in input_ids right after SEP
- 'paras_mark': [20],                  # 1st SOP/3
+ 'paras_mark': [20],                  # 1st SOP/3 + any additional SOP for multiple paras eg [p1, p2, p3]
  'paras_span': [(17, 95)],
  'paras_label': tensor([1.]),                  # evidence/no evidence, for multiple paras can be list eg [1., 0.]
  'sents_span': [(21, 39), (40, 47), (48, 95)], # 3 sentences
  'sents_label': tensor([1., 0., 0.]),          # sentence is evidence/not evidence (in .jsonl but how derived?) - 1 entry per sent even over multiple paras
  'answer_starts': tensor([-1]),                # if answer in context would contain offset to start eg "Yes" = 1
  'answer_ends': tensor([-1]),
- 'sparse_start': tensor(9),   #3968 #span of sparse query to exacute if action_label = BM25/1
+ 'sparse_start': tensor(9),   #3968 #span of sparse query to execute if action_label = BM25/1
  'sparse_end': tensor(10),    #3536
  'dense_expansion': tensor(0), # idx of para to expand from in context_ids if action_label = MDR/2 - uses the SOP token associated with this para in the context
+ #link spans seem to be first few tokens before any () of each anchor in text
  'links_spans': [[(3, 3)],  [(46, 46)],  [(75, 78)],  [(92, 93)],  [(54, 55)],  [(43, 44)],  [(86, 88)],  [(59, 59)],  [(63, 70)]],
  'link_label': tensor(0),      # idx in link_targets/link_spans to expand if action_label = LINK/3
  'action_label': tensor(1)}      #  ("ANSWER"/0, "BM25"/1, "MDR"/2, "LINK"/3)
-    
-    
+
+b = [eval_dataset[i] for i in range(0,4)]
+batch = collate_transitions(b, pad_id=tokenizer.pad_token_id)
+batch.keys(): dict_keys(['q_id', 'context_ids', 'context', 'context_token_spans', 'sents_map', 'sparse_query', 'dense_expansion_id', 'link_targets', 'nn_input'])
+batch['nn_input'].keys() dict_keys(['input_ids', 'attention_mask', 'token_type_ids', 'answer_mask', 'context_token_offset', 'paras_mark', 'paras_span', 'sents_span', 'sparse_start', 'sparse_end', 'links_spans', 'paras_label', 'sents_label', 'answer_starts', 'answer_ends', 'dense_expansion', 'link_label', 'action_label'])
+
+# union_model forward:
+# (B, T, H)  #TJH bs, seq len, hidden_size
+seq_hiddens = self.encoder(batch['input_ids'], batch['attention_mask'], batch.get('token_type_ids', None))[0]
+none_hidden = seq_hiddens[:, 3, :]  # (B, H)  #TJH: 4th tok = NONE = evidence score
+para_threshold = self.reranker(none_hidden).squeeze(-1)  # (B,)
+state_hidden = seq_hiddens[:, 0, :]  # (B, H)  #TJH: CLS/<s>
+
 MODEL HEADS:
-  (reranker): Linear(in_features=1024, out_features=1, bias=True)
-  (sp_cls): Linear(in_features=1024, out_features=1, bias=True)
-  (answerer): Answerer(
+  (reranker): Linear(in_features=1024, out_features=1, bias=True) # in = NONE tok and separately each SOP tok. Then softmax over concat(SOPs + NONE) to determine para to expand or suff evidence -> dense_hidden (B,H)
+  (sp_cls): Linear(in_features=1024, out_features=1, bias=True)  # in = sentence toks mean per sentence out = sentence logits (then sigmoid/bce vs sent labels) (B, #sentences)
+  (answerer): Answerer(  # in = seq_hidden [B, T, H] + answer mask & topk=1. Out with start_logits [B,T], end_logits [B,T], start idx [B,T], end idx [B,T] and answer_hidden = mean output of answerer [B,H]
     (qa_outputs): Linear(in_features=1024, out_features=2, bias=True)
   )
   (linker): Linker(
     (scorer): Linear(in_features=1024, out_features=1, bias=True)
   )
-  (commander): Commander(
+  (commander): Commander( # input (state_hidden (B,H) of CLS, 
+                                   answer_hidden (B,H) of mean answer span, 
+                                   sparse_hidden (B,H) of mean sparse span,
+                                   dense_hidden (B,H) of max SOP/NONE, 
+                                   link_hidden (B,H) of selected link)
+                          # output action_logits (B,4) logits for ("ANSWER", "BM25", "MDR", "LINK")
+                                   best_action: idx of best action
     (ffn): FFN(
       (dense1): Linear(in_features=3072, out_features=4096, bias=True)
       (dense2): Linear(in_features=4096, out_features=1024, bias=True)
@@ -319,10 +337,25 @@ MODEL HEADS:
     )
     (act_scorer): Linear(in_features=1024, out_features=1, bias=True)
   )
-  (bce_loss): BCEWithLogitsLoss()
-  (ce_loss): CrossEntropyLoss()
+  (bce_loss): BCEWithLogitsLoss() #sentence logits vs sentence labels then * sp_weight
+  (ce_loss): CrossEntropyLoss()  # action logit vs action label with -1 actions excluded and wrong links preds setting action-> -1 and f1(pred ans span, label ans span) < 0.4 also setting action -1
+                                   also used for answer span start/end loss
+                                   and link span loss
+ paras loss: key "memory" = a custom ranking loss between logits for [NONE] + eg [[SOP], [SOP]] vs [0.5] + eg [1., 0.]
+            Unclear why this isn't a BCE loss like the sentence loss??
 )    
-        """
+    
+Inference model outputs:
+        #       (B, 4)         (B, T) Ans    (B, T) Ans  (B, _L)      (B, _P)      (B, _S)
+        return (action_logits, start_logits, end_logits, link_logits, para_logits, sent_logits,
+                # (B,)NONElogit (B,) TJH:Always 0's
+                para_threshold, sent_threshold,
+                # (B,) idx   (B, *)Ans  (B, *)Ans (B,)lnkidx (B,) para to expand next idx
+                pred_action, top_start, top_end, pred_link, pred_exp,
+                # (B,)    (B,)       (B,)para confidence
+                ans_conf, link_conf, exp_conf)
+"""
+
 
 
 
