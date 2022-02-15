@@ -82,7 +82,7 @@ INDIR_BASE = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-tokenized
 #AISO_FILE = '/data/thar011/gitrepos/AISO/data/corpus/hotpot-paragraph.strict.tjh_v2.tsv'
 #AISO_DEV = '/data/thar011/gitrepos/AISO/data/hotpot-step-dev.strict.refined.jsonl'
 #AISO_TRAIN = '/data/thar011/gitrepos/AISO/data/hotpot-step-train.strict.refined.jsonl'
-AISO_FILE = '/data/thar011/gitrepos/AISO/data/corpus/beer.tsv'
+AISO_FILE = '/data/thar011/gitrepos/AISO/data/corpus/beer_v1.tsv'
 BEER_DEV = '/home/thar011/data/beerqa/beerqa_dev_v1.0.json'
 BEER_TRAIN = '/home/thar011/data/beerqa/beerqa_train_v1.0.json'
 
@@ -106,17 +106,6 @@ def load_jsonl(file, verbose=True):
     if verbose:
         print('Text successfully converted to JSON.')
     return all_json_list
-
-def flatten(alist):
-    """ flatten a list of nested lists
-    """
-    t = []
-    for i in alist:
-        if not isinstance(i, list):
-             t.append(i)
-        else:
-             t.extend(flatten(i))
-    return t
 
 
 def load_bz2_to_jsonl(infile, delkeys = ['offsets', 'offsets_with_links', 'url'], verbose=False):
@@ -179,18 +168,59 @@ def map_title_case(hlink, titledict, verbose=False):
     """
     tlower = hlink.lower()
     tmap = titledict.get(tlower)
+    status = 'nf'
     if tmap is not None:                # if not found at all just return existing hlink
         if len(tmap) == 1:
+            if hlink != tmap[0]['title']:
+                if verbose:
+                    print(f"Hlink case different. Orig:{hlink} actual: {tmap[0]['title']}")
+                status = 'sc'
+            else:
+                status = 'sok'
             hlink = tmap[0]['title']    # only one candidate, use that
         else:
             for t in tmap:
                 if hlink == t['title']: # exact match amongst candidates found, use that
-                    return hlink
+                    return hlink, 'mok'
             hlink = tmap[0]['title']    # otherwise just return first
+            status = 'mc'
             if verbose:
                 print(f"Hlink lower:{tlower} No exact match found so assigning first: {hlink}")
-    return hlink
+    return hlink, status
 
+
+def count_title_status(docs, titledict):
+    """ Count title matching status and update hyperlinks into new 'hyperlinks_cased' key """
+    count_dict = {'nf':0, 'sc':0, 'sok':0, 'mok':0, 'mc':0}
+    para_count = 0
+    for i, doc in enumerate(docs):
+        for p in doc['paras']:
+            para_count += 1
+            new_links_dict = {}
+            for h in p['hyperlinks'].keys():
+                new_hlink, status = map_title_case(h, titledict)
+                count_dict[status] += 1
+                if new_links_dict.get(new_hlink) is None:
+                    new_links_dict[new_hlink] = p['hyperlinks'][h]
+                else:
+                    new_links_dict[new_hlink].extend(p['hyperlinks'][h])
+            p['hyperlinks_cased'] = copy.deepcopy(new_links_dict)
+        if i % 1000000 == 0:
+            print(f"Processed: {i} docs {para_count} paras. Hyperlink counts: {count_dict}")
+    print(f"Finished counting titles. {para_count} paras. Counts: {count_dict}")
+    return count_dict
+
+
+def cleanup(docs):
+    """ Final cleanup """
+    for i, doc in enumerate(docs):
+        for p in doc['paras']:
+            p['text'] = p['text'].replace('\t', ' ')
+            del p['hyperlinks']
+        if i % 1000000 == 0:
+            print(f"Processed: {i} docs")
+    print(f"Finished cleanup")
+    return
 
 def get_links(para, para_w_links, links_dict, verbose=False):
     """ Parse para_w_links, extract and return link titles, anchors, anchor spans
@@ -277,17 +307,22 @@ def process_doc(doc, delkeys = ['text', 'text_with_links'], verbose=False):
     return
     
 
-def save_aiso(paras):
+def save_aiso(docs):
     """ save non-blank records """
-    print('Formatting for output...')
-    out = ['id\ttext\ttitle\thyperlinks\tsentence_spans\n']
-    for para in paras:
-        if para['text_final'].strip() != '':
-            outstr = f"{para['id_new']}\t{para['text_final']}\t{para['title'].strip()}\t{json.dumps(para['hyperlinks'])}\t{json.dumps(para['sentence_spans'])}\n"
-            out.append(outstr)
-    print(f'Saving {AISO_FILE} ...')
+    print(f'Outputting to {AISO_FILE}...')
     with open(AISO_FILE, 'w') as f:
-        f.write(''.join(out))    
+        f.write('id\ttext\ttitle\thyperlinks\tsentence_spans\n')    
+        for i, doc in enumerate(docs):
+            pidx = 0 # make paras 0 based and contiguous
+            for j, para in enumerate(doc['paras']):
+                if para['text'].strip() != '':
+                    newid = doc['id'] + '_' + str(pidx)
+                    pidx += 1
+                    outstr = f"{newid}\t{para['text']}\t{doc['title'].strip()}\t{json.dumps(para['hyperlinks_cased'])}\t{json.dumps(para['sentence_spans'])}\n"
+                    f.write(outstr)
+            if i % 250000 == 0:
+                print(f"Processed: {i}")
+    print(f'Saved {AISO_FILE}')
     return
 
 
@@ -327,23 +362,24 @@ for i, infile in enumerate(filelist):
     docs += currdocs
     if i % 500 == 0:
         print(f"Processed {i} of {len(filelist)}")
-print('Finished loading and processing!')
+print(f'Finished loading and processing! Docs: {len(docs)}')  # 6133150 docs
 print('Building title dictionary...')
-titledict, dupdict = build_title_idx(docs) #  dups
+titledict, dupdict = build_title_idx(docs) #  6020 dups
 dupkeys = list(dupdict.keys())
 
-#TODO map titles
+# map titles: adds 'hyperlinks_cased' key to docs paras
+h_counts = count_title_status(docs, titledict) 
+# Finished counting titles. 35706771 paras. Counts: {'nf': 19367786, 'sc': 14077482, 'sok': 68807203, 'mok': 294440, 'mc': 326587}
+cleanup(docs) # replace \t in para text (just in case there were any) and del hyperlinks key
 
-#TODO Add SQA paras
+#output AISO corpus file
+save_aiso(docs)
 
 #TODO output MDR
 #TODO output GR
 # see https://github.com/qipeng/golden-retriever/blob/master/scripts/index_processed_wiki.py
 
-#TODO output AISO
 
-
-save_aiso(paras)
 
 
 #NOTE: AISO removes invalid links in transition_dataset.py so not doing it here
