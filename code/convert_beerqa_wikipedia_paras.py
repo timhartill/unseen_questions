@@ -309,7 +309,7 @@ def add_processed_keys(para, titledict, verbose=False):
     return
 
 
-def map_title_case(hlink, titledict):
+def map_title_case(hlink, titledict, verbose=False):
     """ Some titles in HPQA abstracts have incorrect casing. Attempt to map casing.
     """
     tlower = hlink.lower()
@@ -322,41 +322,50 @@ def map_title_case(hlink, titledict):
                 if hlink == t['title']: # exact match amongst candidates found, use that
                     return hlink
             hlink = tmap[0]['title']    # otherwise just return first
+            if verbose:
+                print(f"Hlink lower:{tlower} No exact match found so assigning first: {hlink}")
     return hlink
 
 
-def get_links(sent, sent_w_links, links_dict, titledict, sent_offset):
-    """ Parse sent_w_links, extract and return link titles, anchors, anchor spans
-    sent_offset is the length of the current paragraph before adding sent
+def get_links(para, para_w_links, links_dict, titledict, verbose=False):
+    """ Parse para_w_links, extract and return link titles, anchors, anchor spans
     updates links_dict: {'Link title': [ {'anchor_text': 'some text', 'span': [startchar, endchar]} ] }
     """
-    start_href = sent_w_links.find('<a href="')
+    start_href = para_w_links.find('<a href="')
     sent_ptr = 0
     while start_href != -1:
         start_href = start_href + 9
-        end_href = sent_w_links.find('">')
+        end_href = para_w_links.find('">')
         if end_href > start_href:
-            hlink = unescape(unquote(sent_w_links[start_href:end_href])).strip()
-            hlink = map_title_case(hlink, titledict)
+            hlink = unescape(unquote(para_w_links[start_href:end_href])).strip()
+            hlink = map_title_case(hlink, titledict, verbose=verbose)
             end_href += 2
-            end_anchor = sent_w_links.find('</a>')
+            end_anchor = para_w_links.find('</a>')
             if end_anchor > end_href:
-                anchor_text = sent_w_links[end_href:end_anchor].strip()
-                anchor_text_start = sent[sent_ptr:].find(anchor_text)
+                anchor_text = para_w_links[end_href:end_anchor].strip()
+                anchor_text_start = para[sent_ptr:].find(anchor_text)
                 if anchor_text_start > -1:
                     anchor_text_start += sent_ptr
                     sent_ptr = anchor_text_start + len(anchor_text)
                     if links_dict.get(hlink) is None:
                         links_dict[hlink] = []
-                    links_dict[hlink].append( {"anchor_text": anchor_text, "span": [sent_offset+anchor_text_start, sent_offset+sent_ptr]} )
-                    sent_w_links = sent_w_links[end_anchor+4:]
+                    links_dict[hlink].append( {"anchor_text": anchor_text, "span": [anchor_text_start, sent_ptr]} )
+                    para_w_links = para_w_links[end_anchor+4:]
                 else: # anchor text not found
-                    sent_w_links = sent_w_links[end_anchor+4:]
+                    if verbose:
+                        print(f'Anchor text #{anchor_text}# not found in para: {para[sent_ptr:]}')
+                    para_w_links = para_w_links[end_anchor+4:]
+            elif end_anchor == end_href:  # some hrefs dont have anchor text - skip them. eg <a href="http%3A//content.inflibnet.ac.in/data-server/eacharya-documents/5717528c8ae36ce69422587d_INFIEP_304/66/ET/304-66-ET-V1-S1__file1.pdf"></a>
+                para_w_links = para_w_links[end_anchor+4:]
             else: # no </a> found
-                sent_w_links = ''
+                if verbose:
+                    print(f'</a> not found for hlink:{hlink}: {para_w_links}')
+                para_w_links = ''
         else: # couldnt find hlink termination str ">
-            sent_w_links = ''
-        start_href = sent_w_links.find('<a href="')
+            if verbose:
+                print(f'href termination "> not found: {para_w_links}')
+            para_w_links = ''
+        start_href = para_w_links.find('<a href="')
     return
     
 
@@ -369,31 +378,34 @@ def process_doc(doc, titledict, verbose=False):
     "text_with_links": ["Anarchism", "\n\nAnarchism is a <a href=\"political%20philosophy\">political philosophy</a> and <a href=\"Political%20movement\">movement</a> that rejects ...],
     "offsets_with_links": [[[0, 9]], [[11, 20], [21, 23], [24, 25], [26, 59], [59, 68], [69, 79], [79, 83], [84, 87], [88, 119], [119, 127], [127, 131], [132, 136], [137, 144], ...] }
     
-    len(text) = len(text_with_links)
+    Note: len(text) = len(text_with_links) = num sentences
                   
     """
     doc['paras'] = []
-    #text_w_links = copy.deepcopy(para['text_with_links'])
     curr_para = ''
+    curr_para_w_links = ''
     links_dict = {}
     sentence_spans = []
     curr_para_idx = 0
     for i, sent in enumerate(doc['text']):  # for each sentence
         curr_sent = sent.replace('\n', '')
+        curr_sent_w_links = doc['text_with_links'][i].replace('\n', '')
         if not sent.lstrip(' ').startswith('\n'):   # not start of new para
             curr_para_len = len(curr_para)
-            get_links(curr_sent, doc['text_with_links'][i], links_dict, titledict, curr_para_len)
             sentence_spans.append( [curr_para_len, curr_para_len+len(curr_sent)] )
             curr_para += curr_sent
+            curr_para_w_links += curr_sent_w_links
         else:                                       # start of new para
             if len(curr_para.strip()) > 0 and len(curr_para.split()) > 8:  # following https://github.com/beerqa/IRRR/blob/main/scripts/index_processed_wiki.py ignore headings
+                get_links(curr_para, curr_para_w_links, links_dict, titledict, verbose=verbose)
                 doc['paras'].append( {'pid': str(curr_para_idx),  'text':curr_para, 'hyperlinks':copy.deepcopy(links_dict), 'sentence_spans': copy.deepcopy(sentence_spans) } )
             links_dict = {}
-            get_links(curr_sent, doc['text_with_links'][i], links_dict, titledict, 0)
             sentence_spans = [ [0, len(curr_sent)] ]
             curr_para = curr_sent
+            curr_para_w_links = curr_sent_w_links
             curr_para_idx += 1
-    if curr_para != '':
+    if len(curr_para.strip()) > 0 and len(curr_para.split()) > 8:
+        get_links(curr_para, curr_para_w_links, links_dict, titledict, verbose=verbose)
         doc['paras'].append( {'pid': str(curr_para_idx), 'text':curr_para, 'hyperlinks':copy.deepcopy(links_dict), 'sentence_spans': copy.deepcopy(sentence_spans) } )
     return
     
@@ -419,27 +431,36 @@ print(len(content))  #29
 print(content[0].keys()) # dict_keys(['id', 'url', 'title', 'text', 'offsets', 'text_with_links', 'offsets_with_links'])
 print(len(''.join(content[0].get('text')).split('\n\n'))) #56
 paratest = copy.deepcopy(content)
-titledicttest, dupdicttest = build_title_idx(paratest) # 2607 dups
+titledicttest, dupdicttest = build_title_idx(paratest) # 
 for i, doc in enumerate(paratest):
     print('Processing:', i)
-    process_doc(doc, titledicttest, verbose=False)
-    #add_processed_keys(p, titledicttest, verbose=False)
+    process_doc(doc, titledicttest, verbose=True)
+    #inp = input('Press <enter>')
+
 
 print(paratest[0].keys()) # dict_keys(['id', 'url', 'title', 'text', 'offsets', 'text_with_links', 'offsets_with_links', 'paras'])
-print(paratest[0]['status']) #nm
+# 'paras' eg: 
+#    {'pid': '1',
+# 'text': 'Alchemy (from Arabic: "al-kīmiyā") is an ancient branch of natural philosophy, a philosophical and protoscientific tradition practiced throughout Europe, Africa, and Asia, originating in Greco-Roman Egypt in the first few centuries CE.',
+# 'hyperlinks': {'Arabic': [{'anchor_text': 'Arabic', 'span': [14, 20]}],
+#  'natural philosophy': [{'anchor_text': 'natural philosophy',
+#    'span': [59, 77]}],
+#  'philosophical': [{'anchor_text': 'philosophical', 'span': [81, 94]}],
+#  'protoscience': [{'anchor_text': 'protoscientific', 'span': [99, 114]}],
+#  'Egypt (Roman province)': [{'anchor_text': 'Greco-Roman Egypt', 'span': [187, 204]}]},
+# 'sentence_spans': [[0, 235]]}
 
 
-
-filelist = glob.glob(INDIR_BASE +'/*/wiki_*.bz2')
-paras = []
+filelist = glob.glob(INDIR_BASE +'/*/wiki_*.bz2')  #18013 bz2 files
+docs = []
 for i, infile in enumerate(filelist):
-    paras += load_bz2_to_jsonl(infile)
+    docs += load_bz2_to_jsonl(infile)
     if i % 500 == 0:
         print(f"Processed {i} of {len(filelist)}")
 # ''.join(paras[x]['text'])
 # see https://github.com/qipeng/golden-retriever/blob/master/scripts/index_processed_wiki.py
 
-titledict, dupdict = build_title_idx(paras) # 2607 dups
+titledict, dupdict = build_title_idx(docs) #  dups
 
 dupkeys = list(dupdict.keys())
 
@@ -459,8 +480,8 @@ dupkeys = list(dupdict.keys())
 #add_processed_keys(para2, titledict, verbose=True)
 
 # Create output data as extra keys
-for i, para in enumerate(paras):
-    add_processed_keys(para, titledict)    
+for i, doc in enumerate(docs):
+    process_doc(doc, titledict, verbose=False)
     if i % 250000 == 0:
         print(f"Processed: {i}") # Outputting 5233235 non-blank paras of 5233329 originally..MATCHES MDR counts
 
