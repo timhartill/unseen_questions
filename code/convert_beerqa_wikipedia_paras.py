@@ -119,20 +119,23 @@ def flatten(alist):
     return t
 
 
-def load_bz2_to_jsonl(infile, verbose=False):
+def load_bz2_to_jsonl(infile, delkeys = ['offsets', 'offsets_with_links', 'url'], verbose=False):
     source_file = bz2.BZ2File(infile, "r")
     out = []
     count = 0
     for line in source_file:
         count += 1
-        out.append(json.loads(line))
+        doc = json.loads(line)
+        for k in delkeys:
+            del doc[k]
+        out.append(doc)
     source_file.close()
     if verbose:
         print(f"Read {count} rows from {infile}")
     return out
 
 
-def build_title_idx(paras):
+def build_title_idx(docs):
     """ The HPQA corpus files contain some hrefs that have casing different to the actual title casing.
     Simply making everything lowercase wont work as this creates a smallish number of duplicates.
     So we build a dict with key title.lower():
@@ -140,15 +143,18 @@ def build_title_idx(paras):
     """
     titledict = {}
     dupdict = {}
-    for para in paras:
-        tlower = para['title'].lower()
-        title_entry = {'title': para['title'], 'id':para['id']}
+    for i, doc in enumerate(docs):
+        tlower = doc['title'].lower()
+        title_entry = {'title': doc['title'], 'id':doc['id']}
         if titledict.get(tlower) is None:
             titledict[tlower] = [title_entry]
         else:
             titledict[tlower].append(title_entry)
             print(f"Dup lowercase: {tlower}  New Entry:{title_entry}")
             dupdict[tlower] = titledict[tlower]
+        if i % 1000000 == 0:
+            print(f"Processed: {i} Dups so far:{len(dupdict)}")
+    print(f"Total dups: {len(dupdict)}")
     return titledict, dupdict
             
 
@@ -165,147 +171,6 @@ def print_para(para, keys=['id','title','text']):
     """
     outstr = ' '.join([k+': '+para.get(k) for k in keys])
     print(outstr)
-    return
-        
-
-def adj_token_boundaries(toks):
-    """ adjust token boundaries s.t. they are contiguous
-    toks = flattened list of alternating start/stop tokens
-    """
-    numtoks = len(toks)
-    if numtoks > 0:
-        toks[0] = 0  
-    for i in range(0, numtoks, 2):  #i=start, i+1=end
-        if i < numtoks-2:
-            toks[i+1] = toks[i+2]
-    return toks
-
-
-def add_processed_keys(para, titledict, verbose=False):
-    """ Add keys to para: 
-    text_final (currently (should be) same as flattened 'text'), 
-    hyperlinks
-    sentence_spans
-    id_new: id with '_0' added
-    status: '' or 'nm' if new text doesnt match current text or 'bt' if no text (or 'btnm' for both)
-    """
-    #preprocess to remove non-href tags etc that are inconsistent between text [] and text_with_links ['<templatestyles src="Refbegin/styles.css" /']
-    text_w_links = copy.deepcopy(para['text_with_links'])
-    offsets_w_links = copy.deepcopy(para['offsets_with_links'])
-    for i,t in enumerate(para['text']):
-        if t == '':
-            text_w_links[i] = ''
-            offsets_w_links[i] = []
-              
-    # identify hyperlinks, anchor text spans and remove links from text_with_links s.t. should = text
-    tl = ''.join(text_w_links)  #''.join(para['text_with_links'])
-    toks = flatten(offsets_w_links)   #flatten(para['offsets_with_links']) #[start1, end1, start2, end2,...] #HPQA was 'charoffset_with_links'
-    toks = adj_token_boundaries(toks)
-    currtext = ""
-    startref=False
-    anchor=""
-    links_dict = {}
-    hlink = None
-    status = ''
-    for i in range(0, len(toks), 2):  #i=start, i+1=end
-        if verbose:
-            print(i, toks[i], toks[i+1], tl[toks[i]: toks[i+1]])
-        if tl[toks[i]:toks[i+1]].startswith('<a href="'):
-            astart = len(currtext)
-            hlink = unescape(unquote(tl[toks[i]+9:toks[i+1]-2])).strip()
-            if hlink == '':
-                print(f"id:{para['id']}: blank href. skipping and creating without hyperlinks.")
-                status += 'blankhref_'
-                break
-            if not tl[toks[i]:toks[i+1]].endswith('">'):
-                endref = tl[toks[i]:toks[i+1]].find('">')
-                if endref == -1:
-                    print(f"id:{para['id']}: bad href. skipping and creating without hyperlinks.")
-                    status += 'badhref_'
-                    break
-                currtext += tl[toks[i]:toks[i+1]][endref+2:]
-            startref=True
-        elif tl[toks[i]:toks[i+1]].startswith('</a>'):
-            startref=False
-            aend = len(currtext)
-            currtext += tl[toks[i]:toks[i+1]][4:]  # '' or ' '
-            if hlink is None:
-                print(f"id:{para['id']}: No <a href before </a>. anchor={anchor}. Anchor skipped and creating without hyperlinks.")
-                status += 'nohlink_'
-                break
-            else:    
-                if links_dict.get(hlink) is None:
-                    links_dict[hlink] = []
-                links_dict[hlink].append( {"anchor_text": anchor.strip(), "span": [astart, aend]} )
-            anchor=""
-            hlink=None
-        elif startref:
-            anchor += tl[toks[i]:toks[i+1]]
-            currtext += tl[toks[i]:toks[i+1]]
-        else:
-            currtext += tl[toks[i]:toks[i+1]]
-    if status == '':
-        txt = ''.join(para['text'])
-        if currtext != txt:  #check processed text matches hpqa processed text
-            if "<a href=" in txt:
-                print(f"id:{para['id']}: mismatch and href in orig text. Skipping and creating without hyperlinks.")
-                status += 'nm_hrefinorig_'
-            else:    
-                status += 'nm'
-                print(f"Unmatched text. ID: {para['id']}")
-        elif currtext.strip() == '':
-            status = 'bt' + status
-            print(f"Blank text. ID: {para['id']}")
-    
-        if verbose:
-            print(f"currtext#{currtext}#")
-            print(f"hpqatext#{''.join(para['text'])}#")
-            for l in links_dict:
-                print(f"linksdetail#ANCHOR:{links_dict[l][0]['anchor_text']}:ANCHORSPAN:{currtext[links_dict[l][0]['span'][0]:links_dict[l][0]['span'][1]]}#HLINK:{l}#")
-    if status != '':  # tokenising error for hyperlinks or corrupt hyperlinks, just use text minus hyperlinks
-        para['hyperlinks_bad'] = links_dict
-        para['text_final_bad'] = currtext
-        links_dict = {}
-        currtext = ''.join(para['text'])                
-
-    # Map title casing
-    links_dict_mapped = {}  
-    if links_dict != {}:
-        for l in links_dict:
-            tlower = l.lower()
-            tmap = titledict.get(tlower)
-            if tmap is None:
-                links_dict_mapped[l] = links_dict[l]  # href not in corpus, just copy existing
-            else:
-                if len(tmap) == 1:
-                    hlink = tmap[0]['title'] # only one candidate, use that
-                else:
-                    hlink == ''
-                    for t in tmap:
-                        if l == t['title']: # exact match amongst candidates found, use that
-                            hlink = l
-                            break
-                    if hlink == '':
-                        hlink = tmap[0]['title']
-                        print(f"id:{para['id']}: No exact match for href #{l}# casing found and multiple candidates. Assigning first one #{hlink}#")
-                links_dict_mapped[hlink] = links_dict[l]
-            
-    
-    # identify sentence spans - use HPQA form - no trailing space on 1st sent then leading space for each after that.
-    sentence_spans = []
-    start = 0
-    for s in para['text']:
-        end = start + len(s)
-        sentence_spans.append( [start, end] )
-        start = end
-    if verbose:
-        for span in sentence_spans:
-            print(f"span#{span}#{currtext[span[0]: span[1]]}#")
-    para['text_final'] = currtext
-    para['hyperlinks'] = links_dict_mapped
-    para['sentence_spans'] = sentence_spans
-    para['status'] = status
-    para['id_new'] = para['id'] + '_0'        
     return
 
 
@@ -327,7 +192,7 @@ def map_title_case(hlink, titledict, verbose=False):
     return hlink
 
 
-def get_links(para, para_w_links, links_dict, titledict, verbose=False):
+def get_links(para, para_w_links, links_dict, verbose=False):
     """ Parse para_w_links, extract and return link titles, anchors, anchor spans
     updates links_dict: {'Link title': [ {'anchor_text': 'some text', 'span': [startchar, endchar]} ] }
     """
@@ -338,7 +203,7 @@ def get_links(para, para_w_links, links_dict, titledict, verbose=False):
         end_href = para_w_links.find('">')
         if end_href > start_href:
             hlink = unescape(unquote(para_w_links[start_href:end_href])).strip()
-            hlink = map_title_case(hlink, titledict, verbose=verbose)
+            #hlink = map_title_case(hlink, titledict, verbose=verbose)
             end_href += 2
             end_anchor = para_w_links.find('</a>')
             if end_anchor > end_href:
@@ -369,7 +234,7 @@ def get_links(para, para_w_links, links_dict, titledict, verbose=False):
     return
     
 
-def process_doc(doc, titledict, verbose=False):
+def process_doc(doc, delkeys = ['text', 'text_with_links'], verbose=False):
     """ Split doc into paras and process each para
     doc: {"id": 12, "url": "https://en.wikipedia.org/wiki?curid=12",
     "title": "Anarchism",
@@ -397,7 +262,7 @@ def process_doc(doc, titledict, verbose=False):
             curr_para_w_links += curr_sent_w_links
         else:                                       # start of new para
             if len(curr_para.strip()) > 0 and len(curr_para.split()) > 8:  # following https://github.com/beerqa/IRRR/blob/main/scripts/index_processed_wiki.py ignore headings
-                get_links(curr_para, curr_para_w_links, links_dict, titledict, verbose=verbose)
+                get_links(curr_para, curr_para_w_links, links_dict, verbose=verbose)
                 doc['paras'].append( {'pid': str(curr_para_idx),  'text':curr_para, 'hyperlinks':copy.deepcopy(links_dict), 'sentence_spans': copy.deepcopy(sentence_spans) } )
             links_dict = {}
             sentence_spans = [ [0, len(curr_sent)] ]
@@ -405,8 +270,10 @@ def process_doc(doc, titledict, verbose=False):
             curr_para_w_links = curr_sent_w_links
             curr_para_idx += 1
     if len(curr_para.strip()) > 0 and len(curr_para.split()) > 8:
-        get_links(curr_para, curr_para_w_links, links_dict, titledict, verbose=verbose)
+        get_links(curr_para, curr_para_w_links, links_dict, verbose=verbose)
         doc['paras'].append( {'pid': str(curr_para_idx), 'text':curr_para, 'hyperlinks':copy.deepcopy(links_dict), 'sentence_spans': copy.deepcopy(sentence_spans) } )
+    for k in delkeys:
+        del doc[k]        
     return
     
 
@@ -434,7 +301,7 @@ paratest = copy.deepcopy(content)
 titledicttest, dupdicttest = build_title_idx(paratest) # 
 for i, doc in enumerate(paratest):
     print('Processing:', i)
-    process_doc(doc, titledicttest, verbose=True)
+    process_doc(doc, verbose=True)
     #inp = input('Press <enter>')
 
 
@@ -454,43 +321,28 @@ print(paratest[0].keys()) # dict_keys(['id', 'url', 'title', 'text', 'offsets', 
 filelist = glob.glob(INDIR_BASE +'/*/wiki_*.bz2')  #18013 bz2 files
 docs = []
 for i, infile in enumerate(filelist):
-    docs += load_bz2_to_jsonl(infile)
+    currdocs = load_bz2_to_jsonl(infile)
+    for j, doc in enumerate(currdocs):
+        process_doc(doc, verbose=False)    # Create output data as extra keys and delete orig keys
+    docs += currdocs
     if i % 500 == 0:
         print(f"Processed {i} of {len(filelist)}")
-# ''.join(paras[x]['text'])
-# see https://github.com/qipeng/golden-retriever/blob/master/scripts/index_processed_wiki.py
-
+print('Finished loading and processing!')
+print('Building title dictionary...')
 titledict, dupdict = build_title_idx(docs) #  dups
-
 dupkeys = list(dupdict.keys())
 
+#TODO map titles
 
-#utils.saveas_jsonl(paras, os.path.join(OUTDIR, 'hpqa_paras_combo_raw.jsonl')) # 5233329
-#paratest = copy.deepcopy(paras[2])
-#add_processed_keys(paratest)
-#para = get_para(paras, idx='12780069')  #hebrew
-#para = get_para(paras, idx='1917146')  # 1st tok didnt start at 0. Fixed
-#para = get_para(paras, idx='1936838')  # </a> mismatch token doesntcontain full href IGNORE Hlinks
-#para = get_para(paras, idx='1895365')  # </a> mismatch token doesntcontain full href IGNORE Hlinks
-#para = get_para(paras, idx='1922788')  # %20 at start of href. fixed
-#para = get_para(paras, idx='13064089')  # blank href. skip klinks
-#para = get_para(paras, idx='356443')  # mismatch
-#para = get_para(paras, idx='356454')  # mismatch
-#para2=copy.deepcopy(para)
-#add_processed_keys(para2, titledict, verbose=True)
+#TODO Add SQA paras
 
-# Create output data as extra keys
-for i, doc in enumerate(docs):
-    process_doc(doc, titledict, verbose=False)
-    if i % 250000 == 0:
-        print(f"Processed: {i}") # Outputting 5233235 non-blank paras of 5233329 originally..MATCHES MDR counts
+#TODO output MDR
+#TODO output GR
+# see https://github.com/qipeng/golden-retriever/blob/master/scripts/index_processed_wiki.py
 
-cnt = 0
-for para in paras:
-    if para['text_final'].strip() != '':
-        cnt += 1
-print(f"Outputting {cnt} non-blank paras of {len(paras)} originally..")   # Outputting 5233235 non-blank paras of 5233329 originally.. MATCHES MDR counts    
-        
+#TODO output AISO
+
+
 save_aiso(paras)
 
 
