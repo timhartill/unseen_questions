@@ -54,8 +54,8 @@ import os
 import json
 import bz2
 import glob
-from urllib.parse import unquote  #convert percent encoding eg %28%20%29 -> ( )   quote does opposite
-from html import unescape
+from urllib.parse import unquote, quote  #convert percent encoding eg %28%20%29 -> ( )   quote does opposite
+from html import unescape, escape
 import copy
 
 
@@ -83,10 +83,61 @@ INDIR_BASE = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-tokenized
 #AISO_DEV = '/data/thar011/gitrepos/AISO/data/hotpot-step-dev.strict.refined.jsonl'
 #AISO_TRAIN = '/data/thar011/gitrepos/AISO/data/hotpot-step-train.strict.refined.jsonl'
 AISO_FILE = '/data/thar011/gitrepos/AISO/data/corpus/beer_v1.tsv'
+BEER_WIKI_SAVE = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen.json'
+BEER_TITLE_SAVE = '/home/thar011/data/beerqa/enwiki-20200801-titledict-compgen.json'
 BEER_DEV = '/home/thar011/data/beerqa/beerqa_dev_v1.0.json'
 BEER_TRAIN = '/home/thar011/data/beerqa/beerqa_train_v1.0.json'
 
 tstfile = '/AA/wiki_00.bz2'
+
+def saveas_json(obj, file, mode="w", indent=5, add_nl=False):
+    """ Save python object as json to file
+    default mode w = overwrite file
+            mode a = append to file
+    indent = None: all json on one line
+                0: pretty print with newlines between keys
+                1+: pretty print with that indent level
+    add_nl = True: Add a newline before outputting json. ie if mode=a typically indent=None and add_nl=True   
+    Example For outputting .jsonl (note first line doesn't add a newline before):
+        saveas_json(pararules_sample, DATA_DIR+'test_output.jsonl', mode='a', indent=None, add_nl=False)
+        saveas_json(pararules_sample, DATA_DIR+'test_output.jsonl', mode='a', indent=None, add_nl=True)
+          
+    """
+    with open(file, mode) as fp:
+        if add_nl:
+            fp.write('\n')
+        json.dump(obj, fp, indent=indent)
+    return True    
+
+
+def saveas_jsonl(obj_list, file, initial_mode = 'w', verbose=True, update=5000):
+    """ Save a list of json msgs as a .jsonl file of form:
+        {json msg 1}
+        {json msg 2}
+        ...
+        To overwrite exiting file use default initial_mode = 'w'. 
+        To append to existing file set initial_mode = 'a'
+    """
+    if initial_mode == 'w':
+        if verbose:
+            print('Creating new file:', file)
+        add_nl = False
+    else:
+        if verbose:
+            print('Appending to file:', file)
+        add_nl = True
+    mode = initial_mode
+    for i, json_obj in enumerate(obj_list):
+            saveas_json(json_obj, file, mode=mode, indent=None, add_nl=add_nl)
+            add_nl = True
+            mode = 'a'
+            if verbose:
+                if i > 0 and i % update == 0:
+                    print('Processed:', i)
+    if verbose:
+        print('Finished adding to:', file)        
+    return True
+
 
 def load_jsonl(file, verbose=True):
     """ Load a list of json msgs from a file formatted as 
@@ -129,12 +180,13 @@ def build_title_idx(docs):
     Simply making everything lowercase wont work as this creates a smallish number of duplicates.
     So we build a dict with key title.lower():
         {'title_lower': [{'title': the title, 'id': id of this title}]}
+        Also title_lower is UNESCAPED meaning " ' & < > are as here not escaped like the orig titles which have eg &amp; for &
     """
     titledict = {}
     dupdict = {}
     for i, doc in enumerate(docs):
-        tlower = doc['title'].lower()
-        title_entry = {'title': doc['title'], 'id':doc['id']}
+        tlower = unescape(doc['title'].lower()) # unescaped
+        title_entry = {'title': doc['title'], 'id':doc['id']} # not escaped so matches title in corpus
         if titledict.get(tlower) is None:
             titledict[tlower] = [title_entry]
         else:
@@ -165,8 +217,9 @@ def print_para(para, keys=['id','title','text']):
 
 def map_title_case(hlink, titledict, verbose=False):
     """ Some titles in HPQA abstracts have incorrect casing. Attempt to map casing.
+    Note unescape will map eg &amp; to & but will have no effect on already unescaped text so can pass either escaped or unescaped version
     """
-    tlower = hlink.lower()
+    tlower = unescape(hlink.lower())
     tmap = titledict.get(tlower)
     status = 'nf'
     if tmap is not None:                # if not found at all just return existing hlink
@@ -219,8 +272,9 @@ def cleanup(docs):
             del p['hyperlinks']
         if i % 1000000 == 0:
             print(f"Processed: {i} docs")
-    print(f"Finished cleanup")
+    print("Finished cleanup")
     return
+
 
 def get_links(para, para_w_links, links_dict, verbose=False):
     """ Parse para_w_links, extract and return link titles, anchors, anchor spans
@@ -232,8 +286,7 @@ def get_links(para, para_w_links, links_dict, verbose=False):
         start_href = start_href + 9
         end_href = para_w_links.find('">')
         if end_href > start_href:
-            hlink = unescape(unquote(para_w_links[start_href:end_href])).strip()
-            #hlink = map_title_case(hlink, titledict, verbose=verbose)
+            hlink = unquote(para_w_links[start_href:end_href]).strip()  # removed unescape(unquote(...))
             end_href += 2
             end_anchor = para_w_links.find('</a>')
             if end_anchor > end_href:
@@ -338,7 +391,7 @@ for i, doc in enumerate(paratest):
     print('Processing:', i)
     process_doc(doc, verbose=True)
     #inp = input('Press <enter>')
-
+count_title_status(paratest, titledicttest)
 
 print(paratest[0].keys()) # dict_keys(['id', 'url', 'title', 'text', 'offsets', 'text_with_links', 'offsets_with_links', 'paras'])
 # 'paras' eg: 
@@ -372,14 +425,69 @@ h_counts = count_title_status(docs, titledict)
 # Finished counting titles. 35706771 paras. Counts: {'nf': 19367786, 'sc': 14077482, 'sok': 68807203, 'mok': 294440, 'mc': 326587}
 cleanup(docs) # replace \t in para text (just in case there were any) and del hyperlinks key
 
+saveas_json(docs, BEER_WIKI_SAVE, indent=None)
+saveas_json(titledict, BEER_TITLE_SAVE, indent=None)
+
 #output AISO corpus file
 save_aiso(docs)
+
+
+
 
 #TODO output MDR
 #TODO output GR
 # see https://github.com/qipeng/golden-retriever/blob/master/scripts/index_processed_wiki.py
 
 
+
+###### BeerQA train/dev exploration
+#TODO Solve multi-para issue with BeerQA HPQA train/dev samples
+#TODO Also ensure titles in BeerQA trian/dev samples all appear in wiki titles
+
+beer_dev = json.load(open(BEER_DEV)) # dict_keys(['version', 'split', 'data'])
+beer_train = json.load(open(BEER_TRAIN))
+
+beer_dev['version'] # 1.0
+beer_dev['split'] # 'dev'  beer_train split = 'train'
+len(beer_dev['data']) # 14121 train= 134043
+print(beer_dev['data'][0]) # {'id': 'b3d50a40b29d4283609de1d3f426aebce198a0b2', 'src': 'hotpotqa', 
+# 'answers': ['Eschscholzia'], 
+#'question': 'Which genus contains more species, Ortegocactus or Eschscholzia?', 
+# 'context': [['Eschscholzia', 'Eschscholzia is a genus of 12 annual or perennial plants in the Papaveraceae (poppy) family. The genus was named after the Baltic German/Imperial Russian botanist Johann Friedrich von Eschscholtz (1793-1831). All species are native to Mexico or the southern United States.'], 
+#             ['Eschscholzia', 'Leaves are deeply cut, glabrous and glaucous, mostly basal, though a few grow on the stem.'], 
+#             ['Ortegocactus', 'Ortegocactus macdougallii is a species of cactus and the sole species of the genus Ortegocactus. The plant has a greenish-gray epidermis and black spines. It is only known from Oaxaca, Mexico.']]}
+
+map_title_case('Ortegocactus', titledict, verbose=False)
+
+
+def check_beer_split_titles(beer_split, titledict):
+    """ Check that title casing is correct for all samples ... """
+    count_dict = {'nf':0, 'sc':0, 'sok':0, 'mok':0, 'mc':0}
+    nf_list = []
+    for i, sample in enumerate(beer_split['data']):
+        for title, para in sample['context']:
+            new_title, status = map_title_case(title, titledict)
+            count_dict[status] += 1
+            if status == 'nf':
+                nf_list.append( {'idx': i, 'title': title} )
+        if i % 50000 == 0:
+            print(f"Processed: {i}  {count_dict}")
+    print(f"Counts: {count_dict}")
+    return count_dict, nf_list
+
+#All train/dev titles found in titledict and can uniquely map each to a corpus title:
+cd_train, nf_train = check_beer_split_titles(beer_train, titledict)  # {'nf': 0, 'sc': 986, 'sok': 234538, 'mok': 1286, 'mc': 0}
+cd_dev, nf_dev = check_beer_split_titles(beer_dev, titledict)  # {'nf': 0, 'sc': 81, 'sok': 22259, 'mok': 36, 'mc': 0}
+#  {'idx': 13991, 'title': 'What\'s It Gonna Be (H "Two" O song)'}, titledict: "what's it gonna be (h &quot;two&quot; o song)"
+#   {'idx': 14001, 'title': 'Merck & Co.'} in titledict: 'merck &amp; co.'  
+# UNESCAPE(title) will make it map to beerqa dev/test
+# I was UNESCAPING hyperlinks - need to not do that as titles are escaped. Just need to unquote them.
+# make titledict key unescape(title.lower()) but keep the title entries as escaped to match corpus
+# look up hlinks using unescape(hlink.lower) returning the escaped title
+# look up beerqa titles using unescape(bqa.title.lower) - unescape should have no effect
+
+
+#### AISO dev/train exploration
 
 
 #NOTE: AISO removes invalid links in transition_dataset.py so not doing it here
