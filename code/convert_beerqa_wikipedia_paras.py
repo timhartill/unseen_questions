@@ -186,7 +186,7 @@ def build_title_idx(docs):
     dupdict = {}
     for i, doc in enumerate(docs):
         tlower = unescape(doc['title'].lower()) # unescaped
-        title_entry = {'title': doc['title'], 'id':doc['id']} # not escaped so matches title in corpus
+        title_entry = {'title': doc['title'], 'id':doc['id'], 'idx': i} # not escaped so matches title in corpus
         if titledict.get(tlower) is None:
             titledict[tlower] = [title_entry]
         else:
@@ -207,14 +207,6 @@ def get_para(paras, idx=None, title=None):
     return out[0]    
 
 
-def print_para(para, keys=['id','title','text']):
-    """ Print selected keys from a single para
-    """
-    outstr = ' '.join([k+': '+para.get(k) for k in keys])
-    print(outstr)
-    return
-
-
 def map_title_case(hlink, titledict, verbose=False):
     """ Some titles in HPQA abstracts have incorrect casing. Attempt to map casing.
     Note unescape will map eg &amp; to & but will have no effect on already unescaped text so can pass either escaped or unescaped version
@@ -222,6 +214,7 @@ def map_title_case(hlink, titledict, verbose=False):
     tlower = unescape(hlink.lower())
     tmap = titledict.get(tlower)
     status = 'nf'
+    idx = -1
     if tmap is not None:                # if not found at all just return existing hlink
         if len(tmap) == 1:
             if hlink != tmap[0]['title']:
@@ -231,15 +224,17 @@ def map_title_case(hlink, titledict, verbose=False):
             else:
                 status = 'sok'
             hlink = tmap[0]['title']    # only one candidate, use that
+            idx = tmap[0]['idx']
         else:
             for t in tmap:
                 if hlink == t['title']: # exact match amongst candidates found, use that
-                    return hlink, 'mok'
+                    return hlink, 'mok', t['idx']
             hlink = tmap[0]['title']    # otherwise just return first
+            idx = tmap[0]['idx']
             status = 'mc'
             if verbose:
                 print(f"Hlink lower:{tlower} No exact match found so assigning first: {hlink}")
-    return hlink, status
+    return hlink, status, idx
 
 
 def count_title_status(docs, titledict):
@@ -251,7 +246,7 @@ def count_title_status(docs, titledict):
             para_count += 1
             new_links_dict = {}
             for h in p['hyperlinks'].keys():
-                new_hlink, status = map_title_case(h, titledict)
+                new_hlink, status, idx = map_title_case(h, titledict)
                 count_dict[status] += 1
                 if new_links_dict.get(new_hlink) is None:
                     new_links_dict[new_hlink] = p['hyperlinks'][h]
@@ -441,8 +436,11 @@ save_aiso(docs)
 
 
 ###### BeerQA train/dev exploration
-#TODO Solve multi-para issue with BeerQA HPQA train/dev samples
-#TODO Also ensure titles in BeerQA trian/dev samples all appear in wiki titles
+#TODO Solve multi-para issue with BeerQA HPQA train/dev samples - choose 1 or concat both?
+#TODO figure out training ordering in any case. See if can deduce the "correct" para?
+
+# ensure titles in BeerQA trian/dev samples all appear in wiki titles - CONFIRMED
+# do paras in BeerQa samples match corpus paras? YES but some bqa paras are substrings and/or difft casing and/or difft strip to corpus paras
 
 beer_dev = json.load(open(BEER_DEV)) # dict_keys(['version', 'split', 'data'])
 beer_train = json.load(open(BEER_TRAIN))
@@ -456,28 +454,62 @@ print(beer_dev['data'][0]) # {'id': 'b3d50a40b29d4283609de1d3f426aebce198a0b2', 
 # 'context': [['Eschscholzia', 'Eschscholzia is a genus of 12 annual or perennial plants in the Papaveraceae (poppy) family. The genus was named after the Baltic German/Imperial Russian botanist Johann Friedrich von Eschscholtz (1793-1831). All species are native to Mexico or the southern United States.'], 
 #             ['Eschscholzia', 'Leaves are deeply cut, glabrous and glaucous, mostly basal, though a few grow on the stem.'], 
 #             ['Ortegocactus', 'Ortegocactus macdougallii is a species of cactus and the sole species of the genus Ortegocactus. The plant has a greenish-gray epidermis and black spines. It is only known from Oaxaca, Mexico.']]}
+# add 'map': [ {'d_idx':123, 'p_idx': 4}, ... ] |map| = |context| :
+# 'map': [{'d_idx': 4070176, 'p_idx': 0},  {'d_idx': 4070176, 'p_idx': 1},  {'d_idx': 2614908, 'p_idx': 0}]}
 
 map_title_case('Ortegocactus', titledict, verbose=False)
 
 
-def check_beer_split_titles(beer_split, titledict):
+def match_para(para, doc_idx, docs, preproc=True):
+    """ Attempt to match a sample paragraph with a particular paragraph in a corpus doc with title "title".
+    Return idx of matching para in [paras] or -1
+    """
+    if doc_idx == -1:
+        return -1
+    if preproc:
+        para = para.strip().lower()
+    p_idx = -1
+    for i, p in enumerate(docs[doc_idx]['paras']):
+        if preproc:
+            ptext = p['text'].strip().lower()
+        else:
+            ptext = p['text']
+        if para in ptext: # ptext.startswith(para):  #a few beerqa paras are truncated, often after a ':' either ath the beginning or the end
+            p_idx = i
+            break
+    return p_idx       
+    
+
+def check_beer_split(beer_split, titledict, docs):
     """ Check that title casing is correct for all samples ... """
-    count_dict = {'nf':0, 'sc':0, 'sok':0, 'mok':0, 'mc':0}
+    count_dict = {'nf':0, 'sc':0, 'sok':0, 'mok':0, 'mc':0, 'para_nf': 0}
     nf_list = []
+    pnf_list = []
     for i, sample in enumerate(beer_split['data']):
+        para_match = []
         for title, para in sample['context']:
-            new_title, status = map_title_case(title, titledict)
+            new_title, status, d_idx = map_title_case(title, titledict)
             count_dict[status] += 1
             if status == 'nf':
-                nf_list.append( {'idx': i, 'title': title} )
+                nf_list.append( {'q_idx': i, 'title': title} )
+            p_idx = match_para(para, d_idx, docs, preproc=True)
+            para_match.append( {'d_idx': d_idx, 'p_idx': p_idx } )  
+            if p_idx == -1:
+                count_dict['para_nf'] += 1
+                pnf_list.append( {'q_idx':i, 'q_para': para, 'd_idx': d_idx} )
+        sample['map'] = para_match
         if i % 50000 == 0:
             print(f"Processed: {i}  {count_dict}")
     print(f"Counts: {count_dict}")
-    return count_dict, nf_list
+    return count_dict, nf_list, pnf_list
 
 #All train/dev titles found in titledict and can uniquely map each to a corpus title:
-cd_train, nf_train = check_beer_split_titles(beer_train, titledict)  # {'nf': 0, 'sc': 986, 'sok': 234538, 'mok': 1286, 'mc': 0}
-cd_dev, nf_dev = check_beer_split_titles(beer_dev, titledict)  # {'nf': 0, 'sc': 81, 'sok': 22259, 'mok': 36, 'mc': 0}
+#About 90% of train/dev paras match corpus para exactly: not match: (train: 21967 of 236810, dev: 2473 of 22376)
+#Over 99% match after strip().lower(): not match: train: 1477 dev: 147
+# Even more match (train: 665 dev: 61) after look for corpus para.startswith(bqapara.strip.lower) since some bqa para truncated often at ':'
+# finally, all match when look for bqapara.strip.lower in corpuspara.strip.lower
+cd_train, nf_train, pnf_train = check_beer_split(beer_train, titledict, docs)  # Counts: {'nf': 0, 'sc': 986, 'sok': 234538, 'mok': 1286, 'mc': 0, 'para_nf': 0}
+cd_dev, nf_dev, pnf_dev = check_beer_split(beer_dev, titledict, docs)  # Counts: {'nf': 0, 'sc': 81, 'sok': 22259, 'mok': 36, 'mc': 0, 'para_nf': 0}
 #  {'idx': 13991, 'title': 'What\'s It Gonna Be (H "Two" O song)'}, titledict: "what's it gonna be (h &quot;two&quot; o song)"
 #   {'idx': 14001, 'title': 'Merck & Co.'} in titledict: 'merck &amp; co.'  
 # UNESCAPE(title) will make it map to beerqa dev/test
