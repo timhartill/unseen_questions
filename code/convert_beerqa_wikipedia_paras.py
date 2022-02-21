@@ -539,7 +539,8 @@ cd_dev, nf_dev, pnf_dev = check_beer_split(beer_dev, titledict, docs)  # Counts:
 def add_sequencing(beer_split, mdr_split, mdr_split_q_idx):
     """ follow mdr paper and calculate paragraph sequencing for beerqa:
         if 'bridge': final "bridge" para is one mentioning the answer span. 
-                     if the answer span is in both, the one that has its title mentioned in the other passage is treated as the second.
+                     TODO if the answer span is in both, the one that has its title mentioned in the other passage is treated as the second.
+                     TODO Use bqa dev/train doc/para mappings from above
     Merge question type and neg paras from mdr for HPQA
     Can simply concatenate paras with same title to make noisier samples or exclude paras+titles that don't contain the answer for cleaner samples
     Nb: All squad dev have exactly 1 para but 874 squad train have 2. 
