@@ -88,6 +88,12 @@ BEER_TITLE_SAVE = '/home/thar011/data/beerqa/enwiki-20200801-titledict-compgen.j
 BEER_DEV = '/home/thar011/data/beerqa/beerqa_dev_v1.0.json'
 BEER_TRAIN = '/home/thar011/data/beerqa/beerqa_train_v1.0.json'
 
+MDR_DEV = '/data/thar011/gitrepos/compgen_mdr/data/hotpot/hotpot_dev_with_neg_v0.json'
+MDR_TRAIN = '/data/thar011/gitrepos/compgen_mdr/data/hotpot/hotpot_train_with_neg_v0.json'
+
+
+
+
 tstfile = '/AA/wiki_00.bz2'
 
 def saveas_json(obj, file, mode="w", indent=5, add_nl=False):
@@ -442,6 +448,17 @@ save_aiso(docs)
 # ensure titles in BeerQA trian/dev samples all appear in wiki titles - CONFIRMED
 # do paras in BeerQa samples match corpus paras? YES but some bqa paras are substrings and/or difft casing and/or difft strip to corpus paras
 
+mdr_dev = load_jsonl(MDR_DEV)  # obtain hpqa question type and neg paras from mdr
+mdr_train = load_jsonl(MDR_TRAIN)
+mdr_dev_q_idx = {m['question'].strip().lower():i for i, m in enumerate(mdr_dev)}
+mdr_train_q_idx = {m['question'].strip().lower():i for i, m in enumerate(mdr_train)}
+
+print('Loading corpus file..')
+docs = json.load(open(BEER_WIKI_SAVE))
+print('Loading title 2 dict file..')
+titledict = json.load(open(BEER_TITLE_SAVE))
+print("finished loading!")
+
 beer_dev = json.load(open(BEER_DEV)) # dict_keys(['version', 'split', 'data'])
 beer_train = json.load(open(BEER_TRAIN))
 
@@ -457,7 +474,7 @@ print(beer_dev['data'][0]) # {'id': 'b3d50a40b29d4283609de1d3f426aebce198a0b2', 
 # add 'map': [ {'d_idx':123, 'p_idx': 4}, ... ] |map| = |context| :
 # 'map': [{'d_idx': 4070176, 'p_idx': 0},  {'d_idx': 4070176, 'p_idx': 1},  {'d_idx': 2614908, 'p_idx': 0}]}
 
-map_title_case('Ortegocactus', titledict, verbose=False)
+#map_title_case('Ortegocactus', titledict, verbose=False)
 
 
 def match_para(para, doc_idx, docs, preproc=True):
@@ -517,6 +534,130 @@ cd_dev, nf_dev, pnf_dev = check_beer_split(beer_dev, titledict, docs)  # Counts:
 # make titledict key unescape(title.lower()) but keep the title entries as escaped to match corpus
 # look up hlinks using unescape(hlink.lower) returning the escaped title
 # look up beerqa titles using unescape(bqa.title.lower) - unescape should have no effect
+
+
+def add_sequencing(beer_split, mdr_split, mdr_split_q_idx):
+    """ follow mdr paper and calculate paragraph sequencing for beerqa:
+        if 'bridge': final "bridge" para is one mentioning the answer span. 
+                     if the answer span is in both, the one that has its title mentioned in the other passage is treated as the second.
+    Merge question type and neg paras from mdr for HPQA
+    Can simply concatenate paras with same title to make noisier samples or exclude paras+titles that don't contain the answer for cleaner samples
+    Nb: All squad dev have exactly 1 para but 874 squad train have 2. 
+            
+    """
+    nf_idx = []
+    nf_mdr = []
+    count_dict = {'squad': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0},
+                  'hotpotqa': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0},
+                  'squad_unique_titles': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0},
+                  'hotpotqa_unique_titles': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0},
+                 }
+    for i,sample in enumerate(beer_split['data']):
+        sample['type'] = ''
+        sample['neg_paras'] = []
+        if sample['src'] == 'hotpotqa':
+            mdr_idx = mdr_split_q_idx.get(sample['question'].strip().lower())
+            if mdr_idx is not None:
+                sample['type'] = mdr_split[mdr_idx]['type']
+                sample['neg_paras'] = mdr_split[mdr_idx]['neg_paras']
+            else:
+                nf_mdr.append(i)
+        if type(sample['answers']) != list:
+            print(f'ERROR: {i} : answer not a list')
+        ans = sample['answers'][0].strip().lower()
+        para_seq = []
+        para_title = set()
+        for j, (title, para) in enumerate(sample['context']):
+            if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison': #ans in ['yes', 'no']:
+                continue
+            if ans in para.lower() or ans in title.lower():  # and ans not in ['yes', 'no']:
+                
+                para_seq.append(j)
+                para_title.add(title)
+        sample['para_has_ans'] = para_seq
+        sample['para_ans_titles'] = para_title
+        if len(para_title) == 0:
+            if sample['src'] == 'squad' or (sample['src'] == 'hotpotqa' and sample['type'] != 'comparison'): #ans not in ['yes', 'no']):
+                nf_idx.append(i)   
+        
+        
+    for i,sample in enumerate(beer_split['data']):
+        ans = sample['answers'][0].strip().lower()
+        l = len(sample['para_has_ans'])
+        num_titles = len(sample['para_ans_titles'])
+        
+        if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison': #ans in ['yes', 'no']:
+            count_dict[sample['src']]['comp'] += 1
+        elif l == 0:
+            count_dict[sample['src']]['ans_0'] += 1
+        elif l == 1:
+            count_dict[sample['src']]['ans_1'] += 1
+        elif l == 2:
+            count_dict[sample['src']]['ans_2'] += 1
+        elif l == 3:
+            count_dict[sample['src']]['ans_3'] += 1
+        else:
+            count_dict[sample['src']]['ans_over_3'] += 1
+            
+        if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison':  #ans in ['yes', 'no']:
+            count_dict[sample['src']+'_unique_titles']['comp'] += 1
+        elif num_titles == 0:
+            count_dict[sample['src']+'_unique_titles']['ans_0'] += 1
+        elif num_titles == 1:
+            count_dict[sample['src']+'_unique_titles']['ans_1'] += 1
+        elif num_titles == 2:
+            count_dict[sample['src']+'_unique_titles']['ans_2'] += 1
+        elif num_titles == 3:
+            count_dict[sample['src']+'_unique_titles']['ans_3'] += 1
+        else:
+            count_dict[sample['src']+'_unique_titles']['ans_over_3'] += 1
+            
+    print(f"Results: {count_dict}")
+    print(f"No answer span found: {len(nf_idx)}")
+    print(f"Number of hpqa samples not matched to MDR: {len(nf_mdr)}")
+    return count_dict, nf_idx, nf_mdr
+
+cd_dev, nf_dev, nf_mdr_dev = add_sequencing(beer_dev, mdr_dev, mdr_dev_q_idx)  # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 7970, 'ans_2': 162, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 1278, 'ans_0': 0, 'ans_1': 3337, 'ans_2': 1105, 'ans_3': 267, 'ans_over_3': 2}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 8132, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa_unique_titles': {'comp': 1278, 'ans_0': 0, 'ans_1': 3437, 'ans_2': 1274, 'ans_3': 0, 'ans_over_3': 0}}
+cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_train_q_idx) # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 58411, 'ans_2': 874, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 15162, 'ans_0': 0, 'ans_1': 37394, 'ans_2': 17675, 'ans_3': 4447, 'ans_over_3': 80}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 59285, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa_unique_titles': {'comp': 15162, 'ans_0': 0, 'ans_1': 38745, 'ans_2': 20851, 'ans_3': 0, 'ans_over_3': 0}}
+
+
+
+### MDR dev/train exploration
+
+
+def count_hpqa(split):
+    """ Count bridge vs comparison stats
+    """
+    count_dict = {'tot': 0, 'br': 0, 'comp': 0, 'yn': 0, 'extractans': 0, 'br_yn': 0, 'comp_yn': 0}
+    for i, sample in enumerate(split):
+        count_dict['tot'] += 1
+        if type(sample['answers']) != list:
+            print(f'ERROR: {i} : answer not a list')
+        ans = sample['answers'][0].lower().strip()
+        if ans in ['yes', 'no']:
+            count_dict['yn'] += 1
+            if sample['type'] == 'comparison':
+                count_dict['comp'] += 1
+                count_dict['comp_yn'] += 1
+            else:
+                count_dict['br'] += 1
+                count_dict['br_yn'] += 1
+        else:
+            count_dict['extractans'] += 1
+            if sample['type'] == 'comparison':
+                count_dict['comp'] += 1
+            else:
+                count_dict['br'] += 1
+    print(f"Results: {count_dict}")
+    return count_dict
+
+# No bridge questions are yn:
+count_hpqa(mdr_dev)     # Results: {'tot': 7405, 'br': 5918, 'comp': 1487, 'yn': 458, 'extractans': 6947, 'br_yn': 0, 'comp_yn': 458}
+count_hpqa(mdr_train)   # Results: {'tot': 90447, 'br': 72991, 'comp': 17456, 'yn': 5481, 'extractans': 84966, 'br_yn': 0, 'comp_yn': 5481}
+
+
+    
+
 
 
 #### AISO dev/train exploration
