@@ -60,16 +60,16 @@ import copy
 
 
 ####### MDR:
-import utils #Duplicate "utils" with AISO so must run MDR and AISO portions separately from different working directories
+#import utils #Duplicate "utils" with AISO so must run MDR and AISO portions separately from different working directories
 
-OUTDIR = '/data/thar011/gitrepos/compgen_mdr/data/hpqa_raw_tim'
+#OUTDIR = '/data/thar011/gitrepos/compgen_mdr/data/hpqa_raw_tim'
 
 
-mdr_hpqa = utils.loadas_json('/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json') # 5233329
+#mdr_hpqa = utils.loadas_json('/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json') # 5233329
 
-mdr_out = [{'title': v['title'], 'text': v['text']} for v in mdr_hpqa.values() if v['text'].strip() != ''] # 5233235 strips blanks
+#mdr_out = [{'title': v['title'], 'text': v['text']} for v in mdr_hpqa.values() if v['text'].strip() != ''] # 5233235 strips blanks
 
-utils.saveas_jsonl(mdr_out, os.path.join(OUTDIR, 'hpqa_abstracts_tim.jsonl'))
+#utils.saveas_jsonl(mdr_out, os.path.join(OUTDIR, 'hpqa_abstracts_tim.jsonl'))
 
 
 #test
@@ -510,7 +510,7 @@ def check_beer_split(beer_split, titledict, docs):
             if status == 'nf':
                 nf_list.append( {'q_idx': i, 'title': title} )
             p_idx = match_para(para, d_idx, docs, preproc=True)
-            para_match.append( {'d_idx': d_idx, 'p_idx': p_idx } )  
+            para_match.append( {'d_idx': d_idx, 'p_idx': p_idx } )
             if p_idx == -1:
                 count_dict['para_nf'] += 1
                 pnf_list.append( {'q_idx':i, 'q_para': para, 'd_idx': d_idx} )
@@ -536,22 +536,21 @@ cd_dev, nf_dev, pnf_dev = check_beer_split(beer_dev, titledict, docs)  # Counts:
 # look up beerqa titles using unescape(bqa.title.lower) - unescape should have no effect
 
 
-def add_sequencing(beer_split, mdr_split, mdr_split_q_idx):
-    """ follow mdr paper and calculate paragraph sequencing for beerqa:
+def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
+    """ follow mdr paper sequencing algorithm and calculate paragraph sequencing for beerqa:
         if 'bridge': final "bridge" para is one mentioning the answer span. 
                      TODO if the answer span is in both, the one that has its title mentioned in the other passage is treated as the second.
                      TODO Use bqa dev/train doc/para mappings from above
     Merge question type and neg paras from mdr for HPQA
     Can simply concatenate paras with same title to make noisier samples or exclude paras+titles that don't contain the answer for cleaner samples
     Nb: All squad dev have exactly 1 para but 874 squad train have 2. 
-            
     """
     nf_idx = []
     nf_mdr = []
     count_dict = {'squad': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0},
                   'hotpotqa': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0},
-                  'squad_unique_titles': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0},
-                  'hotpotqa_unique_titles': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0},
+                  'squad_unique_titles': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0, 'ans_2_refine':{'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}},
+                  'hotpotqa_unique_titles': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0, 'ans_2_refine':{'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}},
                  }
     for i,sample in enumerate(beer_split['data']):
         sample['type'] = ''
@@ -572,15 +571,13 @@ def add_sequencing(beer_split, mdr_split, mdr_split_q_idx):
             if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison': #ans in ['yes', 'no']:
                 continue
             if ans in para.lower() or ans in title.lower():  # and ans not in ['yes', 'no']:
-                
                 para_seq.append(j)
                 para_title.add(title)
         sample['para_has_ans'] = para_seq
-        sample['para_ans_titles'] = para_title
+        sample['para_ans_titles'] = para_title       # unique titles that have answer embedded in their passages and hence could be final (unless more than one of them in which case must select the one that referred to by to the other as final.)
         if len(para_title) == 0:
             if sample['src'] == 'squad' or (sample['src'] == 'hotpotqa' and sample['type'] != 'comparison'): #ans not in ['yes', 'no']):
-                nf_idx.append(i)   
-        
+                nf_idx.append(i)    
         
     for i,sample in enumerate(beer_split['data']):
         ans = sample['answers'][0].strip().lower()
@@ -601,27 +598,56 @@ def add_sequencing(beer_split, mdr_split, mdr_split_q_idx):
             count_dict[sample['src']]['ans_over_3'] += 1
             
         if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison':  #ans in ['yes', 'no']:
-            count_dict[sample['src']+'_unique_titles']['comp'] += 1
+            count_dict[sample['src']+'_unique_titles']['comp'] += 1  # hpqa + comp = no para order, select either randomly
         elif num_titles == 0:
-            count_dict[sample['src']+'_unique_titles']['ans_0'] += 1
+            count_dict[sample['src']+'_unique_titles']['ans_0'] += 1 # Anything here = error
         elif num_titles == 1:
-            count_dict[sample['src']+'_unique_titles']['ans_1'] += 1
+            count_dict[sample['src']+'_unique_titles']['ans_1'] += 1 # Single title => final para in seq
         elif num_titles == 2:
-            count_dict[sample['src']+'_unique_titles']['ans_2'] += 1
+            count_dict[sample['src']+'_unique_titles']['ans_2'] += 1 # all squad have 1 unique title so just use title reference to tiebreak hpqa final para here
+            final_para_title = set()  # titles of which at least 1 para has a hyperlink pointing to it
+            p1, p2 = sample['para_ans_titles']
+            found = False
+            for i, ans_title in enumerate([p1, p2]):
+                if i == 0:
+                    othertitle = p2
+                else:
+                    othertitle = p1
+                for j, (title, para) in enumerate(sample['context']):
+                    if ans_title == title:  # if any para with title matching current title that has answer in it...
+                        d_idx, p_idx = sample['map'][j].values()
+                        for hlink_title in docs[d_idx]['paras'][p_idx]['hyperlinks_cased']:
+                            if unescape(hlink_title.lower()) == unescape(othertitle.lower()):
+                                final_para_title.add(othertitle)
+                                found = True
+                                break
+                    if found:
+                        break
+                found = False
+            sample['para_ans_titles_refined'] = final_para_title
+            count_dict[sample['src']+'_unique_titles']['ans_2_refine']['tot'] += 1
+            refined_final_count = len(final_para_title)
+            if refined_final_count == 0:
+                count_dict[sample['src']+'_unique_titles']['ans_2_refine']['nf'] += 1  # Anything here = error
+            elif refined_final_count == 1:
+                count_dict[sample['src']+'_unique_titles']['ans_2_refine']['got_1'] += 1  # correctly identified single final para
+            else:
+                count_dict[sample['src']+'_unique_titles']['ans_2_refine']['got_2'] += 1  # Anything here = error: titles link to each other!
+                
         elif num_titles == 3:
-            count_dict[sample['src']+'_unique_titles']['ans_3'] += 1
+            count_dict[sample['src']+'_unique_titles']['ans_3'] += 1  # Anything here = error
         else:
-            count_dict[sample['src']+'_unique_titles']['ans_over_3'] += 1
+            count_dict[sample['src']+'_unique_titles']['ans_over_3'] += 1  # Anything here = error
             
     print(f"Results: {count_dict}")
     print(f"No answer span found: {len(nf_idx)}")
     print(f"Number of hpqa samples not matched to MDR: {len(nf_mdr)}")
     return count_dict, nf_idx, nf_mdr
 
-cd_dev, nf_dev, nf_mdr_dev = add_sequencing(beer_dev, mdr_dev, mdr_dev_q_idx)  # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 7970, 'ans_2': 162, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 1278, 'ans_0': 0, 'ans_1': 3337, 'ans_2': 1105, 'ans_3': 267, 'ans_over_3': 2}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 8132, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa_unique_titles': {'comp': 1278, 'ans_0': 0, 'ans_1': 3437, 'ans_2': 1274, 'ans_3': 0, 'ans_over_3': 0}}
-cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_train_q_idx) # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 58411, 'ans_2': 874, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 15162, 'ans_0': 0, 'ans_1': 37394, 'ans_2': 17675, 'ans_3': 4447, 'ans_over_3': 80}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 59285, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa_unique_titles': {'comp': 15162, 'ans_0': 0, 'ans_1': 38745, 'ans_2': 20851, 'ans_3': 0, 'ans_over_3': 0}}
+cd_dev, nf_dev, nf_mdr_dev = add_sequencing(beer_dev, mdr_dev, mdr_dev_q_idx, titledict, docs)  # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 7970, 'ans_2': 162, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 1278, 'ans_0': 0, 'ans_1': 3337, 'ans_2': 1105, 'ans_3': 267, 'ans_over_3': 2}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 8132, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}}, 'hotpotqa_unique_titles': {'comp': 1278, 'ans_0': 0, 'ans_1': 3437, 'ans_2': 1274, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 1274, 'nf': 41, 'got_1': 1076, 'got_2': 157}}}
+cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_train_q_idx, titledict, docs) # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 58411, 'ans_2': 874, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 15162, 'ans_0': 0, 'ans_1': 37394, 'ans_2': 17675, 'ans_3': 4447, 'ans_over_3': 80}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 59285, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}}, 'hotpotqa_unique_titles': {'comp': 15162, 'ans_0': 0, 'ans_1': 38745, 'ans_2': 20851, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 20851, 'nf': 510, 'got_1': 17515, 'got_2': 2826}}}
 
-
+# tst = [b for b in beer_dev['data'] if len(b['para_ans_titles'])==2 and len(b['para_ans_titles_refined'])==0]
 
 ### MDR dev/train exploration
 
