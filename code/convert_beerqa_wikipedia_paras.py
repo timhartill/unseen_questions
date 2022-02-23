@@ -58,6 +58,7 @@ from urllib.parse import unquote, quote  #convert percent encoding eg %28%20%29 
 from html import unescape, escape
 import copy
 
+import text_processing
 
 ####### MDR:
 #import utils #Duplicate "utils" with AISO so must run MDR and AISO portions separately from different working directories
@@ -66,6 +67,7 @@ import copy
 
 
 #mdr_hpqa = utils.loadas_json('/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json') # 5233329
+mdr_hpqa = json.load(open('/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json'))
 
 #mdr_out = [{'title': v['title'], 'text': v['text']} for v in mdr_hpqa.values() if v['text'].strip() != ''] # 5233235 strips blanks
 
@@ -94,7 +96,7 @@ MDR_TRAIN = '/data/thar011/gitrepos/compgen_mdr/data/hotpot/hotpot_train_with_ne
 
 
 
-tstfile = '/AA/wiki_00.bz2'
+#tstfile = '/AA/wiki_00.bz2'
 
 def saveas_json(obj, file, mode="w", indent=5, add_nl=False):
     """ Save python object as json to file
@@ -536,6 +538,28 @@ cd_dev, nf_dev, pnf_dev = check_beer_split(beer_dev, titledict, docs)  # Counts:
 # look up beerqa titles using unescape(bqa.title.lower) - unescape should have no effect
 
 
+def get_LCS(text_a, text_b, title_b):
+    """ Return Longest Common Subsequence between strings text_a and text_b and text_a and title_b
+    text_a is assumed to be the query and punctuation in addition to stopwords are stripped from it following golden retriever
+    text_b and title_b just has stopwords stripped from them.
+    """
+    text_a_toks = text_processing.word_tokenize(text_a) #nltk simple word tokenizer
+    text_b_toks = text_processing.word_tokenize(text_b)
+    title_b_toks = text_processing.word_tokenize(title_b)
+    ta_toks, ta_idx  = text_processing.filter_stopwords2(text_a_toks)
+    tb_toks, _ = text_processing.filter_stopwords2(text_b_toks)
+    ttlb_toks, _ = text_processing.filter_stopwords2(title_b_toks)
+    ta_toks = [t.lower() for t in ta_toks]
+    tb_toks = [t.lower() for t in tb_toks]
+    ttlb_toks = [t.lower() for t in ttlb_toks]
+    tb_size, tb_lcs, _ = text_processing.LCS(ta_toks, tb_toks)
+    ttlb_size, ttlb_lcs, _ = text_processing.LCS(ta_toks, ttlb_toks)
+    if tb_size > ttlb_size:
+        return tb_size, tb_lcs
+    else:
+        return ttlb_size, ttlb_lcs
+
+
 def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
     """ follow mdr paper sequencing algorithm and calculate paragraph sequencing for beerqa:
         if 'bridge': final "bridge" para is one mentioning the answer span. 
@@ -647,7 +671,15 @@ def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
 cd_dev, nf_dev, nf_mdr_dev = add_sequencing(beer_dev, mdr_dev, mdr_dev_q_idx, titledict, docs)  # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 7970, 'ans_2': 162, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 1278, 'ans_0': 0, 'ans_1': 3337, 'ans_2': 1105, 'ans_3': 267, 'ans_over_3': 2}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 8132, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}}, 'hotpotqa_unique_titles': {'comp': 1278, 'ans_0': 0, 'ans_1': 3437, 'ans_2': 1274, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 1274, 'nf': 41, 'got_1': 1076, 'got_2': 157}}}
 cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_train_q_idx, titledict, docs) # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 58411, 'ans_2': 874, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 15162, 'ans_0': 0, 'ans_1': 37394, 'ans_2': 17675, 'ans_3': 4447, 'ans_over_3': 80}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 59285, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}}, 'hotpotqa_unique_titles': {'comp': 15162, 'ans_0': 0, 'ans_1': 38745, 'ans_2': 20851, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 20851, 'nf': 510, 'got_1': 17515, 'got_2': 2826}}}
 
-# tst = [b for b in beer_dev['data'] if len(b['para_ans_titles'])==2 and len(b['para_ans_titles_refined'])==0]
+tst = [b for b in beer_dev['data'] if len(b['para_ans_titles'])==2 and len(b['para_ans_titles_refined'])==0]
+get_LCS(tst[0]['question'], tst[0]['context'][0][1]+' '+tst[0]['context'][1][1], tst[0]['context'][0][0]) # (9, ['november', 'american', 'politician', 'served', 'south', 'carolina', 'general', 'assembly', '2007'])
+get_LCS(tst[0]['question'], tst[0]['context'][2][1]+' '+tst[0]['context'][3][1], tst[0]['context'][2][0]) # (6, ['november', 'spratt', 'american', 'politician', 'served', 'carolina'])
+# actually wrong in this case - Mulvaney should be first
+
+#TODO - test 2 more "neither references the other"
+#TODO - test 2 "both seem to reference each other"
+#TODO - also test 2 "only one references the other"
+
 
 ### MDR dev/train exploration
 
@@ -769,6 +801,7 @@ def check_all(corpus, title2id, hpqa_split, verbose=True):
             
     print(f"Finished: Total:{len(log)}  Bad sp_facts:{sp_facts_count}  Bad hn: {hn_count}  Bad s2a initial: {s2a_count}") 
     return log
+
 
 
 aiso_dev = load_jsonl(AISO_DEV)
