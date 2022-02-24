@@ -626,7 +626,7 @@ def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
         elif num_titles == 0:
             count_dict[sample['src']+'_unique_titles']['ans_0'] += 1 # Anything here = error
         elif num_titles == 1:
-            count_dict[sample['src']+'_unique_titles']['ans_1'] += 1 # Single title => final para in seq
+            count_dict[sample['src']+'_unique_titles']['ans_1'] += 1 # Bingo: Single title has ans in it => final para in seq
         elif num_titles == 2:
             count_dict[sample['src']+'_unique_titles']['ans_2'] += 1 # all squad have 1 unique title so just use title reference to tiebreak hpqa final para here
             final_para_title = set()  # titles of which at least 1 para has a hyperlink pointing to it
@@ -671,14 +671,110 @@ def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
 cd_dev, nf_dev, nf_mdr_dev = add_sequencing(beer_dev, mdr_dev, mdr_dev_q_idx, titledict, docs)  # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 7970, 'ans_2': 162, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 1278, 'ans_0': 0, 'ans_1': 3337, 'ans_2': 1105, 'ans_3': 267, 'ans_over_3': 2}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 8132, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}}, 'hotpotqa_unique_titles': {'comp': 1278, 'ans_0': 0, 'ans_1': 3437, 'ans_2': 1274, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 1274, 'nf': 41, 'got_1': 1076, 'got_2': 157}}}
 cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_train_q_idx, titledict, docs) # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 58411, 'ans_2': 874, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 15162, 'ans_0': 0, 'ans_1': 37394, 'ans_2': 17675, 'ans_3': 4447, 'ans_over_3': 80}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 59285, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}}, 'hotpotqa_unique_titles': {'comp': 15162, 'ans_0': 0, 'ans_1': 38745, 'ans_2': 20851, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 20851, 'nf': 510, 'got_1': 17515, 'got_2': 2826}}}
 
+
+# "neither references the other"
 tst = [b for b in beer_dev['data'] if len(b['para_ans_titles'])==2 and len(b['para_ans_titles_refined'])==0]
 get_LCS(tst[0]['question'], tst[0]['context'][0][1]+' '+tst[0]['context'][1][1], tst[0]['context'][0][0]) # (9, ['november', 'american', 'politician', 'served', 'south', 'carolina', 'general', 'assembly', '2007'])
 get_LCS(tst[0]['question'], tst[0]['context'][2][1]+' '+tst[0]['context'][3][1], tst[0]['context'][2][0]) # (6, ['november', 'spratt', 'american', 'politician', 'served', 'carolina'])
-# actually wrong in this case - Mulvaney should be first
+# actually wrong in this case - Mulvaney should be first but the hyperlink from Spratt to Mulvaney is in a para not in the new context...
 
-#TODO - test 2 more "neither references the other"
-#TODO - test 2 "both seem to reference each other"
-#TODO - also test 2 "only one references the other"
+q = tst[1]['question']  # 'Minneapolis hip hop collective member that released album in 2006?'
+c = tst[1]['context']
+"""
+[['Doomtree',
+  'Doomtree is an American hip hop collective and record label based in Minneapolis, Minnesota. The collective has seven members: Dessa, Cecil Otter, P.O.S, Sims, Mike Mictlan, Paper Tiger, and Lazerbeak. The collective is known for incorporating a wide range of musical influences into their work with lyrical complexity and wordplay, and their annual "Doomtree Blowout" events held in Minneapolis venues to showcase their group performances and the Twin Cities music scene.'],
+ ['Audition (album)',
+  'Audition is the second solo studio album by American rapper P.O.S. It was released on Rhymesayers Entertainment in 2006. It peaked at number 45 on the "Billboard" Independent Albums chart.']]
+"""
+get_LCS(q, c[0][1], c[0][0])  # (3, ['minneapolis', 'hop', 'collective'])
+get_LCS(q, c[1][1], c[1][0])  # (2, ['released', '2006'])
+# correct here - p0 mentions member P.O.S -> p1 discusses P.O.S 's album release date
+
+q = tst[2]['question']  # 'The USS Tortuga was named after the Dry Tortugas, a group of desert coral islets 60 miles west of which city with the motto "One Human Family"?'
+c = tst[2]['context']
+get_LCS(q, c[0][1]+' '+c[1][1], c[0][0])  # (2, ['the', 'west'])
+get_LCS(q, c[2][1], c[2][0])  # (11, ['uss', 'tortuga', 'named', 'dry', 'tortugas', 'group', 'desert', 'coral', 'islets', '60', 'west'])
+# correct here p1 actually has all the info necessary to answer the question as "Key West". link to P0 is actually unnecessary
+
+q = tst[3]['question']  # 'The 2015 CrossFit Games were held at what multiple-use sports complex that is approximately 14 miles south of Downtown Los Angeles?'
+c = tst[3]['context']
+get_LCS(q, c[0][1], c[0][0])  # (9, ['the', 'sports', 'complex', 'approximately', '14', 'south', 'downtown', 'los', 'angeles'])
+get_LCS(q, c[1][1], c[1][0])  # (5, ['the', '2015', 'crossfit', 'games', 'held'])
+# correct here - actually either para id sufficent 
+
+
+#TODO - test 2 "2 titles have ans embedded and both seem to reference each other"
+tst1 = [b for b in beer_dev['data'] if len(b['para_ans_titles'])==2 and len(b['para_ans_titles_refined'])==2]
+
+q = tst1[0]['question']  # 'In the "Star Trek" franchise, DeForest Kelley portrayed a character aboard which starship? '
+c = tst1[0]['context']  # both titles do indeed reference each other Kirk = 0, McCooy = 1,2
+a = tst1[0]['answers']   # ['USS "Enterprise"']
+[m['bridge'] for m in mdr_dev if m['question'] == q] # ['James T. Kirk']
+get_LCS(q, c[0][1], c[0][0])   #(7, ['``', 'star', 'trek', "''", 'franchise', 'portrayed', 'starship'])
+get_LCS(q, c[1][1] + ' ' + c[2][1], c[1][0]) # (7, ['in', '``', 'trek', "''", 'deforest', 'kelley', 'character'])
+# tie! if chose Kirk first, "could" hop to McCoy. McCoy para actually has all info necessary to answer.
+# title heuristic would work here...
+
+q = tst1[1]['question']  # 'Which American BMX rider hosted a show that spun off from "Real World" and "Road Rules"?'
+c = tst1[1]['context']  # both titles do indeed reference each other Challenge = 0, Lavin = 1
+a = tst1[1]['answers']   # ['T. J. Lavin']
+[m['bridge'] for m in mdr_dev if m['question'] == q] # ['T. J. Lavin']
+get_LCS(q, c[0][1], c[0][0])   # (10,  ['hosted', 'spun', '``', 'real', 'world', "''", '``', 'road', 'rules', "''"])
+get_LCS(q, c[1][1] , c[1][0]) # (5, ['american', 'bmx', 'rider', '``', "''"])
+# correct
+# title heuristic would work here..
+
+q = tst1[2]['question']  # 'What type of industry does Tony Bill and Flyboys have in common?'
+c = tst1[2]['context']  # both titles do indeed reference each other 
+a = tst1[2]['answers']   # ['film']
+[m['bridge'] for m in mdr_dev if m['question'] == q] # ['Tony Bill']
+get_LCS(q, c[0][1], c[0][0])   # (2, ['tony', 'bill'])
+get_LCS(q, c[1][1] , c[1][0]) # (2, ['tony', 'bill'])
+# tie! 
+
+q = tst1[3]['question']  # 'After David Stern retired from being commissioner of the NBA, this american lawyer and businessman succeed him and is now the current commissioner who is he?'
+c = tst1[3]['context']  # both titles do indeed reference each other Silver = 0,1 Commissioner = 2,3
+a = tst1[3]['answers']   # ['Adam Silver']
+[m['bridge'] for m in mdr_dev if m['question'] == q] # ['Adam Silver']
+get_LCS(q, c[0][1] + ' ' + c[1][1], c[0][0])   # (5, ['david', 'stern', 'retired', 'commissioner', 'nba'])
+get_LCS(q, c[2][1] + ' ' + c[3][1] , c[2][0]) # (4, ['david', 'stern', 'nba', 'commissioner'])
+# opposite of mdr but it appears either para could give answer
+
+#TODO: What about heuristic that if TITLE of para = answer then that para is final? Would work here
+
+#test "2 titles have ans embedded but only one references the other" - OK
+tst1 = [b for b in beer_dev['data'] if len(b['para_ans_titles'])==2 and len(b['para_ans_titles_refined'])==1]
+
+q = tst1[0]['question']  # 'Who is older Danny Green or James Worthy?'
+c = tst1[0]['context']
+a = tst1[0]['answers']  # ['James Worthy']  tst1[0]['para_ans_titles_refined'] = mdr_dev
+
+q = tst1[1]['question'] # 'What word or phrase is found in both the history of Belgium and cockfighting?'
+c = tst1[1]['context']
+a = tst1[1]['answers']  # ['cockpit']  ['para_ans_titles_refined'] = mdr_dev
+[m['bridge'] for m in mdr_dev if m['question'] == 'What word or phrase is found in both the history of Belgium and cockfighting?']
+
+q = tst1[2]['question'] # 'What apartment complex originally constructed in 1927 is included in Manhattan Community Board 6?'
+c = tst1[2]['context']
+a = tst1[2]['answers']  # ['Tudor City']
+[m['bridge'] for m in mdr_dev if m['question'] == 'What apartment complex originally constructed in 1927 is included in Manhattan Community Board 6?']
+tst1[2]['para_ans_titles_refined']  # {'Tudor City'} = m['bridge']
+
+
+#test "1 title has ans embedded"- OK
+tst1 = [b for b in beer_dev['data'] if len(b['para_ans_titles'])==1]
+
+q = tst1[2]['question'] # 'When did the car depicted on the cover of Pentastar: In the Style of Demons cease production?'
+c = tst1[2]['context']
+a = tst1[2]['answers']  # ['1974']
+[m['bridge'] for m in mdr_dev if m['question'] == q] # ['Plymouth Barracuda']
+tst1[2]['para_ans_titles']  # {'Plymouth Barracuda'}
+
+q = tst1[3]['question'] # 'Horace Brindley played for what professional association football club that is based in the seaside town of Blackpool, Lancashire, England?'
+c = tst1[3]['context']
+a = tst1[3]['answers']  # 
+[m['bridge'] for m in mdr_dev if m['question'] == q ] # ['Blackpool F.C.']
+tst1[3]['para_ans_titles']  # {'Blackpool F.C.'}
 
 
 ### MDR dev/train exploration
