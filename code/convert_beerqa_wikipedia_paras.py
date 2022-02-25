@@ -538,27 +538,55 @@ cd_dev, nf_dev, pnf_dev = check_beer_split(beer_dev, titledict, docs)  # Counts:
 # look up beerqa titles using unescape(bqa.title.lower) - unescape should have no effect
 
 
-def get_LCS(text_a, text_b, title_b):
+def get_overlap(text_a, text_b, title_b, func='lcs'):
     """ Return Longest Common Subsequence between strings text_a and text_b and text_a and title_b
     text_a is assumed to be the query and punctuation in addition to stopwords are stripped from it following golden retriever
     text_b and title_b just has stopwords stripped from them.
+    changing func-> 'lcss' returns longest common substring
+    changing func-> 'isect' returns count of intersecting terms irrespective of order
     """
     text_a_toks = text_processing.word_tokenize(text_a) #nltk simple word tokenizer
     text_b_toks = text_processing.word_tokenize(text_b)
     title_b_toks = text_processing.word_tokenize(title_b)
     ta_toks, ta_idx  = text_processing.filter_stopwords2(text_a_toks)
-    tb_toks, _ = text_processing.filter_stopwords2(text_b_toks)
-    ttlb_toks, _ = text_processing.filter_stopwords2(title_b_toks)
+    tb_toks, _ = text_processing.filter_stopwords(text_b_toks)
+    ttlb_toks, _ = text_processing.filter_stopwords(title_b_toks)
     ta_toks = [t.lower() for t in ta_toks]
     tb_toks = [t.lower() for t in tb_toks]
     ttlb_toks = [t.lower() for t in ttlb_toks]
-    tb_size, tb_lcs, _ = text_processing.LCS(ta_toks, tb_toks)
-    ttlb_size, ttlb_lcs, _ = text_processing.LCS(ta_toks, ttlb_toks)
+    if func == 'lcs':
+        tb_size, tb_lcs, _ = text_processing.LCS(ta_toks, tb_toks)
+        ttlb_size, ttlb_lcs, _ = text_processing.LCS(ta_toks, ttlb_toks)
+    elif func == 'lcss':    
+        tb_size, tb_lcs, _ = text_processing.LCSubStr(ta_toks, tb_toks)
+        ttlb_size, ttlb_lcs, _ = text_processing.LCSubStr(ta_toks, ttlb_toks)
+    else:
+        tb_lcs = list(set(ta_toks).intersection( set(tb_toks) ))
+        tb_size = len(tb_lcs)
+        ttlb_lcs = list(set(ta_toks).intersection( set(ttlb_toks) ))
+        ttlb_size = len(ttlb_lcs)
     if tb_size > ttlb_size:
         return tb_size, tb_lcs
     else:
         return ttlb_size, ttlb_lcs
 
+
+def find_shortest_LCS(sample):
+    """ Return the title of the para(s) with shortest LCS wrt question (if only 1, use as final para).
+    """
+    q = sample['question'].strip()
+    shortest_lcs_len = 99999
+    shortest_lcs_titles = []
+    for title in sample['para_agg']:
+        paras = ' '.join(sample['para_agg'][title])
+        lcs_len, _ = get_overlap(q, paras, title)
+        if lcs_len < shortest_lcs_len:
+            shortest_lcs_titles = [title]
+            shortest_lcs_len = lcs_len
+        elif lcs_len == shortest_lcs_len:  # multiple paras have same lcs with q 
+            shortest_lcs_titles.append(title)
+    return shortest_lcs_titles            
+    
 
 def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
     """ follow mdr paper sequencing algorithm and calculate paragraph sequencing for beerqa:
@@ -571,44 +599,63 @@ def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
     """
     nf_idx = []
     nf_mdr = []
+    tot_hpqa = 0
+    tot_hpqa_comp = 0
     count_dict = {'squad': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0},
                   'hotpotqa': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0},
-                  'squad_unique_titles': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0, 'ans_2_refine':{'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}},
-                  'hotpotqa_unique_titles': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0, 'ans_2_refine':{'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}},
+                  'squad_unique_titles': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0, 'ans_2_refine':{'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0, 'got_2_anseqtitle':0, 'got_2_shortestlcstitle':0, 'nf_shortestlcstitle':0}},
+                  'hotpotqa_unique_titles': {'comp':0, 'ans_0': 0, 'ans_1': 0, 'ans_2': 0, 'ans_3':0, 'ans_over_3': 0, 'ans_2_refine':{'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0, 'got_2_anseqtitle':0, 'got_2_shortestlcstitle':0, 'nf_shortestlcstitle':0}},
                  }
     for i,sample in enumerate(beer_split['data']):
         sample['type'] = ''
         sample['neg_paras'] = []
+        sample['mdr_bridge'] = None
         if sample['src'] == 'hotpotqa':
+            tot_hpqa += 1
             mdr_idx = mdr_split_q_idx.get(sample['question'].strip().lower())
-            if mdr_idx is not None:
+            if mdr_idx is not None: # combine info from hpqa and mdr
                 sample['type'] = mdr_split[mdr_idx]['type']
                 sample['neg_paras'] = mdr_split[mdr_idx]['neg_paras']
+                sample['mdr_bridge'] = mdr_split[mdr_idx].get('bridge')
+                if sample['type'] == 'comparison':
+                    tot_hpqa_comp += 1
             else:
                 nf_mdr.append(i)
-        if type(sample['answers']) != list:
-            print(f'ERROR: {i} : answer not a list')
+                
         ans = sample['answers'][0].strip().lower()
         para_seq = []
         para_title = set()
-        for j, (title, para) in enumerate(sample['context']):
-            if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison': #ans in ['yes', 'no']:
+        para_title_eq_ans = ''
+        para_agg = {}  # {'title': [p1, p2]} Aggregate paras from same title for convenience
+        for j, (title, para) in enumerate(sample['context']):  # This pass adds keys to assist in second pass below
+            if para_agg.get(title) is None:
+                para_agg[title] = [para]
+            else:
+                para_agg[title].append(para)
+            if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison': # For comp questions select paras as intermediate/final randomly
                 continue
-            if ans in para.lower() or ans in title.lower():  # and ans not in ['yes', 'no']:
+            if ans == title.strip().lower(): # if answer = title of para we will treat as the final para in case of both paras containing the answer
+                para_title_eq_ans = title
+            if ans in para.lower() or ans in title.lower():  # If answer anywhere in para
                 para_seq.append(j)
                 para_title.add(title)
+        sample['para_agg'] = para_agg
+        sample['para_title_eq_ans'] = para_title_eq_ans
         sample['para_has_ans'] = para_seq
         sample['para_ans_titles'] = para_title       # unique titles that have answer embedded in their passages and hence could be final (unless more than one of them in which case must select the one that referred to by to the other as final.)
         if len(para_title) == 0:
             if sample['src'] == 'squad' or (sample['src'] == 'hotpotqa' and sample['type'] != 'comparison'): #ans not in ['yes', 'no']):
-                nf_idx.append(i)    
+                nf_idx.append(i)
         
-    for i,sample in enumerate(beer_split['data']):
+    for i,sample in enumerate(beer_split['data']): # 2nd pass: Calculate the final paragraph title in key 'final' as [final title(s)]. Squad: always 1 title. HPQA: if final determinable then added as [final title] otherwise [final title 1, final title 2] and data loader expected to select randomly
         ans = sample['answers'][0].strip().lower()
         l = len(sample['para_has_ans'])
         num_titles = len(sample['para_ans_titles'])
+        all_titles = list(sample['para_agg'].keys())
+        sample['final'] = all_titles  # default to all titles ie 1 for squad, 2 for hpqa (left like this for all comparison questions and any bridge where can't determine final)
         
-        if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison': #ans in ['yes', 'no']:
+        # Not using individual paras, rather aggreating by title so this part not used:
+        if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison': # not used - only considering titles and will concat paras with same title
             count_dict[sample['src']]['comp'] += 1
         elif l == 0:
             count_dict[sample['src']]['ans_0'] += 1
@@ -621,18 +668,19 @@ def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
         else:
             count_dict[sample['src']]['ans_over_3'] += 1
             
-        if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison':  #ans in ['yes', 'no']:
+        if sample['src'] == 'hotpotqa' and sample['type'] == 'comparison':
             count_dict[sample['src']+'_unique_titles']['comp'] += 1  # hpqa + comp = no para order, select either randomly
         elif num_titles == 0:
-            count_dict[sample['src']+'_unique_titles']['ans_0'] += 1 # Anything here = error
+            count_dict[sample['src']+'_unique_titles']['ans_0'] += 1 # Anything here = error (currently empty)
         elif num_titles == 1:
             count_dict[sample['src']+'_unique_titles']['ans_1'] += 1 # Bingo: Single title has ans in it => final para in seq
+            sample['final'] = list(sample['para_ans_titles'])
         elif num_titles == 2:
             count_dict[sample['src']+'_unique_titles']['ans_2'] += 1 # all squad have 1 unique title so just use title reference to tiebreak hpqa final para here
             final_para_title = set()  # titles of which at least 1 para has a hyperlink pointing to it
             p1, p2 = sample['para_ans_titles']
             found = False
-            for i, ans_title in enumerate([p1, p2]):
+            for i, ans_title in enumerate([p1, p2]):  # try to find final para as that which the other para contains a hyperlink to.
                 if i == 0:
                     othertitle = p2
                 else:
@@ -651,55 +699,102 @@ def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
             sample['para_ans_titles_refined'] = final_para_title
             count_dict[sample['src']+'_unique_titles']['ans_2_refine']['tot'] += 1
             refined_final_count = len(final_para_title)
-            if refined_final_count == 0:
+            if refined_final_count == 0:  # neither para links to the other, try additional heuristic
                 count_dict[sample['src']+'_unique_titles']['ans_2_refine']['nf'] += 1  # Anything here = error
-            elif refined_final_count == 1:
+                shortest_lcs_titles = find_shortest_LCS(sample)
+                if len(shortest_lcs_titles) == 1: # take title with shortest longest common seq with title as final (if equal return both, pick randomly in dataset)
+                    count_dict[sample['src']+'_unique_titles']['ans_2_refine']['nf_shortestlcstitle'] += 1  
+                    sample['final'] = shortest_lcs_titles
+                sample['shortest_lcs_titles'] = shortest_lcs_titles
+            elif refined_final_count == 1:  #Bingo, only 1 para links to the other
                 count_dict[sample['src']+'_unique_titles']['ans_2_refine']['got_1'] += 1  # correctly identified single final para
-            else:
-                count_dict[sample['src']+'_unique_titles']['ans_2_refine']['got_2'] += 1  # Anything here = error: titles link to each other!
-                
+                sample['final'] = list(final_para_title)
+            else: # paras link to each other, try additional heuristics to tiebreak
+                count_dict[sample['src']+'_unique_titles']['ans_2_refine']['got_2'] += 1  # Anything here = titles link to each other!
+                if sample['para_title_eq_ans'] != '':  #if one para's title = answer, take that as the final
+                    count_dict[sample['src']+'_unique_titles']['ans_2_refine']['got_2_anseqtitle'] += 1  
+                    sample['final'] = [ sample['para_title_eq_ans'] ]
+                else: # take title with shortest longest common seq with title as final (if equal return both, pick randomly in dataset)
+                    shortest_lcs_titles = find_shortest_LCS(sample)
+                    if len(shortest_lcs_titles) == 1:
+                        count_dict[sample['src']+'_unique_titles']['ans_2_refine']['got_2_shortestlcstitle'] += 1
+                        sample['final'] = shortest_lcs_titles
+                    sample['shortest_lcs_titles'] = shortest_lcs_titles
         elif num_titles == 3:
-            count_dict[sample['src']+'_unique_titles']['ans_3'] += 1  # Anything here = error
+            count_dict[sample['src']+'_unique_titles']['ans_3'] += 1  # Anything here = error (currently empty)
         else:
-            count_dict[sample['src']+'_unique_titles']['ans_over_3'] += 1  # Anything here = error
-            
+            count_dict[sample['src']+'_unique_titles']['ans_over_3'] += 1  # Anything here = error (empty)
+    
+    nfcnt = 0
+    difft_mdr = 0
+    for i,sample in enumerate(beer_split['data']):  #final check comparing to MDR for hpqa
+        if sample['src'] == 'squad':
+            if len(sample['final']) != 1:
+                print(f"ERROR idx:{i} squad sample has {len(sample['final'])} final paras...should have 1")
+        else:
+            if sample['type'] == 'comparison':
+                if len(sample['final']) != 2:
+                    print(f"ERROR idx:{i} hpqa comp sample has {len(sample['final'])} final paras...should have 2") 
+            else:
+                if len(sample['final']) == 0:
+                    print(f"ERROR idx:{i} hpqa bridge sample has {len(sample['final'])} final paras...should have 1 or 2")                   
+                elif len(sample['final']) == 2:
+                    nfcnt += 1
+                elif sample['final'][0].strip().lower() != sample['mdr_bridge'].strip().lower():
+                    difft_mdr += 1
+    print(f"Total BeerQA HPQA: {tot_hpqa}  Comparison: {tot_hpqa_comp}  Bridge: {tot_hpqa-tot_hpqa_comp}")
+    print(f"Bridge: Single id-ed but different to MDR: {difft_mdr} Indeterminable final: {nfcnt} Total difft to MDR: {difft_mdr+nfcnt} of {tot_hpqa-tot_hpqa_comp}")    
+    #DEV: Total BeerQA HPQA: 5989  Comparison: 1278  Bridge: 4711
+    #Bridge: Single id-ed but different to MDR: 284 Indeterminable final: 20 Total difft to MDR: 304 of 4711    # Single but different to MDR: 3444 Indeterminable final: 288 Total difft to MDR: 3732 of 90447
+    #TRAIN: Total BeerQA HPQA: 74758  Comparison: 15162  Bridge: 59596
+    #Bridge: Single id-ed but different to MDR: 3444 Indeterminable final: 288 Total difft to MDR: 3732 of 59596
+    
     print(f"Results: {count_dict}")
     print(f"No answer span found: {len(nf_idx)}")
     print(f"Number of hpqa samples not matched to MDR: {len(nf_mdr)}")
     return count_dict, nf_idx, nf_mdr
 
-cd_dev, nf_dev, nf_mdr_dev = add_sequencing(beer_dev, mdr_dev, mdr_dev_q_idx, titledict, docs)  # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 7970, 'ans_2': 162, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 1278, 'ans_0': 0, 'ans_1': 3337, 'ans_2': 1105, 'ans_3': 267, 'ans_over_3': 2}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 8132, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}}, 'hotpotqa_unique_titles': {'comp': 1278, 'ans_0': 0, 'ans_1': 3437, 'ans_2': 1274, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 1274, 'nf': 41, 'got_1': 1076, 'got_2': 157}}}
-cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_train_q_idx, titledict, docs) # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 58411, 'ans_2': 874, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 15162, 'ans_0': 0, 'ans_1': 37394, 'ans_2': 17675, 'ans_3': 4447, 'ans_over_3': 80}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 59285, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0}}, 'hotpotqa_unique_titles': {'comp': 15162, 'ans_0': 0, 'ans_1': 38745, 'ans_2': 20851, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 20851, 'nf': 510, 'got_1': 17515, 'got_2': 2826}}}
+cd_dev, nf_dev, nf_mdr_dev = add_sequencing(beer_dev, mdr_dev, mdr_dev_q_idx, titledict, docs)  # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 7970, 'ans_2': 162, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 1278, 'ans_0': 0, 'ans_1': 3337, 'ans_2': 1105, 'ans_3': 267, 'ans_over_3': 2}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 8132, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0, 'got_2_anseqtitle': 0, 'got_2_shortestlcstitle': 0, 'nf_shortestlcstitle': 0}}, 'hotpotqa_unique_titles': {'comp': 1278, 'ans_0': 0, 'ans_1': 3437, 'ans_2': 1274, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 1274, 'nf': 41, 'got_1': 1076, 'got_2': 157, 'got_2_anseqtitle': 80, 'got_2_shortestlcstitle': 66, 'nf_shortestlcstitle': 32}}}
+cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_train_q_idx, titledict, docs) # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 58411, 'ans_2': 874, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 15162, 'ans_0': 0, 'ans_1': 37394, 'ans_2': 17675, 'ans_3': 4447, 'ans_over_3': 80}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 59285, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0, 'got_2_anseqtitle': 0, 'got_2_shortestlcstitle': 0, 'nf_shortestlcstitle': 0}}, 'hotpotqa_unique_titles': {'comp': 15162, 'ans_0': 0, 'ans_1': 38745, 'ans_2': 20851, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 20851, 'nf': 510, 'got_1': 17515, 'got_2': 2826, 'got_2_anseqtitle': 1460, 'got_2_shortestlcstitle': 1166, 'nf_shortestlcstitle': 422}}}
 
+
+#TODO Add adversarial negatives
+#TODO Write out final train/dev/test files for MDR
+#TODO Write out corpus for MDR
+
+
+
+# LCS tests
 
 # "neither references the other"
 tst = [b for b in beer_dev['data'] if len(b['para_ans_titles'])==2 and len(b['para_ans_titles_refined'])==0]
-get_LCS(tst[0]['question'], tst[0]['context'][0][1]+' '+tst[0]['context'][1][1], tst[0]['context'][0][0]) # (9, ['november', 'american', 'politician', 'served', 'south', 'carolina', 'general', 'assembly', '2007'])
-get_LCS(tst[0]['question'], tst[0]['context'][2][1]+' '+tst[0]['context'][3][1], tst[0]['context'][2][0]) # (6, ['november', 'spratt', 'american', 'politician', 'served', 'carolina'])
+get_overlap(tst[0]['question'], tst[0]['context'][0][1]+' '+tst[0]['context'][1][1], tst[0]['context'][0][0]) # (9, ['november', 'american', 'politician', 'served', 'south', 'carolina', 'general', 'assembly', '2007'])
+get_overlap(tst[0]['question'], tst[0]['context'][2][1]+' '+tst[0]['context'][3][1], tst[0]['context'][2][0]) # (6, ['november', 'spratt', 'american', 'politician', 'served', 'carolina'])
 # actually wrong in this case - Mulvaney should be first but the hyperlink from Spratt to Mulvaney is in a para not in the new context...
 
 q = tst[1]['question']  # 'Minneapolis hip hop collective member that released album in 2006?'
 c = tst[1]['context']
+a = tst[1]['answers'] # ['P.O.S']
 """
 [['Doomtree',
   'Doomtree is an American hip hop collective and record label based in Minneapolis, Minnesota. The collective has seven members: Dessa, Cecil Otter, P.O.S, Sims, Mike Mictlan, Paper Tiger, and Lazerbeak. The collective is known for incorporating a wide range of musical influences into their work with lyrical complexity and wordplay, and their annual "Doomtree Blowout" events held in Minneapolis venues to showcase their group performances and the Twin Cities music scene.'],
  ['Audition (album)',
   'Audition is the second solo studio album by American rapper P.O.S. It was released on Rhymesayers Entertainment in 2006. It peaked at number 45 on the "Billboard" Independent Albums chart.']]
 """
-get_LCS(q, c[0][1], c[0][0])  # (3, ['minneapolis', 'hop', 'collective'])
-get_LCS(q, c[1][1], c[1][0])  # (2, ['released', '2006'])
+get_overlap(q, c[0][1], c[0][0])  # (3, ['minneapolis', 'hop', 'collective'])
+get_overlap(q, c[1][1], c[1][0])  # (2, ['released', '2006'])
 # correct here - p0 mentions member P.O.S -> p1 discusses P.O.S 's album release date
 
 q = tst[2]['question']  # 'The USS Tortuga was named after the Dry Tortugas, a group of desert coral islets 60 miles west of which city with the motto "One Human Family"?'
 c = tst[2]['context']
-get_LCS(q, c[0][1]+' '+c[1][1], c[0][0])  # (2, ['the', 'west'])
-get_LCS(q, c[2][1], c[2][0])  # (11, ['uss', 'tortuga', 'named', 'dry', 'tortugas', 'group', 'desert', 'coral', 'islets', '60', 'west'])
+get_overlap(q, c[0][1]+' '+c[1][1], c[0][0])  # (2, ['the', 'west'])
+get_overlap(q, c[2][1], c[2][0])  # (11, ['uss', 'tortuga', 'named', 'dry', 'tortugas', 'group', 'desert', 'coral', 'islets', '60', 'west'])
 # correct here p1 actually has all the info necessary to answer the question as "Key West". link to P0 is actually unnecessary
 
 q = tst[3]['question']  # 'The 2015 CrossFit Games were held at what multiple-use sports complex that is approximately 14 miles south of Downtown Los Angeles?'
 c = tst[3]['context']
-get_LCS(q, c[0][1], c[0][0])  # (9, ['the', 'sports', 'complex', 'approximately', '14', 'south', 'downtown', 'los', 'angeles'])
-get_LCS(q, c[1][1], c[1][0])  # (5, ['the', '2015', 'crossfit', 'games', 'held'])
+get_overlap(q, c[0][1], c[0][0])  # (9, ['the', 'sports', 'complex', 'approximately', '14', 'south', 'downtown', 'los', 'angeles'])
+get_overlap(q, c[1][1], c[1][0])  # (5, ['the', '2015', 'crossfit', 'games', 'held'])
 # correct here - actually either para id sufficent 
 
 
@@ -710,8 +805,8 @@ q = tst1[0]['question']  # 'In the "Star Trek" franchise, DeForest Kelley portra
 c = tst1[0]['context']  # both titles do indeed reference each other Kirk = 0, McCooy = 1,2
 a = tst1[0]['answers']   # ['USS "Enterprise"']
 [m['bridge'] for m in mdr_dev if m['question'] == q] # ['James T. Kirk']
-get_LCS(q, c[0][1], c[0][0])   #(7, ['``', 'star', 'trek', "''", 'franchise', 'portrayed', 'starship'])
-get_LCS(q, c[1][1] + ' ' + c[2][1], c[1][0]) # (7, ['in', '``', 'trek', "''", 'deforest', 'kelley', 'character'])
+get_overlap(q, c[0][1], c[0][0])   #(7, ['``', 'star', 'trek', "''", 'franchise', 'portrayed', 'starship'])
+get_overlap(q, c[1][1] + ' ' + c[2][1], c[1][0]) # (7, ['in', '``', 'trek', "''", 'deforest', 'kelley', 'character'])
 # tie! if chose Kirk first, "could" hop to McCoy. McCoy para actually has all info necessary to answer.
 # title heuristic would work here...
 
@@ -719,8 +814,8 @@ q = tst1[1]['question']  # 'Which American BMX rider hosted a show that spun off
 c = tst1[1]['context']  # both titles do indeed reference each other Challenge = 0, Lavin = 1
 a = tst1[1]['answers']   # ['T. J. Lavin']
 [m['bridge'] for m in mdr_dev if m['question'] == q] # ['T. J. Lavin']
-get_LCS(q, c[0][1], c[0][0])   # (10,  ['hosted', 'spun', '``', 'real', 'world', "''", '``', 'road', 'rules', "''"])
-get_LCS(q, c[1][1] , c[1][0]) # (5, ['american', 'bmx', 'rider', '``', "''"])
+get_overlap(q, c[0][1], c[0][0])   # (10,  ['hosted', 'spun', '``', 'real', 'world', "''", '``', 'road', 'rules', "''"])
+get_overlap(q, c[1][1] , c[1][0]) # (5, ['american', 'bmx', 'rider', '``', "''"])
 # correct
 # title heuristic would work here..
 
@@ -728,19 +823,18 @@ q = tst1[2]['question']  # 'What type of industry does Tony Bill and Flyboys hav
 c = tst1[2]['context']  # both titles do indeed reference each other 
 a = tst1[2]['answers']   # ['film']
 [m['bridge'] for m in mdr_dev if m['question'] == q] # ['Tony Bill']
-get_LCS(q, c[0][1], c[0][0])   # (2, ['tony', 'bill'])
-get_LCS(q, c[1][1] , c[1][0]) # (2, ['tony', 'bill'])
+get_overlap(q, c[0][1], c[0][0])   # (2, ['tony', 'bill'])
+get_overlap(q, c[1][1] , c[1][0]) # (2, ['tony', 'bill'])
 # tie! 
 
 q = tst1[3]['question']  # 'After David Stern retired from being commissioner of the NBA, this american lawyer and businessman succeed him and is now the current commissioner who is he?'
 c = tst1[3]['context']  # both titles do indeed reference each other Silver = 0,1 Commissioner = 2,3
 a = tst1[3]['answers']   # ['Adam Silver']
 [m['bridge'] for m in mdr_dev if m['question'] == q] # ['Adam Silver']
-get_LCS(q, c[0][1] + ' ' + c[1][1], c[0][0])   # (5, ['david', 'stern', 'retired', 'commissioner', 'nba'])
-get_LCS(q, c[2][1] + ' ' + c[3][1] , c[2][0]) # (4, ['david', 'stern', 'nba', 'commissioner'])
+get_overlap(q, c[0][1] + ' ' + c[1][1], c[0][0])   # (5, ['david', 'stern', 'retired', 'commissioner', 'nba'])
+get_overlap(q, c[2][1] + ' ' + c[3][1] , c[2][0]) # (4, ['david', 'stern', 'nba', 'commissioner'])
 # opposite of mdr but it appears either para could give answer
 
-#TODO: What about heuristic that if TITLE of para = answer then that para is final? Would work here
 
 #test "2 titles have ans embedded but only one references the other" - OK
 tst1 = [b for b in beer_dev['data'] if len(b['para_ans_titles'])==2 and len(b['para_ans_titles_refined'])==1]
