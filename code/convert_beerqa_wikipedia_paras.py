@@ -776,9 +776,8 @@ def beer_to_docs_map(beer_splits):
 
 beer_map = beer_to_docs_map(beer_splits=[beer_dev, beer_train])  # 94489 paras mapped
 
-#TODO Write docs preprocessing
-
 def finalise_docs(docs, beer_map, index_name):
+    """ docs preprocessing into ES format """
     final_docs = []
     for i, doc in enumerate(docs):
         for j, para in enumerate(doc['paras']):  # make paras 0 based and contiguous
@@ -808,10 +807,16 @@ print(UES.ping_client(client))
 UES.create_index(client, UES.settings, index_name=ES_INDEX, force_reindex=True)
 UES.index_by_chunk(client, final_docs, chunksize=500)
 
-
-#TODO save docs    
-
 #TODO Add adversarial negatives
+tst = UES.search(client, ES_INDEX, "Did Aristotle use a laptop?", n_rerank=0, n_retrieval=5)
+tst = UES.search(client, ES_INDEX, "Aristotle", n_rerank=0, n_retrieval=5)
+
+q = beer_dev['data'][0]['question']  # 'Which genus contains more species, Ortegocactus or Eschscholzia?'
+tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5)
+tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5, filter_dic={"term": {"for_hotpot": False}}) #works
+tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5, must_not={"term": {"for_hotpot": True}}) #works
+tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5, filter_dic=[{"term": {"para_idx": 0}}, {"term": {"for_hotpot": False}}]) # works
+tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5, filter_dic={ "range": { "para_idx": { "gte": 2, "lte": 8 }}}) # works. see https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-range-query.html
 
 
 #TODO Write out final train/dev/test files for MDR

@@ -160,6 +160,12 @@ def index_by_chunk(client, docs, chunksize=50):
     return
 
 
+def list_indexes(client):
+    return client.indices.get_alias(index="*")  # list indices
+
+def index_stats(client, index_name=None):
+    return client.indices.stats(index = index_name) # dict of index stats including doc count
+
 def create_query(query: str, fields: List = None,
                must_not: Dict = None, filter_dic: Dict = None, offset: int = 0, size: int = 50) -> Dict:
     """ Create ES query. Adapted from https://github.com/zycdev/AISO/blob/f5637028ad2cdbba88bdaf3d6bf26cd3859e673f/retriever.py
