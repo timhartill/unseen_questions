@@ -15,12 +15,15 @@ from elasticsearch.helpers import bulk
 from tqdm import tqdm
 from typing import Dict, List, Tuple
 import re
+import json
 
 # from https://github.com/zycdev/AISO/blob/f5637028ad2cdbba88bdaf3d6bf26cd3859e673f/retriever.py#L20
 core_title_pattern = re.compile(r'([^()]+[^\s()])(?:\s*\(.+\))?')
 def filter_core_title(x):
     return core_title_pattern.match(x).group(1) if core_title_pattern.match(x) else x
 
+
+TYPE = "paragraph"  #doc type
 
 settings = {
     "settings": {
@@ -41,7 +44,7 @@ settings = {
             }
         }
     },
-    "mappings": {
+    "mappings": { TYPE: {
         "properties": {
             "para_id": {   # '1234_2'
                 "type": "keyword"
@@ -50,9 +53,6 @@ settings = {
                 "type": "integer"
             },
             "doc_id": {    # '1234'
-                "type": "keyword"
-            },
-            "url": {
                 "type": "keyword"
             },
             "title": {
@@ -102,12 +102,12 @@ settings = {
             "for_squad": {
                 "type": "boolean"
             },
-            "hyperlinks": {
-                "type": "object",   #json object. read from here with json.dumps(..). & save with loads(..)
-                "enabled": False    # don't parse/index
-            }
+#            "hyperlinks": {
+#                "type": "object",   #json object. read from here with json.dumps(..). 
+#                "enabled": False    # don't parse/index
+#            }
         }
-    }
+    }}
 }
 
 
@@ -125,8 +125,11 @@ def create_index(client, mapping, index_name, force_reindex=False):
         print(f'Deleting existing index {index_name}...')
         client.indices.delete(index=index_name)
     if not client.indices.exists(index=index_name):
-        print(f'Creating index {index_name}...')    
+        print(f'Creating index {index_name}...')  
+        if type(mapping) != str:
+            mapping = json.dumps(mapping)
         res = client.indices.create(index=index_name, ignore=400, body=mapping)
+        print(res)
     else:
         print(f'Index {index_name} already exists. Set force_reindex=True to overwrite existing index.')
     return True
@@ -139,14 +142,14 @@ def get_chunk(docs, n):
 
 
 def add_to_index(client, some_docs):
-    """ batch = [ { "_index": index_name, "_id": doc_id, "_source": new_doc} ]
+    """ batch = [ { "_index": index_name, "_type": TYPE, "_id": doc_id, "_source": new_doc} ]
     e.g. new_doc = { "doc_id": para['doc_id'],  "url": para['url'],  "title": para['title'],
                      "title_unescaped": unescape(para['title']), "para_id": para['para_id'],
                      "text": para['text'], "hyperlinks": para['hyperlinks']
                    }
     """
     res = bulk(client, some_docs)
-    assert not res['errors'], res
+    #assert not 'errors' in res, res
     return len(some_docs)
 
 

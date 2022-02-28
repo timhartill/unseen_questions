@@ -59,6 +59,7 @@ from html import unescape, escape
 import copy
 
 import text_processing
+import utils_elasticsearch as UES
 
 ####### MDR:
 #import utils #Duplicate "utils" with AISO so must run MDR and AISO portions separately from different working directories
@@ -92,6 +93,8 @@ BEER_TRAIN = '/home/thar011/data/beerqa/beerqa_train_v1.0.json'
 
 MDR_DEV = '/data/thar011/gitrepos/compgen_mdr/data/hotpot/hotpot_dev_with_neg_v0.json'
 MDR_TRAIN = '/data/thar011/gitrepos/compgen_mdr/data/hotpot/hotpot_train_with_neg_v0.json'
+
+ES_INDEX = 'enwiki-20200801-paras-v1'
 
 
 
@@ -321,7 +324,7 @@ def get_links(para, para_w_links, links_dict, verbose=False):
     
 
 def process_doc(doc, delkeys = ['text', 'text_with_links'], verbose=False):
-    """ Split doc into paras and process each para
+    """ Split doc into paras and process each para. Paras with <= 8 words are skipped/
     doc: {"id": 12, "url": "https://en.wikipedia.org/wiki?curid=12",
     "title": "Anarchism",
     "text": ["Anarchism", "\n\nAnarchism is a political philosophy and movement that rejects all involuntary ...],
@@ -369,13 +372,10 @@ def save_aiso(docs):
     with open(AISO_FILE, 'w') as f:
         f.write('id\ttext\ttitle\thyperlinks\tsentence_spans\n')    
         for i, doc in enumerate(docs):
-            pidx = 0 # make paras 0 based and contiguous
-            for j, para in enumerate(doc['paras']):
-                if para['text'].strip() != '':
-                    newid = doc['id'] + '_' + str(pidx)
-                    pidx += 1
-                    outstr = f"{newid}\t{para['text']}\t{doc['title'].strip()}\t{json.dumps(para['hyperlinks_cased'])}\t{json.dumps(para['sentence_spans'])}\n"
-                    f.write(outstr)
+            for j, para in enumerate(doc['paras']): # make paras 0 based and contiguous
+                newid = doc['id'] + '_' + str(j)
+                outstr = f"{newid}\t{para['text']}\t{doc['title'].strip()}\t{json.dumps(para['hyperlinks_cased'])}\t{json.dumps(para['sentence_spans'])}\n"
+                f.write(outstr)
             if i % 250000 == 0:
                 print(f"Processed: {i}")
     print(f'Saved {AISO_FILE}')
@@ -758,12 +758,66 @@ cd_dev, nf_dev, nf_mdr_dev = add_sequencing(beer_dev, mdr_dev, mdr_dev_q_idx, ti
 cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_train_q_idx, titledict, docs) # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 58411, 'ans_2': 874, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 15162, 'ans_0': 0, 'ans_1': 37394, 'ans_2': 17675, 'ans_3': 4447, 'ans_over_3': 80}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 59285, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0, 'got_2_anseqtitle': 0, 'got_2_shortestlcstitle': 0, 'nf_shortestlcstitle': 0}}, 'hotpotqa_unique_titles': {'comp': 15162, 'ans_0': 0, 'ans_1': 38745, 'ans_2': 20851, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 20851, 'nf': 510, 'got_1': 17515, 'got_2': 2826, 'got_2_anseqtitle': 1460, 'got_2_shortestlcstitle': 1166, 'nf_shortestlcstitle': 422}}}
 
 #TODO Load docs into ES
+# Note: Considered Updating hyperlinks with para_idx - as separate key - decided not to as don't have para id for test samples so no point
+
+def beer_to_docs_map(beer_splits):
+    """ Map beerqa train/dev samples to docs wiki paras in more convenient form
+    """
+    beer_map = {}
+    for beer_split in beer_splits:
+        for i, sample in enumerate(beer_split['data']):
+            for m in sample['map']:
+                d_idx = m['d_idx']  # Note d_idx is docs idx not wiki id
+                p_idx = m['p_idx']
+                if beer_map.get(d_idx) is None:
+                    beer_map[d_idx] = {'hotpotqa': set(), 'squad':set()}
+                beer_map[d_idx][sample['src']].add(p_idx)
+    return beer_map
+
+beer_map = beer_to_docs_map(beer_splits=[beer_dev, beer_train])  # 94489 paras mapped
+
+#TODO Write docs preprocessing
+
+def finalise_docs(docs, beer_map, index_name):
+    final_docs = []
+    for i, doc in enumerate(docs):
+        for j, para in enumerate(doc['paras']):  # make paras 0 based and contiguous
+            newid = doc['id'] + '_' + str(j)
+            for_hp = False
+            for_squad = False
+            if beer_map.get(i) is not None:
+                if j in beer_map[i]['hotpotqa']:
+                    for_hp = True
+                if j in beer_map[i]['squad']:
+                    for_squad = True
+            para['hpqa'] = for_hp
+            para['squad'] = for_squad
+            final_docs.append( {"_index": index_name, "_type": UES.TYPE, "_id": newid,
+                                "_source": {"para_id": newid, "para_idx": j, "doc_id": doc['id'],
+                                            "title": doc['title'], "title_unescaped": unescape(doc['title']),
+                                            "text": para['text'], "for_hotpot": for_hp, "for_squad": for_squad }
+                               } )
+        if i % 500000 == 0:
+            print(f"Processed: {i}")
+    return final_docs
+
+final_docs = finalise_docs(docs, beer_map, ES_INDEX)  # 35706771
+
+client = UES.get_esclient()
+print(UES.ping_client(client))
+UES.create_index(client, UES.settings, index_name=ES_INDEX, force_reindex=True)
+UES.index_by_chunk(client, final_docs, chunksize=500)
 
 
+#TODO save docs    
 
 #TODO Add adversarial negatives
+
+
 #TODO Write out final train/dev/test files for MDR
 #TODO Write out corpus for MDR
+#TODO Write out AISO corpus with para idxs added to hyperlinks
+#TODO Write out AISO train/dev/test files
 
 
 
