@@ -807,16 +807,131 @@ print(UES.ping_client(client))
 UES.create_index(client, UES.settings, index_name=ES_INDEX, force_reindex=True)
 UES.index_by_chunk(client, final_docs, chunksize=500)
 
+
 #TODO Add adversarial negatives
+
+
+def get_hyperlinked_docs(docs, titledict, curr_d_idx, curr_p_idx, exclude=set()):
+    """ Return indices of docs that are linked to by curr_d_idx, curr_p_idx
+    """
+    docs_linked_to_idx = set()
+    docs_linked_to_id = set()
+    for title in docs[curr_d_idx]['paras'][curr_p_idx]['hyperlinks_cased'].keys():
+        new_title, status, d_idx = map_title_case(title, titledict)
+        if d_idx != -1 and d_idx not in exclude:
+            docs_linked_to_idx.add(d_idx)
+            docs_linked_to_id.add(docs[d_idx]['id'])
+    return docs_linked_to_idx, docs_linked_to_id
+
+
+def get_paras(docs, d_idxs, p_idxs=[0]):
+    """ Return paras for a set of doc idxs
+    """
+    paras = []
+    for d_idx in d_idxs:
+        para = ''
+        for p_idx in p_idxs:
+            if p_idx < len(docs[d_idx]['paras']) and p_idx > -1:
+                para += ' ' + docs[d_idx]['paras'][p_idx]['text']
+        paras.append( {'title': docs[d_idx]['title'], 'title_unescaped': unescape(docs[d_idx]['title']),
+                       'text': para.strip()} )
+    return paras
+
+
+def get_paras_es(client, index_name, d_ids, p_idxs=[0]):
+    """ retrieve paras from ES by exact match on para_id eg '1234_0'
+    """
+    paras = []
+    for d_id in d_ids:        
+        for p_idx in p_idxs:
+            para_id = d_id + '_' + str(p_idx)
+            hits = UES.exec_query(client, index_name, dsl=UES.term_query('para_id', para_id))
+            paras += hits
+    return paras                    
+
+
+def get_adv_paras(client, docs, titledict, beer_sample, index_name):
+    """ Return adversarial paras for a given sample through different methods.
+    """
+    adv_template = {'hlink':[], 'p':[], 'q_p':[]}  # {'type': [{'doc_id': [ {},..]}, ... ] }
+    adversarial_paras = {} # {'title': adv_template}
+    if beer_sample['src'] == 'hotpotqa':
+        filter_dict = {"term": {"for_hotpot": False}}
+    else:
+        filter_dict = {"term": {"for_squad": False}}
+
+    q = beer_sample['question']
+    exclude_docs = {m['d_idx'] for m in beer_sample['map']} # exclude the gold para docs.
+    for m in beer_sample['map']:
+        curr_d_idx = m['d_idx']
+        curr_p_idx = m['p_idx']
+        title = docs[curr_d_idx]['title']
+        if adversarial_paras.get(title) is None:
+            adversarial_paras[title] = copy.deepcopy(adv_template)
+        docs_linked_to_idx, docs_linked_to_id = get_hyperlinked_docs(docs, titledict, curr_d_idx=curr_d_idx, curr_p_idx=curr_p_idx, exclude=exclude_docs)
+        hlink_paras_es = get_paras_es(client, index_name, d_ids=docs_linked_to_id, p_idxs=[0]) # take 1st hyperlinked para only
+        adversarial_paras[title]['hlink'] += hlink_paras_es
+    q_only_paras = UES.search(client, index_name, q, n_rerank=0, n_retrieval=5, filter_dic=filter_dict)    
+    adversarial_paras['q_only'] = q_only_paras
+    for title in beer_sample['para_agg']:
+        para = title + ' ' + ' '.join(beer_sample['para_agg'][title])
+        p_paras = UES.search(client, index_name, para, n_rerank=0, n_retrieval=5, filter_dic=filter_dict)
+        adversarial_paras[title]['p'] = p_paras
+        q_p_paras = UES.search(client, index_name, q + ' ' + para, n_rerank=0, n_retrieval=5, filter_dic=filter_dict)
+        adversarial_paras[title]['q_p'] = q_p_paras
+    return adversarial_paras
+    
+
+def add_adversaral_candidates(client, docs, titledict, index_name, beer_split):
+    """ Add raw adversarial candidates to beer_split['neg_candidates']
+    """
+    print("Adding Adversarial candidates to a split....")
+    for i, beer_sample in enumerate(beer_split['data']):
+        adversarial_paras = get_adv_paras(client, docs, titledict, beer_sample, index_name)
+        beer_sample['neg_candidates'] = adversarial_paras
+        if i % 5000 == 0:
+            print(f"Procesed: {i}")
+    print("Finished!")        
+    return
+
+
+add_adversaral_candidates(client, docs, titledict, ES_INDEX, beer_dev)
+add_adversaral_candidates(client, docs, titledict, ES_INDEX, beer_train)
+
+
+beer_sample = beer_dev['data'][1]
+adv_test = get_adv_paras(client, docs, titledict, beer_sample, ES_INDEX, verbose=True)
+
 tst = UES.search(client, ES_INDEX, "Did Aristotle use a laptop?", n_rerank=0, n_retrieval=5)
 tst = UES.search(client, ES_INDEX, "Aristotle", n_rerank=0, n_retrieval=5)
 
 q = beer_dev['data'][0]['question']  # 'Which genus contains more species, Ortegocactus or Eschscholzia?'
+paras = [p[0] + ' ' + ' '.join(p[1]) for p in beer_dev['data'][0]['para_agg'].items()]
+
+curr_d_idx = beer_dev['data'][0]['map'][0]['d_idx']
+exclude_docs = {m['d_idx'] for m in beer_dev['data'][0]['map']} # exclude the gold para docs
+docs_linked_to_idx, docs_linked_to_id = get_hyperlinked_docs(docs, titledict, curr_d_idx=curr_d_idx, curr_p_idx=0, exclude=exclude_docs)
+tst_hlink_paras = get_paras(docs, d_idxs=docs_linked_to_idx, p_idxs=[0])
+tst_hlink_paras_es = get_paras_es(client, ES_INDEX, d_ids=docs_linked_to_id, p_idxs=[0])
+
+
+mdr_negs = beer_dev['data'][0]['neg_paras']
+
+
 tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5)
 tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5, filter_dic={"term": {"for_hotpot": False}}) #works
 tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5, must_not={"term": {"for_hotpot": True}}) #works
 tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5, filter_dic=[{"term": {"para_idx": 0}}, {"term": {"for_hotpot": False}}]) # works
 tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5, filter_dic={ "range": { "para_idx": { "gte": 2, "lte": 8 }}}) # works. see https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-range-query.html
+
+tst = UES.search(client, ES_INDEX, paras[0], n_rerank=0, n_retrieval=5, filter_dic={"term": {"for_hotpot": False}})
+tst = UES.search(client, ES_INDEX, q + ' ' + paras[0], n_rerank=0, n_retrieval=5, filter_dic={"term": {"for_hotpot": False}})
+
+
+tst = UES.search(client, ES_INDEX, '494525_25', fields=['para_id', 'doc_id'], n_rerank=0, n_retrieval=5) # works
+tst = UES.search(client, ES_INDEX, 'Eschscholzia californica', fields=['title'], n_rerank=0, n_retrieval=5) # works
+
+tst = UES.exec_query(client, ES_INDEX, dsl=UES.term_query('para_id', '494525_25')) # works
 
 
 #TODO Write out final train/dev/test files for MDR
