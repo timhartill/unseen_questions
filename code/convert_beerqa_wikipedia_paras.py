@@ -57,6 +57,7 @@ import glob
 from urllib.parse import unquote, quote  #convert percent encoding eg %28%20%29 -> ( )   quote does opposite
 from html import unescape, escape
 import copy
+import pickle
 
 import text_processing
 import utils_elasticsearch as UES
@@ -68,7 +69,7 @@ import utils_elasticsearch as UES
 
 
 #mdr_hpqa = utils.loadas_json('/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json') # 5233329
-mdr_hpqa = json.load(open('/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json'))
+#mdr_hpqa = json.load(open('/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json'))
 
 #mdr_out = [{'title': v['title'], 'text': v['text']} for v in mdr_hpqa.values() if v['text'].strip() != ''] # 5233235 strips blanks
 
@@ -383,20 +384,19 @@ def save_aiso(docs):
 
 
 
-tstfile = os.path.join(INDIR_BASE, 'AA', 'wiki_00.bz2')
-content = load_bz2_to_jsonl(tstfile)  #list
-print(len(content))  #29
-print(content[0].keys()) # dict_keys(['id', 'url', 'title', 'text', 'offsets', 'text_with_links', 'offsets_with_links'])
-print(len(''.join(content[0].get('text')).split('\n\n'))) #56
-paratest = copy.deepcopy(content)
-titledicttest, dupdicttest = build_title_idx(paratest) # 
-for i, doc in enumerate(paratest):
-    print('Processing:', i)
-    process_doc(doc, verbose=True)
-    #inp = input('Press <enter>')
-count_title_status(paratest, titledicttest)
+#tstfile = os.path.join(INDIR_BASE, 'AA', 'wiki_00.bz2')
+#content = load_bz2_to_jsonl(tstfile)  #list
+#print(len(content))  #29
+#print(content[0].keys()) # dict_keys(['id', 'url', 'title', 'text', 'offsets', 'text_with_links', 'offsets_with_links'])
+#print(len(''.join(content[0].get('text')).split('\n\n'))) #56
+#paratest = copy.deepcopy(content)
+#titledicttest, dupdicttest = build_title_idx(paratest) # 
+#for i, doc in enumerate(paratest):
+#    print('Processing:', i)
+#    process_doc(doc, verbose=True)
+#count_title_status(paratest, titledicttest)
 
-print(paratest[0].keys()) # dict_keys(['id', 'url', 'title', 'text', 'offsets', 'text_with_links', 'offsets_with_links', 'paras'])
+#print(paratest[0].keys()) # dict_keys(['id', 'url', 'title', 'text', 'offsets', 'text_with_links', 'offsets_with_links', 'paras'])
 # 'paras' eg: 
 #    {'pid': '1',
 # 'text': 'Alchemy (from Arabic: "al-kīmiyā") is an ancient branch of natural philosophy, a philosophical and protoscientific tradition practiced throughout Europe, Africa, and Asia, originating in Greco-Roman Egypt in the first few centuries CE.',
@@ -409,6 +409,7 @@ print(paratest[0].keys()) # dict_keys(['id', 'url', 'title', 'text', 'offsets', 
 # 'sentence_spans': [[0, 235]]}
 
 
+print("Converting bz2 files into docs [{}] format")
 filelist = glob.glob(INDIR_BASE +'/*/wiki_*.bz2')  #18013 bz2 files
 docs = []
 for i, infile in enumerate(filelist):
@@ -424,20 +425,23 @@ titledict, dupdict = build_title_idx(docs) #  6020 dups
 dupkeys = list(dupdict.keys())
 
 # map titles: adds 'hyperlinks_cased' key to docs paras
+print("Validating hyperlinks and Adding 'hyperlinks_cased' key to docs... ")
 h_counts = count_title_status(docs, titledict) 
 # Finished counting titles. 35706771 paras. Counts: {'nf': 19367786, 'sc': 14077482, 'sok': 68807203, 'mok': 294440, 'mc': 326587}
+print("Removing tabs and deleting hyperlinks key in favor of 'hyperlinks_cased'...")
 cleanup(docs) # replace \t in para text (just in case there were any) and del hyperlinks key
 
+print("Saving docs and titledict to json files ...")
 saveas_json(docs, BEER_WIKI_SAVE, indent=None)
 saveas_json(titledict, BEER_TITLE_SAVE, indent=None)
+already_saved_docs = True
 
 #output AISO corpus file
-save_aiso(docs)
+#save_aiso(docs)   #Don't bother for now
 
 
 
 
-#TODO output MDR
 #TODO output GR
 # see https://github.com/qipeng/golden-retriever/blob/master/scripts/index_processed_wiki.py
 
@@ -445,22 +449,25 @@ save_aiso(docs)
 
 ###### BeerQA train/dev exploration
 #TODO Solve multi-para issue with BeerQA HPQA train/dev samples - choose 1 or concat both?
-#TODO figure out training ordering in any case. See if can deduce the "correct" para?
+# Done - para sequencing
 
 # ensure titles in BeerQA trian/dev samples all appear in wiki titles - CONFIRMED
 # do paras in BeerQa samples match corpus paras? YES but some bqa paras are substrings and/or difft casing and/or difft strip to corpus paras
 
-mdr_dev = load_jsonl(MDR_DEV)  # obtain hpqa question type and neg paras from mdr
+print("Loading MDR train+dev files to get hpqa question types...")
+mdr_dev = load_jsonl(MDR_DEV)  # obtain hpqa question type and neg paras (for comparison) from mdr (could get question type from hpqa but easier to get it here since we are already loading neg paras...) 
 mdr_train = load_jsonl(MDR_TRAIN)
 mdr_dev_q_idx = {m['question'].strip().lower():i for i, m in enumerate(mdr_dev)}
 mdr_train_q_idx = {m['question'].strip().lower():i for i, m in enumerate(mdr_train)}
 
-print('Loading corpus file..')
-docs = json.load(open(BEER_WIKI_SAVE))
-print('Loading title 2 dict file..')
-titledict = json.load(open(BEER_TITLE_SAVE))
-print("finished loading!")
+if not already_saved_docs:
+    print('Loading corpus file..')
+    docs = json.load(open(BEER_WIKI_SAVE))
+    print('Loading title 2 dict file..')
+    titledict = json.load(open(BEER_TITLE_SAVE))
+    print("finished loading!")
 
+print("Loading BeerQA original train+dev files...")
 beer_dev = json.load(open(BEER_DEV)) # dict_keys(['version', 'split', 'data'])
 beer_train = json.load(open(BEER_TRAIN))
 
@@ -527,6 +534,7 @@ def check_beer_split(beer_split, titledict, docs):
 #Over 99% match after strip().lower(): not match: train: 1477 dev: 147
 # Even more match (train: 665 dev: 61) after look for corpus para.startswith(bqapara.strip.lower) since some bqa para truncated often at ':'
 # finally, all match when look for bqapara.strip.lower in corpuspara.strip.lower
+print("Adding gold para to corpus idx mapping into key 'map'...")
 cd_train, nf_train, pnf_train = check_beer_split(beer_train, titledict, docs)  # Counts: {'nf': 0, 'sc': 986, 'sok': 234538, 'mok': 1286, 'mc': 0, 'para_nf': 0}
 cd_dev, nf_dev, pnf_dev = check_beer_split(beer_dev, titledict, docs)  # Counts: {'nf': 0, 'sc': 81, 'sok': 22259, 'mok': 36, 'mc': 0, 'para_nf': 0}
 #  {'idx': 13991, 'title': 'What\'s It Gonna Be (H "Two" O song)'}, titledict: "what's it gonna be (h &quot;two&quot; o song)"
@@ -539,11 +547,11 @@ cd_dev, nf_dev, pnf_dev = check_beer_split(beer_dev, titledict, docs)  # Counts:
 
 
 def get_overlap(text_a, text_b, title_b, func='lcs'):
-    """ Return Longest Common Subsequence between strings text_a and text_b and text_a and title_b
+    """ Return Longest Common Subsequence, LC substr, or intersection between strings text_a and text_b and text_a and title_b
     text_a is assumed to be the query and punctuation in addition to stopwords are stripped from it following golden retriever
     text_b and title_b just has stopwords stripped from them.
     changing func-> 'lcss' returns longest common substring
-    changing func-> 'isect' returns count of intersecting terms irrespective of order
+    changing func-> 'isect' returns intersecting terms irrespective of order
     """
     text_a_toks = text_processing.word_tokenize(text_a) #nltk simple word tokenizer
     text_b_toks = text_processing.word_tokenize(text_b)
@@ -557,7 +565,7 @@ def get_overlap(text_a, text_b, title_b, func='lcs'):
     if func == 'lcs':
         tb_size, tb_lcs, _ = text_processing.LCS(ta_toks, tb_toks)
         ttlb_size, ttlb_lcs, _ = text_processing.LCS(ta_toks, ttlb_toks)
-    elif func == 'lcss':    
+    elif func == 'lcss':
         tb_size, tb_lcs, _ = text_processing.LCSubStr(ta_toks, tb_toks)
         ttlb_size, ttlb_lcs, _ = text_processing.LCSubStr(ta_toks, ttlb_toks)
     else:
@@ -589,13 +597,17 @@ def find_shortest_LCS(sample):
     
 
 def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
-    """ follow mdr paper sequencing algorithm and calculate paragraph sequencing for beerqa:
+    """ roughly follow mdr paper sequencing algorithm and calculate paragraph sequencing for beerqa:
+        Done on aggregated para if >1 para from same title 
+        if squad: 'final' key has the one title
+        if 'comparison': both titles output to 'final' key
         if 'bridge': final "bridge" para is one mentioning the answer span. 
-                     TODO if the answer span is in both, the one that has its title mentioned in the other passage is treated as the second.
-                     TODO Use bqa dev/train doc/para mappings from above
+                     if the answer span is in both, the one that has its title mentioned (via hyperlink) in the other passage is treated as the second.
+                     if answer in both but neither mentions the other, take the para with shortest LCS as 'final' (take both if equal LCS)
+                     if answer in both and both mention the other, take the para with title=answer as final if exists, otherwise take shortest LCS (or both if equal LCS)
     Merge question type and neg paras from mdr for HPQA
     Can simply concatenate paras with same title to make noisier samples or exclude paras+titles that don't contain the answer for cleaner samples
-    Nb: All squad dev have exactly 1 para but 874 squad train have 2. 
+    Nb: All squad dev have exactly 1 para but 874 squad train have 2 paras. 
     """
     nf_idx = []
     nf_mdr = []
@@ -745,7 +757,7 @@ def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
     print(f"Total BeerQA HPQA: {tot_hpqa}  Comparison: {tot_hpqa_comp}  Bridge: {tot_hpqa-tot_hpqa_comp}")
     print(f"Bridge: Single id-ed but different to MDR: {difft_mdr} Indeterminable final: {nfcnt} Total difft to MDR: {difft_mdr+nfcnt} of {tot_hpqa-tot_hpqa_comp}")    
     #DEV: Total BeerQA HPQA: 5989  Comparison: 1278  Bridge: 4711
-    #Bridge: Single id-ed but different to MDR: 284 Indeterminable final: 20 Total difft to MDR: 304 of 4711    # Single but different to MDR: 3444 Indeterminable final: 288 Total difft to MDR: 3732 of 90447
+    #Bridge: Single id-ed but different to MDR: 284 Indeterminable final: 20 Total difft to MDR: 304 of 4711    
     #TRAIN: Total BeerQA HPQA: 74758  Comparison: 15162  Bridge: 59596
     #Bridge: Single id-ed but different to MDR: 3444 Indeterminable final: 288 Total difft to MDR: 3732 of 59596
     
@@ -754,11 +766,35 @@ def add_sequencing(beer_split, mdr_split, mdr_split_q_idx, titledict, docs):
     print(f"Number of hpqa samples not matched to MDR: {len(nf_mdr)}")
     return count_dict, nf_idx, nf_mdr
 
+print("Adding paragraph sequencing info. Final para before answer step is in key 'final' ...")
 cd_dev, nf_dev, nf_mdr_dev = add_sequencing(beer_dev, mdr_dev, mdr_dev_q_idx, titledict, docs)  # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 7970, 'ans_2': 162, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 1278, 'ans_0': 0, 'ans_1': 3337, 'ans_2': 1105, 'ans_3': 267, 'ans_over_3': 2}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 8132, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0, 'got_2_anseqtitle': 0, 'got_2_shortestlcstitle': 0, 'nf_shortestlcstitle': 0}}, 'hotpotqa_unique_titles': {'comp': 1278, 'ans_0': 0, 'ans_1': 3437, 'ans_2': 1274, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 1274, 'nf': 41, 'got_1': 1076, 'got_2': 157, 'got_2_anseqtitle': 80, 'got_2_shortestlcstitle': 66, 'nf_shortestlcstitle': 32}}}
 cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_train_q_idx, titledict, docs) # Results: {'squad': {'comp': 0, 'ans_0': 0, 'ans_1': 58411, 'ans_2': 874, 'ans_3': 0, 'ans_over_3': 0}, 'hotpotqa': {'comp': 15162, 'ans_0': 0, 'ans_1': 37394, 'ans_2': 17675, 'ans_3': 4447, 'ans_over_3': 80}, 'squad_unique_titles': {'comp': 0, 'ans_0': 0, 'ans_1': 59285, 'ans_2': 0, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 0, 'nf': 0, 'got_1': 0, 'got_2': 0, 'got_2_anseqtitle': 0, 'got_2_shortestlcstitle': 0, 'nf_shortestlcstitle': 0}}, 'hotpotqa_unique_titles': {'comp': 15162, 'ans_0': 0, 'ans_1': 38745, 'ans_2': 20851, 'ans_3': 0, 'ans_over_3': 0, 'ans_2_refine': {'tot': 20851, 'nf': 510, 'got_1': 17515, 'got_2': 2826, 'got_2_anseqtitle': 1460, 'got_2_shortestlcstitle': 1166, 'nf_shortestlcstitle': 422}}}
 
-#TODO Load docs into ES
+
+# Merge paras in docs for paras that have >1 para under a title in beerqa gold paras
+
+# build dict of merges {d_idx1:[ [0,1], [2,6] ], ...}
+
+# test for conflicts 
+
+# merge paras into new_paras include adjusting hyperlinks + sentence_span offsets
+
+# remove paras with idxs in merge dict
+
+# add remaining paras -> new_paras
+
+# replace paras with new_paras
+
+# adjust beer_qa map
+
+# save new docs
+
+# save beerQA (below after cleaning up adv paras)
+
+
+# Load docs into ES
 # Note: Considered Updating hyperlinks with para_idx - as separate key - decided not to as don't have para id for test samples so no point
+print("Loading docs into Elasticsearch...")
 
 def beer_to_docs_map(beer_splits):
     """ Map beerqa train/dev samples to docs wiki paras in more convenient form
@@ -774,6 +810,7 @@ def beer_to_docs_map(beer_splits):
                 beer_map[d_idx][sample['src']].add(p_idx)
     return beer_map
 
+print("Creating beerQA to docs mapping dictionary...")
 beer_map = beer_to_docs_map(beer_splits=[beer_dev, beer_train])  # 94489 paras mapped
 
 def finalise_docs(docs, beer_map, index_name):
@@ -800,8 +837,10 @@ def finalise_docs(docs, beer_map, index_name):
             print(f"Processed: {i}")
     return final_docs
 
+print("Creating final documents in in ES format....")
 final_docs = finalise_docs(docs, beer_map, ES_INDEX)  # 35706771
 
+print("Loading into Elasticsearch...")
 client = UES.get_esclient()
 print(UES.ping_client(client))
 UES.create_index(client, UES.settings, index_name=ES_INDEX, force_reindex=True)
@@ -833,8 +872,8 @@ def get_paras(docs, d_idxs, p_idxs=[0]):
         for p_idx in p_idxs:
             if p_idx < len(docs[d_idx]['paras']) and p_idx > -1:
                 para += ' ' + docs[d_idx]['paras'][p_idx]['text']
-        paras.append( {'title': docs[d_idx]['title'], 'title_unescaped': unescape(docs[d_idx]['title']),
-                       'text': para.strip()} )
+        paras.append( {'doc_id': docs[d_idx]['id'], 'title': docs[d_idx]['title'], 'title_unescaped': unescape(docs[d_idx]['title']),
+                       'text': para.strip(), 'para_idxs': p_idxs} )
     return paras
 
 
@@ -850,7 +889,7 @@ def get_paras_es(client, index_name, d_ids, p_idxs=[0]):
     return paras                    
 
 
-def get_adv_paras(client, docs, titledict, beer_sample, index_name):
+def get_adv_paras(client, docs, titledict, beer_sample, index_name, add_p=False):
     """ Return adversarial paras for a given sample through different methods.
     """
     adv_template = {'hlink':[], 'p':[], 'q_p':[]}  # {'type': [{'doc_id': [ {},..]}, ... ] }
@@ -865,42 +904,94 @@ def get_adv_paras(client, docs, titledict, beer_sample, index_name):
     for m in beer_sample['map']:
         curr_d_idx = m['d_idx']
         curr_p_idx = m['p_idx']
-        title = docs[curr_d_idx]['title']
+        title = unescape(docs[curr_d_idx]['title'])
         if adversarial_paras.get(title) is None:
             adversarial_paras[title] = copy.deepcopy(adv_template)
         docs_linked_to_idx, docs_linked_to_id = get_hyperlinked_docs(docs, titledict, curr_d_idx=curr_d_idx, curr_p_idx=curr_p_idx, exclude=exclude_docs)
-        hlink_paras_es = get_paras_es(client, index_name, d_ids=docs_linked_to_id, p_idxs=[0]) # take 1st hyperlinked para only
-        adversarial_paras[title]['hlink'] += hlink_paras_es
+        #hlink_paras = get_paras_es(client, index_name, d_ids=docs_linked_to_id, p_idxs=[0]) # take 1st hyperlinked para only
+        hlink_paras = get_paras(docs, docs_linked_to_idx, p_idxs=[0])
+        adversarial_paras[title]['hlink'] += hlink_paras
     q_only_paras = UES.search(client, index_name, q, n_rerank=0, n_retrieval=5, filter_dic=filter_dict)    
     adversarial_paras['q_only'] = q_only_paras
     for title in beer_sample['para_agg']:
-        para = title + ' ' + ' '.join(beer_sample['para_agg'][title])
-        p_paras = UES.search(client, index_name, para, n_rerank=0, n_retrieval=5, filter_dic=filter_dict)
-        adversarial_paras[title]['p'] = p_paras
-        q_p_paras = UES.search(client, index_name, q + ' ' + para, n_rerank=0, n_retrieval=5, filter_dic=filter_dict)
-        adversarial_paras[title]['q_p'] = q_p_paras
+        para = unescape(title) + ' ' + ' '.join(beer_sample['para_agg'][title])
+        if add_p:
+            p_paras = UES.search(client, index_name, para, n_rerank=0, n_retrieval=5, filter_dic=filter_dict)
+            adversarial_paras[unescape(title)]['p'] = p_paras
+        cnt, words = get_overlap(q, para, unescape(title), func='isect')
+        if cnt > 0:
+            q_p_paras = UES.search(client, index_name, ' '.join(words), n_rerank=0, n_retrieval=5, filter_dic=filter_dict)
+            #q_p_paras = UES.search(client, index_name, q + ' ' + para, n_rerank=0, n_retrieval=5, filter_dic=filter_dict)
+            adversarial_paras[unescape(title)]['q_p'] = q_p_paras
     return adversarial_paras
     
 
-def add_adversaral_candidates(client, docs, titledict, index_name, beer_split):
+def add_adversaral_candidates(client, docs, titledict, index_name, beer_split, from_beginning=False):
     """ Add raw adversarial candidates to beer_split['neg_candidates']
+    ta_toks, ta_idx  = text_processing.filter_stopwords2(text_a_toks)
     """
     print("Adding Adversarial candidates to a split....")
+    firstone = True
     for i, beer_sample in enumerate(beer_split['data']):
-        adversarial_paras = get_adv_paras(client, docs, titledict, beer_sample, index_name)
-        beer_sample['neg_candidates'] = adversarial_paras
-        if i % 5000 == 0:
-            print(f"Procesed: {i}")
+        if from_beginning or beer_sample.get('neg_candidates') is None:
+            if firstone:
+                print(f'Starting at idx {i}')
+                firstone = False
+            adversarial_paras = get_adv_paras(client, docs, titledict, beer_sample, index_name)
+            beer_sample['neg_candidates'] = adversarial_paras
+        if not firstone and (i % 500 == 0):
+            print(f"Processed: {i}")
     print("Finished!")        
     return
 
 
+def saveas_pickle(obj, file):
+    """ Save python obj to file
+    """
+    with open(file,"wb") as fp:
+        pickle.dump(obj, fp)
+    return True
+
+
+def loadas_pickle(file):
+    """ Load python obj from pickle file
+    """
+    with open(file, 'rb') as fp:
+        obj = pickle.load(fp)
+    return obj 
+
+print("Creating adversarial negative samples for BeerQA train+dev...")
 add_adversaral_candidates(client, docs, titledict, ES_INDEX, beer_dev)
+print("Saving beer_dev to temp file '..._t1.pkl' ...")
+saveas_pickle(beer_dev, BEER_DEV + "_t1.pkl")
+
 add_adversaral_candidates(client, docs, titledict, ES_INDEX, beer_train)
+print("Saving beer_train to temp file '..._t1.pkl' ...")
+saveas_pickle(beer_train, BEER_TRAIN + "_t1.pkl")
 
 
-beer_sample = beer_dev['data'][1]
-adv_test = get_adv_paras(client, docs, titledict, beer_sample, ES_INDEX, verbose=True)
+#TODO Write out final train/dev/test files for MDR
+# write out all adv negs in groups so can play around with options later...
+# modify mdr dataset loader to incorporate options for difft adversarial configurations
+
+#TODO Write out corpus for MDR 
+# Write out corpus in jsonl format [{'title': '...', 'text': '...', 'para_id': '...'}] - NO just use saved docs file and update MDR data loading routines...
+# Then run encode_corpus.py which calls encode_datasets.py (after training mdr model) 
+#   Modify encode_datasets.py to include para_id in id2doc.json. These two .py files output id2doc.json and index.npy with id2doc.json key = '0'-based idx of corresponding embedding in index.npy
+#   Note: unescape title in encode_datasets.py load
+#   Note: MDR has 2 versions of id2doc.json format - eval_mhop_retrieval.py reformats accordingly based on form of key '0'
+
+#TODO Write out AISO train/dev/test files
+# at each step see whether mdr, hlink or GR ranks the gold para highest - need trained mdr and GR models for this...
+
+
+#  Tests...
+
+beer_sample = beer_dev['data'][0]
+
+
+
+adv_test = get_adv_paras(client, docs, titledict, beer_sample, ES_INDEX)
 
 tst = UES.search(client, ES_INDEX, "Did Aristotle use a laptop?", n_rerank=0, n_retrieval=5)
 tst = UES.search(client, ES_INDEX, "Aristotle", n_rerank=0, n_retrieval=5)
@@ -916,6 +1007,12 @@ tst_hlink_paras_es = get_paras_es(client, ES_INDEX, d_ids=docs_linked_to_id, p_i
 
 
 mdr_negs = beer_dev['data'][0]['neg_paras']
+
+cnt, words = get_overlap(q, paras[0], list(beer_dev['data'][0]['para_agg'].keys())[0], func='isect')
+tst = UES.search(client, ES_INDEX, ' '.join(words), n_rerank=0, n_retrieval=5, filter_dic={"term": {"for_hotpot": False}})
+
+cnt, words = get_overlap(q, paras[1], list(beer_dev['data'][0]['para_agg'].keys())[1], func='isect')
+tst = UES.search(client, ES_INDEX, ' '.join(words), n_rerank=0, n_retrieval=5, filter_dic={"term": {"for_hotpot": False}})
 
 
 tst = UES.search(client, ES_INDEX, q, n_rerank=0, n_retrieval=5)
@@ -934,10 +1031,6 @@ tst = UES.search(client, ES_INDEX, 'Eschscholzia californica', fields=['title'],
 tst = UES.exec_query(client, ES_INDEX, dsl=UES.term_query('para_id', '494525_25')) # works
 
 
-#TODO Write out final train/dev/test files for MDR
-#TODO Write out corpus for MDR
-#TODO Write out AISO corpus with para idxs added to hyperlinks
-#TODO Write out AISO train/dev/test files
 
 
 

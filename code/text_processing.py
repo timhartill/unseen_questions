@@ -648,6 +648,8 @@ def filter_stopwords2(text):
     """ t, i = filter_stopwords2(["The", "rain", "in", "Spain", "."]) -> t=['The', 'rain', 'Spain'], i=[0, 1, 3]
     """
     res = [(x, i) for i, x in enumerate(text) if not x in STOPWORDS2]
+    if len(res) == 0:
+        return [], []
     return map(list, zip(*res))
 
 
