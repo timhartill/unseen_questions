@@ -61,6 +61,7 @@ import pickle
 
 import text_processing
 import utils_elasticsearch as UES
+import utils
 
 ####### MDR:
 #import utils #Duplicate "utils" with AISO so must run MDR and AISO portions separately from different working directories
@@ -96,79 +97,7 @@ MDR_DEV = '/data/thar011/gitrepos/compgen_mdr/data/hotpot/hotpot_dev_with_neg_v0
 MDR_TRAIN = '/data/thar011/gitrepos/compgen_mdr/data/hotpot/hotpot_train_with_neg_v0.json'
 
 ES_INDEX = 'enwiki-20200801-paras-v1'
-
-
-
-
 #tstfile = '/AA/wiki_00.bz2'
-
-def saveas_json(obj, file, mode="w", indent=5, add_nl=False):
-    """ Save python object as json to file
-    default mode w = overwrite file
-            mode a = append to file
-    indent = None: all json on one line
-                0: pretty print with newlines between keys
-                1+: pretty print with that indent level
-    add_nl = True: Add a newline before outputting json. ie if mode=a typically indent=None and add_nl=True   
-    Example For outputting .jsonl (note first line doesn't add a newline before):
-        saveas_json(pararules_sample, DATA_DIR+'test_output.jsonl', mode='a', indent=None, add_nl=False)
-        saveas_json(pararules_sample, DATA_DIR+'test_output.jsonl', mode='a', indent=None, add_nl=True)
-          
-    """
-    with open(file, mode) as fp:
-        if add_nl:
-            fp.write('\n')
-        json.dump(obj, fp, indent=indent)
-    return True    
-
-
-def saveas_jsonl(obj_list, file, initial_mode = 'w', verbose=True, update=5000):
-    """ Save a list of json msgs as a .jsonl file of form:
-        {json msg 1}
-        {json msg 2}
-        ...
-        To overwrite exiting file use default initial_mode = 'w'. 
-        To append to existing file set initial_mode = 'a'
-    """
-    if initial_mode == 'w':
-        if verbose:
-            print('Creating new file:', file)
-        add_nl = False
-    else:
-        if verbose:
-            print('Appending to file:', file)
-        add_nl = True
-    mode = initial_mode
-    for i, json_obj in enumerate(obj_list):
-            saveas_json(json_obj, file, mode=mode, indent=None, add_nl=add_nl)
-            add_nl = True
-            mode = 'a'
-            if verbose:
-                if i > 0 and i % update == 0:
-                    print('Processed:', i)
-    if verbose:
-        print('Finished adding to:', file)        
-    return True
-
-
-def load_jsonl(file, verbose=True):
-    """ Load a list of json msgs from a file formatted as 
-           {json msg 1}
-           {json msg 2}
-           ...
-    """
-    if verbose:
-        print('Loading json file: ', file)
-    with open(file, "r") as f:
-        all_json_list = f.read()
-    all_json_list = all_json_list.split('\n')
-    num_jsons = len(all_json_list)
-    if verbose:
-        print('JSON as text successfully loaded. Number of json messages in file is ', num_jsons)
-    all_json_list = [json.loads(j) for j in all_json_list if j.strip() != '']
-    if verbose:
-        print('Text successfully converted to JSON.')
-    return all_json_list
 
 
 def load_bz2_to_jsonl(infile, delkeys = ['offsets', 'offsets_with_links', 'url'], verbose=False):
@@ -432,8 +361,8 @@ print("Removing tabs and deleting hyperlinks key in favor of 'hyperlinks_cased'.
 cleanup(docs) # replace \t in para text (just in case there were any) and del hyperlinks key
 
 print("Saving docs and titledict to json files ...")
-saveas_json(docs, BEER_WIKI_SAVE, indent=None)
-saveas_json(titledict, BEER_TITLE_SAVE, indent=None)
+utils.saveas_json(docs, BEER_WIKI_SAVE, indent=None)
+utils.saveas_json(titledict, BEER_TITLE_SAVE, indent=None)
 already_saved_docs = True
 
 #output AISO corpus file
@@ -455,8 +384,8 @@ already_saved_docs = True
 # do paras in BeerQa samples match corpus paras? YES but some bqa paras are substrings and/or difft casing and/or difft strip to corpus paras
 
 print("Loading MDR train+dev files to get hpqa question types...")
-mdr_dev = load_jsonl(MDR_DEV)  # obtain hpqa question type and neg paras (for comparison) from mdr (could get question type from hpqa but easier to get it here since we are already loading neg paras...) 
-mdr_train = load_jsonl(MDR_TRAIN)
+mdr_dev = utils.load_jsonl(MDR_DEV)  # obtain hpqa question type and neg paras (for comparison) from mdr (could get question type from hpqa but easier to get it here since we are already loading neg paras...) 
+mdr_train = utils.load_jsonl(MDR_TRAIN)
 mdr_dev_q_idx = {m['question'].strip().lower():i for i, m in enumerate(mdr_dev)}
 mdr_train_q_idx = {m['question'].strip().lower():i for i, m in enumerate(mdr_train)}
 
@@ -487,7 +416,7 @@ print(beer_dev['data'][0]) # {'id': 'b3d50a40b29d4283609de1d3f426aebce198a0b2', 
 
 
 def match_para(para, doc_idx, docs, preproc=True):
-    """ Attempt to match a sample paragraph with a particular paragraph in a corpus doc with title "title".
+    """ Attempt to match a sample paragraph with a particular paragraph in a corpus doc already identified with doc_idx.
     Return idx of matching para in [paras] or -1
     """
     if doc_idx == -1:
@@ -506,8 +435,8 @@ def match_para(para, doc_idx, docs, preproc=True):
     return p_idx       
     
 
-def check_beer_split(beer_split, titledict, docs):
-    """ Check that title casing is correct for all samples ... """
+def check_beer_split(beer_split, titledict, docs, updatekey='map'):
+    """ Check that title casing is correct for all samples and map sample gold paras to corpus paras... """
     count_dict = {'nf':0, 'sc':0, 'sok':0, 'mok':0, 'mc':0, 'para_nf': 0}
     nf_list = []
     pnf_list = []
@@ -523,7 +452,7 @@ def check_beer_split(beer_split, titledict, docs):
             if p_idx == -1:
                 count_dict['para_nf'] += 1
                 pnf_list.append( {'q_idx':i, 'q_para': para, 'd_idx': d_idx} )
-        sample['map'] = para_match
+        sample[updatekey] = para_match
         if i % 50000 == 0:
             print(f"Processed: {i}  {count_dict}")
     print(f"Counts: {count_dict}")
@@ -773,9 +702,103 @@ cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_tra
 
 # Merge paras in docs for paras that have >1 para under a title in beerqa gold paras
 
-# build dict of merges {d_idx1:[ [0,1], [2,6] ], ...}
+def build_para_merges(beer_dev, beer_train, verbose = True):
+    """ build dict of merges {d_idx1:[ [0,1], [2,6] ], ...}
+    """
+    merge_dict = {}
+    multi_merge_list = [] #15607 entries of which 208 docs have multiple merges from 509 total train+dev samples
+    for j, beer_split in enumerate([beer_dev, beer_train]):
+        for i, beer_sample in enumerate(beer_split['data']):
+            map_dict = {}
+            for m in beer_sample['map']:
+                if map_dict.get( m['d_idx'] ) is None:
+                    map_dict[m['d_idx']] = [ m['p_idx'] ]
+                else:
+                    map_dict[m['d_idx']].append( m['p_idx'] )
+            for d_idx in map_dict.keys():
+                if len(map_dict[d_idx]) > 1:
+                    merges = sorted(map_dict[d_idx])  
+                    if verbose and len(merges) > 2:
+                        print(f"Split:{j} qidx:{i} More than 2 paras to be merged in {d_idx}: {merges}")  # never happens
+                    if merges[0] != merges[1]:  # occasionally two gold paras actually map to the same corpus para to begin with so no merge needed
+                        if merge_dict.get(d_idx) is None:
+                            merge_dict[d_idx] = [ merges ]
+                        elif merges not in merge_dict[d_idx]:
+                            merge_dict[d_idx].append( merges )
+                            multi_merge_list.append( {'split':j, 'qidx': i, 'd_idx': d_idx, 'merges': merges, 'sample': beer_sample} ) # 509 total = 81 beer_dev (all squad) + 428 beer_train (410 squad, 18 hpqa)
+                            #if verbose:
+                            #    print(f"Split:{j} qidx:{i} Multiple merges in {d_idx}: {merge_dict[d_idx]}")
+    
+    samepara = 0
+    contiguous = 0
+    oneinbetween = 0
+    over1inbetween = 0
+    totalmerges = 0
+    for d_idx in merge_dict.keys():
+        totalmerges += len(merge_dict[d_idx])
+        for merge_pair in merge_dict[d_idx]:
+            diff = merge_pair[1] - merge_pair[0]
+            if diff == 0:
+                samepara += 1
+            elif diff == 1:
+                contiguous += 1
+            elif diff == 2:
+                oneinbetween += 1
+            if diff > 2:
+                print(f"Non-contiguous paras with diff > 2 ({diff}) to be merged in {d_idx}: {merge_pair}")
+                over1inbetween += 1
+    print(f"Total merges: {totalmerges}  Same para: {samepara}  Contiguous: {contiguous}  One Para In between: {oneinbetween}  More: {over1inbetween}")
+    # Total merges: 16007  Same para: 0  Contiguous: 15925  One Para In between: 79  More: 3
+    return merge_dict, multi_merge_list
 
-# test for conflicts 
+print("Building dict of paras to merge together...")
+merge_dict, multi_merge_list = build_para_merges(beer_dev, beer_train, verbose = True)
+
+
+def remove_conflicts(merge_dict):
+    """ Test for conflicts and remove them.
+        Remove one of the merge items that conflict with each other preferring to remove highest para first.
+    """
+    merge_dict_without_conflicts = {}
+    conflicts_dict = {}
+    totconflicts = 0
+    totok = 0
+    for d_idx in merge_dict.keys():
+        new_merges = []
+        conflicts = []
+        curr_merges = sorted(merge_dict[d_idx])  #, reverse=True)
+        check_idxs = set()
+        for i, merge_pair in enumerate(curr_merges):
+            #check_idxs = set(utils.flatten(curr_merges[i+1:]))
+            if merge_pair[0] not in check_idxs and merge_pair[1] not in check_idxs:
+                new_merges.append(merge_pair)
+            else:
+                conflicts.append(merge_pair)
+            check_idxs.add(merge_pair[0])
+            check_idxs.add(merge_pair[1])
+        if len(new_merges) > 0:
+            totok += len(new_merges)
+            merge_dict_without_conflicts[d_idx] = sorted(new_merges) 
+        if len(conflicts) > 0:
+            totconflicts += len(conflicts)
+            conflicts_dict[d_idx] = sorted(conflicts)
+    for d_idx in conflicts_dict:  # conflict pair removed because of another pair also removed can be added back
+        curr_merges = sorted(conflicts_dict[d_idx], reverse=True)
+        for i, merge_pair in enumerate(curr_merges):
+            check_idxs = set(utils.flatten(merge_dict_without_conflicts[d_idx]))
+            if merge_pair[0] not in check_idxs and merge_pair[1] not in check_idxs:
+                merge_dict_without_conflicts[d_idx].append(merge_pair)
+                conflicts_dict[d_idx].remove(merge_pair)
+                totconflicts -= 1
+                totok += 1
+        
+    print(f"Docs w/conflicts: {len(conflicts_dict)} conflicts:{totconflicts}  Docs with remaining merges: {len(merge_dict_without_conflicts)} Remaining merges: {totok}")
+    # Docs w/conflicts: 29 conflicts:32  Docs with remaining merges: 15508 Remaining merges: 15975
+    return merge_dict_without_conflicts, conflicts_dict
+
+print("Removing conflicts from para merge list...")
+merge_dict_without_conflicts, conflicts_dict = remove_conflicts(merge_dict)
+
 
 # merge paras into new_paras include adjusting hyperlinks + sentence_span offsets
 
@@ -785,7 +808,7 @@ cd_train, nf_train, nf_mdr_train = add_sequencing(beer_train, mdr_train, mdr_tra
 
 # replace paras with new_paras
 
-# adjust beer_qa map
+# adjust beer_qa map s.t each sample gold para maps to a title and single para idx (how to deal with removed conflicts?)
 
 # save new docs
 
@@ -945,37 +968,24 @@ def add_adversaral_candidates(client, docs, titledict, index_name, beer_split, f
     return
 
 
-def saveas_pickle(obj, file):
-    """ Save python obj to file
-    """
-    with open(file,"wb") as fp:
-        pickle.dump(obj, fp)
-    return True
-
-
-def loadas_pickle(file):
-    """ Load python obj from pickle file
-    """
-    with open(file, 'rb') as fp:
-        obj = pickle.load(fp)
-    return obj 
-
 print("Creating adversarial negative samples for BeerQA train+dev...")
 add_adversaral_candidates(client, docs, titledict, ES_INDEX, beer_dev)
 print("Saving beer_dev to temp file '..._t1.pkl' ...")
-saveas_pickle(beer_dev, BEER_DEV + "_t1.pkl")
+utils.saveas_pickle(beer_dev, BEER_DEV + "_t1.pkl")
 
 add_adversaral_candidates(client, docs, titledict, ES_INDEX, beer_train)
 print("Saving beer_train to temp file '..._t1.pkl' ...")
-saveas_pickle(beer_train, BEER_TRAIN + "_t1.pkl")
+utils.saveas_pickle(beer_train, BEER_TRAIN + "_t1.pkl")
+
+#tst = loadas_pickle(BEER_DEV + "_t1.pkl")
 
 
 #TODO Write out final train/dev/test files for MDR
-# write out all adv negs in groups so can play around with options later...
+# write out all adv negs in groups (after dedup) so can play around with options later...
 # modify mdr dataset loader to incorporate options for difft adversarial configurations
 
 #TODO Write out corpus for MDR 
-# Write out corpus in jsonl format [{'title': '...', 'text': '...', 'para_id': '...'}] - NO just use saved docs file and update MDR data loading routines...
+# Write out corpus in jsonl format [{'title': '...', 'text': '...', 'para_id': '...'}] - NO just save updated docs file and update MDR data loading routines...
 # Then run encode_corpus.py which calls encode_datasets.py (after training mdr model) 
 #   Modify encode_datasets.py to include para_id in id2doc.json. These two .py files output id2doc.json and index.npy with id2doc.json key = '0'-based idx of corresponding embedding in index.npy
 #   Note: unescape title in encode_datasets.py load
@@ -1177,99 +1187,6 @@ count_hpqa(mdr_train)   # Results: {'tot': 90447, 'br': 72991, 'comp': 17456, 'y
 
     
 
-
-
-#### AISO dev/train exploration
-
-
-#NOTE: AISO removes invalid links in transition_dataset.py so not doing it here
-#TODO check any other text cleanup AISO probably does...  
-
-#TODO How to tell if AISO train/dev jsonl titles maps to this corpus?? - load and compare...
-
-# working dir /data/thar011/gitrepos/AISO
-import utils.data_utils
-
-corpus, title2id = utils.data_utils.load_corpus(AISO_FILE, for_hotpot=True, require_hyperlinks=True)
-corpus['12_0']  
-# {'title': 'Anarchism', 'text': 'Anarchism is a political philosophy that advocates self-governed societies based on voluntary institutions. These are often described as stateless societies, although several authors have defined them more specifically as institutions based on non-hierarchical free associations. Anarchism holds the state to be undesirable, unnecessary and harmful.',
-# 'sentence_spans': [(0, 107), (107, 279), (279, 349)],
-# 'hyperlinks': {'Political philosophy': [(15, 35)],  'Self-governance': [(51, 64)],  'Stateless society': [(137, 156)],  'Hierarchy': [(248, 260)],  'Free association (communism and anarchism)': [(261, 278)],  'State (polity)': [(300, 305)]}}
-title2id['Anarchism'] # '12_0'
-
-title2id['Stateless society']
-title2id['Political philosophy']
-
-len(title2id)  # 5233235
-
-#tlower = list(title2id.keys())
-#tlower = [t.lower() for t in tlower]
-#print(f"correct Len:{len(title2id)}  LOWER len:{len(set(tlower))}")  # correct Len:5233235  LOWER len:5230617
-
-def check_match(corpus, title2id, sample, verbose=False):
-    """ Check AISO question title and id links match corpus
-    {'_id': '5a8b57f25542995d1e6f1371', 'question': 'Were Scott Derrickson and Ed Wood of the same nationality?', 'answer': 'yes',
-     'sp_facts': {'Scott Derrickson': [0], 'Ed Wood': [0]},
-     'hard_negs': ['528464_0',  '39514096_0',  '22418962_0',  '7102461_0',  '3745444_0',  '41668588_0',  '18110_0',  '36528221_0',  '2571604_0',  '27306717_0'],
-     'hn_scores': [0.0018630551639944315,  0.0005404593539424241,  0.000537772080861032,  0.0005160804139450192,  0.0005122957518324256,  0.0005065873847343028,  0.0005059774266555905,  0.0004960809019394219,  0.0004910272546112537,  0.0004873361031059176],
-     'state2action': {'initial': {'query': 'Scott Derrickson',  'action': 'MDR',
-                                   'sp_ranks': {'BM25': {'2816539_0': 0, '10520_0': 2000},
-                                                'BM25+Link': {'2816539_0': 1, '10520_0': 2000},
-                                                'MDR': {'2816539_0': 1, '10520_0': 0},
-                                                'MDR+Link': {'2816539_0': 2000, '10520_0': 34}}},
-                      'Scott Derrickson': {'query': 'Ed Wood',   'action': 'BM25',   'sp2_ranks': {'BM25': 0, 'BM25+Link': 1, 'MDR': 0, 'MDR+Link': 53}},
-                      'Ed Wood': {'query': 'Ed Wood',   'action': 'MDR',   'sp2_ranks': {'BM25': 2000,    'BM25+Link': 2000,    'MDR': 0,    'MDR+Link': 2000}}}}
-    """
-    sp_facts_bad = []
-    for k in sample['sp_facts'].keys():
-        if title2id.get(k) is None:
-            sp_facts_bad.append(k)
-            if verbose:
-                print(f"{sample['_id']}: sp_facts: Can't find: {k}")
-    hard_negs_bad = []
-    for n in sample['hard_negs']:
-        if corpus.get(n) is None:
-            hard_negs_bad.append(n)
-            if verbose:
-                print(f"{sample['_id']}: hard_negs: Can't find: {n}")
-    s2a_bad = {}
-    for k in sample['state2action']['initial']['sp_ranks'].keys():
-        s2a_bad[k] = []
-        for n in sample['state2action']['initial']['sp_ranks'][k].keys(): 
-            if corpus.get(n) is None:
-                s2a_bad[k].append(n)
-                if verbose:
-                    print(f"{sample['_id']}: state2action initial {k}: Can't find: {n}")
-    out = {'sp_facts_bad':sp_facts_bad, 'hard_negs_bad': hard_negs_bad, 's2a_bad': s2a_bad}
-    return out
-
-
-def check_all(corpus, title2id, hpqa_split, verbose=True):
-    log = []
-    sp_facts_count = 0
-    hn_count = 0
-    s2a_count = {'BM25':0, 'BM25+Link':0, 'MDR':0, 'MDR+Link':0}
-    for s in hpqa_split:
-        log.append( check_match(corpus, title2id, s, verbose=verbose) )
-        if len(log[-1]['sp_facts_bad']) > 0:
-            sp_facts_count += 1
-        if len(log[-1]['hard_negs_bad']) > 0:
-            hn_count += 1
-        for k in ['BM25', 'BM25+Link', 'MDR', 'MDR+Link']:
-            if len(log[-1]['s2a_bad'][k]) > 0:
-                s2a_count[k] += 1
-            
-    print(f"Finished: Total:{len(log)}  Bad sp_facts:{sp_facts_count}  Bad hn: {hn_count}  Bad s2a initial: {s2a_count}") 
-    return log
-
-
-
-aiso_dev = load_jsonl(AISO_DEV)
-#check_match(corpus, title2id, aiso_dev[1119], verbose=True)
-log_dev = check_all(corpus, title2id, aiso_dev, verbose=False)  # Finished: Total:7405  Bad sp_facts:0  Bad hn: 134  Bad s2a initial: {'BM25': 11, 'BM25+Link': 11, 'MDR': 11, 'MDR+Link': 11}
-
-aiso_train = load_jsonl(AISO_TRAIN)
-log_train = check_all(corpus, title2id, aiso_train, verbose=False)  # Finished: Total:90447  Bad sp_facts:0  Bad hn: 1766  Bad s2a initial: {'BM25': 123, 'BM25+Link': 123, 'MDR': 123, 'MDR+Link': 123}
 
 
 
