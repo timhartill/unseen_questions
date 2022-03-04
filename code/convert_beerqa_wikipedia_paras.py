@@ -935,6 +935,7 @@ utils.saveas_json(docs, BEER_WIKI_SAVE_WITHMERGES, indent=None)
 # save beerQA (below after cleaning up adv paras)
 
 
+
 # Load docs into ES
 # Note: Considered Updating hyperlinks with para_idx - as separate key - decided not to as don't have para id for test samples so no point
 print("Loading docs into Elasticsearch...")
@@ -945,7 +946,7 @@ def beer_to_docs_map(beer_splits, titledict):
     beer_map = {}
     for beer_split in beer_splits:
         for i, sample in enumerate(beer_split['data']):
-            for title in sample['para_agg_map']:
+            for title in sample['para_agg_map'].keys():
                 new_title, status, d_idx = map_title_case(title, titledict)
                 p_idx = sample['para_agg_map'][title]
             #for m in sample['map']:
@@ -957,7 +958,7 @@ def beer_to_docs_map(beer_splits, titledict):
     return beer_map
 
 print("Creating beerQA to docs mapping dictionary...")
-beer_map = beer_to_docs_map(beer_splits=[beer_dev, beer_train])  # 94489 paras mapped
+beer_map = beer_to_docs_map(beer_splits=[beer_dev, beer_train], titledict=titledict)  # 94489 paras mapped
 
 def finalise_docs(docs, beer_map, index_name):
     """ docs preprocessing into ES format """
@@ -984,14 +985,14 @@ def finalise_docs(docs, beer_map, index_name):
     return final_docs
 
 print("Creating final documents in in ES format....")
-final_docs = finalise_docs(docs, beer_map, ES_INDEX)  # 35706771
+final_docs = finalise_docs(docs, beer_map, ES_INDEX)  # 35690828 (orig 35706771)
 
 print("Loading into Elasticsearch...")
 client = UES.get_esclient()
 print(UES.ping_client(client))
 UES.create_index(client, UES.settings, index_name=ES_INDEX, force_reindex=True)
 UES.index_by_chunk(client, final_docs, chunksize=500)
-
+#UES.index_stats(client, index_name=ES_INDEX) # 35690828
 
 #TODO Add adversarial negatives
 
@@ -1161,7 +1162,7 @@ tst = UES.search(client, ES_INDEX, q + ' ' + paras[0], n_rerank=0, n_retrieval=5
 tst = UES.search(client, ES_INDEX, '494525_25', fields=['para_id', 'doc_id'], n_rerank=0, n_retrieval=5) # works
 tst = UES.search(client, ES_INDEX, 'Eschscholzia californica', fields=['title'], n_rerank=0, n_retrieval=5) # works
 
-tst = UES.exec_query(client, ES_INDEX, dsl=UES.term_query('para_id', '494525_25')) # works
+tst = UES.search(client, ES_INDEX, 'Eschscholzia', n_rerank=0, n_retrieval=5, filter_dic={"term": {"for_hotpot": True}})
 
 
 
