@@ -81,7 +81,7 @@ import utils
 #datatest = [json.loads(l) for l in open(os.path.join(OUTDIR, 'hpqa_abstracts_tim.jsonl')).readlines()]
 
 
-###### AISO
+###### 
 #INDIR_BASE = '/data/thar011/gitrepos/compgen_mdr/data/hpqa_raw_tim/enwiki-20171001-pages-meta-current-withlinks-abstracts'
 INDIR_BASE = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-tokenized'
 #AISO_FILE = '/data/thar011/gitrepos/AISO/data/corpus/hotpot-paragraph.strict.tjh_v2.tsv'
@@ -89,6 +89,7 @@ INDIR_BASE = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-tokenized
 #AISO_TRAIN = '/data/thar011/gitrepos/AISO/data/hotpot-step-train.strict.refined.jsonl'
 AISO_FILE = '/data/thar011/gitrepos/AISO/data/corpus/beer_v1.tsv'
 BEER_WIKI_SAVE = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen.json'
+BEER_WIKI_SAVE_WITHMERGES = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.json'
 BEER_TITLE_SAVE = '/home/thar011/data/beerqa/enwiki-20200801-titledict-compgen.json'
 BEER_DEV = '/home/thar011/data/beerqa/beerqa_dev_v1.0.json'
 BEER_TRAIN = '/home/thar011/data/beerqa/beerqa_train_v1.0.json'
@@ -796,21 +797,140 @@ def remove_conflicts(merge_dict):
     # Docs w/conflicts: 29 conflicts:32  Docs with remaining merges: 15508 Remaining merges: 15975
     return merge_dict_without_conflicts, conflicts_dict
 
-print("Removing conflicts from para merge list...")
+print("Identifying conflicts in para merge list...")
 merge_dict_without_conflicts, conflicts_dict = remove_conflicts(merge_dict)
 
 
 # merge paras into new_paras include adjusting hyperlinks + sentence_span offsets
+def merge_two_paras( para1, para2):
+    """ Merge para2 into para1 """
+    m_text = copy.deepcopy(para1['text']) + ' '
+    m_offset = len(m_text)
+    m_text += para2['text']
+    m_ss = copy.deepcopy(para1['sentence_spans'])
+    for s,e in para2['sentence_spans']:
+        m_ss.append( [s+m_offset, e+m_offset] )
+    m_hl = copy.deepcopy(para1['hyperlinks_cased'])
+    for hlink in para2['hyperlinks_cased']:
+        hrec = copy.deepcopy(para2['hyperlinks_cased'][hlink])
+        for h in hrec:
+            h['span'][0] += m_offset
+            h['span'][1] += m_offset
+        if m_hl.get(hlink) is None:
+            m_hl[hlink] = hrec
+        else:
+            m_hl[hlink].extend(hrec)
+    return {'text': m_text, 'sentence_spans': m_ss, 'hyperlinks_cased': m_hl}
+    
 
-# remove paras with idxs in merge dict
+def merge_paras(docs, merge_dict_without_conflicts, conflicts_dict):
+    """ Merge paras in docs occuring in merge_dict_without_conflicts, conflicts_dict
+    Save into new keys ['m_paras'] and ['m_conflicts'] respectively (which only exist for docs with merges).
+    keys are ['text', 'sentence_spans', 'hyperlinks_cased'] (no 'pid' as wasnt used)
+    """
+    for d_idx in merge_dict_without_conflicts.keys():
+        m_paras = []
+        merges = {m[0]:m[1] for m in merge_dict_without_conflicts[d_idx]}
+        been_merged = set()
+        for i, para in enumerate(docs[d_idx]['paras']):
+            if merges.get(i) is not None:
+                pidx2 = merges[i]
+                m_paras.append( merge_two_paras(para, docs[d_idx]['paras'][pidx2]) )
+                been_merged.add(i)
+                been_merged.add(pidx2)
+            elif i not in been_merged:
+                m_paras.append( {'text': para['text'], 'sentence_spans': para['sentence_spans'], 'hyperlinks_cased':para['hyperlinks_cased']} )
+        docs[d_idx]['m_paras'] = m_paras
+        
+    for d_idx in conflicts_dict.keys():
+        m_paras = []
+        merges = {m[0]:m[1] for m in conflicts_dict[d_idx]}
+        for i, para in enumerate(docs[d_idx]['paras']):
+            if merges.get(i) is not None:
+                pidx2 = merges[i]
+                m_paras.append( merge_two_paras(para, docs[d_idx]['paras'][pidx2]) )
+        docs[d_idx]['m_conflicts'] = m_paras
+    return        
 
-# add remaining paras -> new_paras
+print("Merging paras into new docs keys 'm_paras' and 'm_conflicts'...")
+merge_paras(docs, merge_dict_without_conflicts, conflicts_dict)
 
-# replace paras with new_paras
+# replace original paras with new_paras + conflict_paras (and copy orig paras to "orig_paras")
 
-# adjust beer_qa map s.t each sample gold para maps to a title and single para idx (how to deal with removed conflicts?)
+def replace_paras_with_new(docs):
+    """ replace original paras with new_paras + conflict_paras (and copy orig paras to "orig_paras") """
+    for i, doc in enumerate(docs):
+        if doc.get('m_paras') is not None:
+            doc['orig_paras'] = copy.deepcopy(doc['paras'])
+            doc['paras'] = copy.deepcopy(doc['m_paras'])
+            if doc.get('m_conflicts') is not None:
+                doc['paras'].extend(doc['m_conflicts'])
+            del doc['m_paras']
+        if i % 50000 == 0:
+            print(f"Processed: {i}")
+    return
 
-# save new docs
+print("Replacing paras with merged paras...")
+replace_paras_with_new(docs)
+
+
+# adjust beer_qa map s.t each sample gold para maps to a title and single para idx 
+def match_agg_paras(para_agg, doc_idx, docs, preproc=True):
+    """ Attempt to match a sample paragraph (list of gold paras) with a particular paragraph in a corpus doc already identified with doc_idx.
+    Return idx of matching para in [paras] or -1
+    """
+    if doc_idx == -1:
+        return -1
+    if preproc:
+        para_agg = [para.strip().lower() for para in para_agg]
+    p_idx = -1
+    for i, p in enumerate(docs[doc_idx]['paras']):
+        if preproc:
+            ptext = p['text'].strip().lower()
+        else:
+            ptext = p['text']
+        found_all = True    
+        for j, para in enumerate(para_agg):    
+            if not para in ptext: 
+                found_all=False
+                break
+        if found_all:
+            p_idx = i
+            break
+    return p_idx       
+    
+
+def check_beer_split_agg(beer_split, titledict, docs, updatekey='para_agg_map'):
+    """ map aggregated gold paras to corpus paras... """
+    count_dict = {'nf':0, 'sc':0, 'sok':0, 'mok':0, 'mc':0, 'para_nf': 0}
+    nf_list = []
+    pnf_list = []
+    for i, sample in enumerate(beer_split['data']):
+        para_match = {}
+        for title in sample['para_agg']:
+            new_title, status, d_idx = map_title_case(title, titledict)
+            count_dict[status] += 1
+            if status == 'nf':
+                nf_list.append( {'q_idx': i, 'title': title} )
+            p_idx = match_agg_paras(sample['para_agg'][title], d_idx, docs, preproc=True)
+            para_match[title] = p_idx  
+            if p_idx == -1:
+                count_dict['para_nf'] += 1
+                pnf_list.append( {'q_idx':i, 'q_para': sample['para_agg'][title], 'd_idx': d_idx} )
+        sample[updatekey] = para_match
+        if i % 50000 == 0:
+            print(f"Processed: {i}  {count_dict}")
+    print(f"Counts: {count_dict}")
+    return count_dict, nf_list, pnf_list
+
+count_dev, nf_dev, pnf_dev = check_beer_split_agg(beer_dev, titledict, docs, updatekey='para_agg_map') # Counts: {'nf': 0, 'sc': 70, 'sok': 20010, 'mok': 30, 'mc': 0, 'para_nf': 0}
+count_train, nf_train, pnf_train = check_beer_split_agg(beer_train, titledict, docs, updatekey='para_agg_map') # Counts: {'nf': 0, 'sc': 854, 'sok': 206733, 'mok': 1214, 'mc': 0, 'para_nf': 0}
+
+# save new docs 
+print("Saving docs with merged paras to json file ...")
+utils.saveas_json(docs, BEER_WIKI_SAVE_WITHMERGES, indent=None)
+
+# save updated ES index
 
 # save beerQA (below after cleaning up adv paras)
 
@@ -819,15 +939,18 @@ merge_dict_without_conflicts, conflicts_dict = remove_conflicts(merge_dict)
 # Note: Considered Updating hyperlinks with para_idx - as separate key - decided not to as don't have para id for test samples so no point
 print("Loading docs into Elasticsearch...")
 
-def beer_to_docs_map(beer_splits):
+def beer_to_docs_map(beer_splits, titledict):
     """ Map beerqa train/dev samples to docs wiki paras in more convenient form
     """
     beer_map = {}
     for beer_split in beer_splits:
         for i, sample in enumerate(beer_split['data']):
-            for m in sample['map']:
-                d_idx = m['d_idx']  # Note d_idx is docs idx not wiki id
-                p_idx = m['p_idx']
+            for title in sample['para_agg_map']:
+                new_title, status, d_idx = map_title_case(title, titledict)
+                p_idx = sample['para_agg_map'][title]
+            #for m in sample['map']:
+            #    d_idx = m['d_idx']  # Note d_idx is docs idx not wiki id
+            #    p_idx = m['p_idx']
                 if beer_map.get(d_idx) is None:
                     beer_map[d_idx] = {'hotpotqa': set(), 'squad':set()}
                 beer_map[d_idx][sample['src']].add(p_idx)
