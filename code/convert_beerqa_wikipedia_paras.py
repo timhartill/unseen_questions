@@ -58,6 +58,7 @@ from urllib.parse import unquote, quote  #convert percent encoding eg %28%20%29 
 from html import unescape, escape
 import copy
 import pickle
+import random
 
 import text_processing
 import utils_elasticsearch as UES
@@ -96,6 +97,10 @@ BEER_TRAIN = '/home/thar011/data/beerqa/beerqa_train_v1.0.json'
 
 MDR_DEV = '/data/thar011/gitrepos/compgen_mdr/data/hotpot/hotpot_dev_with_neg_v0.json'
 MDR_TRAIN = '/data/thar011/gitrepos/compgen_mdr/data/hotpot/hotpot_train_with_neg_v0.json'
+
+BEER_DENSE_TRAIN = '/home/thar011/data/beerqa/beerqa_train_v1.0_with_neg_v0.jsonl'
+BEER_DENSE_DEV = '/home/thar011/data/beerqa/beerqa_dev_v1.0_with_neg_v0.jsonl'
+
 
 ES_INDEX = 'enwiki-20200801-paras-v1'
 #tstfile = '/AA/wiki_00.bz2'
@@ -923,17 +928,18 @@ def check_beer_split_agg(beer_split, titledict, docs, updatekey='para_agg_map'):
     print(f"Counts: {count_dict}")
     return count_dict, nf_list, pnf_list
 
+print("Mapping aggregated gold paras to corpus...")
 count_dev, nf_dev, pnf_dev = check_beer_split_agg(beer_dev, titledict, docs, updatekey='para_agg_map') # Counts: {'nf': 0, 'sc': 70, 'sok': 20010, 'mok': 30, 'mc': 0, 'para_nf': 0}
 count_train, nf_train, pnf_train = check_beer_split_agg(beer_train, titledict, docs, updatekey='para_agg_map') # Counts: {'nf': 0, 'sc': 854, 'sok': 206733, 'mok': 1214, 'mc': 0, 'para_nf': 0}
 
-# save new docs 
+
+print("Removing docs with empty paras from disambiguation pages etc...") # remove disambiguation pages etc
+docs = [d for d in docs if len(d['paras']) > 0]  # 6133150 -> 5801916 docs
+
+
+# save new docs file with merges 
 print("Saving docs with merged paras to json file ...")
 utils.saveas_json(docs, BEER_WIKI_SAVE_WITHMERGES, indent=None)
-
-# save updated ES index
-
-# save beerQA (below after cleaning up adv paras)
-
 
 
 # Load docs into ES
@@ -964,7 +970,7 @@ def finalise_docs(docs, beer_map, index_name):
     """ docs preprocessing into ES format """
     final_docs = []
     for i, doc in enumerate(docs):
-        for j, para in enumerate(doc['paras']):  # make paras 0 based and contiguous
+        for j, para in enumerate(doc['paras']):  # make paras 0 based and contiguous. Note: also skips empty paras from disambiguation pages
             newid = doc['id'] + '_' + str(j)
             for_hp = False
             for_squad = False
@@ -994,7 +1000,8 @@ UES.create_index(client, UES.settings, index_name=ES_INDEX, force_reindex=True)
 UES.index_by_chunk(client, final_docs, chunksize=500)
 #UES.index_stats(client, index_name=ES_INDEX) # 35690828
 
-#TODO Add adversarial negatives
+
+# Add adversarial negatives
 
 
 def get_hyperlinked_docs(docs, titledict, curr_d_idx, curr_p_idx, exclude=set()):
@@ -1039,7 +1046,7 @@ def get_paras_es(client, index_name, d_ids, p_idxs=[0]):
 def get_adv_paras(client, docs, titledict, beer_sample, index_name, add_p=False):
     """ Return adversarial paras for a given sample through different methods.
     """
-    adv_template = {'hlink':[], 'p':[], 'q_p':[]}  # {'type': [{'doc_id': [ {},..]}, ... ] }
+    adv_template = {'hlink':[], 'p':[], 'q_p':[]}  #'p' unused
     adversarial_paras = {} # {'title': adv_template}
     if beer_sample['src'] == 'hotpotqa':
         filter_dict = {"term": {"for_hotpot": False}}
@@ -1105,7 +1112,94 @@ utils.saveas_pickle(beer_train, BEER_TRAIN + "_t1.pkl")
 
 
 #TODO Write out final train/dev/test files for MDR
-# write out all adv negs in groups (after dedup) so can play around with options later...
+# write out all adv negs in groups (after dedup and removal of neg text containing the answer) so can play around with options later...
+def consolidate_negs(beer_split):
+    """ Consolidate negatives from difft categories keys: 'q_only', 'title1'->hlink, 'title1'->'q_p', title2...
+        into 'neg_paras_final' key (not mdr 'neg_paras' earlier loaded for comparison) format:
+            [{'title': 'unesc title', 'text': '...', 'src': 'qoqphlrd'}, ...]        
+    """
+    for beer_sample in beer_split['data']:
+        txt_lookup = {}
+        ans = beer_sample['answers'][0].strip().lower()
+        if ans in ['yes', 'no'] and beer_sample['src'] == 'hotpotqa':
+            ans = None
+            
+        for neg_cand in beer_sample['neg_candidates']['q_only']:
+            txt = neg_cand['_source']['text']
+            txt_lower = txt.lower()
+            if ans is None or ans not in txt_lower:
+                if txt_lookup.get(txt_lower) is None:
+                    txt_lookup[txt_lower] = {'title': neg_cand['_source']['title_unescaped'], 'text': txt, 'src':'qo'}
+                    
+        for k in beer_sample['neg_candidates']:  # 'q_only', 'title1', (title2])
+            if k == 'q_only':
+                continue
+            for neg_cand in beer_sample['neg_candidates'][k]['q_p']:
+                txt = neg_cand['_source']['text']
+                txt_lower = txt.lower()
+                if ans is None or ans not in txt_lower:
+                    if txt_lookup.get(txt_lower) is None:
+                        txt_lookup[txt_lower] = {'title': neg_cand['_source']['title_unescaped'], 'text': txt, 'src':'qp'}
+                    elif 'qp' not in txt_lookup[txt_lower]['src']:
+                        txt_lookup[txt_lower]['src'] += 'qp'
+                        
+            for neg_cand in beer_sample['neg_candidates'][k]['hlink']:
+                txt = neg_cand['text']
+                txt_lower = txt.lower()
+                if ans is None or ans not in txt_lower:
+                    if txt_lookup.get(txt_lower) is None:
+                        txt_lookup[txt_lower] = {'title': neg_cand['title_unescaped'], 'text': txt, 'src':'hl'}
+                    elif 'hl' not in txt_lookup[txt_lower]['src']:
+                        txt_lookup[txt_lower]['src'] += 'hl'
+                        
+        if len(txt_lookup) < 10:  #about 1500 of 14k dev samples have < 10 samples - top them up to 10 with random samples
+            for i in range(10-len(txt_lookup)):
+                rand_doc = random.choice(docs)
+                txt = rand_doc['paras'][0]['text']
+                txt_lower = txt.lower()
+                txt_lookup[txt_lower] = {'title': unescape(rand_doc['title']), 'text': txt, 'src':'rd'}
+                    
+        beer_sample['neg_paras_final'] = [txt_lookup[k] for k in txt_lookup]
+    return
+
+
+random.seed(42)
+print("Consolidating adversarial negatives for dev...")
+consolidate_negs(beer_dev) # min 0, max 27
+print("Consolidating adversarial negatives for train...")
+consolidate_negs(beer_train)            
+
+print("Saving beer_dev with all keys to file '..._final.pkl' ...")
+utils.saveas_pickle(beer_dev, BEER_DEV + "_final.pkl")
+print("Saving beer_train with all keys to file '..._final.pkl' ...")
+utils.saveas_pickle(beer_train, BEER_TRAIN + "_final.pkl")
+
+
+def output_dense_train_format(beer_split, outfile):
+    """ Output dense train/dev files to outfile in jsonl format:
+        [{'question':'question..', 'answers': ['answer'], 'id': 'qid', 
+          'type':'comparison/bridge/blankforsquad', src:'hotpotqa/squad', 'para_agg_map': {'title': pidx},
+          'bridge': [1 or both titles assumed final before answer], 
+          'pos_paras': [{'title': 'unesc title', 'text': ' '.join(['the text 1', 'the text 2']}), ..]},
+          'neg_paras': [{'title': 'unesc title', 'text': '...', 'src': 'qoqphl'}, ...]  }, ... ]
+    """
+    print("Processing beer split...")
+    beer_out = []
+    for beer_sample in beer_split['data']:
+        pos_paras = [{'title':p, 'text': ' '.join(beer_sample['para_agg'][p])} for p in beer_sample['para_agg'] ]
+        outsample = {'question': beer_sample['question'], 'answers': beer_sample['answers'], 'id': beer_sample['id'],
+                     'type': beer_sample['type'], 'src': beer_sample['src'], 'para_agg_map': beer_sample['para_agg_map'],
+                     'bridge': beer_sample['final'], 'pos_paras': pos_paras, 'neg_paras': beer_sample['neg_paras_final'] }
+        beer_out.append( outsample )
+    print(f"Saving {len(beer_out)} samples to {outfile}...")
+    utils.saveas_jsonl(beer_out, outfile)
+    print("Finished!")
+    return
+
+output_dense_train_format(beer_dev, outfile=BEER_DENSE_DEV)
+output_dense_train_format(beer_train, outfile=BEER_DENSE_TRAIN)
+
+
 # modify mdr dataset loader to incorporate options for difft adversarial configurations
 
 #TODO Write out corpus for MDR 
@@ -1120,7 +1214,7 @@ utils.saveas_pickle(beer_train, BEER_TRAIN + "_t1.pkl")
 
 
 #  Tests...
-
+'''
 beer_sample = beer_dev['data'][0]
 
 
@@ -1309,7 +1403,7 @@ count_hpqa(mdr_dev)     # Results: {'tot': 7405, 'br': 5918, 'comp': 1487, 'yn':
 count_hpqa(mdr_train)   # Results: {'tot': 90447, 'br': 72991, 'comp': 17456, 'yn': 5481, 'extractans': 84966, 'br_yn': 0, 'comp_yn': 5481}
 
 
-    
+'''    
 
 
 
