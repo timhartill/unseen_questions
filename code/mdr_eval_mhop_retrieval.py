@@ -165,7 +165,7 @@ if __name__ == '__main__':
             batch_q = questions[b_start:b_start + args.batch_size]
             batch_ann = ds_items[b_start:b_start + args.batch_size]
             bsize = len(batch_q)
-
+            #TJH for ['a','b','c'] get: {'input_ids': [[0, 102, 2, 1, 1, 1, 1, 1], [0, 428, 2, 1, 1, 1, 1, 1], [0, 438, 2, 1, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0]]}
             batch_q_encodes = tokenizer.batch_encode_plus(batch_q, max_length=args.max_q_len, pad_to_max_length=True, return_tensors="pt")
             batch_q_encodes = move_to_cuda(dict(batch_q_encodes))
             q_embeds = model.encode_q(batch_q_encodes["input_ids"], batch_q_encodes["attention_mask"], batch_q_encodes.get("token_type_ids", None))
