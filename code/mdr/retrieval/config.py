@@ -65,6 +65,10 @@ def common_args():
 
     # NQ multihop trial
     parser.add_argument("--nq-multi", action="store_true", help="train the NQ retrieval model to recover from error cases")
+    
+    #TJH Added
+    parser.add_argument("--use_var_versions", action="store_true", help="Use the generic variable step '..._var' versions.")
+    
 
     return parser
 

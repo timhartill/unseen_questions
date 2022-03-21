@@ -64,9 +64,9 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer,
                           get_linear_schedule_with_warmup)
 
 from mdr.retrieval.config import train_args
-from mdr.retrieval.criterions import (mhop_eval, mhop_loss)
-from mdr.retrieval.data.mhop_dataset import MhopDataset, mhop_collate
-from mdr.retrieval.models.mhop_retriever import RobertaRetriever
+from mdr.retrieval.criterions import (mhop_eval, mhop_loss, mhop_loss_var)
+from mdr.retrieval.data.mhop_dataset import MhopDataset, mhop_collate, MhopDataset_var, mhop_collate_var
+from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriever_var, RobertaMomentumRetriever_var
 from mdr.retrieval.utils.utils import AverageMeter, move_to_cuda, load_saved
 
 
@@ -117,19 +117,23 @@ def main():
         torch.cuda.manual_seed_all(args.seed)
 
     bert_config = AutoConfig.from_pretrained(args.model_name)
-
-    model = RobertaRetriever(bert_config, args)
-
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    collate_fc = partial(mhop_collate, pad_id=tokenizer.pad_token_id)
+    
+    if args.use_var_versions:
+        model = RobertaRetriever_var(bert_config, args)
+        eval_dataset = MhopDataset_var(tokenizer, args.predict_file, args.max_q_len, args.max_q_sp_len, args.max_c_len)
+        collate_fc = partial(mhop_collate_var, pad_id=tokenizer.pad_token_id)
+    else:    
+        model = RobertaRetriever(bert_config, args)
+        collate_fc = partial(mhop_collate, pad_id=tokenizer.pad_token_id)
+        eval_dataset = MhopDataset(tokenizer, args.predict_file, args.max_q_len, args.max_q_sp_len, args.max_c_len)
+
     if args.do_train and args.max_c_len > bert_config.max_position_embeddings:
         raise ValueError(
             "Cannot use sequence length %d because the BERT model "
             "was only trained up to sequence length %d" %
             (args.max_c_len, bert_config.max_position_embeddings))
 
-    eval_dataset = MhopDataset(
-        tokenizer, args.predict_file, args.max_q_len, args.max_q_sp_len, args.max_c_len)
     eval_dataloader = DataLoader(
         eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True, num_workers=args.num_workers)
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
@@ -172,7 +176,12 @@ def main():
         best_mrr = 0
         train_loss_meter = AverageMeter()
         model.train()
-        train_dataset = MhopDataset(tokenizer, args.train_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=True)
+        if args.use_var_versions:
+            train_dataset = MhopDataset_var(tokenizer, args.train_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=True)
+            mloss = mhop_loss_var
+        else:
+            train_dataset = MhopDataset(tokenizer, args.train_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=True)
+            mloss = mhop_loss
         train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size, pin_memory=True, collate_fn=collate_fc, num_workers=args.num_workers, shuffle=True)
 
         t_total = len(train_dataloader) // args.gradient_accumulation_steps * args.num_train_epochs
@@ -187,7 +196,7 @@ def main():
                 #TJH batch = next(iter(train_dataloader))
                 batch_step += 1
                 batch = move_to_cuda(batch)
-                loss = mhop_loss(model, batch, args)
+                loss = mloss(model, batch, args)
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
 

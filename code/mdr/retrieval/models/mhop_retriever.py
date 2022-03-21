@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
+# Portions Copyright (c) Facebook, Inc. and its affiliates.
 # All rights reserved.
 #
 # This source code is licensed under the license found in the 
@@ -7,6 +7,141 @@ from torch import embedding
 from transformers import AutoModel
 import torch.nn as nn
 import torch
+
+
+class RobertaRetriever_var(nn.Module):
+    """ Version that works with mhop_loss_var(), MhopDataset_var & mhop_collate_var()
+    """
+    def __init__(self,
+                 config,
+                 args
+                 ):
+        super().__init__()
+
+        self.encoder = AutoModel.from_pretrained(args.model_name)
+        self.project = nn.Sequential(nn.Linear(config.hidden_size, config.hidden_size), nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps))
+
+    def encode_seq(self, input_ids, mask):
+        cls_rep = self.encoder(input_ids, mask)[0][:, 0, :]
+        vector = self.project(cls_rep)
+        return vector
+
+    def forward(self, batch):
+        
+        if batch.get('act_hops') is None:
+            batch['act_hops'] = []
+        
+        q_encoded = []
+        for q_input_ids, q_mask in zip(batch['q_input_ids'], batch['q_mask']):
+            q_encoded.append(self.encode_seq(q_input_ids, q_mask))
+
+        c_encoded = []
+        for c_input_ids, c_mask in zip(batch['c_input_ids'], batch['c_mask']):
+            c_encoded.append(self.encode_seq(c_input_ids, c_mask))
+        
+        n_encoded = []
+        for n_input_ids, n_mask in zip(batch['neg_input_ids'], batch['neg_mask']):
+            n_encoded.append(self.encode_seq(n_input_ids, n_mask))
+
+        vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded, 'act_hops': batch['act_hops']} # each except act_hops a list of tensors [bs, hidden_size]
+        return vectors
+
+    def encode_q(self, input_ids, q_mask, q_type_ids):
+        return self.encode_seq(input_ids, q_mask)
+
+
+class RobertaMomentumRetriever_var(nn.Module):
+
+    def __init__(self,
+                 config,
+                 args
+                 ):
+        super().__init__()
+
+        self.encoder_q = RobertaRetriever_var(config, args)
+        self.encoder_k = RobertaRetriever_var(config, args)
+
+        if args.init_retriever != "":
+            print(f"Load pretrained retriever from {args.init_retriever}")
+            self.load_retriever(args.init_retriever)
+
+        for param_q, param_k in zip(self.encoder_q.parameters(), self.encoder_k.parameters()):
+            param_k.data.copy_(param_q.data)  # initialize
+            param_k.requires_grad = False  # not update by gradient
+
+        self.k = args.k
+        self.m = args.m
+        self.register_buffer("queue", torch.randn(self.k, config.hidden_size))  #TJH git example k = 76800 - bs should be divisable by k
+        # add layernorm?
+        self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
+
+    def load_retriever(self, path):
+        state_dict = torch.load(path)
+        def filter(x): return x[7:] if x.startswith('module.') else x
+        state_dict = {filter(k): v for (k, v) in state_dict.items() if filter(k) in self.encoder_q.state_dict()}
+        self.encoder_q.load_state_dict(state_dict)
+        return
+
+    @torch.no_grad()
+    def momentum_update_key_encoder(self):
+        """
+        Momentum update of the key encoder
+        """
+        for param_q, param_k in zip(self.encoder_q.parameters(), self.encoder_k.parameters()):
+            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
+
+    @torch.no_grad()
+    def dequeue_and_enqueue(self, embeddings):
+        """ TJH: embeddings = all_ctx: [bs * max_hops, hs]
+        memory bank of previous context embeddings, c1 and c2
+        """
+        # gather keys before updating queue
+        batch_size = embeddings.shape[0]  #bs * max_hops
+        ptr = int(self.queue_ptr)
+        if ptr + batch_size > self.k:
+            batch_size = self.k - ptr
+            embeddings = embeddings[:batch_size]
+
+        # replace the keys at ptr (dequeue and enqueue)
+        self.queue[ptr:ptr + batch_size, :] = embeddings
+
+        ptr = (ptr + batch_size) % self.k  # move pointer
+        self.queue_ptr[0] = ptr
+        return
+
+
+    def forward(self, batch):
+
+        if batch.get('act_hops') is None:
+            batch['act_hops'] = []
+        
+        q_encoded = []
+        for q_input_ids, q_mask in zip(batch['q_input_ids'], batch['q_mask']):
+            q_encoded.append(self.encoder_q.encode_seq(q_input_ids, q_mask))
+
+
+        if self.training:
+            with torch.no_grad():
+                c_encoded = []
+                for c_input_ids, c_mask in zip(batch['c_input_ids'], batch['c_mask']):
+                    c_encoded.append(self.encoder_k.encode_seq(c_input_ids, c_mask))
+                
+                n_encoded = []
+                for n_input_ids, n_mask in zip(batch['neg_input_ids'], batch['neg_mask']):
+                    n_encoded.append(self.encoder_k.encode_seq(n_input_ids, n_mask))
+        else:
+            # whether to use the momentum encoder for inference
+            c_encoded = []
+            for c_input_ids, c_mask in zip(batch['c_input_ids'], batch['c_mask']):
+                c_encoded.append(self.encoder_k.encode_seq(c_input_ids, c_mask))
+            
+            n_encoded = []
+            for n_input_ids, n_mask in zip(batch['neg_input_ids'], batch['neg_mask']):
+                n_encoded.append(self.encoder_k.encode_seq(n_input_ids, n_mask))
+
+        
+        vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded, 'act_hops': batch['act_hops']} # each except act_hops a list of tensors [bs, hidden_size]
+        return vectors
 
 
 class RobertaRetriever(nn.Module):

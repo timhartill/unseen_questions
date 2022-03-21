@@ -7,7 +7,7 @@
 """
 Processed BeerQA sample:
 
-{"question": "Which genus contains more species, Ortegocactus or Eschscholzia?", 
+sample = {"question": "Which genus contains more species, Ortegocactus or Eschscholzia?", 
  "answers": ["Eschscholzia"], 
  "id": "b3d50a40b29d4283609de1d3f426aebce198a0b2", 
  "type": "comparison", 
@@ -40,12 +40,122 @@ Note2 MDR qa model has BCE loss on linear off 1st token for rank score
 
 
 """
-
+import torch
 from torch.utils.data import Dataset
 import json
 import random
 
-from .data_utils import collate_tokens
+from data_utils import collate_tokens
+
+
+class MhopDataset_var(Dataset):
+    """ Version of MhopDataset descigned to work with mhop_loss_var
+    output: {'q': [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spx], 'c': [sp1, sp2, .., spx], "neg": [neg1, neg2, ... negn], "act_hops":sample#hops} 
+    """
+
+    def __init__(self, tokenizer, data_path, max_q_len, max_q_sp_len, max_c_len, train=False, negs=2,):
+        super().__init__()
+        self.tokenizer = tokenizer
+        self.max_q_len = max_q_len
+        self.max_c_len = max_c_len
+        self.max_q_sp_len = max_q_sp_len
+        self.train = train
+        self.data_path = data_path
+        self.negs = negs
+        print(f"Loading data from {data_path}")
+        self.data = [json.loads(line) for line in open(data_path).readlines()]
+        if train: 
+            self.data = [_ for _ in self.data if len(_["neg_paras"]) >= 2]
+        print(f"Total sample count {len(self.data)}")
+
+    def encode_para(self, para, max_len):
+        return self.tokenizer.encode_plus(para["title"].strip(), text_pair=para["text"].strip(), max_length=max_len, return_tensors="pt")
+    
+    def __getitem__(self, index):
+        sample = self.data[index]
+        question = sample['question']
+        if question.endswith("?"):
+            question = question[:-1]
+        num_hops = 2    
+        if sample["type"] == "comparison":
+            random.shuffle(sample["pos_paras"])
+            start_para, bridge_para = sample["pos_paras"]
+        elif sample["type"] == "bridge":
+            if len(sample["bridge"]) > 1:  #preprocessing couldn't identify unique final para
+                random.shuffle(sample["bridge"])
+            for para in sample["pos_paras"]:
+                if para["title"] != sample["bridge"][0]:
+                    start_para = para
+                else:
+                    bridge_para = para
+        elif sample["type"].strip() == '': #single hop ie squad
+            num_hops = 1
+            start_para = sample["pos_paras"][0]
+            if len(sample["neg_paras"]) > 0:
+                bridge_para = random.choice(sample["neg_paras"]) # not used as positive
+            else:
+                bridge_para = {"title": "dummy", "text": "dummy"}
+        else:
+            assert False, f"ERROR in Dataset: file:{self.data_path} index: {index}. Invalid type: {sample['type']}"
+            
+        if self.train:
+            random.shuffle(sample["neg_paras"])
+
+        start_para_codes = self.encode_para(start_para, self.max_c_len)
+        bridge_para_codes = self.encode_para(bridge_para, self.max_c_len)
+        neg_list = []
+        for i in range(self.negs):
+            neg_list.append( self.encode_para(sample["neg_paras"][i], self.max_c_len) )
+
+        #TJH: tokenizer.encode_plus(['a','b'], max_length=8) = same as 'text_pair' form: {'input_ids': [0, 102, 2, 2, 428, 2], 'attention_mask': [1, 1, 1, 1, 1, 1]}
+        #TJH: tokenizer.encode_plus(['a','b', 'c'], max_length=8): ERROR
+        #TJH: tokenizer.encode_plus('</s></s>'.join(['a', 'b','c']), max_length=16) correct but watch len of each: {'input_ids': [0, 102, 2, 2, 428, 2, 2, 438, 2], 'attention_mask': [1, 1, 1, 1, 1, 1, 1, 1, 1]}
+        #TJH Note for squad q_sp_codes is a dummy filler
+        q_sp_codes = self.tokenizer.encode_plus(question, text_pair=start_para["text"].strip(), max_length=self.max_q_sp_len, return_tensors="pt")  #TJH: for q = 'a', text_pair='b': {'input_ids': [0, 102, 2, 2, 428, 2], 'attention_mask': [1, 1, 1, 1, 1, 1]}
+        q_codes = self.tokenizer.encode_plus(question, max_length=self.max_q_len, return_tensors="pt") #TJH: for q = 'a': {'input_ids': [0, 102, 2], 'attention_mask': [1, 1, 1]}
+
+        return {
+                "q": [q_codes, q_sp_codes],                 # [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spx]
+                "c": [start_para_codes, bridge_para_codes], # [sp1, sp2, .., spx]
+                "neg": neg_list,                            # [neg1, neg2, ... negn]
+                "act_hops": num_hops                        # sample #hops
+                }
+
+    def __len__(self):
+        return len(self.data)
+
+
+def mhop_collate_var(samples, pad_id=0):
+    """ Collate variable step version: 
+        e.g. samples[i]['q']: [ [tensor[1,2,3], tensor[1,2], tensor[1,2]], .. ] -> [ tensor[[1,2,3], [1,2,0], [1,2,0]], .. ]
+
+    NOTE:pad_id was not used in original mhop_collate - should be but _mask should still use 0...        
+    """
+    if len(samples) == 0:
+        return {}
+    max_hops = len(samples[0]['q'])
+    num_negs = len(samples[0]['neg'])
+    batch = {
+            'q_input_ids': [collate_tokens([s["q"][i]["input_ids"] for s in samples], pad_id) for i in range(max_hops)],
+            'q_mask': [collate_tokens([s["q"][i]["attention_mask"] for s in samples], 0) for i in range(max_hops)],
+
+            'c_input_ids': [collate_tokens([s["c"][i]["input_ids"] for s in samples], pad_id) for i in range(max_hops)],
+            'c_mask': [collate_tokens([s["c"][i]["attention_mask"] for s in samples], 0) for i in range(max_hops)],
+
+            'neg_input_ids': [collate_tokens([s["neg"][i]["input_ids"] for s in samples], pad_id) for i in range(len(samples[0]['neg']))],
+            'neg_mask': [collate_tokens([s["neg"][i]["attention_mask"] for s in samples], 0) for i in range(num_negs)],
+
+            'act_hops': [s["act_hops"] for s in samples],
+        }
+
+    if "token_type_ids" in samples[0]["q"][0]:
+        batch.update({
+            'q_type_ids': [collate_tokens([s["q"][i]["token_type_ids"] for s in samples], 0) for i in range(max_hops)],
+            'c_type_ids': [collate_tokens([s["c"][i]["token_type_ids"] for s in samples], 0) for i in range(max_hops)],
+            'neg_type_ids': [collate_tokens([s["neg"][i]["token_type_ids"] for s in samples], 0) for i in range(num_negs)],
+        })
+
+    return batch
 
 
 
@@ -122,6 +232,7 @@ class MhopDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+    
 
 def mhop_collate(samples, pad_id=0):
     if len(samples) == 0:
