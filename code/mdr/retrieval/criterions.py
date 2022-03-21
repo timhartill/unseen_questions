@@ -127,20 +127,42 @@ def mhop_eval_var(outputs, args):
 
 #    target_1_hop = torch.arange(outputs["q"].size(0)).to(outputs["q"].device)
 #    target_2_hop = torch.arange(outputs["q"].size(0)).to(outputs["q"].device) + outputs["q"].size(0)
+# TEST SETUP #####
+#    scores_all_hops = torch.randn(bs, max_hops, (bs*max_hops) + 2).to(dev)
+#    scores_1_hop = scores_all_hops[:,0]
+#    scores_2_hop = scores_all_hops[:,1]
+#    target_2_hop = torch.arange(bs).to(dev) + bs
+#    act_hops = [1,2,2]
+##############
+    
     target_1_hop = torch.arange(bs).to(dev)
     all_targets_all_hops = torch.cat([target_1_hop.unsqueeze(1) + (i*bs) for i in range(max_hops) ], dim=1) # [bs, max_hops] Target "next para" idx.
 
-    ranked_1_hop = scores_1_hop.argsort(dim=1, descending=True) # [bs, bs*2+2]
-    ranked_2_hop = scores_2_hop.argsort(dim=1, descending=True)
-    idx2ranked_1 = ranked_1_hop.argsort(dim=1)                  # # [bs, bs*2+2]
-    idx2ranked_2 = ranked_2_hop.argsort(dim=1)
-    rrs_1, rrs_2 = [], []
-    for t, idx2ranked in zip(target_1_hop, idx2ranked_1):
-        rrs_1.append(1 / (idx2ranked[t].item() + 1))
-    for t, idx2ranked in zip(target_2_hop, idx2ranked_2):
-        rrs_2.append(1 / (idx2ranked[t].item() + 1))
+    ranked_all_hops = scores_all_hops.argsort(dim=2, descending=True)  #[bs, #qs, bs*#c + #negs]
+    idx_2ranked_all = ranked_all_hops.argsort(dim=2)
+    rrs = {}
+    for curr_hop in range(max_hops):
+        rrs[curr_hop+1] = []
+        for t, idx2ranked in zip(all_targets_all_hops[:,curr_hop], idx_2ranked_all[:,curr_hop,:]): 
+            if curr_hop+1 <= act_hops[t % bs]: 
+                #print(f"hop: {curr_hop+1}: {t}: {idx2ranked[t].item() + 1}")    #Matches hop1/hop2 below..
+                rrs[curr_hop+1].append( 1 / (idx2ranked[t].item() + 1) )
+
+    return rrs
+#    ranked_1_hop = scores_1_hop.argsort(dim=1, descending=True) # [bs, bs*2+2] indices of sorted desc paras
+#    ranked_2_hop = scores_2_hop.argsort(dim=1, descending=True)
+#    idx2ranked_1 = ranked_1_hop.argsort(dim=1)                  # # [bs, bs*2+2] sorted asc indices of sorted desc indices
+#    idx2ranked_2 = ranked_2_hop.argsort(dim=1)
+
+#    rrs_1, rrs_2 = [], []
+#    for t, idx2ranked in zip(target_1_hop, idx2ranked_1):
+#        rrs_1.append(1 / (idx2ranked[t].item() + 1)) #reciprocal rank of target para
+#        print(f"hop1: {t}: {idx2ranked[t].item() + 1}")
+#    for t, idx2ranked in zip(target_2_hop, idx2ranked_2):
+#        rrs_2.append(1 / (idx2ranked[t].item() + 1))
+#        print(f"hop2: {t}: {idx2ranked[t].item() + 1}")
     
-    return {"rrs_1": rrs_1, "rrs_2": rrs_2}
+#    return {"rrs_1": rrs_1, "rrs_2": rrs_2}
 
 
 def mhop_loss(model, batch, args):

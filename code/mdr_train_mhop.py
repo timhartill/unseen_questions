@@ -64,7 +64,7 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer,
                           get_linear_schedule_with_warmup)
 
 from mdr.retrieval.config import train_args
-from mdr.retrieval.criterions import (mhop_eval, mhop_loss, mhop_loss_var)
+from mdr.retrieval.criterions import (mhop_eval, mhop_loss, mhop_loss_var, mhop_eval_var)
 from mdr.retrieval.data.mhop_dataset import MhopDataset, mhop_collate, MhopDataset_var, mhop_collate_var
 from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriever_var, RobertaMomentumRetriever_var
 from mdr.retrieval.utils.utils import AverageMeter, move_to_cuda, load_saved
@@ -260,23 +260,37 @@ def main():
         logger.info(f"test performance {acc}")
 
 def predict(args, model, eval_dataloader, device, logger):
+    if args.use_var_versions:
+        eval_func = mhop_eval_var
+    else:
+        eval_func = mhop_eval
     model.eval()
-    rrs_1, rrs_2 = [], [] # reciprocal rank
+    #rrs_1, rrs_2 = [], [] # reciprocal rank
+    rrs_all = {} # reciprocal rank
     for batch in tqdm(eval_dataloader):
         batch_to_feed = move_to_cuda(batch)
         with torch.no_grad():
             outputs = model(batch_to_feed)
-            eval_results = mhop_eval(outputs, args)
-            _rrs_1, _rrs_2 = eval_results["rrs_1"], eval_results["rrs_2"]
-            rrs_1 += _rrs_1
-            rrs_2 += _rrs_2
-    mrr_1 = np.mean(rrs_1)
-    mrr_2 = np.mean(rrs_2)
-    logger.info(f"evaluated {len(rrs_1)} examples...")
-    logger.info(f'MRR-1: {mrr_1}')
-    logger.info(f'MRR-2: {mrr_2}')
+            eval_results = eval_func(outputs, args)  # eg rrs={1: [1.0, 0.125, 0.2], 2: [0.125, 0.5], 3: []}
+            for hop in eval_results:
+                if rrs_all.get(hop) is None:
+                    rrs_all[hop] = []
+                rrs_all[hop] += eval_results[hop]
+#            _rrs_1, _rrs_2 = eval_results["rrs_1"], eval_results["rrs_2"]
+#            rrs_1 += _rrs_1
+#            rrs_2 += _rrs_2
+    mrrs_all = {hop:np.mean(rrs_all[hop]) for hop in rrs_all if len(rrs_all[hop]) > 0}
+    mrr_avg = np.mean([mrrs_all[hop] for hop in mrrs_all])
+    mrrs_all["mrr_avg"] = mrr_avg
+#    mrr_1 = np.mean(rrs_1)
+#    mrr_2 = np.mean(rrs_2)
+    logger.info(f"evaluated {len(rrs_all[1])} examples...")
+    logger.info(f"MRRS: {mrrs_all}...")
+#    logger.info(f'MRR-1: {mrr_1}')
+#    logger.info(f'MRR-2: {mrr_2}')
     model.train()
-    return {"mrr_1": mrr_1, "mrr_2": mrr_2, "mrr_avg": (mrr_1 + mrr_2) / 2}
+#    return {"mrr_1": mrr_1, "mrr_2": mrr_2, "mrr_avg": (mrr_1 + mrr_2) / 2}
+    return mrrs_all
 
 
 if __name__ == "__main__":
