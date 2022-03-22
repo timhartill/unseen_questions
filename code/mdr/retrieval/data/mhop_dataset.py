@@ -45,7 +45,7 @@ from torch.utils.data import Dataset
 import json
 import random
 
-from data_utils import collate_tokens
+from .data_utils import collate_tokens
 
 
 class MhopDataset_var(Dataset):
@@ -68,11 +68,15 @@ class MhopDataset_var(Dataset):
             self.data = [_ for _ in self.data if len(_["neg_paras"]) >= 2]
         print(f"Total sample count {len(self.data)}")
 
-    def encode_para(self, para, max_len):
-        return self.tokenizer.encode_plus(para["title"].strip(), text_pair=para["text"].strip(), max_length=max_len, return_tensors="pt")
+    def encode_para(self, para, max_len): #TJH Added truncation=True to eliminate warning - alternates removal of a token from each seq in the pair to get down to max_len
+        return self.tokenizer.encode_plus(para["title"].strip(), text_pair=para["text"].strip(), max_length=max_len, truncation=True, return_tensors="pt")
     
     def __getitem__(self, index):
         sample = self.data[index]
+        if sample.get('src') is None: #if no src key assume this is MDR-formatted HPQA data and reformat
+            if sample.get('bridge') is not None:
+                sample['bridge'] = [ sample['bridge'] ]
+            
         question = sample['question']
         if question.endswith("?"):
             question = question[:-1]
@@ -111,14 +115,14 @@ class MhopDataset_var(Dataset):
         #TJH: tokenizer.encode_plus(['a','b', 'c'], max_length=8): ERROR
         #TJH: tokenizer.encode_plus('</s></s>'.join(['a', 'b','c']), max_length=16) correct but watch len of each: {'input_ids': [0, 102, 2, 2, 428, 2, 2, 438, 2], 'attention_mask': [1, 1, 1, 1, 1, 1, 1, 1, 1]}
         #TJH Note for squad q_sp_codes is a dummy filler
-        q_sp_codes = self.tokenizer.encode_plus(question, text_pair=start_para["text"].strip(), max_length=self.max_q_sp_len, return_tensors="pt")  #TJH: for q = 'a', text_pair='b': {'input_ids': [0, 102, 2, 2, 428, 2], 'attention_mask': [1, 1, 1, 1, 1, 1]}
-        q_codes = self.tokenizer.encode_plus(question, max_length=self.max_q_len, return_tensors="pt") #TJH: for q = 'a': {'input_ids': [0, 102, 2], 'attention_mask': [1, 1, 1]}
+        q_sp_codes = self.tokenizer.encode_plus(question, text_pair=start_para["text"].strip(), max_length=self.max_q_sp_len, truncation=True, return_tensors="pt")  #TJH: for q = 'a', text_pair='b': {'input_ids': [0, 102, 2, 2, 428, 2], 'attention_mask': [1, 1, 1, 1, 1, 1]}
+        q_codes = self.tokenizer.encode_plus(question, max_length=self.max_q_len, truncation=True, return_tensors="pt") #TJH: for q = 'a': {'input_ids': [0, 102, 2], 'attention_mask': [1, 1, 1]}
 
         return {
                 "q": [q_codes, q_sp_codes],                 # [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spx]
                 "c": [start_para_codes, bridge_para_codes], # [sp1, sp2, .., spx]
                 "neg": neg_list,                            # [neg1, neg2, ... negn]
-                "act_hops": num_hops                        # sample #hops
+                "act_hops": torch.LongTensor([num_hops])    # sample #hops
                 }
 
     def __len__(self):
@@ -145,7 +149,7 @@ def mhop_collate_var(samples, pad_id=0):
             'neg_input_ids': [collate_tokens([s["neg"][i]["input_ids"] for s in samples], pad_id) for i in range(len(samples[0]['neg']))],
             'neg_mask': [collate_tokens([s["neg"][i]["attention_mask"] for s in samples], 0) for i in range(num_negs)],
 
-            'act_hops': [s["act_hops"] for s in samples],
+            'act_hops': collate_tokens([s["act_hops"] for s in samples], 0), #[s["act_hops"] for s in samples],
         }
 
     if "token_type_ids" in samples[0]["q"][0]:

@@ -28,8 +28,8 @@ class RobertaRetriever_var(nn.Module):
 
     def forward(self, batch):
         
-        if batch.get('act_hops') is None:
-            batch['act_hops'] = []
+        #if batch.get('act_hops') is None:
+        #    batch['act_hops'] = []
         
         q_encoded = []
         for q_input_ids, q_mask in zip(batch['q_input_ids'], batch['q_mask']):
@@ -43,6 +43,7 @@ class RobertaRetriever_var(nn.Module):
         for n_input_ids, n_mask in zip(batch['neg_input_ids'], batch['neg_mask']):
             n_encoded.append(self.encode_seq(n_input_ids, n_mask))
 
+        #vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded} # each except act_hops a list of tensors [bs, hidden_size]
         vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded, 'act_hops': batch['act_hops']} # each except act_hops a list of tensors [bs, hidden_size]
         return vectors
 

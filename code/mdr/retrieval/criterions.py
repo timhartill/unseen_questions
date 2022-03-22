@@ -28,7 +28,7 @@ def mhop_loss_var(model, batch, args):
     #loss_fct = CrossEntropyLoss(ignore_index=-100)
     bs = outputs['q'][0].size(0)
     dev = outputs['q'][0].device
-    act_hops = outputs['act_hops']   # [bs] Actual # steps per sample
+    act_hops = outputs['act_hops'].squeeze(-1)   # [bs] Actual # steps per sample
     max_hops = len(outputs['c'])  # outputs["c"] should be padded to max_hops with neg paras in samples with act_hops < max_hops steps
     all_ctx = torch.cat([c for c in outputs['c']], dim=0) # [bs * max_hops, hs]
     neg_ctx = torch.cat([neg.unsqueeze(1) for neg in outputs['neg']], dim=1) # [bs, #negs, hs]
@@ -87,7 +87,7 @@ def mhop_eval_var(outputs, args):
     
     bs = outputs['q'][0].size(0)
     dev = outputs['q'][0].device
-    act_hops = outputs['act_hops']   # [bs] Actual # steps per sample
+    act_hops = outputs['act_hops'].squeeze(-1)   # [bs] Actual # steps per sample
     max_hops = len(outputs['c'])  # outputs["c"] should be padded to max_hops with neg paras in samples with act_hops < max_hops steps
     all_ctx = torch.cat([c for c in outputs['c']], dim=0) # [bs * max_hops, hs]
     neg_ctx = torch.cat([neg.unsqueeze(1) for neg in outputs['neg']], dim=1) # [bs, #negs, hs]

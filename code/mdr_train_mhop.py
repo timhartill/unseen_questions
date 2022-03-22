@@ -28,15 +28,15 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python scripts/train_mhop.py \
     --shared-encoder \
     --warmup-ratio 0.1
     
-args.prefix='TESTLOSS'
+args.prefix='TEST'
 args.fp16=True
 args.do_train=True
 args.predict_batch_size=100
 args.train_batch_size=5
 args.model_name='roberta-base'
 args.learning_rate=2e-5
-args.train_file='data/hotpot/hotpot_train_with_neg_v0.json'
-args.predict_file ='data/hotpot/hotpot_dev_with_neg_v0.json'
+args.train_file='/home/thar011/data/mdr/hotpot/hotpot_train_with_neg_v0.json'
+args.predict_file ='/home/thar011/data/mdr/hotpot/hotpot_dev_with_neg_v0.json'
 args.seed=16
 args.eval_period=-1
 args.max_c_len= 300
@@ -44,6 +44,8 @@ args.max_q_len=70
 args.max_q_sp_len=350
 args.shared_encoder=True
 args.warmup_ratio=0.1
+args.use_var_versions = True
+args.output_dir = '/large_data/thar011/out/mdr/logs'
 
 args.init_checkpoint='models/q_encoder.pt'
 args.init_checkpoint='logs/01-16-2022/tim_-seed16-bsz100-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-multi1-schemenone/checkpoint_best.pt'
@@ -81,8 +83,7 @@ def main():
     tb_logger = SummaryWriter(os.path.join(args.output_dir.replace("logs","tflogs")))
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
-        print(
-            f"output directory {args.output_dir} already exists and is not empty.")
+        print(f"output directory {args.output_dir} already exists and is not empty.")
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir, exist_ok=True)
 
@@ -125,7 +126,9 @@ def main():
         collate_fc = partial(mhop_collate_var, pad_id=tokenizer.pad_token_id)
     else:    
         model = RobertaRetriever(bert_config, args)
+        #model_nv = RobertaRetriever(bert_config, args)
         collate_fc = partial(mhop_collate, pad_id=tokenizer.pad_token_id)
+        #collate_fc_nv = partial(mhop_collate, pad_id=tokenizer.pad_token_id)
         eval_dataset = MhopDataset(tokenizer, args.predict_file, args.max_q_len, args.max_q_sp_len, args.max_c_len)
 
     if args.do_train and args.max_c_len > bert_config.max_position_embeddings:
@@ -142,6 +145,7 @@ def main():
         model = load_saved(model, args.init_checkpoint)
 
     model.to(device)
+    #model_nv.to(device)
     print(f"number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     if args.do_train:
@@ -175,14 +179,16 @@ def main():
         batch_step = 0 # forward batch count
         best_mrr = 0
         train_loss_meter = AverageMeter()
-        model.train()
+        model.train() #TJH model_nv.train()
         if args.use_var_versions:
             train_dataset = MhopDataset_var(tokenizer, args.train_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=True)
             mloss = mhop_loss_var
         else:
             train_dataset = MhopDataset(tokenizer, args.train_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=True)
+#            train_dataset_nv = MhopDataset(tokenizer, args.train_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=True)
             mloss = mhop_loss
         train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size, pin_memory=True, collate_fn=collate_fc, num_workers=args.num_workers, shuffle=True)
+#        train_dataloader_nv = DataLoader(train_dataset_nv, batch_size=args.train_batch_size, pin_memory=True, collate_fn=collate_fc_nv, num_workers=args.num_workers, shuffle=True)
 
         t_total = len(train_dataloader) // args.gradient_accumulation_steps * args.num_train_epochs
         warmup_steps = t_total * args.warmup_ratio
@@ -194,9 +200,15 @@ def main():
         for epoch in range(int(args.num_train_epochs)):
             for batch in tqdm(train_dataloader):
                 #TJH batch = next(iter(train_dataloader))
+                #TJH batch_nv = next(iter(train_dataloader_nv))
+                #TJH batch_nv = move_to_cuda(batch_nv)
                 batch_step += 1
                 batch = move_to_cuda(batch)
-                loss = mloss(model, batch, args)
+                #TJH: outputs = model(batch) #intermittent error with amp. To reproduce: run next line (should work), then run this line (fail), then run next line again (also fail)
+                #TJH q_embeds = model.encode_q(batch['q_input_ids'][0], batch['q_mask'][0], batch.get("token_type_ids", None)) #intermittent Error with amp, no error without
+                #TJH q_embeds_nv = model.encode_q(batch_nv['q_input_ids'], batch_nv['q_mask'], batch_nv.get("token_type_ids", None)) #Error with amp, no error without
+                #TJH q_embeds_nv = model_nv.encode_q(batch_nv['q_input_ids'], batch_nv['q_mask'], batch_nv.get("token_type_ids", None))  # works
+                loss = mloss(model, batch, args)  #works without amp
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
 
@@ -215,7 +227,7 @@ def main():
                         torch.nn.utils.clip_grad_norm_(
                             model.parameters(), args.max_grad_norm)
                     optimizer.step()
-                    scheduler.step()
+                    scheduler.step()  #Note: Using amp get "Detected call of `lr_scheduler.step()` before `optimizer.step()`". Can ignore this. Explanation: if the first iteration creates NaN gradients (e.g. due to a high scaling factor and thus gradient overflow), the optimizer.step() will be skipped and you might get this warning.
                     model.zero_grad()
                     global_step += 1
 
@@ -279,7 +291,7 @@ def predict(args, model, eval_dataloader, device, logger):
 #            _rrs_1, _rrs_2 = eval_results["rrs_1"], eval_results["rrs_2"]
 #            rrs_1 += _rrs_1
 #            rrs_2 += _rrs_2
-    mrrs_all = {hop:np.mean(rrs_all[hop]) for hop in rrs_all if len(rrs_all[hop]) > 0}
+    mrrs_all = {'mrr_'+str(hop):np.mean(rrs_all[hop]) for hop in rrs_all if len(rrs_all[hop]) > 0}
     mrr_avg = np.mean([mrrs_all[hop] for hop in mrrs_all])
     mrrs_all["mrr_avg"] = mrr_avg
 #    mrr_1 = np.mean(rrs_1)
