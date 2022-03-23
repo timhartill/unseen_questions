@@ -65,10 +65,8 @@ def main():
         model = CtxEncoder(bert_config, args)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
-    eval_dataset = EmDataset(
-        tokenizer, args.predict_file, args.max_q_len, args.max_c_len, args.is_query_embed, args.embed_save_path)
-    eval_dataloader = DataLoader(
-        eval_dataset, batch_size=args.predict_batch_size, collate_fn=em_collate, pin_memory=True, num_workers=args.num_workers)
+    eval_dataset = EmDataset(tokenizer, args.predict_file, args.max_q_len, args.max_c_len, args.is_query_embed, args.embed_save_path)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=em_collate, pin_memory=True, num_workers=args.num_workers)
 
     assert args.init_checkpoint != ""
     model = load_saved(model, args.init_checkpoint, exact=False)
@@ -83,8 +81,7 @@ def main():
         model = amp.initialize(model, opt_level=args.fp16_opt_level)
 
     if args.local_rank != -1:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
-                                                          output_device=args.local_rank)
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
     elif n_gpu > 1:
         model = torch.nn.DataParallel(model)
 

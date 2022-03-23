@@ -10,7 +10,7 @@ import torch
 
 
 class RobertaRetriever_var(nn.Module):
-    """ Version that works with mhop_loss_var(), MhopDataset_var & mhop_collate_var()
+    """ Version that handles configurable max hops. Works with mhop_loss_var(), MhopDataset_var() & mhop_collate_var()
     """
     def __init__(self,
                  config,
