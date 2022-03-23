@@ -1,33 +1,21 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
+# Portions Copyright (c) Facebook, Inc. and its affiliates.
 # All rights reserved.
 #
 # This source code is licensed under the license found in the 
 # LICENSE file in the root directory of this source tree.
 
-
 """
-Description: train a multi-hop dense retrieval from pretrained BERT/RoBERTa encoder
+@author: Tim Hartill
 
-Usage: Run from base repo dir:
+Adapted from MDR train_mhop.py and train_momentum.py
+Description: train a multi-hop dense retrieval from pretrained RoBERTa encoder
 
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python scripts/train_mhop.py \
-    --do_train \
-    --prefix ${RUN_ID} \
-    --predict_batch_size 3000 \
-    --model_name roberta-base \
-    --train_batch_size 150 \
-    --learning_rate 2e-5 \
-    --fp16 \
-    --train_file ${TRAIN_DATA_PATH} \
-    --predict_file ${DEV_DATA_PATH}  \
-    --seed 16 \
-    --eval-period -1 \
-    --max_c_len 300 \
-    --max_q_len 70 \
-    --max_q_sp_len 350 \
-    --shared-encoder \
-    --warmup-ratio 0.1
-    
+Usage: Run from base/scripts dir: 
+    bash mdr_train_mhop_retriever_varsteps.sh 
+    or
+    bash mdr_train_mhop_retriever_momentum_varsteps.sh  after updating --init-retriever with the prior trained ckpt to start from
+
+Debug Args to add after running args = train_args()  
 args.prefix='TEST'
 args.fp16=True
 args.do_train=True
@@ -48,6 +36,9 @@ args.use_var_versions = True
 args.output_dir = '/large_data/thar011/out/mdr/logs'
 
 args.gradient_accumulation_steps = 1
+
+args.momentum=True
+args.init_retriever = '/large_data/thar011/out/mdr/logs/03-23-2022/varinitialtest_-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-multi1-schemenone/checkpoint_best.pt'
 
 args.init_checkpoint='models/q_encoder.pt'
 args.init_checkpoint='logs/01-16-2022/tim_-seed16-bsz100-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-multi1-schemenone/checkpoint_best.pt'
@@ -70,7 +61,7 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer,
 from mdr.retrieval.config import train_args
 from mdr.retrieval.criterions import (mhop_eval, mhop_loss, mhop_loss_var, mhop_eval_var)
 from mdr.retrieval.data.mhop_dataset import MhopDataset, mhop_collate, MhopDataset_var, mhop_collate_var
-from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriever_var, RobertaMomentumRetriever_var
+from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriever_var, RobertaMomentumRetriever, RobertaMomentumRetriever_var
 from mdr.retrieval.utils.utils import AverageMeter, move_to_cuda, load_saved
 
 
@@ -80,7 +71,10 @@ def main():
         import apex
         apex.amp.register_half_function(torch, 'einsum')
     date_curr = date.today().strftime("%m-%d-%Y")
-    model_name = f"{args.prefix}-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-shared{args.shared_encoder}-multi{args.multi_vector}-scheme{args.scheme}"
+    if args.momentum:
+        model_name = f"{args.prefix}-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-m{args.m}-k{args.k}-t{args.temperature}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}"
+    else:    
+        model_name = f"{args.prefix}-mom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-shared{args.shared_encoder}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}"
     args.output_dir = os.path.join(args.output_dir, date_curr, model_name)
     tb_logger = SummaryWriter(os.path.join(args.output_dir.replace("logs","tflogs")))
 
@@ -97,8 +91,7 @@ def main():
     logger.info(args)
 
     if args.local_rank == -1 or args.no_cuda:
-        device = torch.device(
-            "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
         n_gpu = torch.cuda.device_count()
     else:
         device = torch.device("cuda", args.local_rank)
@@ -108,11 +101,9 @@ def main():
                 device, n_gpu, bool(args.local_rank != -1))
 
     if args.accumulate_gradients < 1:
-        raise ValueError("Invalid accumulate_gradients parameter: {}, should be >= 1".format(
-            args.accumulate_gradients))
+        raise ValueError("Invalid accumulate_gradients parameter: {}, should be >= 1".format(args.accumulate_gradients))
 
-    args.train_batch_size = int(
-        args.train_batch_size / args.accumulate_gradients)
+    args.train_batch_size = int(args.train_batch_size / args.accumulate_gradients)
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -123,15 +114,21 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     
     if args.use_var_versions:
-        model = RobertaRetriever_var(bert_config, args)
+        if args.momentum:
+            model = RobertaMomentumRetriever_var(bert_config, args)
+        else:
+            model = RobertaRetriever_var(bert_config, args)
         eval_dataset = MhopDataset_var(tokenizer, args.predict_file, args.max_q_len, args.max_q_sp_len, args.max_c_len)
         collate_fc = partial(mhop_collate_var, pad_id=tokenizer.pad_token_id)
-    else:    
-        model = RobertaRetriever(bert_config, args)
+    else:
+        if args.momentum:
+            model = RobertaMomentumRetriever(bert_config, args)
+        else:
+            model = RobertaRetriever(bert_config, args)
         #model_nv = RobertaRetriever(bert_config, args)
+        eval_dataset = MhopDataset(tokenizer, args.predict_file, args.max_q_len, args.max_q_sp_len, args.max_c_len)
         collate_fc = partial(mhop_collate, pad_id=tokenizer.pad_token_id)
         #collate_fc_nv = partial(mhop_collate, pad_id=tokenizer.pad_token_id)
-        eval_dataset = MhopDataset(tokenizer, args.predict_file, args.max_q_len, args.max_q_sp_len, args.max_c_len)
 
     if args.do_train and args.max_c_len > bert_config.max_position_embeddings:
         raise ValueError(
@@ -139,8 +136,7 @@ def main():
             "was only trained up to sequence length %d" %
             (args.max_c_len, bert_config.max_position_embeddings))
 
-    eval_dataloader = DataLoader(
-        eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True, num_workers=args.num_workers)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True, num_workers=args.num_workers)
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
 
     if args.init_checkpoint != "":
@@ -158,21 +154,18 @@ def main():
             {'params': [p for n, p in model.named_parameters() if any(
                 nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
-        optimizer = Adam(optimizer_parameters,
-                          lr=args.learning_rate, eps=args.adam_epsilon)
+        optimizer = Adam(optimizer_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
 
         if args.fp16:
             from apex import amp
-            model, optimizer = amp.initialize(
-                model, optimizer, opt_level=args.fp16_opt_level)
+            model, optimizer = amp.initialize(model, optimizer, opt_level=args.fp16_opt_level)
     else:
         if args.fp16:
             from apex import amp
             model = amp.initialize(model, opt_level=args.fp16_opt_level)
 
     if args.local_rank != -1:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
-                                                          output_device=args.local_rank)
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
     elif n_gpu > 1:
         model = torch.nn.DataParallel(model)
 
@@ -194,9 +187,7 @@ def main():
 
         t_total = len(train_dataloader) // args.gradient_accumulation_steps * args.num_train_epochs
         warmup_steps = t_total * args.warmup_ratio
-        scheduler = get_linear_schedule_with_warmup(
-            optimizer, num_warmup_steps=warmup_steps, num_training_steps=t_total
-        )
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=t_total)
 
         logger.info('Start training....')
         for epoch in range(int(args.num_train_epochs)):
@@ -223,48 +214,65 @@ def main():
             
                 if (batch_step + 1) % args.gradient_accumulation_steps == 0:
                     if args.fp16:
-                        torch.nn.utils.clip_grad_norm_(
-                            amp.master_params(optimizer), args.max_grad_norm)
+                        torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
                     else:
-                        torch.nn.utils.clip_grad_norm_(
-                            model.parameters(), args.max_grad_norm)
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                     optimizer.step()
                     scheduler.step()  #Note: Using amp get "Detected call of `lr_scheduler.step()` before `optimizer.step()`". Can ignore this. Explanation: if the first iteration creates NaN gradients (e.g. due to a high scaling factor and thus gradient overflow), the optimizer.step() will be skipped and you might get this warning.
                     model.zero_grad()
                     global_step += 1
 
-                    tb_logger.add_scalar('batch_train_loss',
-                                        loss.item(), global_step)
-                    tb_logger.add_scalar('smoothed_train_loss',
-                                        train_loss_meter.avg, global_step)
+                    tb_logger.add_scalar('batch_train_loss', loss.item(), global_step)
+                    tb_logger.add_scalar('smoothed_train_loss', train_loss_meter.avg, global_step)
 
                     if args.eval_period != -1 and global_step % args.eval_period == 0:
-                        mrrs = predict(args, model, eval_dataloader,
-                                     device, logger)
+                        mrrs = predict(args, model, eval_dataloader, device, logger)
                         mrr = mrrs["mrr_avg"]
                         logger.info("Step %d Train loss %.2f MRR %.2f on epoch=%d" % (global_step, train_loss_meter.avg, mrr*100, epoch))
 
                         if best_mrr < mrr:
-                            logger.info("Saving model with best MRR %.2f -> MRR %.2f on epoch=%d" %
-                                        (best_mrr*100, mrr*100, epoch))
-                            torch.save(model.state_dict(), os.path.join(
-                                args.output_dir, f"checkpoint_best.pt"))
+                            logger.info("Saving model with best MRR %.2f -> MRR %.2f on epoch=%d" % (best_mrr*100, mrr*100, epoch))
+                            if args.momentum:
+                                if n_gpu > 1: # TJH Added based on https://github.com/facebookresearch/multihop_dense_retrieval/pull/14/commits/96a0df6620ab02b231a1448373da7f59f615dae1
+                                    # Using DataParallel -> need to call model.module
+                                    torch.save(model.module.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_q_best.pt"))
+                                    torch.save(model.module.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_k_best.pt"))
+                                else:
+                                    torch.save(model.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_q_best.pt"))
+                                    torch.save(model.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_k_best.pt"))
+                            else:
+                                torch.save(model.state_dict(), os.path.join(args.output_dir, f"checkpoint_best.pt"))
                             model = model.to(device)
                             best_mrr = mrr
 
             mrrs = predict(args, model, eval_dataloader, device, logger)
             mrr = mrrs["mrr_avg"]
-            logger.info("Step %d Train loss %.2f MRR-AVG %.2f on epoch=%d" % (
-                global_step, train_loss_meter.avg, mrr*100, epoch))
+            logger.info("Step %d Train loss %.2f MRR-AVG %.2f on epoch=%d" % (global_step, train_loss_meter.avg, mrr*100, epoch))
             for k, v in mrrs.items():
                 tb_logger.add_scalar(k, v*100, epoch)
-            torch.save(model.state_dict(), os.path.join(
-                                args.output_dir, f"checkpoint_last.pt"))
+            if args.momentum:
+                if n_gpu > 1: # TJH Added based on https://github.com/facebookresearch/multihop_dense_retrieval/pull/14/commits/96a0df6620ab02b231a1448373da7f59f615dae1
+                    # Using DataParallel -> need to call model.module
+                    torch.save(model.module.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_q_last.pt"))
+                    torch.save(model.module.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_k_last.pt"))
+                else:
+                    torch.save(model.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_q_last.pt"))
+                    torch.save(model.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_k_last.pt"))
+            else:
+                torch.save(model.state_dict(), os.path.join(args.output_dir, f"checkpoint_last.pt"))
 
             if best_mrr < mrr:
                 logger.info("Saving model with best MRR %.2f -> MRR %.2f on epoch=%d" % (best_mrr*100, mrr*100, epoch))
-                torch.save(model.state_dict(), os.path.join(
-                    args.output_dir, f"checkpoint_best.pt"))
+                if args.momentum:
+                    if n_gpu > 1: # TJH Added based on https://github.com/facebookresearch/multihop_dense_retrieval/pull/14/commits/96a0df6620ab02b231a1448373da7f59f615dae1
+                        # Using DataParallel -> need to call model.module
+                        torch.save(model.module.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_q_best.pt"))
+                        torch.save(model.module.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_k_best.pt"))
+                    else:
+                        torch.save(model.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_q_best.pt"))
+                        torch.save(model.encoder_q.state_dict(), os.path.join(args.output_dir, f"checkpoint_k_best.pt"))
+                else:
+                    torch.save(model.state_dict(), os.path.join(args.output_dir, f"checkpoint_best.pt"))
                 best_mrr = mrr
 
         logger.info("Training finished!")

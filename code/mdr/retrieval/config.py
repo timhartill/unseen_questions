@@ -57,8 +57,8 @@ def common_args():
     parser.add_argument("--scheme", type=str, help="how to get the multivector, layerwise or tokenwise", default="none")
 
     # momentum
-    parser.add_argument("--momentum", action="store_true")
-    parser.add_argument("--init-retriever", type=str, default="")
+    parser.add_argument("--momentum", action="store_true", help="If true, perform momentum training.")
+    parser.add_argument("--init_retriever", type=str, default="", help="Ckpt to load for Momentum training.")
     parser.add_argument("--k", type=int, default=38400, help="memory bank size")
     parser.add_argument("--m", type=float, default=0.999, help="momentum")
 
