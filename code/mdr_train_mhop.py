@@ -47,6 +47,8 @@ args.warmup_ratio=0.1
 args.use_var_versions = True
 args.output_dir = '/large_data/thar011/out/mdr/logs'
 
+args.gradient_accumulation_steps = 1
+
 args.init_checkpoint='models/q_encoder.pt'
 args.init_checkpoint='logs/01-16-2022/tim_-seed16-bsz100-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-multi1-schemenone/checkpoint_best.pt'
 """
