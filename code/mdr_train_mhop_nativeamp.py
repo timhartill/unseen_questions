@@ -53,7 +53,7 @@ import numpy as np
 import torch
 from torch.optim import Adam
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter  # tensorboard --logdir=runs
 from tqdm import tqdm
 from transformers import (AdamW, AutoConfig, AutoTokenizer,
                           get_linear_schedule_with_warmup)
@@ -67,9 +67,10 @@ from mdr.retrieval.utils.utils import AverageMeter, move_to_cuda, load_saved
 
 def main():
     args = train_args()
-    if args.fp16:
-        import apex
-        apex.amp.register_half_function(torch, 'einsum')
+    #if args.fp16:
+
+        #import apex
+        #apex.amp.register_half_function(torch, 'einsum')
     date_curr = date.today().strftime("%m-%d-%Y")
     if args.momentum:
         model_name = f"{args.prefix}-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-m{args.m}-k{args.k}-t{args.temperature}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}"
@@ -156,14 +157,16 @@ def main():
         ]
         optimizer = Adam(optimizer_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
 
-        if args.fp16:
-            from apex import amp
-            model, optimizer = amp.initialize(model, optimizer, opt_level=args.fp16_opt_level)
-    else:
-        if args.fp16:
-            from apex import amp
-            model = amp.initialize(model, opt_level=args.fp16_opt_level)
+#        if args.fp16:
+#            from apex import amp
+#            model, optimizer = amp.initialize(model, optimizer, opt_level=args.fp16_opt_level)
+#    else:
+#        if args.fp16:
+#            from apex import amp
+#            model = amp.initialize(model, opt_level=args.fp16_opt_level)
 
+    scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
+    
     if args.local_rank != -1:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
     elif n_gpu > 1:
@@ -201,25 +204,40 @@ def main():
                 #TJH q_embeds = model.encode_q(batch['q_input_ids'][0], batch['q_mask'][0], batch.get("token_type_ids", None)) #intermittent Error with amp, no error without
                 #TJH q_embeds_nv = model.encode_q(batch_nv['q_input_ids'], batch_nv['q_mask'], batch_nv.get("token_type_ids", None)) #Error with amp, no error without
                 #TJH q_embeds_nv = model_nv.encode_q(batch_nv['q_input_ids'], batch_nv['q_mask'], batch_nv.get("token_type_ids", None))  # works
-                loss = mloss(model, batch, args)  #works without amp
-                if args.gradient_accumulation_steps > 1:
-                    loss = loss / args.gradient_accumulation_steps
+                with torch.cuda.amp.autocast(enabled=args.fp16):
+                    loss = mloss(model, batch, args)  #TODO if doesnt work, just put autocast around calling model...
+                    if args.gradient_accumulation_steps > 1:
+                        loss = loss / args.gradient_accumulation_steps
 
-                if args.fp16:
-                    with amp.scale_loss(loss, optimizer) as scaled_loss:
-                        scaled_loss.backward()
-                else:
-                    loss.backward()
+                # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
+                # Backward passes under autocast are not recommended.
+                # Backward ops run in the same dtype autocast chose for corresponding forward ops.
+                scaler.scale(loss).backward()
+#                if args.fp16:
+#                    with amp.scale_loss(loss, optimizer) as scaled_loss:
+#                        scaled_loss.backward()
+#                else:
+#                    loss.backward()
                 train_loss_meter.update(loss.item())
             
                 if (batch_step + 1) % args.gradient_accumulation_steps == 0:
-                    if args.fp16:
-                        torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
-                    else:
-                        torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-                    optimizer.step()
+                    # Unscales the gradients of optimizer's assigned params in-place
+                    scaler.unscale_(optimizer)
+#                    if args.fp16:
+#                        torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
+#                    else:
+#                        torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                    # Since the gradients of optimizer's assigned params are now unscaled, clips as usual.
+                    # You may use the same value for max_norm here as you would without gradient scaling.
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)  #TODO max_grad_norm 2.0 default. Adjust?
+                    # scaler.step() first unscales the gradients of the optimizer's assigned params.
+                    # If these gradients do not contain infs or NaNs, optimizer.step() is then called,
+                    # otherwise, optimizer.step() is skipped.
+                    scaler.step(optimizer)
+#                    optimizer.step()
+                    scaler.update() # Updates the scale for next iteration.
                     scheduler.step()  #Note: Using amp get "Detected call of `lr_scheduler.step()` before `optimizer.step()`". Can ignore this. Explanation: if the first iteration creates NaN gradients (e.g. due to a high scaling factor and thus gradient overflow), the optimizer.step() will be skipped and you might get this warning.
-                    model.zero_grad()
+                    model.zero_grad() 
                     global_step += 1
 
                     tb_logger.add_scalar('batch_train_loss', loss.item(), global_step)

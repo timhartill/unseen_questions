@@ -73,6 +73,11 @@ def mhop_loss_var(model, batch, args):
     ce = CrossEntropyLoss(ignore_index=-100, reduction='none')
     target_1_hop = torch.arange(bs).to(dev)
     all_targets_all_hops = torch.cat([target_1_hop.unsqueeze(1) + (i*bs) for i in range(max_hops) ], dim=1) # [bs, max_hops] Target "next para" idx.
+    #Nan resolution: 
+    #    (-1) try changing to torch mixed precision version. Look at torch.detect_anomaly
+    #    (0) try ce = CrossEntropyLoss(ignore_index=-100, reduction='mean')
+    #    (1) try casting scores_all_hops to fp32 - but seems it is already fp32 otherwise ce fn throws error about not using half precision
+    #    (2) try excluding nans in 'nonzero' calc
     for i in range(max_hops): # set target label to be ignored in ce if hop in target tensor is > actual hops for a sample ie ignore padding queries 
         curr_hop = i + 1
         for j in range(bs):
@@ -80,7 +85,7 @@ def mhop_loss_var(model, batch, args):
                 all_targets_all_hops[j, i] = -100
     retrieve_loss = ce(scores_all_hops.transpose(1,2), all_targets_all_hops)  # [bs, max_hops]
     final_loss_nonzero = torch.cat([retrieve_loss[ retrieve_loss[:,i].nonzero(), i ].mean().unsqueeze(0) for i in range(max_hops)] ).sum() # sum( mean_over_non-zero(hop_n) ) - ce sets outputs with label -100 to 0.0
-    return final_loss_nonzero
+    return final_loss_nonzero  #tensor(finalnum)
     
 
 def mhop_eval_var(outputs, args):
@@ -222,7 +227,7 @@ def mhop_loss(model, batch, args):
 
     #TJH loss_fct(scores_1_hop, target_1_hop) = loss_fct([bs, bs*2+2], [bs] elements containing correct "class"/idx into bs*2+2)
     #TJH CE Input:  (bs, c) where C = number of classes. Look at K-dim CE loss!
-    retrieve_loss = loss_fct(scores_1_hop, target_1_hop) + loss_fct(scores_2_hop, target_2_hop)
+    retrieve_loss = loss_fct(scores_1_hop, target_1_hop) + loss_fct(scores_2_hop, target_2_hop) #tensor(num1) + tensor(num2) = tensor(num3)
 
     return retrieve_loss
 

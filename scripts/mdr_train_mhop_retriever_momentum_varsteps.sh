@@ -1,5 +1,6 @@
 # Continue training of q_encoder with momentum
 # Original non-varstep version:bs 100 On 4 GPUS GPU loading is 18GB each and training/eval 1 epoch takes ~12mins
+#varstep version bs 50 1 GPU takes ~36GB. 1 epoch approx 30mins
 
 cd ../code
 
@@ -8,7 +9,7 @@ python mdr_train_mhop.py \
     --prefix mominitialvar_ \
     --predict_batch_size 100 \
     --model_name roberta-base \
-    --train_batch_size 24 \
+    --train_batch_size 50 \
     --learning_rate 2e-5 \
     --fp16 \
     --train_file /home/thar011/data/mdr/hotpot/hotpot_train_with_neg_v0.json \
