@@ -36,6 +36,7 @@ args.use_var_versions = True
 args.output_dir = '/large_data/thar011/out/mdr/logs'
 
 args.gradient_accumulation_steps = 1
+args.debug=True
 
 args.momentum=True
 args.init_retriever = '/large_data/thar011/out/mdr/logs/03-23-2022/varinitialtest_-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-multi1-schemenone/checkpoint_best.pt'
@@ -205,10 +206,12 @@ def main():
                 #TJH q_embeds_nv = model.encode_q(batch_nv['q_input_ids'], batch_nv['q_mask'], batch_nv.get("token_type_ids", None)) #Error with amp, no error without
                 #TJH q_embeds_nv = model_nv.encode_q(batch_nv['q_input_ids'], batch_nv['q_mask'], batch_nv.get("token_type_ids", None))  # works
                 with torch.cuda.amp.autocast(enabled=args.fp16):
-                    loss = mloss(model, batch, args)  #TODO if doesnt work, just put autocast around calling model...
+                    loss, outstr = mloss(model, batch, args)  #TODO if doesnt work, just put autocast around calling model...
                     if args.gradient_accumulation_steps > 1:
                         loss = loss / args.gradient_accumulation_steps
-
+                if args.debug and loss.isnan().any():
+                    logger.info(f"Ep:{epoch} bstep:{batch_step} Loss is NaN. Debug str follows..")
+                    logger.info(f"{outstr}")
                 # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
                 # Backward passes under autocast are not recommended.
                 # Backward ops run in the same dtype autocast chose for corresponding forward ops.

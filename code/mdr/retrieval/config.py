@@ -68,6 +68,7 @@ def common_args():
     
     #TJH Added
     parser.add_argument("--use_var_versions", action="store_true", help="Use the generic variable step '..._var' versions.")
+    parser.add_argument("--debug", action="store_true", help="If set prints extra debug info in criterions")
     
 
     return parser

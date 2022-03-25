@@ -18,6 +18,7 @@ def mhop_loss_var(model, batch, args):
     """ Generalised loss calculation over batch of samples with varying steps required.
         
     """
+    outstr=''
     outputs = model(batch)  # {'q': [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spn], 'c': [sp1, sp2, .., spn], "neg": [neg1, neg2, ... negx], "act_hops":[sample1hops, ..,samplenhops]} 
                             #TJH each dict element a list of tensors shape [bs, hidden_size=hs] except act_hops which is a list of integers
                             #TJH c1=start para, c2=bridge/2nd para, q_sp1=q + start para
@@ -36,6 +37,11 @@ def mhop_loss_var(model, batch, args):
     all_q_reshaped = torch.cat([qs.unsqueeze(1) for qs in outputs['q']], dim=1) # [bs,1,hs] cat [bs,1,hs] .. = [bs, max_hops, hs]
     scores_all_hops = torch.matmul(all_q_reshaped, all_ctx.t())  # [bs, #qs, hs] matmul [hs, bs * #c] = [bs, #qs, bs * #c] ie here max_hops = #qs = #c: [bs, max_hops, bs * max_hops]
 
+    if args.debug:
+        outstr=f"## nans after matmul: scores_all_hops:{scores_all_hops.isnan().any()} "
+        outstr+=f"bs:{bs} max_hops:{max_hops} act_hops:{act_hops.shape} all_ctx: {all_ctx.shape} neg_ctx: {neg_ctx.shape} all_q_reshaped:{all_q_reshaped.shape} scores_all_hops:{scores_all_hops.shape} " 
+        outstr+=f"dtypes: act_hops:{act_hops.dtype} all_ctx: {all_ctx.dtype} neg_ctx: {neg_ctx.dtype} all_q_reshaped:{all_q_reshaped.dtype} scores_all_hops:{scores_all_hops.dtype} "
+
     cell_0 = torch.zeros(bs, bs).to(dev)  
     cell_eye = torch.eye(bs).to(dev)
     hop_mask_list = []
@@ -51,8 +57,17 @@ def mhop_loss_var(model, batch, args):
                         scores_all_mask[j, i, (k*bs)+j] = 0.0
     scores_all_hops = scores_all_hops.float().masked_fill(scores_all_mask.bool(), float('-inf')).type_as(scores_all_hops) # [bs, #qs, bs*#c] #qs = #c = max_hops
 
+    if args.debug:
+        outstr+=f"### after mask: scores_all_hops:{scores_all_hops.shape} {scores_all_hops.dtype} scores_all_mask: {scores_all_mask.shape} {scores_all_mask.dtype} "
+        outstr+=f"dtypes: cell_0:{cell_0.dtype} cell_eye: {cell_eye.dtype} "
+        outstr+=f"nans bef neg cat: scores_all_hops:{scores_all_hops.isnan().any()} scores_all_mask:{scores_all_mask.isnan().any()} "
+
     neg_scores_all = torch.bmm(all_q_reshaped, neg_ctx.transpose(1,2))  # [bs, #qs, hs] bmm [bs, hs, #negs] = [bs, #qs, #negs]
     scores_all_hops = torch.cat([scores_all_hops, neg_scores_all], dim=2) # [bs, #qs, bs*#c] cat [bs, #qs, #negs] = [bs, #qs, bs*#c + #negs]
+
+    if args.debug:
+        outstr+=f"####nans after neg cat: scores_all_hops:{scores_all_hops.isnan().any()} {scores_all_hops.dtype} neg_scores_all:{neg_scores_all.isnan().any()} "
+
 
     if args.momentum:
         n_gpu = torch.cuda.device_count() #Updated based on https://github.com/facebookresearch/multihop_dense_retrieval/pull/14/commits/96a0df6620ab02b231a1448373da7f59f615dae1
@@ -69,6 +84,9 @@ def mhop_loss_var(model, batch, args):
         
         mdl.dequeue_and_enqueue(all_ctx.detach())  #Updated based on https://github.com/facebookresearch/multihop_dense_retrieval/pull/14/commits/96a0df6620ab02b231a1448373da7f59f615dae1
 
+    if args.debug:
+        outstr+=f"#####nans after mom: scores_all_hops:{scores_all_hops.isnan().any()} {scores_all_hops.dtype} shape:{scores_all_hops.shape}"
+
 
     ce = CrossEntropyLoss(ignore_index=-100, reduction='none')
     target_1_hop = torch.arange(bs).to(dev)
@@ -84,8 +102,14 @@ def mhop_loss_var(model, batch, args):
             if curr_hop > act_hops[j]:
                 all_targets_all_hops[j, i] = -100
     retrieve_loss = ce(scores_all_hops.transpose(1,2), all_targets_all_hops)  # [bs, max_hops]
+    if args.debug:
+        outstr+=f"nans retrieve_loss:{retrieve_loss.isnan().any()} {retrieve_loss.dtype} "
+
     final_loss_nonzero = torch.cat([retrieve_loss[ retrieve_loss[:,i].nonzero(), i ].mean().unsqueeze(0) for i in range(max_hops)] ).sum() # sum( mean_over_non-zero(hop_n) ) - ce sets outputs with label -100 to 0.0
-    return final_loss_nonzero  #tensor(finalnum)
+    if args.debug:
+        outstr+=f"nans final_loss_nonzero:{final_loss_nonzero.isnan().any()} {final_loss_nonzero.dtype}"
+
+    return final_loss_nonzero, outstr  #tensor(finalnum)
     
 
 def mhop_eval_var(outputs, args):
