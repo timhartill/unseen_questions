@@ -193,6 +193,9 @@ def main():
         warmup_steps = t_total * args.warmup_ratio
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=t_total)
 
+        nan_count = 0
+        nan_max_log = 25
+        
         logger.info('Start training....')
         for epoch in range(int(args.num_train_epochs)):
             for batch in tqdm(train_dataloader):
@@ -210,8 +213,11 @@ def main():
                     if args.gradient_accumulation_steps > 1:
                         loss = loss / args.gradient_accumulation_steps
                 if args.debug and loss.isnan().any():
-                    logger.info(f"Ep:{epoch} bstep:{batch_step} Loss is NaN. Debug str follows..")
-                    logger.info(f"{outstr}")
+                    nan_count += 1
+                    if nan_count < nan_max_log:
+                        logger.info(f"Ep:{epoch} bstep:{batch_step} Loss is NaN. Debug str follows..")
+                        logger.info(f"{outstr}")
+                    
                 # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
                 # Backward passes under autocast are not recommended.
                 # Backward ops run in the same dtype autocast chose for corresponding forward ops.
@@ -269,6 +275,8 @@ def main():
             mrrs = predict(args, model, eval_dataloader, device, logger)
             mrr = mrrs["mrr_avg"]
             logger.info("Step %d Train loss %.2f MRR-AVG %.2f on epoch=%d" % (global_step, train_loss_meter.avg, mrr*100, epoch))
+            if args.debug:
+                logger.info(f"Cumulative Loss NaN count:{nan_count}")
             for k, v in mrrs.items():
                 tb_logger.add_scalar(k, v*100, epoch)
             if args.momentum:

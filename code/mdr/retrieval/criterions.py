@@ -103,11 +103,17 @@ def mhop_loss_var(model, batch, args):
                 all_targets_all_hops[j, i] = -100
     retrieve_loss = ce(scores_all_hops.transpose(1,2), all_targets_all_hops)  # [bs, max_hops]
     if args.debug:
-        outstr+=f"nans retrieve_loss:{retrieve_loss.isnan().any()} {retrieve_loss.dtype} "
+        outstr+=f"nans retrieve_loss:{retrieve_loss.isnan().any()} {retrieve_loss.dtype} {retrieve_loss.shape}"
 
-    final_loss_nonzero = torch.cat([retrieve_loss[ retrieve_loss[:,i].nonzero(), i ].mean().unsqueeze(0) for i in range(max_hops)] ).sum() # sum( mean_over_non-zero(hop_n) ) - ce sets outputs with label -100 to 0.0
+    include_mask = all_targets_all_hops!=-100  # [bs, max_hops]
+    any_not_ignore = torch.cat([include_mask[:,i].any().unsqueeze(0) for i in range(max_hops)])  # [max_hops]
+    final_loss_nonzero = torch.cat([retrieve_loss[:,i][ include_mask[:,i] ].mean().unsqueeze(0) for i in range(max_hops) if any_not_ignore[i]] ).sum() # sum( mean_over_non-zero(hop_n) ) - ce sets outputs with label -100 to 0.0
+
+    #final_loss_nonzero = torch.cat([retrieve_loss[ retrieve_loss[:,i].nonzero(), i ].mean().unsqueeze(0) for i in range(max_hops)] ).sum() # sum( mean_over_non-zero(hop_n) ) - ce sets outputs with label -100 to 0.0
     if args.debug:
         outstr+=f"nans final_loss_nonzero:{final_loss_nonzero.isnan().any()} {final_loss_nonzero.dtype}"
+        #if final_loss_nonzero.isnan().any():
+        #    print(retrieve_loss)
 
     return final_loss_nonzero, outstr  #tensor(finalnum)
     

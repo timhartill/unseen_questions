@@ -14,7 +14,7 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix varinitialtest_ \
+    --prefix varinitialtest2_ \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \
