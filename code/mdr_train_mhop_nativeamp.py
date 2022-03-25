@@ -73,9 +73,9 @@ def main():
         #apex.amp.register_half_function(torch, 'einsum')
     date_curr = date.today().strftime("%m-%d-%Y")
     if args.momentum:
-        model_name = f"{args.prefix}-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-m{args.m}-k{args.k}-t{args.temperature}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}"
+        model_name = f"{args.prefix}-mom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-m{args.m}-k{args.k}-t{args.temperature}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}"
     else:    
-        model_name = f"{args.prefix}-mom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-shared{args.shared_encoder}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}"
+        model_name = f"{args.prefix}-nomom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-shared{args.shared_encoder}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}"
     args.output_dir = os.path.join(args.output_dir, date_curr, model_name)
     tb_logger = SummaryWriter(os.path.join(args.output_dir.replace("logs","tflogs")))
 

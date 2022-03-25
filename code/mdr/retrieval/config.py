@@ -110,7 +110,7 @@ def train_args():
 
 def encode_args():
     parser = common_args()
-    parser.add_argument('--embed_save_path', type=str, default="")
+    parser.add_argument('--embed_save_path', type=str, default="", help="Directory to save into. Will be created if doesnt exist.")
     parser.add_argument('--is_query_embed', action="store_true")
     args = parser.parse_args()
     return args

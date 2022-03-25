@@ -9,7 +9,7 @@
 
 cd ../code
 
-python mdr_encode_corpus.py \
+python mdr_encode_corpus_nativeamp.py \
     --do_predict \
     --predict_batch_size 1000 \
     --model_name roberta-base \
@@ -21,7 +21,7 @@ python mdr_encode_corpus.py \
     --num_workers 20
 
 
-#python scripts/encode_corpus.py \
+#python mdr_encode_corpus_nativeamp.py \
 #    --do_predict \
 #    --predict_batch_size 1000 \
 #    --model_name roberta-base \
