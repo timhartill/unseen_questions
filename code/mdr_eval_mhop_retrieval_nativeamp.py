@@ -46,7 +46,7 @@ import torch
 from tqdm import tqdm
 from transformers import AutoConfig, AutoTokenizer
 
-from mdr.retrieval.models.mhop_retriever import RobertaRetriever
+from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriever_var
 from mdr.retrieval.utils.basic_tokenizer import SimpleTokenizer
 from mdr.retrieval.utils.utils import (load_saved, move_to_cuda, para_has_answer)
 
@@ -64,33 +64,34 @@ def convert_hnsw_query(query_vectors):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('raw_data', type=str, default=None)
-    parser.add_argument('indexpath', type=str, default=None)
-    parser.add_argument('corpus_dict', type=str, default=None)
-    parser.add_argument('model_path', type=str, default=None)
-    parser.add_argument('--topk', type=int, default=2, help="topk paths")
-    parser.add_argument('--num-workers', type=int, default=10)
-    parser.add_argument('--max-q-len', type=int, default=70)
-    parser.add_argument('--max-c-len', type=int, default=300)
-    parser.add_argument('--max-q-sp-len', type=int, default=350)
-    parser.add_argument('--batch-size', type=int, default=100)
-    parser.add_argument('--beam-size', type=int, default=5)
-    parser.add_argument('--model-name', type=str, default='roberta-base')
-    parser.add_argument('--gpu', action="store_true")
-    parser.add_argument('--save-index', action="store_true")
-    parser.add_argument('--only-eval-ans', action="store_true")
-    parser.add_argument('--shared-encoder', action="store_true")
-    parser.add_argument("--save-path", type=str, default="")
-    parser.add_argument("--stop-drop", default=0, type=float)
-    parser.add_argument('--hnsw', action="store_true")
+    parser.add_argument('--eval_data', type=str, default=None, help="File containing the evaluation samples.")
+    parser.add_argument('--index_path', type=str, default=None, help="index.npy file containing para embeddings [num_paras, emb_dim]")
+    parser.add_argument('--corpus_dict', type=str, default=None, help="id2doc.json file containing dict with key id -> title+txt")
+    parser.add_argument('--model_path', type=str, default=None, help="Model checkpoint file to load.")
+    parser.add_argument('--topk', type=int, default=2, help="topk paths/para sequences to return. Must be <= beam-size^num_steps")
+    parser.add_argument('--num_workers', type=int, default=10)
+    parser.add_argument('--max_q_len', type=int, default=70)
+    parser.add_argument('--max_c_len', type=int, default=300)
+    parser.add_argument('--max_q_sp_len', type=int, default=350)
+    parser.add_argument('--batch_size', type=int, default=100)
+    parser.add_argument('--beam_size', type=int, default=5, help="Number of beams each step (number of nearest neighbours to append each step.).")
+    parser.add_argument('--model_name', type=str, default='roberta-base')
+    parser.add_argument('--gpu', action="store_true", help="Put Faiss index on gpu.")
+    parser.add_argument('--save_index', action="store_true")
+    parser.add_argument('--only_eval_ans', action="store_true")
+#    parser.add_argument('--shared_encoder', action="store_true")
+    parser.add_argument("--save_path", type=str, default="", help="File to save retrieved para augmented eval samples to.")
+#    parser.add_argument("--stop_drop", default=0, type=float)
+    parser.add_argument('--hnsw', action="store_true", help="Non-exhaustive but fast and relatively accurate. Suitable for FAISS use on cpu.")
     parser.add_argument('--strict', action="store_true")  #TJH Added - load ckpt in 'strict' mode
     parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
+    parser.add_argument("--use_var_versions", action="store_true", help="Use the generic variable step '..._var' versions.")
     args = parser.parse_args()
     
     print(args)
     
     logger.info("Loading data...")
-    ds_items = [json.loads(_) for _ in open(args.raw_data).readlines()]
+    ds_items = [json.loads(_) for _ in open(args.eval_data).readlines()]
     #print(f"ds_items length: {len(ds_items)}")
 
     # filter
@@ -100,19 +101,23 @@ if __name__ == '__main__':
     logger.info("Loading trained model...")
     bert_config = AutoConfig.from_pretrained(args.model_name)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    model = RobertaRetriever(bert_config, args)
+    
+    if args.use_var_versions:
+        model = RobertaRetriever_var(bert_config, args)
+    else:    
+        model = RobertaRetriever(bert_config, args)
     model = load_saved(model, args.model_path, exact=args.exact, strict=args.strict) #TJH added  strict=args.strict
     simple_tokenizer = SimpleTokenizer()
 
     cuda = torch.device('cuda')
     model.to(cuda)
-    from apex import amp
-    model = amp.initialize(model, opt_level='O1')
+    #from apex import amp
+    #model = amp.initialize(model, opt_level='O1')
     model.eval()
 
     logger.info("Building index...")
     d = 768
-    xb = np.load(args.indexpath).astype('float32')
+    xb = np.load(args.index_path).astype('float32')
 
     if args.hnsw:
         if path.exists("data/hotpot_index/wiki_index_hnsw.index"):
@@ -143,7 +148,7 @@ if __name__ == '__main__':
         index.add(xb)
         if args.gpu:
             res = faiss.StandardGpuResources()
-            index = faiss.index_cpu_to_gpu(res, 0, index) #TJH was 6 which would take 7 gpus.
+            index = faiss.index_cpu_to_gpu(res, 0, index) #TJH was 6 which would take 7 gpus but fails if < 7 available.
 
     if args.save_index:
         faiss.write_index(index, "data/hotpot_index/wiki_index_hnsw_roberta")
@@ -168,7 +173,8 @@ if __name__ == '__main__':
             #TJH for ['a','b','c'] get: {'input_ids': [[0, 102, 2, 1, 1, 1, 1, 1], [0, 428, 2, 1, 1, 1, 1, 1], [0, 438, 2, 1, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0]]}
             batch_q_encodes = tokenizer.batch_encode_plus(batch_q, max_length=args.max_q_len, pad_to_max_length=True, return_tensors="pt")
             batch_q_encodes = move_to_cuda(dict(batch_q_encodes))
-            q_embeds = model.encode_q(batch_q_encodes["input_ids"], batch_q_encodes["attention_mask"], batch_q_encodes.get("token_type_ids", None))
+            with torch.cuda.amp.autocast(enabled=args.fp16):
+                q_embeds = model.encode_q(batch_q_encodes["input_ids"], batch_q_encodes["attention_mask"], batch_q_encodes.get("token_type_ids", None))
 
             q_embeds_numpy = q_embeds.cpu().contiguous().numpy()
             if args.hnsw:
@@ -190,7 +196,8 @@ if __name__ == '__main__':
             batch_q_sp_encodes = tokenizer.batch_encode_plus(query_pairs, max_length=args.max_q_sp_len, pad_to_max_length=True, return_tensors="pt")
             batch_q_sp_encodes = move_to_cuda(dict(batch_q_sp_encodes))
             s1 = time.time()
-            q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], batch_q_sp_encodes.get("token_type_ids", None))
+            with torch.cuda.amp.autocast(enabled=args.fp16):
+                q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], batch_q_sp_encodes.get("token_type_ids", None))
             # print("Encoding time:", time.time() - s1)
 
             
@@ -265,14 +272,14 @@ if __name__ == '__main__':
 
 
                     # saving when there's no annotations
-                    candidaite_chains = []
-                    for path in paths:
-                        candidaite_chains.append([id2doc[path[0]], id2doc[path[1]]])
+                    candidate_chains = []
+                    for cpath in paths:
+                        candidate_chains.append([id2doc[cpath[0]], id2doc[cpath[1]]])
                     
                     retrieval_outputs.append({
                         "_id": batch_ann[idx]["_id"],
                         "question": batch_ann[idx]["question"],
-                        "candidate_chains": candidaite_chains,
+                        "candidate_chains": candidate_chains,
                         # "sp": sp_chain,
                         # "answer": gold_answers,
                         # "type": type_,
