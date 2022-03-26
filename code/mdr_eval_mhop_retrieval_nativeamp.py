@@ -37,6 +37,7 @@ import argparse
 import collections
 import json
 import logging
+import os
 from os import path
 import time
 
@@ -50,12 +51,6 @@ from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriev
 from mdr.retrieval.utils.basic_tokenizer import SimpleTokenizer
 from mdr.retrieval.utils.utils import (load_saved, move_to_cuda, para_has_answer)
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-if (logger.hasHandlers()):
-    logger.handlers.clear()
-console = logging.StreamHandler()
-logger.addHandler(console)
 
 def convert_hnsw_query(query_vectors):
     aux_dim = np.zeros(len(query_vectors), dtype='float32')
@@ -77,16 +72,24 @@ if __name__ == '__main__':
     parser.add_argument('--beam_size', type=int, default=5, help="Number of beams each step (number of nearest neighbours to append each step.).")
     parser.add_argument('--model_name', type=str, default='roberta-base')
     parser.add_argument('--gpu', action="store_true", help="Put Faiss index on gpu.")
+    parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--save_index', action="store_true")
     parser.add_argument('--only_eval_ans', action="store_true")
 #    parser.add_argument('--shared_encoder', action="store_true")
-    parser.add_argument("--save_path", type=str, default="", help="File to save retrieved para augmented eval samples to.")
+    parser.add_argument("--output_dir", type=str, default="", help="Dir to save retrieved para augmented eval samples and eval_log to.")
 #    parser.add_argument("--stop_drop", default=0, type=float)
     parser.add_argument('--hnsw', action="store_true", help="Non-exhaustive but fast and relatively accurate. Suitable for FAISS use on cpu.")
     parser.add_argument('--strict', action="store_true")  #TJH Added - load ckpt in 'strict' mode
     parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
     parser.add_argument("--use_var_versions", action="store_true", help="Use the generic variable step '..._var' versions.")
     args = parser.parse_args()
+
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', datefmt='%m/%d/%Y %H:%M:%S',
+                        level=logging.INFO,
+                        handlers=[logging.FileHandler(os.path.join(args.output_dir, "eval_log.txt")),
+                                  logging.StreamHandler()])
+    logger = logging.getLogger(__name__)
+    logger.info(args)
     
     print(args)
     
@@ -120,7 +123,7 @@ if __name__ == '__main__':
     xb = np.load(args.index_path).astype('float32')
 
     if args.hnsw:
-        if path.exists("data/hotpot_index/wiki_index_hnsw.index"):
+        if os.path.exists("data/hotpot_index/wiki_index_hnsw.index"):
             index = faiss.read_index("index/wiki_index_hnsw.index")
         else:
             index = faiss.IndexHNSWFlat(d + 1, 512)
@@ -171,7 +174,7 @@ if __name__ == '__main__':
             batch_ann = ds_items[b_start:b_start + args.batch_size]
             bsize = len(batch_q)
             #TJH for ['a','b','c'] get: {'input_ids': [[0, 102, 2, 1, 1, 1, 1, 1], [0, 428, 2, 1, 1, 1, 1, 1], [0, 438, 2, 1, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0]]}
-            batch_q_encodes = tokenizer.batch_encode_plus(batch_q, max_length=args.max_q_len, pad_to_max_length=True, return_tensors="pt")
+            batch_q_encodes = tokenizer.batch_encode_plus(batch_q, max_length=args.max_q_len, padding='max_length', truncation=True, return_tensors="pt")
             batch_q_encodes = move_to_cuda(dict(batch_q_encodes))
             with torch.cuda.amp.autocast(enabled=args.fp16):
                 q_embeds = model.encode_q(batch_q_encodes["input_ids"], batch_q_encodes["attention_mask"], batch_q_encodes.get("token_type_ids", None))
@@ -193,7 +196,7 @@ if __name__ == '__main__':
                     query_pairs.append((batch_q[b_idx], doc))  #TJH question + retrieved doc text for each neighbour
             #TJH given query_pairs = [('a','a'), ('a','b'), ('a','c'), ('b','a'),('b','b'),('b','c')] where a = 102, b = 428, c = 438
             #    the following encodes to {'input_ids': [[0, 102, 2, 2, 102, 2, 1, 1, 1, 1], [0, 102, 2, 2, 428, 2, 1, 1, 1, 1], [0, 102, 2, 2, 438, 2, 1, 1, 1, 1], [0, 428, 2, 2, 102, 2, 1, 1, 1, 1], [0, 428, 2, 2, 428, 2, 1, 1, 1, 1], [0, 428, 2, 2, 438, 2, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]]}
-            batch_q_sp_encodes = tokenizer.batch_encode_plus(query_pairs, max_length=args.max_q_sp_len, pad_to_max_length=True, return_tensors="pt")
+            batch_q_sp_encodes = tokenizer.batch_encode_plus(query_pairs, max_length=args.max_q_sp_len, padding='max_length', truncation=True, return_tensors="pt")
             batch_q_sp_encodes = move_to_cuda(dict(batch_q_sp_encodes))
             s1 = time.time()
             with torch.cuda.amp.autocast(enabled=args.fp16):
@@ -286,10 +289,9 @@ if __name__ == '__main__':
                         # "coverd_k": covered_k
                     })
 
-    if args.save_path != "":
-        with open(args.save_path, "w") as out:
-            for l in retrieval_outputs:
-                out.write(json.dumps(l) + "\n")
+    with open(os.path.join(args.output_dir, 'hpqa_val_test.jsonl'), "w") as out:
+        for l in retrieval_outputs:
+            out.write(json.dumps(l) + "\n")
 
     logger.info(f"Evaluating {len(metrics)} samples...")
     type2items = collections.defaultdict(list)

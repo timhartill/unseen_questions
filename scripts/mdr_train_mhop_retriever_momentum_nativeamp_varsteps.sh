@@ -4,7 +4,7 @@
 
 cd ../code
 
-python mdr_train_mhop.py \
+python mdr_train_mhop_nativeamp.py \
     --do_train \
     --prefix mominitialvar_ \
     --predict_batch_size 100 \

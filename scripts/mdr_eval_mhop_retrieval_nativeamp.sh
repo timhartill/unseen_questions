@@ -8,12 +8,13 @@
 # bs 10  beam 20 topk 20: 23.1GB GPU Used. Inference time goes from 3mins@topk1->15mins
 # bs 10  beam 50 topk 50: 29.7GB GPU used. Inference time: 25 mins
 
+cd ../code
 
 python mdr_eval_mhop_retrieval_nativeamp.py \
-    --eval_data data/hotpot/hotpot_qas_val.json \
-    --index_path data/hotpot_index/wiki_index.npy \
-    --corpus_dict data/hotpot_index/wiki_id2doc.json \
-    --model_path models/q_encoder.pt \
+    --eval_data /home/thar011/data/mdr/hotpot/hotpot_qas_val.json \
+    --index_path /home/thar011/data/mdr/hpqa_novar1gpu_03-24_bs24_no_momentum/index.npy \
+    --corpus_dict /home/thar011/data/mdr/hpqa_novar1gpu_03-24_bs24_no_momentum/id2doc.json \
+    --model_path /large_data/thar011/out/mdr/logs/03-24-2022/novar1gpu_-mom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varFalse/checkpoint_best.pt \
     --batch_size 100 \
     --beam_size 1 \
     --topk 1 \
@@ -23,7 +24,8 @@ python mdr_eval_mhop_retrieval_nativeamp.py \
     --max_q_len 70 \
     --max_q_sp_len 350 \
     --use_var_versions \
-    --save_path timtests/hpqa_val_test.json
+    --fp16 \
+    --output_dir /large_data/thar011/out/mdr/logs/03-24-2022/novar1gpu_-mom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varFalse
 
 
 
