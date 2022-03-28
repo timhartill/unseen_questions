@@ -44,6 +44,20 @@ def main():
 #        import apex
 #        apex.amp.register_half_function(torch, 'einsum')
 
+    if os.path.exists(args.embed_save_path) and os.listdir(args.embed_save_path):
+        print(f"output directory {args.embed_save_path} already exists and is not empty.")
+    if not os.path.exists(args.embed_save_path):
+        os.makedirs(args.embed_save_path, exist_ok=True)
+
+
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', datefmt='%m/%d/%Y %H:%M:%S',
+                        level=logging.INFO,
+                        handlers=[logging.FileHandler(os.path.join(args.embed_save_path, "encode_log.txt")),
+                                  logging.StreamHandler()])
+    logger = logging.getLogger(__name__)
+    logger.info(args)
+
+
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
         n_gpu = torch.cuda.device_count()
@@ -84,11 +98,16 @@ def main():
     elif n_gpu > 1:
         model = torch.nn.DataParallel(model)
 
+    logger.info("Begin encoding corpus...")
     with torch.cuda.amp.autocast(enabled=args.fp16):
         embeds = predict(model, eval_dataloader)
         
-    print(f"Embedding dimensions: {embeds.size()}")
+    logger.info(f"Finished encoding. Embedding dimensions: {embeds.size()}")
+    logger.info(f"Saving index.npy to: {args.embed_save_path}")
     np.save(os.path.join(args.embed_save_path, 'index.npy'), embeds.cpu().numpy())  #TJH added os.path.join
+    logger.info("Finished encoding corpus!")
+    
+    
 
 def predict(model, eval_dataloader):
     if type(model) == list:

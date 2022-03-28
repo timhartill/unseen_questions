@@ -10,7 +10,7 @@ python mdr_train_mhop_nativeamp.py \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 50 \
-    --learning_rate 2e-5 \
+    --learning_rate 1e-5 \
     --fp16 \
     --train_file /home/thar011/data/mdr/hotpot/hotpot_train_with_neg_v0.json \
     --predict_file /home/thar011/data/mdr/hotpot/hotpot_dev_with_neg_v0.json \
@@ -27,7 +27,7 @@ python mdr_train_mhop_nativeamp.py \
     --k 76800 \
     --m 0.999 \
     --temperature 1 \
-    --init_retriever /large_data/thar011/out/mdr/logs/03-23-2022/varinitialtest_-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-multi1-schemenone/checkpoint_best.pt \
+    --init_retriever /large_data/thar011/out/mdr/logs/03-26-2022/varinitialtest2_-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue/checkpoint_best.pt \
     --num_train_epochs 50 \
     --warmup-ratio 0.1
     

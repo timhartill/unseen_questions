@@ -71,7 +71,8 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=100)
     parser.add_argument('--beam_size', type=int, default=5, help="Number of beams each step (number of nearest neighbours to append each step.).")
     parser.add_argument('--model_name', type=str, default='roberta-base')
-    parser.add_argument('--gpu', action="store_true", help="Put Faiss index on gpu.")
+    parser.add_argument('--gpu_faiss', action="store_true", help="Put Faiss index on gpu.")
+    parser.add_argument('--gpu_model', action="store_true", help="Put q encoder on gpu 0 of the visible gpu(s).")
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--save_index', action="store_true")
     parser.add_argument('--only_eval_ans', action="store_true")
@@ -83,6 +84,12 @@ if __name__ == '__main__':
     parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
     parser.add_argument("--use_var_versions", action="store_true", help="Use the generic variable step '..._var' versions.")
     args = parser.parse_args()
+
+#args.gpu_model=True
+#args.use_var_versions=True
+#args.eval_data='/home/thar011/data/mdr/hotpot/hotpot_qas_val.json'
+#args.batch_size=10
+#args.fp16=True
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', datefmt='%m/%d/%Y %H:%M:%S',
                         level=logging.INFO,
@@ -112,8 +119,10 @@ if __name__ == '__main__':
     model = load_saved(model, args.model_path, exact=args.exact, strict=args.strict) #TJH added  strict=args.strict
     simple_tokenizer = SimpleTokenizer()
 
-    cuda = torch.device('cuda')
-    model.to(cuda)
+    if args.gpu_model:
+        device0 = torch.device(type='cuda', index=0)
+        #cuda = torch.device('cuda')
+        model.to(device0)
     #from apex import amp
     #model = amp.initialize(model, opt_level='O1')
     model.eval()
@@ -123,8 +132,8 @@ if __name__ == '__main__':
     xb = np.load(args.index_path).astype('float32')
 
     if args.hnsw:
-        if os.path.exists("data/hotpot_index/wiki_index_hnsw.index"):
-            index = faiss.read_index("index/wiki_index_hnsw.index")
+        if os.path.exists(os.path.join(args.output_dir, "wiki_index_hnsw.index")):
+            index = faiss.read_index(os.path.join(args.output_dir, "wiki_index_hnsw.index"))
         else:
             index = faiss.IndexHNSWFlat(d + 1, 512)
             index.hnsw.efSearch = 128
@@ -146,15 +155,17 @@ if __name__ == '__main__':
                 hnsw_vectors = [np.hstack((doc_vector, aux_dims[idx].reshape(-1, 1))) for idx, doc_vector in enumerate(vectors)]
                 hnsw_vectors = np.concatenate(hnsw_vectors, axis=0)
                 index.add(hnsw_vectors)
+        if args.save_index:
+            faiss.write_index(index, os.path.join(args.output_dir, "wiki_index_hnsw"))
     else:
         index = faiss.IndexFlatIP(d)
         index.add(xb)
-        if args.gpu:
+        if args.gpu_faiss:
             res = faiss.StandardGpuResources()
             index = faiss.index_cpu_to_gpu(res, 0, index) #TJH was 6 which would take 7 gpus but fails if < 7 available.
+            #tjh https://github.com/facebookresearch/faiss/wiki/Faiss-on-the-GPU
+            #tjh https://github.com/belvo/faiss/blob/master/benchs/bench_gpu_1bn.py contains example of multigpu sharded index
 
-    if args.save_index:
-        faiss.write_index(index, "data/hotpot_index/wiki_index_hnsw_roberta")
     
     logger.info(f"Loading corpus...")
     id2doc = json.load(open(args.corpus_dict))
@@ -170,12 +181,14 @@ if __name__ == '__main__':
     retrieval_outputs = []
     for b_start in tqdm(range(0, len(questions), args.batch_size)):
         with torch.no_grad():
+            # TJH test b_start=0
             batch_q = questions[b_start:b_start + args.batch_size]
             batch_ann = ds_items[b_start:b_start + args.batch_size]
             bsize = len(batch_q)
             #TJH for ['a','b','c'] get: {'input_ids': [[0, 102, 2, 1, 1, 1, 1, 1], [0, 428, 2, 1, 1, 1, 1, 1], [0, 438, 2, 1, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0]]}
             batch_q_encodes = tokenizer.batch_encode_plus(batch_q, max_length=args.max_q_len, padding='max_length', truncation=True, return_tensors="pt")
-            batch_q_encodes = move_to_cuda(dict(batch_q_encodes))
+            if args.gpu_model:
+                batch_q_encodes = move_to_cuda(dict(batch_q_encodes))
             with torch.cuda.amp.autocast(enabled=args.fp16):
                 q_embeds = model.encode_q(batch_q_encodes["input_ids"], batch_q_encodes["attention_mask"], batch_q_encodes.get("token_type_ids", None))
 
@@ -197,7 +210,8 @@ if __name__ == '__main__':
             #TJH given query_pairs = [('a','a'), ('a','b'), ('a','c'), ('b','a'),('b','b'),('b','c')] where a = 102, b = 428, c = 438
             #    the following encodes to {'input_ids': [[0, 102, 2, 2, 102, 2, 1, 1, 1, 1], [0, 102, 2, 2, 428, 2, 1, 1, 1, 1], [0, 102, 2, 2, 438, 2, 1, 1, 1, 1], [0, 428, 2, 2, 102, 2, 1, 1, 1, 1], [0, 428, 2, 2, 428, 2, 1, 1, 1, 1], [0, 428, 2, 2, 438, 2, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]]}
             batch_q_sp_encodes = tokenizer.batch_encode_plus(query_pairs, max_length=args.max_q_sp_len, padding='max_length', truncation=True, return_tensors="pt")
-            batch_q_sp_encodes = move_to_cuda(dict(batch_q_sp_encodes))
+            if args.gpu_model:
+                batch_q_sp_encodes = move_to_cuda(dict(batch_q_sp_encodes))
             s1 = time.time()
             with torch.cuda.amp.autocast(enabled=args.fp16):
                 q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], batch_q_sp_encodes.get("token_type_ids", None))
