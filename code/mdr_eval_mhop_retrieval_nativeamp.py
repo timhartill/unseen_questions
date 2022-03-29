@@ -52,6 +52,19 @@ from mdr.retrieval.utils.basic_tokenizer import SimpleTokenizer
 from mdr.retrieval.utils.utils import (load_saved, move_to_cuda, para_has_answer)
 
 
+def get_gpu_resources_faiss(n_gpu, gpu_start=0, gpu_end=-1, tempmem=0):
+    """ return vectors of device ids and resources useful for faiss gpu_multiple
+    """ 
+    vres = faiss.GpuResourcesVector()
+    vdev = faiss.Int32Vector()  #faiss.Int32Vector()  #TJH was IntVector but deprecation warning
+    if gpu_end == -1:
+        gpu_end = n_gpu
+    for i in range(gpu_start, gpu_end):
+        vdev.push_back(i)
+        vres.push_back(gpu_resources[i]) #vres.push_back(res)  # TJH was vres.push_back(gpu_resources[i])
+    return vres, vdev
+
+
 def convert_hnsw_query(query_vectors):
     aux_dim = np.zeros(len(query_vectors), dtype='float32')
     query_nhsw_vectors = np.hstack((query_vectors, aux_dim.reshape(-1, 1)))
@@ -71,7 +84,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=100)
     parser.add_argument('--beam_size', type=int, default=5, help="Number of beams each step (number of nearest neighbours to append each step.).")
     parser.add_argument('--model_name', type=str, default='roberta-base')
-    parser.add_argument('--gpu_faiss', action="store_true", help="Put Faiss index on gpu.")
+    parser.add_argument('--gpu_faiss', action="store_true", help="Put Faiss index on gpu(s).")
     parser.add_argument('--gpu_model', action="store_true", help="Put q encoder on gpu 0 of the visible gpu(s).")
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--save_index', action="store_true")
@@ -90,6 +103,7 @@ if __name__ == '__main__':
 #args.eval_data='/home/thar011/data/mdr/hotpot/hotpot_qas_val.json'
 #args.batch_size=10
 #args.fp16=True
+#args.gpu_faiss=True
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', datefmt='%m/%d/%Y %H:%M:%S',
                         level=logging.INFO,
@@ -119,10 +133,21 @@ if __name__ == '__main__':
     model = load_saved(model, args.model_path, exact=args.exact, strict=args.strict) #TJH added  strict=args.strict
     simple_tokenizer = SimpleTokenizer()
 
+    n_gpu = torch.cuda.device_count()
     if args.gpu_model:
         device0 = torch.device(type='cuda', index=0)
         #cuda = torch.device('cuda')
         model.to(device0)
+    if args.gpu_faiss:  #Note: FAISS freezes at index_cpu_to_gpu_multiple if gpu_resources is not a list of res's with global scope hence doing it here..
+        tempmem = 0
+        print(f"Preparing resources for {n_gpu} GPUs")   
+        gpu_resources = []    
+        for i in range(n_gpu):
+            res = faiss.StandardGpuResources()
+            if tempmem >= 0:
+                res.setTempMemory(tempmem)
+            gpu_resources.append(res)
+        
     #from apex import amp
     #model = amp.initialize(model, opt_level='O1')
     model.eval()
@@ -130,6 +155,15 @@ if __name__ == '__main__':
     logger.info("Building index...")
     d = 768
     xb = np.load(args.index_path).astype('float32')
+    
+#    d = 64                           # dimension
+#    nb = 1000                      # database size
+#    nq = 10                       # nb of queries
+#    np.random.seed(1234)             # make reproducible
+#    xb = np.random.random((nb, d)).astype('float32')
+#    xb[:, 0] += np.arange(nb) / 1000.
+#    xq = np.random.random((nq, d)).astype('float32')
+#    xq[:, 0] += np.arange(nq) / 1000.
 
     if args.hnsw:
         if os.path.exists(os.path.join(args.output_dir, "wiki_index_hnsw.index")):
@@ -161,8 +195,14 @@ if __name__ == '__main__':
         index = faiss.IndexFlatIP(d)
         index.add(xb)
         if args.gpu_faiss:
-            res = faiss.StandardGpuResources()
-            index = faiss.index_cpu_to_gpu(res, 0, index) #TJH was 6 which would take 7 gpus but fails if < 7 available.
+            if n_gpu == 1:
+                res = faiss.StandardGpuResources()
+                index = faiss.index_cpu_to_gpu(res, 0, index) #TJH was 6 which would take 7 gpus but fails if < 7 available.
+            else:
+                co = faiss.GpuMultipleClonerOptions()
+                co.shard = True
+                vres, vdev = get_gpu_resources_faiss(n_gpu, gpu_start=0, gpu_end=-1)
+                index = faiss.index_cpu_to_gpu_multiple(vres, vdev, index, co)
             #tjh https://github.com/facebookresearch/faiss/wiki/Faiss-on-the-GPU
             #tjh https://github.com/belvo/faiss/blob/master/benchs/bench_gpu_1bn.py contains example of multigpu sharded index
 
