@@ -2,6 +2,8 @@
 # Original non-varstep version:bs 100 On 4 GPUS GPU loading is 18GB each and training/eval 1 epoch takes ~12mins
 #varstep version bs 50 1 GPU takes ~36GB. 1 epoch approx 30mins
 
+# Note: original momentum trainer script did NOT apply warmup
+
 cd ../code
 
 python mdr_train_mhop_nativeamp.py \

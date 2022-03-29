@@ -134,11 +134,12 @@ if __name__ == '__main__':
     simple_tokenizer = SimpleTokenizer()
 
     n_gpu = torch.cuda.device_count()
+    logger.info(f"Visible gpus: {n_gpu}")
     if args.gpu_model:
         device0 = torch.device(type='cuda', index=0)
         #cuda = torch.device('cuda')
         model.to(device0)
-    if args.gpu_faiss:  #Note: FAISS freezes at index_cpu_to_gpu_multiple if gpu_resources is not a list of res's with global scope hence doing it here..
+    if args.gpu_faiss and n_gpu > 1:  #Note: FAISS freezes at index_cpu_to_gpu_multiple if gpu_resources is not a list of res's with global scope hence doing it here..
         tempmem = 0
         print(f"Preparing resources for {n_gpu} GPUs")   
         gpu_resources = []    
