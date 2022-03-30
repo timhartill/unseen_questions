@@ -26,7 +26,6 @@ def mhop_loss_var(model, batch, args):
                             #TJH build eg all_ctx = torch.cat([c for c in outputs['c'] ], dim=1)
                             #TJH Must be an equal number of paras in each sample so need to fill with negs
                             #TJH and need to pad 'q' with fake questions for samples with < max_hops..
-    #loss_fct = CrossEntropyLoss(ignore_index=-100)
     bs = outputs['q'][0].size(0)
     dev = outputs['q'][0].device
     act_hops = outputs['act_hops'].squeeze(-1)   # [bs] Actual # steps per sample
@@ -105,8 +104,8 @@ def mhop_loss_var(model, batch, args):
     if args.debug:
         outstr+=f"nans retrieve_loss:{retrieve_loss.isnan().any()} {retrieve_loss.dtype} {retrieve_loss.shape}"
 
-    include_mask = all_targets_all_hops!=-100  # [bs, max_hops]
-    any_not_ignore = torch.cat([include_mask[:,i].any().unsqueeze(0) for i in range(max_hops)])  # [max_hops]
+    include_mask = all_targets_all_hops != -100  # [bs, max_hops]
+    any_not_ignore = torch.cat([include_mask[:,i].any().unsqueeze(0) for i in range(max_hops)])  # [max_hops]. Ignore columns where all act_hops < max_hops
     final_loss_nonzero = torch.cat([retrieve_loss[:,i][ include_mask[:,i] ].mean().unsqueeze(0) for i in range(max_hops) if any_not_ignore[i]] ).sum() # sum( mean_over_non-zero(hop_n) ) - ce sets outputs with label -100 to 0.0
 
     #final_loss_nonzero = torch.cat([retrieve_loss[ retrieve_loss[:,i].nonzero(), i ].mean().unsqueeze(0) for i in range(max_hops)] ).sum() # sum( mean_over_non-zero(hop_n) ) - ce sets outputs with label -100 to 0.0
@@ -184,20 +183,7 @@ def mhop_eval_var(outputs, args):
                 rrs[curr_hop+1].append( 1 / (idx2ranked[t].item() + 1) )
 
     return rrs
-#    ranked_1_hop = scores_1_hop.argsort(dim=1, descending=True) # [bs, bs*2+2] indices of sorted desc paras
-#    ranked_2_hop = scores_2_hop.argsort(dim=1, descending=True)
-#    idx2ranked_1 = ranked_1_hop.argsort(dim=1)                  # # [bs, bs*2+2] sorted asc indices of sorted desc indices
-#    idx2ranked_2 = ranked_2_hop.argsort(dim=1)
 
-#    rrs_1, rrs_2 = [], []
-#    for t, idx2ranked in zip(target_1_hop, idx2ranked_1):
-#        rrs_1.append(1 / (idx2ranked[t].item() + 1)) #reciprocal rank of target para
-#        print(f"hop1: {t}: {idx2ranked[t].item() + 1}")
-#    for t, idx2ranked in zip(target_2_hop, idx2ranked_2):
-#        rrs_2.append(1 / (idx2ranked[t].item() + 1))
-#        print(f"hop2: {t}: {idx2ranked[t].item() + 1}")
-    
-#    return {"rrs_1": rrs_1, "rrs_2": rrs_2}
 
 
 def mhop_loss(model, batch, args):

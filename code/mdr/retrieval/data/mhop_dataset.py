@@ -47,13 +47,14 @@ import random
 
 from .data_utils import collate_tokens
 
+from utils import encode_text
 
 class MhopDataset_var(Dataset):
     """ Version of MhopDataset descigned to work with mhop_loss_var
-    output: {'q': [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spx], 'c': [sp1, sp2, .., spx], "neg": [neg1, neg2, ... negn], "act_hops":sample#hops} 
+    output: {'q': [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spx], 'c': [sp1, sp2, .., spx], "neg": [neg1, neg2, ... negn], "act_hops": [sample#hops]} 
     """
 
-    def __init__(self, tokenizer, data_path, max_q_len, max_q_sp_len, max_c_len, train=False, negs=2,):
+    def __init__(self, tokenizer, data_path, max_q_len, max_q_sp_len, max_c_len, train=False, negs=2, max_hops=2):
         super().__init__()
         self.tokenizer = tokenizer
         self.max_q_len = max_q_len
@@ -62,6 +63,7 @@ class MhopDataset_var(Dataset):
         self.train = train
         self.data_path = data_path
         self.negs = negs
+        self.max_hops = max_hops
         print(f"Loading data from {data_path}")
         self.data = [json.loads(line) for line in open(data_path).readlines()]
         if train: 
@@ -69,7 +71,8 @@ class MhopDataset_var(Dataset):
         print(f"Total sample count {len(self.data)}")
 
     def encode_para(self, para, max_len): #TJH Added truncation=True to eliminate warning - alternates removal of a token from each seq in the pair to get down to max_len
-        return self.tokenizer.encode_plus(para["title"].strip(), text_pair=para["text"].strip(), max_length=max_len, truncation=True, return_tensors="pt")
+        return encode_text(self.tokenizer, para["title"].strip(), text_pair=para["text"].strip(), max_input_length=max_len, truncation=True, padding=False, return_tensors="pt")
+        #return self.tokenizer.encode_plus(para["title"].strip(), text_pair=para["text"].strip(), max_length=max_len, truncation=True, return_tensors="pt")
     
     def __getitem__(self, index):
         sample = self.data[index]
@@ -80,11 +83,15 @@ class MhopDataset_var(Dataset):
         question = sample['question']
         if question.endswith("?"):
             question = question[:-1]
-        num_hops = 2    
+        #max_hops = 2 # max hops on any training/dev sample
+        para_list = []
         if sample["type"] == "comparison":
+            num_hops = 2 # this sample actual number of hops
             random.shuffle(sample["pos_paras"])
             start_para, bridge_para = sample["pos_paras"]
+            para_list = [start_para, bridge_para]
         elif sample["type"] == "bridge":
+            num_hops = 2 # this sample actual number of hops
             if len(sample["bridge"]) > 1:  #preprocessing couldn't identify unique final para
                 random.shuffle(sample["bridge"])
             for para in sample["pos_paras"]:
@@ -92,35 +99,58 @@ class MhopDataset_var(Dataset):
                     start_para = para
                 else:
                     bridge_para = para
-        elif sample["type"].strip() == '': #single hop ie squad
+            para_list = [start_para, bridge_para]
+        elif sample["type"].strip() == '': #single hop eg squad
             num_hops = 1
             start_para = sample["pos_paras"][0]
-            if len(sample["neg_paras"]) > 0:
-                bridge_para = random.choice(sample["neg_paras"]) # not used as positive
-            else:
-                bridge_para = {"title": "dummy", "text": "dummy"}
+#            if len(sample["neg_paras"]) > 0:
+#                bridge_para = random.choice(sample["neg_paras"]) # not used as positive
+#            else:
+#                bridge_para = {"title": "dummy", "text": "dummy"}
+            para_list = [start_para]
         else:
             assert False, f"ERROR in Dataset: file:{self.data_path} index: {index}. Invalid type: {sample['type']}"
             
         if self.train:
             random.shuffle(sample["neg_paras"])
 
-        start_para_codes = self.encode_para(start_para, self.max_c_len)
-        bridge_para_codes = self.encode_para(bridge_para, self.max_c_len)
+
+        num_negs = len(sample["neg_paras"])
         neg_list = []
         for i in range(self.negs):
-            neg_list.append( self.encode_para(sample["neg_paras"][i], self.max_c_len) )
+            if i < num_negs:
+                neg_list.append( self.encode_para(sample["neg_paras"][i], self.max_c_len) )
+            else:
+                neg_list.append( self.encode_para( {"title": "dummy", "text": "dummy " + str(i)} ) )
+        
+        num_to_fill = self.max_hops - len(para_list)
+        assert num_to_fill >= 0, f"ERROR: Sample has {len(para_list)} positive paras but max_hops is only {self.max_hops}."
+        for i in range(num_to_fill): # Fill para_list with negs in reverse neg order so usually different from those in neg_list
+            if i < num_negs:
+                para_list.append(sample["neg_paras"][(i+1)*-1])
+            else:
+                para_list.append( {"title": "dummy", "text": "dummy " + str(i*-1)} )
+            
+            
+        #start_para_codes = self.encode_para(start_para, self.max_c_len)
+        #bridge_para_codes = self.encode_para(bridge_para, self.max_c_len)
+        para_list_codes = [self.encode_para(p, self.max_c_len) for p in para_list]
 
-        #TJH: tokenizer.encode_plus(['a','b'], max_length=8) = same as 'text_pair' form: {'input_ids': [0, 102, 2, 2, 428, 2], 'attention_mask': [1, 1, 1, 1, 1, 1]}
-        #TJH: tokenizer.encode_plus(['a','b', 'c'], max_length=8): ERROR
-        #TJH: tokenizer.encode_plus('</s></s>'.join(['a', 'b','c']), max_length=16) correct but watch len of each: {'input_ids': [0, 102, 2, 2, 428, 2, 2, 438, 2], 'attention_mask': [1, 1, 1, 1, 1, 1, 1, 1, 1]}
-        #TJH Note for squad q_sp_codes is a dummy filler
-        q_sp_codes = self.tokenizer.encode_plus(question, text_pair=start_para["text"].strip(), max_length=self.max_q_sp_len, truncation=True, return_tensors="pt")  #TJH: for q = 'a', text_pair='b': {'input_ids': [0, 102, 2, 2, 428, 2], 'attention_mask': [1, 1, 1, 1, 1, 1]}
-        q_codes = self.tokenizer.encode_plus(question, max_length=self.max_q_len, truncation=True, return_tensors="pt") #TJH: for q = 'a': {'input_ids': [0, 102, 2], 'attention_mask': [1, 1, 1]}
+        #num_paras = len(para_list)
+        q_codes = encode_text(self.tokenizer, question, text_pair=None, max_input_length=self.max_q_len, truncation=True, padding=False, return_tensors="pt")
+        q_list_codes = [q_codes]
+        query_paras = ''
+        for i in range(self.max_hops-1):  #if 3 paras: encode: q+sp1, q+sp1+sp2 but not q+sp1+sp2+sp3. Note: queries with neg paras are ignored in loss calc..
+            query_paras += ' ' + para_list[i]['text']
+            q_list_codes.append( encode_text(self.tokenizer, question, text_pair=query_paras.strip(), max_input_length=self.max_q_sp_len, truncation=True, padding=False, return_tensors="pt") )
+        
+        #q_sp_codes = encode_text(self.tokenizer, question, text_pair=start_para["text"].strip(), max_input_length=self.max_q_sp_len, truncation=True, padding=False, return_tensors="pt")
+        #q_sp_codes = self.tokenizer.encode_plus(question, text_pair=start_para["text"].strip(), max_length=self.max_q_sp_len, truncation=True, return_tensors="pt")  #TJH: for q = 'a', text_pair='b': {'input_ids': [0, 102, 2, 2, 428, 2], 'attention_mask': [1, 1, 1, 1, 1, 1]}
+        #q_codes = self.tokenizer.encode_plus(question, max_length=self.max_q_len, truncation=True, return_tensors="pt") #TJH: for q = 'a': {'input_ids': [0, 102, 2], 'attention_mask': [1, 1, 1]}
 
         return {
-                "q": [q_codes, q_sp_codes],                 # [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spx]
-                "c": [start_para_codes, bridge_para_codes], # [sp1, sp2, .., spx]
+                "q": q_list_codes,                          # [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spx-1]. for hpqa: [q_codes, q_sp1_codes]
+                "c": para_list_codes,                       # [sp1, sp2, .., spx] for hpqa: [start_para_codes, bridge_para_codes]
                 "neg": neg_list,                            # [neg1, neg2, ... negn]
                 "act_hops": torch.LongTensor([num_hops])    # sample #hops
                 }

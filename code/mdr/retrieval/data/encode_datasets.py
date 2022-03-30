@@ -15,6 +15,9 @@ import unicodedata
 import re
 import os
 
+from utils import encode_text
+
+
 def normalize(text):
     """Resolve different type of unicode encodings."""
     return unicodedata.normalize('NFD', text)
@@ -92,7 +95,8 @@ class EmDataset(Dataset):
         # if sample["text"].endswith("."):
         #     sample["text"] = sample["text"][:-1]
 
-        sent_codes = self.tokenizer.encode_plus(normalize(sample["title"].strip()), text_pair=sample['text'].strip(), max_length=self.max_len, truncation=True, return_tensors="pt")
+        sent_codes = encode_text(self.tokenizer, normalize(sample["title"].strip()), text_pair=sample['text'].strip(), max_input_length=self.max_len, truncation=True, padding=False, return_tensors="pt")
+        #sent_codes = self.tokenizer.encode_plus(normalize(sample["title"].strip()), text_pair=sample['text'].strip(), max_length=self.max_len, truncation=True, return_tensors="pt")
 
         return sent_codes
 

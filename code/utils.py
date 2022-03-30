@@ -656,8 +656,22 @@ def get_single_result(res, idx=0):
     return res.preds[idx].strip(), float(res.sequences_scores[idx]) # float(res.sequences_scores.detach().cpu().numpy()[idx])
 
 
-
-
+def encode_text(tokenizer, text, text_pair=None, max_input_length=512, truncation=True, return_tensors="pt", padding=False):
+    """ Encode text in standard way using various options
+    padding='max_length' will pad to max_input_length
+    truncation = True with text_pair will use 'longest first' strategy ie iteratively remove token from current longest of text or text_pair
+    With text_pair can also set "only_second" to just truncate text_pair or 'only_first' to just truncate text
+    tokenizer.encode_plus('a') : {'input_ids': [0, 102, 2], 'attention_mask': [1, 1, 1]}
+    tokenizer.encode_plus('a', text_pair='b') : {'input_ids': [0, 102, 2, 2, 428, 2], 'attention_mask': [1, 1, 1, 1, 1, 1]}
+    tokenizer.batch_encode_plus(['a', 'b', 'c']) : {'input_ids': [[0, 102, 2], [0, 428, 2], [0, 438, 2]], 'attention_mask': [[1, 1, 1], [1, 1, 1], [1, 1, 1]]}
+    tokenizer.batch_encode_plus([['a','b'], ['b','c'], ['c','d']]) : {'input_ids': [[0, 102, 2, 2, 428, 2], [0, 428, 2, 2, 438, 2], [0, 438, 2, 2, 417, 2]], 'attention_mask': [[1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1]]}
+    
+    """
+    if type(text) == str:
+        encode_dict = tokenizer.encode_plus(text, text_pair=text_pair, max_length=max_input_length, truncation=truncation, padding=padding, return_tensors=return_tensors)
+    else:
+        encode_dict = tokenizer.batch_encode_plus(text, max_length=max_input_length, truncation=truncation, padding=padding, return_tensors=return_tensors)
+    return encode_dict
 
 
 

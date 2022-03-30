@@ -51,6 +51,8 @@ from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriev
 from mdr.retrieval.utils.basic_tokenizer import SimpleTokenizer
 from mdr.retrieval.utils.utils import (load_saved, move_to_cuda, para_has_answer)
 
+from utils import encode_text
+
 
 def get_gpu_resources_faiss(n_gpu, gpu_start=0, gpu_end=-1, tempmem=0):
     """ return vectors of device ids and resources useful for faiss gpu_multiple
@@ -139,7 +141,7 @@ if __name__ == '__main__':
         device0 = torch.device(type='cuda', index=0)
         #cuda = torch.device('cuda')
         model.to(device0)
-    if args.gpu_faiss and n_gpu > 1:  #Note: FAISS freezes at index_cpu_to_gpu_multiple if gpu_resources is not a list of res's with global scope hence doing it here..
+    if args.gpu_faiss and n_gpu > 1:  #Note: FAISS freezes at index_cpu_to_gpu_multiple if gpu_resources is not a list of res's with global scope, hence defining here..
         tempmem = 0
         print(f"Preparing resources for {n_gpu} GPUs")   
         gpu_resources = []    
@@ -227,7 +229,8 @@ if __name__ == '__main__':
             batch_ann = ds_items[b_start:b_start + args.batch_size]
             bsize = len(batch_q)
             #TJH for ['a','b','c'] get: {'input_ids': [[0, 102, 2, 1, 1, 1, 1, 1], [0, 428, 2, 1, 1, 1, 1, 1], [0, 438, 2, 1, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0]]}
-            batch_q_encodes = tokenizer.batch_encode_plus(batch_q, max_length=args.max_q_len, padding='max_length', truncation=True, return_tensors="pt")
+            batch_q_encodes = encode_text(tokenizer, batch_q, text_pair=None, max_input_length=args.max_q_len, truncation=True, padding='max_length', return_tensors="pt")
+            #batch_q_encodes = tokenizer.batch_encode_plus(batch_q, max_length=args.max_q_len, padding='max_length', truncation=True, return_tensors="pt")
             if args.gpu_model:
                 batch_q_encodes = move_to_cuda(dict(batch_q_encodes))
             with torch.cuda.amp.autocast(enabled=args.fp16):
@@ -250,7 +253,8 @@ if __name__ == '__main__':
                     query_pairs.append((batch_q[b_idx], doc))  #TJH question + retrieved doc text for each neighbour
             #TJH given query_pairs = [('a','a'), ('a','b'), ('a','c'), ('b','a'),('b','b'),('b','c')] where a = 102, b = 428, c = 438
             #    the following encodes to {'input_ids': [[0, 102, 2, 2, 102, 2, 1, 1, 1, 1], [0, 102, 2, 2, 428, 2, 1, 1, 1, 1], [0, 102, 2, 2, 438, 2, 1, 1, 1, 1], [0, 428, 2, 2, 102, 2, 1, 1, 1, 1], [0, 428, 2, 2, 428, 2, 1, 1, 1, 1], [0, 428, 2, 2, 438, 2, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]]}
-            batch_q_sp_encodes = tokenizer.batch_encode_plus(query_pairs, max_length=args.max_q_sp_len, padding='max_length', truncation=True, return_tensors="pt")
+            batch_q_sp_encodes = encode_text(tokenizer, query_pairs, text_pair=None, max_input_length=args.max_q_sp_len, truncation=True, padding='max_length', return_tensors="pt")
+            #batch_q_sp_encodes = tokenizer.batch_encode_plus(query_pairs, max_length=args.max_q_sp_len, padding='max_length', truncation=True, return_tensors="pt")
             if args.gpu_model:
                 batch_q_sp_encodes = move_to_cuda(dict(batch_q_sp_encodes))
             s1 = time.time()
