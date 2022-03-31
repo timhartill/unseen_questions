@@ -86,7 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=100)
     parser.add_argument('--beam_size', type=int, default=5, help="Number of beams each step (number of nearest neighbours to append each step.).")
     parser.add_argument('--model_name', type=str, default='roberta-base')
-    parser.add_argument('--gpu_faiss', action="store_true", help="Put Faiss index on gpu(s).")
+    parser.add_argument('--gpu_faiss', action="store_true", help="Put Faiss index on visible gpu(s).")
     parser.add_argument('--gpu_model', action="store_true", help="Put q encoder on gpu 0 of the visible gpu(s).")
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--save_index', action="store_true")
@@ -118,6 +118,9 @@ if __name__ == '__main__':
     
     logger.info("Loading data...")
     ds_items = [json.loads(_) for _ in open(args.eval_data).readlines()]
+#{"question": "Were Scott Derrickson and Ed Wood of the same nationality?", "_id": "5a8b57f25542995d1e6f1371", "answer": ["yes"], "sp": ["Scott Derrickson", "Ed Wood"], "type": "comparison"}
+#{"question": "What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?", "_id": "5a8c7595554299585d9e36b6", "answer": ["Chief of Protocol"], "sp": ["Kiss and Tell (1945 film)", "Shirley Temple"], "type": "bridge"}
+
     #print(f"ds_items length: {len(ds_items)}")
 
     # filter
@@ -315,13 +318,13 @@ if __name__ == '__main__':
                     p_recall, p_em = 0, 0
                     sp_covered = [sp_title in retrieved_titles for sp_title in sp]
                     if np.sum(sp_covered) > 0:
-                        p_recall = 1
+                        p_recall = 1  #TJH either retrieved para in gold paras
                     if np.sum(sp_covered) == len(sp_covered):
-                        p_em = 1
-                    path_covered = [int(set(p) == set(sp)) for p in path_titles]
+                        p_em = 1      #TJH both retrieved para in gold paras
+                    path_covered = [int(set(p) == set(sp)) for p in path_titles]  #TJH alternative way of calculating p_em..
                     path_covered = np.sum(path_covered) > 0
                     recall_1 = 0
-                    covered_1 = [sp_title in hop1_titles for sp_title in sp]
+                    covered_1 = [sp_title in hop1_titles for sp_title in sp] # 1st retrieved para in gold paras 
                     if np.sum(covered_1) > 0: recall_1 = 1
                     metrics.append({
                     "question": question,

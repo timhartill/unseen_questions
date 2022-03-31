@@ -41,7 +41,7 @@ class UnifiedRetriever(nn.Module):
         q_sp1 = self.encode_seq(batch['q_sp_input_ids'], batch['q_sp_mask'], batch.get('q_sp_type_ids', None))
 
         #TJH Note [1] below...this [0]=raw seq output, [1] = pooler output ie [CLS] -> pooler layer output
-        qsp_pooled = self.encoder_c(batch['q_sp_input_ids'], batch['q_sp_mask'], batch.get('q_sp_type_ids', None))[1]
+        qsp_pooled = self.encoder_c(batch['q_sp_input_ids'], batch['q_sp_mask'], batch.get('q_sp_type_ids', None))[1]  #TJH 1 = cls pooler output
         stop_logits = self.stop(self.stop_drop(qsp_pooled))
 
         return {'q': q, 'c1': c1, "c2": c2, "neg_1": neg_1, "neg_2": neg_2, "q_sp1": q_sp1, "stop_logits": stop_logits}

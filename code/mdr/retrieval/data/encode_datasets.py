@@ -78,7 +78,7 @@ class EmDataset(Dataset):
             print(f"load {len(self.data)} documents...")
             id2doc = {}
             for idx, doc in enumerate(self.data):
-                id2doc[idx] = (doc["title"], doc["text"], doc.get("intro", False))
+                id2doc[idx] = (doc["title"], doc["text"], doc.get("intro", False))  #TODO TJH Update title for BQA -> title+paraidx or wiki id + paraidx
             with open(save_path, "w") as g:
                 json.dump(id2doc, g)
 

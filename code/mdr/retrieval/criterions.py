@@ -19,8 +19,10 @@ def mhop_loss_var(model, batch, args):
         
     """
     outstr=''
-    outputs = model(batch)  # {'q': [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spn], 'c': [sp1, sp2, .., spn], "neg": [neg1, neg2, ... negx], "act_hops":[sample1hops, ..,samplenhops]} 
-                            #TJH each dict element a list of tensors shape [bs, hidden_size=hs] except act_hops which is a list of integers
+    outputs = model(batch)  # {'q': [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spn], 'c': [sp1, sp2, .., spn], "neg": [neg1, neg2, ... negx], "act_hops":[sample1hops, ..,samplenhops], "stop_logits:[[bs, 2], [bs, 2]]"} 
+                            #TJH each dict element a max_hops len list of tensors shape [bs, hidden_size=hs] 
+                            #TJH except act_hops which is a bs len list of integer hop counts
+                            #TJH and stop_logits which is max_hops length list of [bs,2]
                             #TJH c1=start para, c2=bridge/2nd para, q_sp1=q + start para
                             #TJH make model return: 
                             #TJH build eg all_ctx = torch.cat([c for c in outputs['c'] ], dim=1)
