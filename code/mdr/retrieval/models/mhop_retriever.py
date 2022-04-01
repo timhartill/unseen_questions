@@ -35,15 +35,26 @@ class RobertaRetriever_var(nn.Module):
         pooler_output = self.encoder(input_ids, mask)[1]  #TJH 1 = cls pooler output
         stop_logits = self.stop(self.stop_drop(pooler_output))
         return stop_logits
-        
+    
+    
+    def encode_seq_stop(self, input_ids, mask):
+        sequence_output, pooler_output = self.encoder(input_ids, mask)[:2]
+        cls_rep = sequence_output[:, 0, :]
+        vector = self.project(cls_rep)
+        stop_logits = self.stop(self.stop_drop(pooler_output)) # [bs, 2]
+        return vector, stop_logits
+
 
     def forward(self, batch):
         
         stop_encoded = []
         q_encoded = []
         for q_input_ids, q_mask in zip(batch['q_input_ids'], batch['q_mask']):
-            q_encoded.append(self.encode_seq(q_input_ids, q_mask))
-            stop_encoded.append(self.encode_stop(q_input_ids, q_mask))
+             vector, stop_logits = self.encode_seq_stop(q_input_ids, q_mask)
+             q_encoded.append( vector )
+             stop_encoded.append( stop_logits )
+#            q_encoded.append(self.encode_seq(q_input_ids, q_mask))
+#            stop_encoded.append(self.encode_stop(q_input_ids, q_mask))
 
         c_encoded = []
         for c_input_ids, c_mask in zip(batch['c_input_ids'], batch['c_mask']):
@@ -56,8 +67,12 @@ class RobertaRetriever_var(nn.Module):
         vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded, 'stop_logits': stop_encoded, 'act_hops': batch['act_hops']} # each except act_hops a list of tensors [bs, hidden_size]
         return vectors
 
-    def encode_q(self, input_ids, q_mask, q_type_ids):
-        return self.encode_seq(input_ids, q_mask)
+    def encode_q(self, input_ids, q_mask, q_type_ids=None, include_stop=False):
+        if not include_stop:
+            return self.encode_seq(input_ids, q_mask)
+        vector, stop_logits = self.encode_seq_stop(input_ids, q_mask)
+        return {'embed': vector, 'stop': stop_logits.argmax(dim=1).unsqueeze(1)}  # stop=[bs,1], 0=dont stop, 1=stop with predicted para from vector q encoding as last needed para
+
 
 
 class RobertaMomentumRetriever_var(nn.Module):
@@ -125,8 +140,11 @@ class RobertaMomentumRetriever_var(nn.Module):
         stop_encoded = []
         q_encoded = []
         for q_input_ids, q_mask in zip(batch['q_input_ids'], batch['q_mask']):
-            q_encoded.append(self.encoder_q.encode_seq(q_input_ids, q_mask))
-            stop_encoded.append(self.encoder_q.encode_stop(q_input_ids, q_mask))
+             vector, stop_logits = self.encoder_q.encode_seq_stop(q_input_ids, q_mask)
+             q_encoded.append( vector )
+             stop_encoded.append( stop_logits )
+#            q_encoded.append(self.encoder_q.encode_seq(q_input_ids, q_mask))
+#            stop_encoded.append(self.encoder_q.encode_stop(q_input_ids, q_mask))
 
         if self.training:
             with torch.no_grad():

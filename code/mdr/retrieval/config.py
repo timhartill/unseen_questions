@@ -105,6 +105,10 @@ def train_args():
     parser.add_argument("--stop-drop", default=0, type=float)
     parser.add_argument("--use-adam", action="store_true")
     parser.add_argument("--warmup-ratio", default=0, type=float, help="Linear warmup over warmup_steps.")
+    parser.add_argument("--reduction", default="none", type=str,
+                        help="type of reduction to apply in cross-entropy loss - 'sum', 'mean' or 'none' gives sum over mean per hop.")
+    parser.add_argument("--retrieve_loss_multiplier", default=1.0, type=float,
+                        help="Retrieve loss multiplier. Final loss will be stop_loss + retrieve_loss_multiplier*retrieve_loss")
 
 
     return parser.parse_args()

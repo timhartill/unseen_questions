@@ -34,6 +34,8 @@ args.shared_encoder=True
 args.warmup_ratio=0.1
 args.use_var_versions = True
 args.output_dir = '/large_data/thar011/out/mdr/logs'
+args.reduction = 'none'
+args.retrieve_loss_multiplier=1.0
 
 args.gradient_accumulation_steps = 1
 args.debug=True
@@ -74,9 +76,9 @@ def main():
         #apex.amp.register_half_function(torch, 'einsum')
     date_curr = date.today().strftime("%m-%d-%Y")
     if args.momentum:
-        model_name = f"{args.prefix}-{date_curr}-mom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-m{args.m}-k{args.k}-t{args.temperature}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}"
+        model_name = f"{args.prefix}-{date_curr}-mom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-m{args.m}-k{args.k}-t{args.temperature}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}-ce{args.reduction}"
     else:    
-        model_name = f"{args.prefix}-{date_curr}-nomom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-shared{args.shared_encoder}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}"
+        model_name = f"{args.prefix}-{date_curr}-nomom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-shared{args.shared_encoder}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}-ce{args.reduction}"
 #    args.output_dir = os.path.join(args.output_dir, date_curr, model_name)
     args.output_dir = os.path.join(args.output_dir, model_name)
 #    tb_logger = SummaryWriter(os.path.join(args.output_dir.replace("logs","tflogs")))
@@ -195,11 +197,11 @@ def main():
         warmup_steps = t_total * args.warmup_ratio
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=t_total)
 
-        nan_count = 0
-        nan_max_log = 25
+        nan_max_log = 2
         
         logger.info('Start training....')
         for epoch in range(int(args.num_train_epochs)):
+            nan_count = 0
             for batch in tqdm(train_dataloader):
                 #TJH batch = next(iter(train_dataloader))
                 #TJH batch_nv = next(iter(train_dataloader_nv))
@@ -211,13 +213,13 @@ def main():
                 #TJH q_embeds_nv = model.encode_q(batch_nv['q_input_ids'], batch_nv['q_mask'], batch_nv.get("token_type_ids", None)) #Error with amp, no error without
                 #TJH q_embeds_nv = model_nv.encode_q(batch_nv['q_input_ids'], batch_nv['q_mask'], batch_nv.get("token_type_ids", None))  # works
                 with torch.cuda.amp.autocast(enabled=args.fp16):
-                    loss, outstr = mloss(model, batch, args)  #TODO if doesnt work, just put autocast around calling model...
+                    loss, outstr = mloss(model, batch, args)
                     if args.gradient_accumulation_steps > 1:
                         loss = loss / args.gradient_accumulation_steps
-                if args.debug and loss.isnan().any():
+                if args.debug: #and loss.isnan().any():
                     nan_count += 1
                     if nan_count < nan_max_log:
-                        logger.info(f"Ep:{epoch} bstep:{batch_step} Loss is NaN. Debug str follows..")
+                        logger.info(f"DEBUG Ep:{epoch} bstep:{batch_step} Debug str follows..")
                         logger.info(f"{outstr}")
                     
                 # Scales loss.  Calls backward() on scaled loss to create scaled gradients.

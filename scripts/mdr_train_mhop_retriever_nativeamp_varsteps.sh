@@ -30,6 +30,7 @@ python mdr_train_mhop_nativeamp.py \
     --shared-encoder \
     --gradient_accumulation_steps 1 \
     --use_var_versions \
+    --reduction sum \
     --output_dir /large_data/thar011/out/mdr/logs \
     --num_train_epochs 50 \
     --warmup-ratio 0.1
