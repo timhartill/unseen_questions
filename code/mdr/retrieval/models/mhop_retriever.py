@@ -49,10 +49,13 @@ class RobertaRetriever_var(nn.Module):
         
         stop_encoded = []
         q_encoded = []
-        for q_input_ids, q_mask in zip(batch['q_input_ids'], batch['q_mask']):
-             vector, stop_logits = self.encode_seq_stop(q_input_ids, q_mask)
-             q_encoded.append( vector )
-             stop_encoded.append( stop_logits )
+        for i, q_input_ids, q_mask in enumerate(zip(batch['q_input_ids'], batch['q_mask'])):
+            if i == 0: # no need to encode stop for q only
+                q_encoded.append(self.encode_seq(q_input_ids, q_mask))
+            else:    
+                vector, stop_logits = self.encode_seq_stop(q_input_ids, q_mask)
+                q_encoded.append( vector )
+                stop_encoded.append( stop_logits )
 #            q_encoded.append(self.encode_seq(q_input_ids, q_mask))
 #            stop_encoded.append(self.encode_stop(q_input_ids, q_mask))
 
@@ -139,10 +142,13 @@ class RobertaMomentumRetriever_var(nn.Module):
 
         stop_encoded = []
         q_encoded = []
-        for q_input_ids, q_mask in zip(batch['q_input_ids'], batch['q_mask']):
-             vector, stop_logits = self.encoder_q.encode_seq_stop(q_input_ids, q_mask)
-             q_encoded.append( vector )
-             stop_encoded.append( stop_logits )
+        for i, q_input_ids, q_mask in enumerate(zip(batch['q_input_ids'], batch['q_mask'])):
+            if i == 0: # no need to encode stop for q only
+                q_encoded.append(self.encoder_q.encode_seq(q_input_ids, q_mask))
+            else:    
+                 vector, stop_logits = self.encoder_q.encode_seq_stop(q_input_ids, q_mask)
+                 q_encoded.append( vector )
+                 stop_encoded.append( stop_logits )
 #            q_encoded.append(self.encoder_q.encode_seq(q_input_ids, q_mask))
 #            stop_encoded.append(self.encoder_q.encode_stop(q_input_ids, q_mask))
 

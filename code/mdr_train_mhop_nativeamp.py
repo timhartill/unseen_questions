@@ -320,31 +320,42 @@ def predict(args, model, eval_dataloader, device, logger):
     else:
         eval_func = mhop_eval
     model.eval()
-    #rrs_1, rrs_2 = [], [] # reciprocal rank
     rrs_all = {} # reciprocal rank
+    acc_per_hop_all = {}  # accuracy per hop
+    acc_per_sample_all = []  # accuracy per sample
     for batch in tqdm(eval_dataloader):
         batch_to_feed = move_to_cuda(batch)
         with torch.no_grad():
             outputs = model(batch_to_feed)
-            eval_results = eval_func(outputs, args)  # eg rrs={1: [1.0, 0.125, 0.2], 2: [0.125, 0.5], 3: []}
+            eval_results, accuracies_per_hop, accuracies_per_sample = eval_func(outputs, args)  # eg rrs={1: [1.0, 0.125, 0.2], 2: [0.125, 0.5], 3: []}
             for hop in eval_results:
                 if rrs_all.get(hop) is None:
                     rrs_all[hop] = []
                 rrs_all[hop] += eval_results[hop]
-#            _rrs_1, _rrs_2 = eval_results["rrs_1"], eval_results["rrs_2"]
-#            rrs_1 += _rrs_1
-#            rrs_2 += _rrs_2
+            for hop in accuracies_per_hop:
+                if acc_per_hop_all.get(hop) is None:
+                    acc_per_hop_all[hop] = []
+                acc_per_hop_all[hop] += accuracies_per_hop[hop]
+            acc_per_sample_all += accuracies_per_sample
+
     mrrs_all = {'mrr_'+str(hop):np.mean(rrs_all[hop]) for hop in rrs_all if len(rrs_all[hop]) > 0}
     mrr_avg = np.mean([mrrs_all[hop] for hop in mrrs_all])
     mrrs_all["mrr_avg"] = mrr_avg
-#    mrr_1 = np.mean(rrs_1)
-#    mrr_2 = np.mean(rrs_2)
     logger.info(f"evaluated { len(rrs_all[ list(rrs_all.keys())[0] ]) } examples...")
-    logger.info(f"MRRS: {mrrs_all}...")
-#    logger.info(f'MRR-1: {mrr_1}')
-#    logger.info(f'MRR-2: {mrr_2}')
+    logger.info(f"MRRS: {mrrs_all}")
+
+    ah_all = {'stop_acc_hop_'+str(hop):np.mean(acc_per_hop_all[hop]) for hop in acc_per_hop_all if len(acc_per_hop_all[hop]) > 0}
+    ah_avg = np.mean([ah_all[hop] for hop in ah_all])
+    ah_all["stop_acc_hop_avg"] = ah_avg
+    logger.info(f"AVG STOP ACC BY HOP: {ah_all}")
+    
+    if len(acc_per_sample_all) > 0:
+        as_avg = np.mean(acc_per_sample_all)
+    else:
+        as_avg = -1
+    logger.info(f"AVG STOP ACC BY SAMPLE: {as_avg}")
+    
     model.train()
-#    return {"mrr_1": mrr_1, "mrr_2": mrr_2, "mrr_avg": (mrr_1 + mrr_2) / 2}
     return mrrs_all
 
 
