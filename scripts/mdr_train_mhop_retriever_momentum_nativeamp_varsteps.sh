@@ -8,7 +8,7 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix mominitialvar_ \
+    --prefix momhpqastop \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 50 \
@@ -27,6 +27,9 @@ python mdr_train_mhop_nativeamp.py \
     --output_dir /large_data/thar011/out/mdr/logs \
     --momentum \
     --reduction sum \
+    --retrieve_loss_multiplier 1.0 \
+    --stop-drop 0.0 \
+    --debug \
     --k 76800 \
     --m 0.999 \
     --temperature 1 \

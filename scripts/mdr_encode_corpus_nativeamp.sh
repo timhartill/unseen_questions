@@ -15,8 +15,8 @@ python mdr_encode_corpus_nativeamp.py \
     --predict_batch_size 250 \
     --model_name roberta-base \
     --predict_file /home/thar011/data/mdr/hotpot/hpqa_abstracts_tim.jsonl \
-    --init_checkpoint /large_data/thar011/out/mdr/logs/mominitialvar_-03-28-2022-mom-seed16-bsz50-fp16True-lr1e-05-decay0.0-warm0.1-valbsz100-m0.999-k76800-t1.0-ga1-varTrue/checkpoint_k_best.pt \
-    --embed_save_path /home/thar011/data/mdr/hpqa_mominitialvar_-03-28_bs24_with_momentum \
+    --init_checkpoint /large_data/thar011/out/mdr/logs/varinitialtest2_-04-01-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cesum/checkpoint_best.pt \
+    --embed_save_path /home/thar011/data/mdr/hpqa_varinitialtest2_-04-01_bs24_no_momentum_cesum \
     --use_var_versions \
     --fp16 \
     --max_c_len 300 \

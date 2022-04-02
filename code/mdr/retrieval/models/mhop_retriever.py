@@ -49,7 +49,7 @@ class RobertaRetriever_var(nn.Module):
         
         stop_encoded = []
         q_encoded = []
-        for i, q_input_ids, q_mask in enumerate(zip(batch['q_input_ids'], batch['q_mask'])):
+        for i, (q_input_ids, q_mask) in enumerate(zip(batch['q_input_ids'], batch['q_mask'])):
             if i == 0: # no need to encode stop for q only
                 q_encoded.append(self.encode_seq(q_input_ids, q_mask))
             else:    

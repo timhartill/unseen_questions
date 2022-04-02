@@ -102,7 +102,7 @@ def train_args():
                         help="Number of updates steps to accumualte before performing a backward/update pass.")
     parser.add_argument('--eval-period', type=int, default=2500)
     parser.add_argument("--max_grad_norm", default=2.0, type=float, help="Max gradient norm.")
-    parser.add_argument("--stop-drop", default=0, type=float)
+    parser.add_argument("--stop-drop", default=0.0, type=float)
     parser.add_argument("--use-adam", action="store_true")
     parser.add_argument("--warmup-ratio", default=0, type=float, help="Linear warmup over warmup_steps.")
     parser.add_argument("--reduction", default="none", type=str,

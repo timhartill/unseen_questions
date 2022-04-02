@@ -36,6 +36,7 @@ args.use_var_versions = True
 args.output_dir = '/large_data/thar011/out/mdr/logs'
 args.reduction = 'none'
 args.retrieve_loss_multiplier=1.0
+args.stop_drop = 0.0
 
 args.gradient_accumulation_steps = 1
 args.debug=True
@@ -81,13 +82,13 @@ def main():
         model_name = f"{args.prefix}-{date_curr}-nomom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-shared{args.shared_encoder}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}-ce{args.reduction}"
 #    args.output_dir = os.path.join(args.output_dir, date_curr, model_name)
     args.output_dir = os.path.join(args.output_dir, model_name)
-#    tb_logger = SummaryWriter(os.path.join(args.output_dir.replace("logs","tflogs")))
-    tb_logger = SummaryWriter(os.path.join(args.output_dir))
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
         print(f"output directory {args.output_dir} already exists and is not empty.")
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir, exist_ok=True)
+#    tb_logger = SummaryWriter(os.path.join(args.output_dir.replace("logs","tflogs")))
+    tb_logger = SummaryWriter(os.path.join(args.output_dir))
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', datefmt='%m/%d/%Y %H:%M:%S',
                         level=logging.INFO,

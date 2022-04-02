@@ -145,22 +145,11 @@ def mhop_eval_var(outputs, args):
     
     all_ctx = torch.cat([c for c in outputs['c']], dim=0) # [bs * max_hops, hs]
     neg_ctx = torch.cat([neg.unsqueeze(1) for neg in outputs['neg']], dim=1) # [bs, #negs, hs]
-    #all_ctx = torch.cat([outputs['c1'], outputs['c2']], dim=0)
-    #neg_ctx = torch.cat([outputs["neg_1"].unsqueeze(1), outputs["neg_2"].unsqueeze(1)], dim=1)
 
     all_q_reshaped = torch.cat([qs.unsqueeze(1) for qs in outputs['q']], dim=1) # [bs,1,hs] cat [bs,1,hs] .. = [bs, max_hops, hs]
     scores_all_hops = torch.matmul(all_q_reshaped, all_ctx.t())  # [bs, #qs, hs] matmul [hs, bs * #c] = [bs, #qs, bs * #c] ie here max_hops = #qs = #c: [bs, max_hops, bs * max_hops]
 
-    #scores_1_hop = torch.mm(outputs["q"], all_ctx.t())  # [bs, bs*2]
-    #neg_scores_1 = torch.bmm(outputs["q"].unsqueeze(1), neg_ctx.transpose(1,2)).squeeze(1)
-    #scores_2_hop = torch.mm(outputs["q_sp1"], all_ctx.t())
-    #neg_scores_2 = torch.bmm(outputs["q_sp1"].unsqueeze(1), neg_ctx.transpose(1,2)).squeeze(1)
-    #bsize = outputs["q"].size(0)
-    #scores_1_mask = torch.cat([torch.zeros(bsize, bsize), torch.eye(bsize)], dim=1).to(outputs["q"].device)
-    #scores_1_hop = scores_1_hop.float().masked_fill(scores_1_mask.bool(), float('-inf')).type_as(scores_1_hop)
-    #scores_1_hop = torch.cat([scores_1_hop, neg_scores_1], dim=1) #[bs, bs*2+2]
-    #scores_2_hop = torch.cat([scores_2_hop, neg_scores_2], dim=1)
-    
+   
     cell_0 = torch.zeros(bs, bs).to(dev)  
     cell_eye = torch.eye(bs).to(dev)
     hop_mask_list = []
@@ -179,15 +168,6 @@ def mhop_eval_var(outputs, args):
     neg_scores_all = torch.bmm(all_q_reshaped, neg_ctx.transpose(1,2))  # [bs, #qs, hs] bmm [bs, hs, #negs] = [bs, #qs, #negs]
     scores_all_hops = torch.cat([scores_all_hops, neg_scores_all], dim=2) # [bs, #qs, bs*#c] cat [bs, #qs, #negs] = [bs, #qs, bs*#c + #negs]
 
-#    target_1_hop = torch.arange(outputs["q"].size(0)).to(outputs["q"].device)
-#    target_2_hop = torch.arange(outputs["q"].size(0)).to(outputs["q"].device) + outputs["q"].size(0)
-# TEST SETUP #####
-#    scores_all_hops = torch.randn(bs, max_hops, (bs*max_hops) + 2).to(dev)
-#    scores_1_hop = scores_all_hops[:,0]
-#    scores_2_hop = scores_all_hops[:,1]
-#    target_2_hop = torch.arange(bs).to(dev) + bs
-#    act_hops = [1,2,2]
-##############
     # stop on hop accuracy
     stop_pred = stop_logits.argmax(dim=2)  # [bs, max_hops-1]
     hop_target_idxs = torch.zeros(bs, max_hops-1, dtype=torch.int64).to(dev)

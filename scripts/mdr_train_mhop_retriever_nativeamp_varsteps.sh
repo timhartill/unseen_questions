@@ -14,7 +14,7 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix varinitialtest2_ \
+    --prefix stoptest1hpqa \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \
@@ -31,6 +31,9 @@ python mdr_train_mhop_nativeamp.py \
     --gradient_accumulation_steps 1 \
     --use_var_versions \
     --reduction sum \
+    --retrieve_loss_multiplier 1.0 \
+    --stop-drop 0.0 \
+    --debug \
     --output_dir /large_data/thar011/out/mdr/logs \
     --num_train_epochs 50 \
     --warmup-ratio 0.1
