@@ -327,7 +327,7 @@ def predict(args, model, eval_dataloader, device, logger):
         batch_to_feed = move_to_cuda(batch)
         with torch.no_grad():
             outputs = model(batch_to_feed)
-            eval_results, accuracies_per_hop, accuracies_per_sample = eval_func(outputs, args)  # eg rrs={1: [1.0, 0.125, 0.2], 2: [0.125, 0.5], 3: []}
+            eval_results, accuracies_per_hop, accuracies_per_sample = eval_func(outputs, args)  # eg 1=q_only, 2=q+2p1 rrs={1: [1.0, 0.125, 0.2], 2: [0.125, 0.5], 3: []}
             for hop in eval_results:
                 if rrs_all.get(hop) is None:
                     rrs_all[hop] = []
@@ -335,7 +335,7 @@ def predict(args, model, eval_dataloader, device, logger):
             for hop in accuracies_per_hop:
                 if acc_per_hop_all.get(hop) is None:
                     acc_per_hop_all[hop] = []
-                acc_per_hop_all[hop] += accuracies_per_hop[hop]
+                acc_per_hop_all[hop] += accuracies_per_hop[hop] # eg. 2=q+sp1 {2: [0, 1, 1, 1, 0], 3: [0, 1, 1], 4: [0, 1]}
             acc_per_sample_all += accuracies_per_sample
 
     mrrs_all = {'mrr_'+str(hop):np.mean(rrs_all[hop]) for hop in rrs_all if len(rrs_all[hop]) > 0}
