@@ -280,8 +280,8 @@ def main():
             mrrs = predict(args, model, eval_dataloader, device, logger)
             mrr = mrrs["mrr_avg"]
             logger.info("Step %d Train loss %.2f MRR-AVG %.2f on epoch=%d" % (global_step, train_loss_meter.avg, mrr*100, epoch))
-            if args.debug:
-                logger.info(f"Cumulative Loss NaN count:{nan_count}")
+            #if args.debug:
+            #    logger.info(f"Cumulative Loss NaN count:{nan_count}")
             for k, v in mrrs.items():
                 tb_logger.add_scalar(k, v*100, epoch)
             if args.momentum:

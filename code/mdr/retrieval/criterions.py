@@ -176,7 +176,7 @@ def mhop_eval_var(outputs, args):
             if i == act_hops[j]-1:
                 hop_target_idxs[j, i] = 1
 
-    stop_acc = (stop_pred == hop_target_idxs).float().numpy()  # [bs, max_hops-1] with 1.0 / 0.0 in cells
+    stop_acc = (stop_pred == hop_target_idxs).float().cpu().numpy()  # [bs, max_hops-1] with 1.0 / 0.0 in cells
     for i in range(max_hops-1):
         for j in range(bs):
             if i > act_hops[j]-1:

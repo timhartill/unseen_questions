@@ -98,6 +98,7 @@ if __name__ == '__main__':
     parser.add_argument('--strict', action="store_true")  #TJH Added - load ckpt in 'strict' mode
     parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
     parser.add_argument("--use_var_versions", action="store_true", help="Use the generic variable step '..._var' versions.")
+    parser.add_argument('--stop-drop', type=float, default=0.0, help="Dropout on stop head. Included for compatibility with training model")
     args = parser.parse_args()
 
 #args.gpu_model=True
