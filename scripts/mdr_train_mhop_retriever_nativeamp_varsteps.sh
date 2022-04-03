@@ -14,7 +14,7 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix stoptest1hpqa \
+    --prefix stoptest2cemeanhpqa \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \
@@ -30,7 +30,7 @@ python mdr_train_mhop_nativeamp.py \
     --shared-encoder \
     --gradient_accumulation_steps 1 \
     --use_var_versions \
-    --reduction sum \
+    --reduction none \
     --retrieve_loss_multiplier 1.0 \
     --stop-drop 0.0 \
     --debug \

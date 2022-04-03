@@ -90,7 +90,7 @@ def mhop_loss_var(model, batch, args):
 
 
     # learn to flag stop after act_hops eg if q+sp1 and act_hops = 2 then stop but if act_hops = 3 then don't stop
-    stop_ce = CrossEntropyLoss(ignore_index=-100, reduction=args.reduction if args.reduction != 'none' else 'sum')
+    stop_ce = CrossEntropyLoss(ignore_index=-100, reduction=args.reduction if args.reduction != 'none' else 'mean')
     hop_target_idxs = torch.zeros(bs, max_hops-1, dtype=torch.int64).to(dev)
     for i in range(max_hops-1):
         for j in range(bs):
