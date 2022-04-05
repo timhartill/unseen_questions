@@ -123,7 +123,7 @@ def predict(model, eval_dataloader):
             embed = results['embed'].cpu()
             embed_array.append(embed)
 
-    ## linear combination tuning on dev data
+    print(f"Finished encoding batches, now concatenating {len(embed_array)} batches into single tensor..")
     embed_array = torch.cat(embed_array)
 
     model.train()

@@ -72,9 +72,9 @@ class RobertaRetriever_var(nn.Module):
 
     def encode_q(self, input_ids, q_mask, q_type_ids=None, include_stop=False):
         if not include_stop:
-            return self.encode_seq(input_ids, q_mask)
-        vector, stop_logits = self.encode_seq_stop(input_ids, q_mask)
-        return {'embed': vector, 'stop': stop_logits.argmax(dim=1).unsqueeze(1)}  # stop=[bs,1], 0=dont stop, 1=stop with predicted para from vector q encoding as last needed para
+            return self.encode_seq(input_ids, q_mask)  # [bs, hs]
+        vector, stop_logits = self.encode_seq_stop(input_ids, q_mask)  # [bs, hs], [bs, 2]
+        return vector, stop_logits.argmax(dim=1).unsqueeze(1)  # stop=[bs,1], 0=dont stop, insufficient info in query, add another para to it, 1=stop, query has sufficient info, no need to add extra paras
 
 
 

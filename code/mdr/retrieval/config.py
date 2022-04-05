@@ -69,6 +69,8 @@ def common_args():
     #TJH Added
     parser.add_argument("--use_var_versions", action="store_true", help="Use the generic variable step '..._var' versions.")
     parser.add_argument("--debug", action="store_true", help="If set prints extra debug info in criterions")
+    parser.add_argument("--max_hops", type=int, default=2, help="Maximum number of hops in train-dev samples.")
+    parser.add_argument("--num_negs", type=int, default=2, help="Number of adversarial negatives to include for each sample in training.")
     
 
     return parser

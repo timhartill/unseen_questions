@@ -98,7 +98,9 @@ if __name__ == '__main__':
     parser.add_argument('--strict', action="store_true")  #TJH Added - load ckpt in 'strict' mode
     parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
     parser.add_argument("--use_var_versions", action="store_true", help="Use the generic variable step '..._var' versions.")
+    parser.add_argument("--eval_stop", action="store_true", help="Evaluate stop prediction accuracy in addition to evaluating para retrieval.")
     parser.add_argument('--stop-drop', type=float, default=0.0, help="Dropout on stop head. Included for compatibility with training model")
+    parser.add_argument("--max_hops", type=int, default=2, help="Maximum number of hops in eval samples.")
     args = parser.parse_args()
 
 #args.gpu_model=True
@@ -217,7 +219,11 @@ if __name__ == '__main__':
     logger.info(f"Loading corpus...")
     id2doc = json.load(open(args.corpus_dict))
     if isinstance(id2doc["0"], list):
-        id2doc = {k: {"title":v[0], "text": v[1]} for k, v in id2doc.items()}
+        if len(id2doc["0"]) == 2 or not str(id2doc["0"][2]).replace('_', '').isnumeric():
+            id2doc = {k: {"title":v[0], "text": v[1]} for k, v in id2doc.items()}
+        else:
+            id2doc = {k: {"title":v[0], "text": v[1], "para_id": v[2]} for k, v in id2doc.items()}
+            
     # title2text = {v[0]:v[1] for v in id2doc.values()}
     logger.info(f"Corpus size {len(id2doc)}")
     
@@ -238,14 +244,19 @@ if __name__ == '__main__':
             if args.gpu_model:
                 batch_q_encodes = move_to_cuda(dict(batch_q_encodes))
             with torch.cuda.amp.autocast(enabled=args.fp16):
-                q_embeds = model.encode_q(batch_q_encodes["input_ids"], batch_q_encodes["attention_mask"], batch_q_encodes.get("token_type_ids", None))
+                q_embeds = model.encode_q(batch_q_encodes["input_ids"], batch_q_encodes["attention_mask"], 
+                                              batch_q_encodes.get("token_type_ids", None), include_stop=False)
 
             q_embeds_numpy = q_embeds.cpu().contiguous().numpy()
             if args.hnsw:
                 q_embeds_numpy = convert_hnsw_query(q_embeds_numpy)
-            D, I = index.search(q_embeds_numpy, args.beam_size)  #TJH Return beam_size neighbours for each question
+            D, I = index.search(q_embeds_numpy, args.beam_size)  #D,I = [bs, #beams]
+            
 
             # 2hop search
+            stop_on_hop = np.full((bsize, args.max_hops-1), -100, dtype=np.int64)  # [bs, max_hops-1] since we don't calc for q_only hence start with q+sp1 in 0th position
+            curr_hop = 0  #TODO Increment this per hop..
+            
             query_pairs = []
             for b_idx in range(bsize):
                 for _, doc_id in enumerate(I[b_idx]):  # TJH For each neighbour returned for current question
@@ -254,7 +265,7 @@ if __name__ == '__main__':
                         # doc = "fadeaxsaa" * 100
                         doc = id2doc[str(doc_id)]["title"]
                         D[b_idx][_] = float("-inf")
-                    query_pairs.append((batch_q[b_idx], doc))  #TJH question + retrieved doc text for each neighbour
+                    query_pairs.append((batch_q[b_idx], doc))  #TJH question + retrieved doc text for each neighbour q+sp1
             #TJH given query_pairs = [('a','a'), ('a','b'), ('a','c'), ('b','a'),('b','b'),('b','c')] where a = 102, b = 428, c = 438
             #    the following encodes to {'input_ids': [[0, 102, 2, 2, 102, 2, 1, 1, 1, 1], [0, 102, 2, 2, 428, 2, 1, 1, 1, 1], [0, 102, 2, 2, 438, 2, 1, 1, 1, 1], [0, 428, 2, 2, 102, 2, 1, 1, 1, 1], [0, 428, 2, 2, 428, 2, 1, 1, 1, 1], [0, 428, 2, 2, 438, 2, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]]}
             batch_q_sp_encodes = encode_text(tokenizer, query_pairs, text_pair=None, max_input_length=args.max_q_sp_len, truncation=True, padding='max_length', return_tensors="pt")
@@ -263,7 +274,13 @@ if __name__ == '__main__':
                 batch_q_sp_encodes = move_to_cuda(dict(batch_q_sp_encodes))
             s1 = time.time()
             with torch.cuda.amp.autocast(enabled=args.fp16):
-                q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], batch_q_sp_encodes.get("token_type_ids", None))
+                if args.eval_stop:
+                    q_sp_embeds, stop_01 = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
+                                             batch_q_sp_encodes.get("token_type_ids", None), include_stop=True) 
+                    stop_01_numpy = stop_01.cpu().contiguous().numpy()  # [bs,1]
+                else:
+                    q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
+                                             batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)
             # print("Encoding time:", time.time() - s1)
 
             
@@ -271,28 +288,34 @@ if __name__ == '__main__':
             s2 = time.time()
             if args.hnsw:
                 q_sp_embeds = convert_hnsw_query(q_sp_embeds)
-            D_, I_ = index.search(q_sp_embeds, args.beam_size)
+            D_, I_ = index.search(q_sp_embeds, args.beam_size)  # [bs*#beams, #beams]
 
             D_ = D_.reshape(bsize, args.beam_size, args.beam_size)
             I_ = I_.reshape(bsize, args.beam_size, args.beam_size)
 
             # aggregate path scores
-            path_scores = np.expand_dims(D, axis=2) + D_  #TJH Add neighbour distances to path so for each orig question now have [beamsize, beamsize] containing (d, d_)
+            path_scores = np.expand_dims(D, axis=2) + D_  #For each orig question now have [bs, beamsize, beamsize] containing d+d_
 
             if args.hnsw:
                 path_scores = - path_scores
 
+            if args.eval_stop:    # aggregate stops into [bs, max_hops-1]
+                stop_on_hop[:, curr_hop] = stop_01_numpy[:, 0]
+            
+
+            # start eval per batch
+
             for idx in range(bsize): #TJH Score, rank paths, return top k paths and eval vs gt
-                search_scores = path_scores[idx]
+                search_scores = path_scores[idx]  # [#beams, #beams]
                 ranked_pairs = np.vstack(np.unravel_index(np.argsort(search_scores.ravel())[::-1],
-                                           (args.beam_size, args.beam_size))).transpose()
+                                           (args.beam_size, args.beam_size))).transpose()  # [#beams * #beams, 2] = ranked coords in [#beams, #beams] matrix of scores
                 retrieved_titles = []
                 hop1_titles = []
                 paths, path_titles = [], []
-                for _ in range(args.topk):
-                    path_ids = ranked_pairs[_]
-                    hop_1_id = I[idx, path_ids[0]]
-                    hop_2_id = I_[idx, path_ids[0], path_ids[1]]
+                for k in range(args.topk):
+                    path_ids = ranked_pairs[k]  # [2,] 
+                    hop_1_id = I[idx, path_ids[0]]   # path_ids[0]=idx of top ranked hop 1 neighbour
+                    hop_2_id = I_[idx, path_ids[0], path_ids[1]]  # path_ids[1]=idx of top ranked hop 2 neighbour
                     retrieved_titles.append(id2doc[str(hop_1_id)]["title"])
                     retrieved_titles.append(id2doc[str(hop_2_id)]["title"])
 
@@ -313,7 +336,22 @@ if __name__ == '__main__':
                     
                 else:
                     sp = batch_ann[idx]["sp"]
-                    assert len(set(sp)) == 2
+                    if args.eval_stop:
+                        act_hops = len(sp)  # num gold paras = num of hops needed to answer this question
+                        stop_target = np.zeros((args.max_hops-1), dtype=np.int64)
+                        if act_hops-1 < stop_target.shape[0]:
+                            stop_target[act_hops-1] = 1
+                        stop_acc = (stop_on_hop[idx] == stop_target).astype(np.float64)
+                        for i in range(args.max_hops-1): # ignore where hop > actual # hops for this sample 
+                            if i > act_hops-1:
+                                stop_acc[i] = 0.0
+                        correct_counts = stop_acc.sum()    
+                        act_hops_denom = act_hops if act_hops < args.max_hops else args.max_hops-1
+                        stop_accuracy_per_sample = float(correct_counts / act_hops_denom)
+                    else:
+                        stop_accuracy_per_sample = -1.0
+                    
+                    #assert len(set(sp)) == 2
                     type_ = batch_ann[idx]["type"]
                     question = batch_ann[idx]["question"]
                     p_recall, p_em = 0, 0
@@ -328,13 +366,14 @@ if __name__ == '__main__':
                     covered_1 = [sp_title in hop1_titles for sp_title in sp] # 1st retrieved para in gold paras 
                     if np.sum(covered_1) > 0: recall_1 = 1
                     metrics.append({
-                    "question": question,
-                    "p_recall": p_recall,
-                    "p_em": p_em,
-                    "type": type_,
-                    'recall_1': recall_1,
-                    'path_covered': int(path_covered)
-                    })
+                                    "question": question,
+                                    "p_recall": p_recall,
+                                    "p_em": p_em,
+                                    "type": type_,
+                                    'recall_1': recall_1,
+                                    'path_covered': int(path_covered),
+                                    'stop_acc': stop_accuracy_per_sample
+                                    })
 
 
                     # saving when there's no annotations
@@ -370,9 +409,13 @@ if __name__ == '__main__':
         logger.info(f'\tAvg P-EM: {np.mean([m["p_em"] for m in metrics])}')
         logger.info(f'\tAvg 1-Recall: {np.mean([m["recall_1"] for m in metrics])}')
         logger.info(f'\tPath Recall: {np.mean([m["path_covered"] for m in metrics])}')
+        logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in metrics])}')
         for t in type2items.keys():
             logger.info(f"{t} Questions num: {len(type2items[t])}")
             logger.info(f'\tAvg PR: {np.mean([m["p_recall"] for m in type2items[t]])}')
             logger.info(f'\tAvg P-EM: {np.mean([m["p_em"] for m in type2items[t]])}')
             logger.info(f'\tAvg 1-Recall: {np.mean([m["recall_1"] for m in type2items[t]])}')
             logger.info(f'\tPath Recall: {np.mean([m["path_covered"] for m in type2items[t]])}')
+            logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in type2items[t]])}')
+
+

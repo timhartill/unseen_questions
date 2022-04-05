@@ -1,4 +1,4 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
+# Portions Copyright (c) Facebook, Inc. and its affiliates.
 # All rights reserved.
 #
 # This source code is licensed under the license found in the 
@@ -50,7 +50,7 @@ from .data_utils import collate_tokens
 from utils import encode_text
 
 class MhopDataset_var(Dataset):
-    """ Version of MhopDataset descigned to work with mhop_loss_var
+    """ Version of MhopDataset designed to work with mhop_loss_var
     output: {'q': [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spx], 'c': [sp1, sp2, .., spx], "neg": [neg1, neg2, ... negn], "act_hops": [sample#hops]} 
     """
 
@@ -103,10 +103,6 @@ class MhopDataset_var(Dataset):
         elif sample["type"].strip() == '': #single hop eg squad
             num_hops = 1
             start_para = sample["pos_paras"][0]
-#            if len(sample["neg_paras"]) > 0:
-#                bridge_para = random.choice(sample["neg_paras"]) # not used as positive
-#            else:
-#                bridge_para = {"title": "dummy", "text": "dummy"}
             para_list = [start_para]
         else:
             assert False, f"ERROR in Dataset: file:{self.data_path} index: {index}. Invalid type: {sample['type']}"

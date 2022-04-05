@@ -5,6 +5,36 @@ Created on Tue Jan 18 18:35:27 2022
 
 @author: tim hartill
 
+Convert beerqa wiki dump into formatted jsonl file "docs":
+    - Extract hyperlinks and sentence spans
+    - Merge paras that occur in beerqa train/dev as > 1 para supporting the same hop (add any additional para merges where para x needs to be merged with >1 other para due to being in difft samples as "conflicts" at the end of doc['paras'])
+    - Remove docs without any paras (eg disambiguation pages)
+    - Load into Elasticsearch with unique key doc['id' + '_' + 0-based contiguous para_idx. 
+Convert beerqa train/dev files into format suitable for MDR:
+    - Aggregate multiple paras that support the same hop
+    - map to docs paras (based on title: para_idx).
+    - For each sample, sequence the support paragraph ordering 
+    - Create adversarial negs using ES and also with hyperlinks. Where < 10 adv paras found, pad with random paras to min 10 negs.
+
+wiki: docs format
+docs[0].keys(): dict_keys(['id', 'title', 'paras']) 
+ - id is a string containing numbers. 
+ - Note title is raw and escaped. Needs to be unescaped for use.
+ - paras is a list (nb < 8 word paras are removed) of form:
+     {   'pid': '1', # not used
+         'text': 'Chinnar Wildlife Sanctuary is located 18\xa0km north of Marayoor on SH 17 in the Marayoor and Kanthalloor panchayats of Devikulam taluk in the Idukki district of Kerala state in South India. It is one of twelve wildlife sanctuaries among the protected areas of Kerala.',
+         'sentence_spans': [[0, 187], [187, 265]],
+         'hyperlinks_cased': {'Marayoor': [{'anchor_text': 'Marayoor', 'span': [53, 61]}],
+          'State Highway 17 (Tamil Nadu - Kerala, India)': [{'anchor_text': 'SH 17', 'span': [65, 70]}],
+          'Devikulam': [{'anchor_text': 'Devikulam', 'span': [117, 126]}],
+          'Idukki district': [{'anchor_text': 'Idukki district', 'span': [140, 155]}],
+          'Kerala': [{'anchor_text': 'Kerala', 'span': [159, 165]}],
+          'South India': [{'anchor_text': 'South India', 'span': [175, 186]}],
+          'Protected areas of Kerala': [{'anchor_text': 'protected areas of Kerala', 'span': [239, 264]}]},
+         'hpqa': False,
+         'squad': False }
+
+
 MDR: Convert HotpotQA abstracts into a jsonl file from the MDR output file to the input format for encoding
 
 output:
@@ -90,7 +120,7 @@ INDIR_BASE = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-tokenized
 #AISO_TRAIN = '/data/thar011/gitrepos/AISO/data/hotpot-step-train.strict.refined.jsonl'
 AISO_FILE = '/data/thar011/gitrepos/AISO/data/corpus/beer_v1.tsv'
 BEER_WIKI_SAVE = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen.json'
-BEER_WIKI_SAVE_WITHMERGES = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.json'
+BEER_WIKI_SAVE_WITHMERGES = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.json'  #FINAL CORPUS FILE
 BEER_TITLE_SAVE = '/home/thar011/data/beerqa/enwiki-20200801-titledict-compgen.json'
 BEER_DEV = '/home/thar011/data/beerqa/beerqa_dev_v1.0.json'
 BEER_TRAIN = '/home/thar011/data/beerqa/beerqa_train_v1.0.json'
@@ -1199,6 +1229,8 @@ def output_dense_train_format(beer_split, outfile):
 output_dense_train_format(beer_dev, outfile=BEER_DENSE_DEV)
 output_dense_train_format(beer_train, outfile=BEER_DENSE_TRAIN)
 
+
+#docs = json.load(open(BEER_WIKI_SAVE_WITHMERGES))
 
 # modify mdr dataset loader to incorporate options for difft adversarial configurations
 

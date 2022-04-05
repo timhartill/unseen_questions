@@ -9,19 +9,26 @@
 # bs24 on one gpu with 42.5GB free (6639mb taken) just fits! (initially gets up to 42GB taken then falls to ~38GB taken as fp16 scaling kicks in) (pred bs 100 here works). Stopped after 26 epochs. Best=epoch 21: MRRS: {'mrr_1': 0.9389304208307683, 'mrr_2': 0.9643570317425275, 'mrr_avg': 0.951643726286648} NOTE loss NAN!: Step 82918 Train loss nan MRR-AVG 95.16 on epoch=21. Last=MRRS: {'mrr_1': 0.9364797357582563, 'mrr_2': 0.9660725050908262, 'mrr_avg': 0.9512761204245412} Step 101763 Train loss nan MRR-AVG 95.13 on epoch=26
 # with torch.cuda.amp: bs25 starts on 1 gpu using ~43GB. No gradient overflow msgs or scaler scale msgs and seems to run slightly faster approx 41 mins per epoch..
 
+#hpqa train_file /home/thar011/data/mdr/hotpot/hotpot_train_with_neg_v0.json \
+#hpqa predict_file /home/thar011/data/mdr/hotpot/hotpot_dev_with_neg_v0.json \
+
+#beerqa train_file /home/thar011/data/beerqa/beerqa_train_v1.0_with_neg_v0.jsonl
+#beerqa predict_file /home/thar011/data/beerqa/beerqa_dev_v1.0_with_neg_v0.jsonl
+#bqa ~134k training samples vs ~90k hpqa. On 1 gpu bs24 est 1hr 15mins per epoch vs ~45mins per epoch.  
+
 
 cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix stoptest2cemeanhpqa \
+    --prefix bqatest1 \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \
     --learning_rate 2e-5 \
     --fp16 \
-    --train_file /home/thar011/data/mdr/hotpot/hotpot_train_with_neg_v0.json \
-    --predict_file /home/thar011/data/mdr/hotpot/hotpot_dev_with_neg_v0.json \
+    --train_file /home/thar011/data/beerqa/beerqa_train_v1.0_with_neg_v0.jsonl \
+    --predict_file /home/thar011/data/beerqa/beerqa_dev_v1.0_with_neg_v0.jsonl \
     --seed 16 \
     --eval-period -1 \
     --max_c_len 300 \
@@ -33,8 +40,11 @@ python mdr_train_mhop_nativeamp.py \
     --reduction none \
     --retrieve_loss_multiplier 1.0 \
     --stop-drop 0.0 \
+    --max_hops 2 \
+    --num_negs 2 \
     --debug \
     --output_dir /large_data/thar011/out/mdr/logs \
     --num_train_epochs 50 \
     --warmup-ratio 0.1
+
     

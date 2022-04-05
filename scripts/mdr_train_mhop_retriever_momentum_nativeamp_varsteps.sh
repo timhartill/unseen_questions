@@ -29,6 +29,8 @@ python mdr_train_mhop_nativeamp.py \
     --reduction sum \
     --retrieve_loss_multiplier 1.0 \
     --stop-drop 0.0 \
+    --max_hops 2 \
+    --num_negs 2 \
     --debug \
     --k 76800 \
     --m 0.999 \
