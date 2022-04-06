@@ -398,17 +398,19 @@ if __name__ == '__main__':
                     
                     #assert len(set(sp)) == 2
                     type_ = batch_ann[idx]["type"]
+                    if type_.strip() == '':
+                        type_ = 'single hop'
                     question = batch_ann[idx]["question"]
                     p_recall, p_em = 0, 0
                     sp_covered = [sp_title in retrieved_titles for sp_title in sp]
                     if np.sum(sp_covered) > 0:
                         p_recall = 1  #TJH either retrieved para in gold paras
-                    if np.sum(sp_covered) == len(sp_covered):
-                        p_em = 1      #TJH both retrieved para in gold paras
-                    path_covered = [int(set(p) == set(sp)) for p in path_titles]  #TJH alternative way of calculating p_em..
+                    if np.sum(sp_covered) == len(sp_covered):  #works for variable # of hops
+                        p_em = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrived para in gold paras
+                    path_covered = [int(set(p) == set(sp)) for p in path_titles]  # for hpqa equiv but wont work for act_hops < max_hops 
                     path_covered = np.sum(path_covered) > 0
                     recall_1 = 0
-                    covered_1 = [sp_title in hop1_titles for sp_title in sp] # 1st retrieved para in gold paras 
+                    covered_1 = [sp_title in hop1_titles for sp_title in sp] # 1st retrieved para in gold paras. works for single hop 
                     if np.sum(covered_1) > 0: recall_1 = 1
                     metrics.append({
                                     "question": question,
@@ -424,7 +426,9 @@ if __name__ == '__main__':
                     # saving when there's no annotations
                     candidate_chains = []
                     for cpath in paths:
-                        candidate_chains.append([id2doc[cpath[0]], id2doc[cpath[1]]])
+                        chain = [id2doc[cpath[i]] for i in range(len(cpath))]
+                        candidate_chains.append(chain)  #TODO test
+#                        candidate_chains.append([id2doc[cpath[0]], id2doc[cpath[1]]])  #TODO update for > 2 hops
                     
                     retrieval_outputs.append({
                         "_id": batch_ann[idx]["_id"],
