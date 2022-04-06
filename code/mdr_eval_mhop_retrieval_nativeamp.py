@@ -253,75 +253,120 @@ if __name__ == '__main__':
             D, I = index.search(q_embeds_numpy, args.beam_size)  #D,I = [bs, #beams]
             
 
-            # 2hop search
+            # n-hop search
             stop_on_hop = np.full((bsize, args.max_hops-1), -100, dtype=np.int64)  # [bs, max_hops-1] since we don't calc for q_only hence start with q+sp1 in 0th position
-            curr_hop = 0  #TODO Increment this per hop..
-            
-            query_pairs = []
-            for b_idx in range(bsize):
-                for _, doc_id in enumerate(I[b_idx]):  # TJH For each neighbour returned for current question
-                    doc = id2doc[str(doc_id)]["text"]
-                    if "roberta" in  args.model_name and doc.strip() == "":
-                        # doc = "fadeaxsaa" * 100
-                        doc = id2doc[str(doc_id)]["title"]
-                        D[b_idx][_] = float("-inf")
-                    query_pairs.append((batch_q[b_idx], doc))  #TJH question + retrieved doc text for each neighbour q+sp1
-            #TJH given query_pairs = [('a','a'), ('a','b'), ('a','c'), ('b','a'),('b','b'),('b','c')] where a = 102, b = 428, c = 438
-            #    the following encodes to {'input_ids': [[0, 102, 2, 2, 102, 2, 1, 1, 1, 1], [0, 102, 2, 2, 428, 2, 1, 1, 1, 1], [0, 102, 2, 2, 438, 2, 1, 1, 1, 1], [0, 428, 2, 2, 102, 2, 1, 1, 1, 1], [0, 428, 2, 2, 428, 2, 1, 1, 1, 1], [0, 428, 2, 2, 438, 2, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]]}
-            batch_q_sp_encodes = encode_text(tokenizer, query_pairs, text_pair=None, max_input_length=args.max_q_sp_len, truncation=True, padding='max_length', return_tensors="pt")
-            #batch_q_sp_encodes = tokenizer.batch_encode_plus(query_pairs, max_length=args.max_q_sp_len, padding='max_length', truncation=True, return_tensors="pt")
-            if args.gpu_model:
-                batch_q_sp_encodes = move_to_cuda(dict(batch_q_sp_encodes))
-            s1 = time.time()
-            with torch.cuda.amp.autocast(enabled=args.fp16):
-                if args.eval_stop:
-                    q_sp_embeds, stop_01 = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
-                                             batch_q_sp_encodes.get("token_type_ids", None), include_stop=True) 
-                    stop_01_numpy = stop_01.cpu().contiguous().numpy()  # [bs,1]
-                else:
-                    q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
-                                             batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)
-            # print("Encoding time:", time.time() - s1)
+            path_scores = D.copy()
+            curr_D = D
+            curr_I = I
+            curr_doc = ['' for i in range(curr_D.shape[0])]
+            curr_q = batch_q.copy()
+            I_list = [I.copy()]
 
-            
-            q_sp_embeds = q_sp_embeds.contiguous().cpu().numpy()
-            s2 = time.time()
-            if args.hnsw:
-                q_sp_embeds = convert_hnsw_query(q_sp_embeds)
-            D_, I_ = index.search(q_sp_embeds, args.beam_size)  # [bs*#beams, #beams]
+            for curr_hop in range(args.max_hops-1):
+#                curr_hop = 0  #TODO Increment this per hop..
+                
+                curr_size = curr_D.shape[0]
+                query_pairs = []
+                for b_idx in range(curr_size):
+                    for n, doc_id in enumerate(curr_I[b_idx]):  # TJH For each neighbour returned for current question
+                        doc = id2doc[str(doc_id)]["text"].strip()
+                        #doc = str(n)+'_'+str(doc_id)  
+                        if "roberta" in  args.model_name and doc.strip() == "":
+                            doc = id2doc[str(doc_id)]["title"]
+                            curr_D[b_idx][n] = float("-inf")
+                        doc_path = (curr_doc[b_idx] + ' ' + doc).strip()
+                        query_pairs.append((curr_q[b_idx], doc_path))  #TJH question + retrieved doc text for each neighbour q+sp1
 
-            D_ = D_.reshape(bsize, args.beam_size, args.beam_size)
-            I_ = I_.reshape(bsize, args.beam_size, args.beam_size)
+                # save questions, doc_paths for next hop:
+                curr_q = [qp[0] for qp in query_pairs]  # [bsize * #beams * (curr_hop+1)]
+                curr_doc = [qp[1] for qp in query_pairs]
 
-            # aggregate path scores
-            path_scores = np.expand_dims(D, axis=2) + D_  #For each orig question now have [bs, beamsize, beamsize] containing d+d_
+                #TJH given query_pairs = [('a','a'), ('a','b'), ('a','c'), ('b','a'),('b','b'),('b','c')] where a = 102, b = 428, c = 438
+                #    the following encodes to {'input_ids': [[0, 102, 2, 2, 102, 2, 1, 1, 1, 1], [0, 102, 2, 2, 428, 2, 1, 1, 1, 1], [0, 102, 2, 2, 438, 2, 1, 1, 1, 1], [0, 428, 2, 2, 102, 2, 1, 1, 1, 1], [0, 428, 2, 2, 428, 2, 1, 1, 1, 1], [0, 428, 2, 2, 438, 2, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]]}
+                batch_q_sp_encodes = encode_text(tokenizer, query_pairs, text_pair=None, max_input_length=args.max_q_sp_len, truncation=True, padding='max_length', return_tensors="pt")
+                if args.gpu_model:
+                    batch_q_sp_encodes = move_to_cuda(dict(batch_q_sp_encodes))
+
+                with torch.cuda.amp.autocast(enabled=args.fp16):
+                    if args.eval_stop:
+                        q_sp_embeds, stop_01 = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
+                                                 batch_q_sp_encodes.get("token_type_ids", None), include_stop=True) 
+                        stop_01_numpy = stop_01.cpu().contiguous().numpy()  # [bs,1]
+                    else:
+                        q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
+                                                 batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)
+                    
+                q_sp_embeds = q_sp_embeds.contiguous().cpu().numpy()  # [bs*#beams*(curr_hop+1), hs]
+                if args.hnsw:
+                    q_sp_embeds = convert_hnsw_query(q_sp_embeds)
+
+                D_, I_ = index.search(q_sp_embeds, args.beam_size)  # [bs*#beams*(curr_hop+1), #beams]
+                curr_D = D_
+                curr_I = I_
+                newshape = [bsize] + [args.beam_size for i in range(curr_hop+2)]
+                D_ = D_.reshape(newshape)  # [bsize, #beams, #beams, ...] where num of #beam dims = curr_hop+2
+                I_ = I_.reshape(newshape)
+                I_list.append(I_.copy())
+#                D_ = D_.reshape(bsize, args.beam_size, args.beam_size)  
+#                I_ = I_.reshape(bsize, args.beam_size, args.beam_size)
+    
+                # aggregate path scores
+                #path_scores = np.expand_dims(D, axis=2) + D_  #For each orig question now have [bs, beamsize, beamsize] containing d+d_
+                path_scores = np.expand_dims(path_scores, axis=-1) + D_  #For each orig question now have [bs, beamsize, beamsize] containing d+d_
+                
+        
+                if args.eval_stop:    # aggregate stops into [bs, max_hops-1]
+                    stop_on_hop[:, curr_hop] = stop_01_numpy[:, 0]
 
             if args.hnsw:
                 path_scores = - path_scores
-
-            if args.eval_stop:    # aggregate stops into [bs, max_hops-1]
-                stop_on_hop[:, curr_hop] = stop_01_numpy[:, 0]
             
 
             # start eval per batch
 
             for idx in range(bsize): #TJH Score, rank paths, return top k paths and eval vs gt
-                search_scores = path_scores[idx]  # [#beams, #beams]
-                ranked_pairs = np.vstack(np.unravel_index(np.argsort(search_scores.ravel())[::-1],
-                                           (args.beam_size, args.beam_size))).transpose()  # [#beams * #beams, 2] = ranked coords in [#beams, #beams] matrix of scores
+                search_scores = path_scores[idx]  # [#beams, #beams, ..]
+                beam_shapes = search_scores.shape #(args.beam_size, args.beam_size)
+#                ranked_pairs = np.vstack(np.unravel_index(np.argsort(search_scores.ravel())[::-1],
+#                                           (args.beam_size, args.beam_size))).transpose()  # [#beams * #beams, 2] = ranked coords in [#beams, #beams] matrix of scores
+                # .ravel like flatten but returns view of original not copy
+                # .argsort returns indices into flattened array
+                # .unravel_index converts indices into flattened array into tuple of indices of 2d ([x1, x2, ..], [y1, y2, ..])
+                # vstack condenses each tuple into [[y1, x1], [y2, x2], ..] 
+                # returns sorted desc coords/indices into search_scores values
+                # tst3d = np.random.randn(2,2,2)  # array([ [[ 1.42257859, -0.93570487], [-0.92932392, -1.34603146]], [[ 0.82341017, -0.1254692 ],  [-0.59356903, -1.34296959]]])
+                # beam_shapes = tst3d.shape
+                # tst3d_coords = np.vstack(np.unravel_index(np.argsort(tst3d.ravel())[::-1], beam_shapes)).transpose() [2*2*2=8, 3]
+                # for (z, y, x) in tst3d_coords: print(f"[{z},{y},{x}]={tst3d[z, y, x]}")  #works! also works for 4d...
+                ranked_coords = np.vstack(np.unravel_index(np.argsort(search_scores.ravel())[::-1],
+                                           beam_shapes)).transpose()  # [#beams * #beams, 2] = ranked coords in [#beams, #beams] matrix of scores
                 retrieved_titles = []
                 hop1_titles = []
                 paths, path_titles = [], []
                 for k in range(args.topk):
-                    path_ids = ranked_pairs[k]  # [2,] 
-                    hop_1_id = I[idx, path_ids[0]]   # path_ids[0]=idx of top ranked hop 1 neighbour
-                    hop_2_id = I_[idx, path_ids[0], path_ids[1]]  # path_ids[1]=idx of top ranked hop 2 neighbour
-                    retrieved_titles.append(id2doc[str(hop_1_id)]["title"])
-                    retrieved_titles.append(id2doc[str(hop_2_id)]["title"])
+                    path_ids = ranked_coords[k]  # [max_hops,] #TODO genericise this
+                    
+                    curr_path = []
+                    curr_path_para_ids = []
+                    np_coords = [idx]
+                    for i, p_id in enumerate(path_ids):
+                        np_coords.append(p_id)
+                        hop_n_id = I_list[i][tuple(np_coords)]  #nparr[ tuple([idx, path_id[0], ...]) ] - must be tuple not list to work
+                        retrieved_titles.append( id2doc[str(hop_n_id)]["title"] )  #TODO make "title" a variable for the key
+                        curr_path.append( str(hop_n_id))
+                        curr_path_para_ids.append( id2doc[str(hop_n_id)]["title"] )
+                        if i == 0:
+                            hop1_titles.append(id2doc[str(hop_n_id)]["title"])
+                    paths.append(curr_path)
+                    path_titles.append(curr_path_para_ids)
+#                    hop_1_id = I[idx, path_ids[0]]   # path_ids[0]=idx of top ranked hop 1 neighbour
+#                    hop_2_id = I_[idx, path_ids[0], path_ids[1]]  # path_ids[1]=idx of top ranked hop 2 neighbour
+#                    retrieved_titles.append(id2doc[str(hop_1_id)]["title"])
+#                    retrieved_titles.append(id2doc[str(hop_2_id)]["title"])
 
-                    paths.append([str(hop_1_id), str(hop_2_id)])
-                    path_titles.append([id2doc[str(hop_1_id)]["title"], id2doc[str(hop_2_id)]["title"]])
-                    hop1_titles.append(id2doc[str(hop_1_id)]["title"])
+#                    paths.append([str(hop_1_id), str(hop_2_id)])
+#                    path_titles.append([id2doc[str(hop_1_id)]["title"], id2doc[str(hop_2_id)]["title"]])
+#                    hop1_titles.append(id2doc[str(hop_1_id)]["title"])
                 
                 if args.only_eval_ans:
                     gold_answers = batch_ann[idx]["answer"]
