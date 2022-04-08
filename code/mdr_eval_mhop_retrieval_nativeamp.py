@@ -109,6 +109,7 @@ if __name__ == '__main__':
 #args.batch_size=10
 #args.fp16=True
 #args.gpu_faiss=True
+    os.makedirs(args.output_dir, exist_ok=True)
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', datefmt='%m/%d/%Y %H:%M:%S',
                         level=logging.INFO,
@@ -251,20 +252,23 @@ if __name__ == '__main__':
             if args.hnsw:
                 q_embeds_numpy = convert_hnsw_query(q_embeds_numpy)
             D, I = index.search(q_embeds_numpy, args.beam_size)  #D,I = [bs, #beams]
-            
+            # xq_bs2 = xq[:2]
+            # D, I = index.search(xq_bs2, args.beam_size)  #D,I = [bs=2, #beams=2]
+            # D = array([[19.885868, 19.528814], [19.600351, 19.417498]], dtype=float32)
+            # I = array([[250, 621], [860, 309]])
 
             # n-hop search
-            stop_on_hop = np.full((bsize, args.max_hops-1), -100, dtype=np.int64)  # [bs, max_hops-1] since we don't calc for q_only hence start with q+sp1 in 0th position
+            #stop_on_hop = np.full((bsize, args.max_hops-1), -100, dtype=np.int64)  # [bs, max_hops-1] since we don't calc for q_only hence start with q+sp1 in 0th position
             path_scores = D.copy()
             curr_D = D
             curr_I = I
             curr_doc = ['' for i in range(curr_D.shape[0])]
             curr_q = batch_q.copy()
-            I_list = [I.copy()]
+            I_list = [I.copy()]  # list of max_hops np arrays [ [bs, #beams], [bs, #beams, #beams], .. ] idx 0 = q_only
+            stop_on_hop_list = []     # list of max_hops-1 np arrays [ [bs, #beams], [bs, #beams, #beams], .. ] idx 0 = q+sp1
 
             for curr_hop in range(args.max_hops-1):
-#                curr_hop = 0  #TODO Increment this per hop..
-                
+                #curr_hop = 0
                 curr_size = curr_D.shape[0]
                 query_pairs = []
                 for b_idx in range(curr_size):
@@ -291,7 +295,8 @@ if __name__ == '__main__':
                     if args.eval_stop:
                         q_sp_embeds, stop_01 = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
                                                  batch_q_sp_encodes.get("token_type_ids", None), include_stop=True) 
-                        stop_01_numpy = stop_01.cpu().contiguous().numpy()  # [bs,1]
+                        stop_01_numpy = stop_01.cpu().contiguous().numpy()  # [bs * #beams * (curr_hop+1), 1]
+                        # stop_01_numpy = np.array([[0,1,2,3]], dtype=np.int64)
                     else:
                         q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
                                                  batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)
@@ -301,6 +306,9 @@ if __name__ == '__main__':
                     q_sp_embeds = convert_hnsw_query(q_sp_embeds)
 
                 D_, I_ = index.search(q_sp_embeds, args.beam_size)  # [bs*#beams*(curr_hop+1), #beams]
+                # hop1size = bsize*args.beam_size*(curr_hop+1) #4
+                # xq_bs2_hop1 = xq[-hop1size:]  #[4,hs]
+                #D_, I_ = index.search(xq_bs2_hop1, args.beam_size)  # [bs*#beams*(curr_hop+1), #beams]
                 curr_D = D_
                 curr_I = I_
                 newshape = [bsize] + [args.beam_size for i in range(curr_hop+2)]
@@ -312,11 +320,25 @@ if __name__ == '__main__':
     
                 # aggregate path scores
                 #path_scores = np.expand_dims(D, axis=2) + D_  #For each orig question now have [bs, beamsize, beamsize] containing d+d_
+                # D=q_only: [bs, #beams]  D_1=q+sp1: [bs, #beams, #beams]  D_2=q+sp1+sp2 [bs, #beams, #beams, #beams] ...
+                # -> D: [bs, #beams, 1] + D_1: [bs, #beams, #beams] = path_scores: [bs, #beams, #beams] ie each successive axis contains cumulative score of prior hops 
+                # -> [bs, #beams, #beams, 1] + [bs, #beams, #beams, #beams] = path_scores: [bs, #beams, #beams, #beams]
+                # each element of path score is sum of distances to that point d + d_1 + d_2
+                # D_1 = [bs, #beams, #beams] ie [0,0,0] = path score for sample 0, hop 0qonly beam 0, hop 1q+sp1 beam 0
+                # D_2 = [bs, #beams, #beams, #beams] ie [0,0,0,0] = path score for sample 0, hop 0qonly beam 0, hop 1q+sp1 beam 0, hop 2q+sp1+sp2 beam 0
                 path_scores = np.expand_dims(path_scores, axis=-1) + D_  #For each orig question now have [bs, beamsize, beamsize] containing d+d_
                 
         
-                if args.eval_stop:    # aggregate stops into [bs, max_hops-1]
-                    stop_on_hop[:, curr_hop] = stop_01_numpy[:, 0]
+                if args.eval_stop:
+                    newshape = [bsize] + [args.beam_size for i in range(curr_hop+1)]
+                    stop_01_numpy = stop_01_numpy.reshape(newshape) # [bs,  #beams, ...] 
+                    # stop_01_numpy = array([[0, 1],
+                    #                        [2, 3]])
+                    # stop_on_hop: list of max_hops-1 np arrays [ [bs, #beams], [bs, #beams, #beams], .. ]  idx 0 = q+sp1
+                    # stop_on_hop[0] = q+sp1 = [bs, #beams] ie [0, 0] = stop pred for sample 0, hop 1q+sp1 beam 0. path score= D_1[sample0, qonlybeam0, q+sp1beam0]
+                    # stop_on_hop[1] = q+sp1+sp2 = [bs, #beams, #beams] ie [0, 0, 0] = stop pred for sample 0, hop 1q+sp1 beam 0, hop 2q+sp1+sp2 beam 0
+                    stop_on_hop_list.append(stop_01_numpy.copy())
+                    #stop_on_hop[:, curr_hop] = stop_01_numpy[:, 0]
 
             if args.hnsw:
                 path_scores = - path_scores
@@ -326,6 +348,9 @@ if __name__ == '__main__':
 
             for idx in range(bsize): #TJH Score, rank paths, return top k paths and eval vs gt
                 search_scores = path_scores[idx]  # [#beams, #beams, ..]
+                # search_scores = array([[41.651543, 41.626137], 
+                #                        [42.186363, 41.819355]], dtype=float32)
+                # ranked_coords = array([[1, 0], [1, 1], [0, 0], [0, 1]])
                 beam_shapes = search_scores.shape #(args.beam_size, args.beam_size)
 #                ranked_pairs = np.vstack(np.unravel_index(np.argsort(search_scores.ravel())[::-1],
 #                                           (args.beam_size, args.beam_size))).transpose()  # [#beams * #beams, 2] = ranked coords in [#beams, #beams] matrix of scores
@@ -343,22 +368,31 @@ if __name__ == '__main__':
                 retrieved_titles = []
                 hop1_titles = []
                 paths, path_titles = [], []
+                stop_preds = []
                 for k in range(args.topk):
-                    path_ids = ranked_coords[k]  # [max_hops,] #TODO genericise this
+                    path_ids = ranked_coords[k]  # [max_hops] = k+1th highest scoring path eg [2, 1, 3] means I[0][idx][2] is best 1st para then I[1][idx][1] is best 2nd para then I[2][idx][3] is best 3rd para if 3 hops
                     
                     curr_path = []
                     curr_path_para_ids = []
-                    np_coords = [idx]
-                    for i, p_id in enumerate(path_ids):
-                        np_coords.append(p_id)
-                        hop_n_id = I_list[i][tuple(np_coords)]  #nparr[ tuple([idx, path_id[0], ...]) ] - must be tuple not list to work
+                    curr_stop_preds = []
+                    np_coords_I = [idx]
+                    np_coords_stop = [idx]
+                    for i, path_id in enumerate(path_ids):
+                        np_coords_I.append( path_id )
+                        hop_n_id = I_list[i][ tuple(np_coords_I) ]  #nparr[ tuple([idx, path_id[0], ...]) ] - must be tuple not list to work
                         retrieved_titles.append( id2doc[str(hop_n_id)]["title"] )  #TODO make "title" a variable for the key
-                        curr_path.append( str(hop_n_id))
+                        curr_path.append( str(hop_n_id) )
                         curr_path_para_ids.append( id2doc[str(hop_n_id)]["title"] )
                         if i == 0:
                             hop1_titles.append(id2doc[str(hop_n_id)]["title"])
+                        if i > 0:  # no stop pred for q_only
+                            np_coords_stop.append( path_id )
+                            hop_n_stop_pred = stop_on_hop_list[i-1][ tuple(np_coords_stop) ]
+                            curr_stop_preds.append( hop_n_stop_pred )
+                            
                     paths.append(curr_path)
                     path_titles.append(curr_path_para_ids)
+                    stop_preds.append (curr_stop_preds)
 #                    hop_1_id = I[idx, path_ids[0]]   # path_ids[0]=idx of top ranked hop 1 neighbour
 #                    hop_2_id = I_[idx, path_ids[0], path_ids[1]]  # path_ids[1]=idx of top ranked hop 2 neighbour
 #                    retrieved_titles.append(id2doc[str(hop_1_id)]["title"])
@@ -383,15 +417,19 @@ if __name__ == '__main__':
                     sp = batch_ann[idx]["sp"]
                     if args.eval_stop:
                         act_hops = len(sp)  # num gold paras = num of hops needed to answer this question
+                        stop_preds_np = np.array(stop_preds)
                         stop_target = np.zeros((args.max_hops-1), dtype=np.int64)
                         if act_hops-1 < stop_target.shape[0]:
-                            stop_target[act_hops-1] = 1
-                        stop_acc = (stop_on_hop[idx] == stop_target).astype(np.float64)
+                            stop_target[act_hops-1] = 1  #aim to stop on act_hop unless act_hop = max_hop 
+                            
+                        stop_acc = (stop_preds_np == stop_target).astype(np.float64)  # [topk, max_hops-1]
                         for i in range(args.max_hops-1): # ignore where hop > actual # hops for this sample 
-                            if i > act_hops-1:
-                                stop_acc[i] = 0.0
-                        correct_counts = stop_acc.sum()    
+                            for k in range(stop_acc.shape[0]):
+                                if i > act_hops-1:
+                                    stop_acc[k, i] = 0.0
+                        correct_counts = stop_acc.sum()
                         act_hops_denom = act_hops if act_hops < args.max_hops else args.max_hops-1
+                        act_hops_denom *= stop_acc.shape[0]
                         stop_accuracy_per_sample = float(correct_counts / act_hops_denom)
                     else:
                         stop_accuracy_per_sample = -1.0

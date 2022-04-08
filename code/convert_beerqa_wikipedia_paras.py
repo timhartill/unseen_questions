@@ -120,7 +120,7 @@ INDIR_BASE = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-tokenized
 #AISO_TRAIN = '/data/thar011/gitrepos/AISO/data/hotpot-step-train.strict.refined.jsonl'
 AISO_FILE = '/data/thar011/gitrepos/AISO/data/corpus/beer_v1.tsv'
 BEER_WIKI_SAVE = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen.json'
-BEER_WIKI_SAVE_WITHMERGES = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.json'  #FINAL CORPUS FILE
+BEER_WIKI_SAVE_WITHMERGES = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl'  #FINAL CORPUS FILE
 BEER_TITLE_SAVE = '/home/thar011/data/beerqa/enwiki-20200801-titledict-compgen.json'
 BEER_DEV = '/home/thar011/data/beerqa/beerqa_dev_v1.0.json'
 BEER_TRAIN = '/home/thar011/data/beerqa/beerqa_train_v1.0.json'
@@ -969,8 +969,8 @@ docs = [d for d in docs if len(d['paras']) > 0]  # 6133150 -> 5801916 docs
 
 # save new docs file with merges 
 print("Saving docs with merged paras to json file ...")
-utils.saveas_json(docs, BEER_WIKI_SAVE_WITHMERGES, indent=None)
-
+#utils.saveas_json(docs, BEER_WIKI_SAVE_WITHMERGES, indent=None)
+utils.saveas_jsonl(docs, BEER_WIKI_SAVE_WITHMERGES)
 
 # Load docs into ES
 # Note: Considered Updating hyperlinks with para_idx - as separate key - decided not to as don't have para id for test samples so no point
@@ -1229,7 +1229,7 @@ def output_dense_train_format(beer_split, outfile):
 output_dense_train_format(beer_dev, outfile=BEER_DENSE_DEV)
 output_dense_train_format(beer_train, outfile=BEER_DENSE_TRAIN)
 
-
+#docs= utils.loadas_json(BEER_WIKI_SAVE_WITHMERGES)
 #docs = json.load(open(BEER_WIKI_SAVE_WITHMERGES))
 
 # modify mdr dataset loader to incorporate options for difft adversarial configurations

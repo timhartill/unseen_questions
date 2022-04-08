@@ -5,6 +5,8 @@
 # On 1 gpu bs 250 takes ~8.5GB. Time approx 3.5 - 6hrs on gpu running 1 other job. (~3 hrs with dedicated gpu)
 
 # Set predict_file to the name of the corpus file containing title and paragraph text for each entry.
+# HPQA: /home/thar011/data/mdr/hotpot/hpqa_abstracts_tim.jsonl \ 
+# BQA: /home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl \
 # Set init_checkpoint to the base trained or the base+momentum trained ckpt.
 # Set embed_save_path to the location to save embeddings (index.npy) and the corresponding text (id2doc.json) to.
 
@@ -14,9 +16,9 @@ python mdr_encode_corpus_nativeamp.py \
     --do_predict \
     --predict_batch_size 250 \
     --model_name roberta-base \
-    --predict_file /home/thar011/data/mdr/hotpot/hpqa_abstracts_tim.jsonl \
-    --init_checkpoint /large_data/thar011/out/mdr/logs/stoptest2cemeanhpqa-04-03-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
-    --embed_save_path /home/thar011/data/mdr/stoptest2cemeanhpqa-04-03_bs24_no_momentum_cenone \
+    --predict_file /home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl \
+    --init_checkpoint /large_data/thar011/out/mdr/logs/bqatest1-04-05-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_last.pt \
+    --embed_save_path /home/thar011/data/mdr/bqatest1-04-05_bs24_no_momentum_cenone_ckpt_last \
     --use_var_versions \
     --fp16 \
     --max_c_len 300 \
