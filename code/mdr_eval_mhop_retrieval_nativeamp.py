@@ -150,7 +150,7 @@ if __name__ == '__main__':
         model.to(device0)
     if args.gpu_faiss and n_gpu > 1:  #Note: FAISS freezes at index_cpu_to_gpu_multiple if gpu_resources is not a list of res's with global scope, hence defining here..
         tempmem = 0
-        print(f"Preparing resources for {n_gpu} GPUs")   
+        logger.info(f"Preparing FAISS resources for {n_gpu} GPUs")   
         gpu_resources = []    
         for i in range(n_gpu):
             res = faiss.StandardGpuResources()
@@ -200,7 +200,7 @@ if __name__ == '__main__':
                 hnsw_vectors = np.concatenate(hnsw_vectors, axis=0)
                 index.add(hnsw_vectors)
         if args.save_index:
-            faiss.write_index(index, os.path.join(args.output_dir, "wiki_index_hnsw"))
+            faiss.write_index(index, os.path.join(args.output_dir, "wiki_index_hnsw.index"))
     else:
         index = faiss.IndexFlatIP(d)
         index.add(xb)
@@ -216,15 +216,18 @@ if __name__ == '__main__':
             #tjh https://github.com/facebookresearch/faiss/wiki/Faiss-on-the-GPU
             #tjh https://github.com/belvo/faiss/blob/master/benchs/bench_gpu_1bn.py contains example of multigpu sharded index
 
+    del xb
     
     logger.info(f"Loading corpus...")
     id2doc = json.load(open(args.corpus_dict))
+    evidence_key = 'title'
     if isinstance(id2doc["0"], list):
         if len(id2doc["0"]) == 2 or not str(id2doc["0"][2]).replace('_', '').isnumeric():
             id2doc = {k: {"title":v[0], "text": v[1]} for k, v in id2doc.items()}
         else:
             id2doc = {k: {"title":v[0], "text": v[1], "para_id": v[2]} for k, v in id2doc.items()}
-            
+            evidence_key = 'para_id'
+    logger.info(f"Evidence key field: {evidence_key}")        
     # title2text = {v[0]:v[1] for v in id2doc.values()}
     logger.info(f"Corpus size {len(id2doc)}")
     
@@ -380,11 +383,11 @@ if __name__ == '__main__':
                     for i, path_id in enumerate(path_ids):
                         np_coords_I.append( path_id )
                         hop_n_id = I_list[i][ tuple(np_coords_I) ]  #nparr[ tuple([idx, path_id[0], ...]) ] - must be tuple not list to work
-                        retrieved_titles.append( id2doc[str(hop_n_id)]["title"] )  #TODO make "title" a variable for the key
+                        retrieved_titles.append( id2doc[str(hop_n_id)][evidence_key] )  #TODO make "title" a variable for the key
                         curr_path.append( str(hop_n_id) )
-                        curr_path_para_ids.append( id2doc[str(hop_n_id)]["title"] )
+                        curr_path_para_ids.append( id2doc[str(hop_n_id)][evidence_key] )
                         if i == 0:
-                            hop1_titles.append(id2doc[str(hop_n_id)]["title"])
+                            hop1_titles.append(id2doc[str(hop_n_id)][evidence_key])
                         if i > 0:  # no stop pred for q_only
                             np_coords_stop.append( path_id )
                             hop_n_stop_pred = stop_on_hop_list[i-1][ tuple(np_coords_stop) ]
@@ -432,6 +435,8 @@ if __name__ == '__main__':
                         act_hops_denom *= stop_acc.shape[0]
                         stop_accuracy_per_sample = float(correct_counts / act_hops_denom)
                     else:
+                        stop_preds_np = np.array([])
+                        stop_target = np.array([])
                         stop_accuracy_per_sample = -1.0
                     
                     #assert len(set(sp)) == 2
@@ -470,15 +475,17 @@ if __name__ == '__main__':
                     
                     retrieval_outputs.append({
                         "_id": batch_ann[idx]["_id"],
+                        "type": batch_ann[idx]["type"],
                         "question": batch_ann[idx]["question"],
                         "candidate_chains": candidate_chains,
-                        # "sp": sp_chain,
-                        # "answer": gold_answers,
-                        # "type": type_,
+                        "gold_sp": batch_ann[idx]["sp"],
+                        "answer": batch_ann[idx]["answer"],
+                        "stop_target": stop_target.tolist(),
+                        "stop_preds": stop_preds_np.tolist()
                         # "coverd_k": covered_k
                     })
 
-    with open(os.path.join(args.output_dir, 'hpqa_val_test.jsonl'), "w") as out:
+    with open(os.path.join(args.output_dir, 'predicted_paras_val_test.jsonl'), "w") as out:
         for l in retrieval_outputs:
             out.write(json.dumps(l) + "\n")
 

@@ -23,16 +23,15 @@
 cd ../code
 
 python mdr_eval_mhop_retrieval_nativeamp.py \
-    --eval_data /home/thar011/data/mdr/hotpot/hotpot_qas_val.json \
-    --index_path /home/thar011/data/mdr/stoptest2cemeanhpqa-04-03_bs24_no_momentum_cenone/index.npy \
-    --corpus_dict /home/thar011/data/mdr/stoptest2cemeanhpqa-04-03_bs24_no_momentum_cenone/id2doc.json \
-    --model_path /large_data/thar011/out/mdr/logs/stoptest2cemeanhpqa-04-03-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+    --eval_data /home/thar011/data/beerqa/beerqa_qas_val.jsonl \
+    --index_path /home/thar011/data/mdr/bqatest1-04-05_bs24_no_momentum_cenone_ckpt_best/index.npy \
+    --corpus_dict /home/thar011/data/mdr/bqatest1-04-05_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
+    --model_path /large_data/thar011/out/mdr/logs/bqatest1-04-05-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
     --batch_size 100 \
-    --beam_size 4 \
-    --topk 4 \
+    --beam_size 1 \
+    --topk 1 \
     --model_name roberta-base \
     --gpu_model \
-    --gpu_faiss \
     --max_c_len 300 \
     --max_q_len 70 \
     --max_q_sp_len 350 \
@@ -40,7 +39,7 @@ python mdr_eval_mhop_retrieval_nativeamp.py \
     --max_hops 2 \
     --eval_stop \
     --fp16 \
-    --output_dir /large_data/thar011/out/mdr/logs/stoptest2cemeanhpqa-04-03-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/test2_eval_varsteps_beam4_topk4
+    --output_dir /large_data/thar011/out/mdr/logs/bqatest1-04-05-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/bqatest5_eval_varsteps_beam1_topk1_ckpt_best_how_long_faiss_on_cpu
 
 
 
