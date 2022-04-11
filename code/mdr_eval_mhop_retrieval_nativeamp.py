@@ -442,7 +442,7 @@ if __name__ == '__main__':
                     #assert len(set(sp)) == 2
                     type_ = batch_ann[idx]["type"]
                     if type_.strip() == '':
-                        type_ = 'single hop'
+                        type_ = batch_ann[idx]["src"] # was 'single hop'
                     question = batch_ann[idx]["question"]
                     p_recall, p_em = 0, 0
                     sp_covered = [sp_title in retrieved_titles for sp_title in sp]
@@ -470,12 +470,12 @@ if __name__ == '__main__':
                     candidate_chains = []
                     for cpath in paths:
                         chain = [id2doc[cpath[i]] for i in range(len(cpath))]
-                        candidate_chains.append(chain)  #TODO test
-#                        candidate_chains.append([id2doc[cpath[0]], id2doc[cpath[1]]])  #TODO update for > 2 hops
+                        candidate_chains.append(chain) 
+#                        candidate_chains.append([id2doc[cpath[0]], id2doc[cpath[1]]])  
                     
                     retrieval_outputs.append({
                         "_id": batch_ann[idx]["_id"],
-                        "type": batch_ann[idx]["type"],
+                        "type": type_,
                         "question": batch_ann[idx]["question"],
                         "candidate_chains": candidate_chains,
                         "gold_sp": batch_ann[idx]["sp"],

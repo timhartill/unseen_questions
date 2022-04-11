@@ -79,6 +79,7 @@ class MhopDataset_var(Dataset):
         if sample.get('src') is None: #if no src key assume this is MDR-formatted HPQA data and reformat
             if sample.get('bridge') is not None:
                 sample['bridge'] = [ sample['bridge'] ]
+            sample['src'] = 'hotpotqa'
             
         question = sample['question']
         if question.endswith("?"):

@@ -32,6 +32,7 @@ python mdr_eval_mhop_retrieval_nativeamp.py \
     --topk 1 \
     --model_name roberta-base \
     --gpu_model \
+    --gpu_faiss \
     --max_c_len 300 \
     --max_q_len 70 \
     --max_q_sp_len 350 \

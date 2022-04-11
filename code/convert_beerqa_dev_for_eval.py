@@ -107,7 +107,7 @@ def save_to_val_file(beerqa, outfile):
     out = []
     for sample in beerqa:
         out_sample = {'question': sample['question'], '_id': sample['id'], 'answer': sample['answers'], 
-                      'sp': sample['sp'], 'type': sample['type'], }
+                      'sp': sample['sp'], 'type': sample['type'], 'src': sample['src']}
         out.append(out_sample)
     utils.saveas_jsonl(out, outfile)
     print('Finished save!')
