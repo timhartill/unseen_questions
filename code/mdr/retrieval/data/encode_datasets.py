@@ -91,15 +91,15 @@ class EmDataset(Dataset):
             id2doc = {}
             if self.data_format == 'abstracts':
                 for idx, doc in enumerate(self.data):
-                    id2doc[idx] = (unescape(doc["title"]), doc["text"])  #TJH removed, doc.get("intro", False))  
+                    id2doc[idx] = (unescape(doc["title"]), doc["text"])  #TJH removed, doc.get("intro", False)) Also unescaping title 
             else:
                 new_data = []
                 idx = 0
                 for doc in self.data:
                     for para_idx, para in enumerate(doc['paras']):
                         newid = doc['id'] + '_' + str(para_idx)
-                        title_unescaped = unescape(doc["title"])
-                        id2doc[idx] = (title_unescaped, para["text"], newid)  # idx is numeric here but when saved to file it's a str..
+                        title_unescaped = unescape(doc["title"]) # use unescaped title
+                        id2doc[idx] = (title_unescaped, para["text"], newid)  # idx is numeric here but when saved to json it's a str..
                         new_data.append( {"title": title_unescaped, "text": para["text"]} )  #don't need para_id for __getitem__()
                         idx += 1
                 self.data = new_data

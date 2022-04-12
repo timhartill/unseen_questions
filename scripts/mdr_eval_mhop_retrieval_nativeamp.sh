@@ -4,6 +4,8 @@
 
 # --gpu_model: puts the model on single gpu (0 of visible gpus). Without --gpu_model keeps model on cpu
 # --gpu_faiss: puts the faiss index on gpu. Without keeps on cpu.
+# --hnsw: Convert faiss index to hnsw and run on cpu. Will load existing hnsw index /index_path/index_hnsw.index if it exists instead of building it 
+# --save_index: if HNSW option chosen, saves the index to the --index_path dir as index_hnsw.index
 
 # with bs 100 beam size 1, topk 1 faiss on cpu & model on gpu (takes ~4gb and neglible impact on other jon running there since most time is with faiss) takes ~2.5 hrs
 
@@ -32,7 +34,8 @@ python mdr_eval_mhop_retrieval_nativeamp.py \
     --topk 1 \
     --model_name roberta-base \
     --gpu_model \
-    --gpu_faiss \
+    --hnsw \
+    --save_index \
     --max_c_len 300 \
     --max_q_len 70 \
     --max_q_sp_len 350 \
@@ -40,7 +43,7 @@ python mdr_eval_mhop_retrieval_nativeamp.py \
     --max_hops 2 \
     --eval_stop \
     --fp16 \
-    --output_dir /large_data/thar011/out/mdr/logs/bqatest1-04-05-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/bqatest5_eval_varsteps_beam1_topk1_ckpt_best_how_long_faiss_on_cpu
+    --output_dir /large_data/thar011/out/mdr/logs/bqatest1-04-05-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/bqatest6_eval_varsteps_beam1_topk1_ckpt_best_test_hnsw
 
 
 

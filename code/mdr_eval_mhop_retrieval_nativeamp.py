@@ -89,7 +89,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu_faiss', action="store_true", help="Put Faiss index on visible gpu(s).")
     parser.add_argument('--gpu_model', action="store_true", help="Put q encoder on gpu 0 of the visible gpu(s).")
     parser.add_argument('--fp16', action='store_true')
-    parser.add_argument('--save_index', action="store_true")
+    parser.add_argument('--save_index', action="store_true",help="Save index if hnsw option chosen")
     parser.add_argument('--only_eval_ans', action="store_true")
 #    parser.add_argument('--shared_encoder', action="store_true")
     parser.add_argument("--output_dir", type=str, default="", help="Dir to save retrieved para augmented eval samples and eval_log to.")
@@ -162,9 +162,11 @@ if __name__ == '__main__':
     #model = amp.initialize(model, opt_level='O1')
     model.eval()
 
-    logger.info("Building index...")
+    logger.info("Loading index...")
     d = 768
-    xb = np.load(args.index_path).astype('float32')
+    
+    index_path = os.path.join(os.path.split(args.index_path)[0], "index_hnsw.index")
+#    xb = np.load(args.index_path).astype('float32')
     
 #    d = 64                           # dimension
 #    nb = 1000                      # database size
@@ -176,9 +178,12 @@ if __name__ == '__main__':
 #    xq[:, 0] += np.arange(nq) / 1000.
 
     if args.hnsw:
-        if os.path.exists(os.path.join(args.output_dir, "wiki_index_hnsw.index")):
-            index = faiss.read_index(os.path.join(args.output_dir, "wiki_index_hnsw.index"))
+        if os.path.exists(index_path):
+            logger.info(f"Reading HNSW index from {index_path} ...")
+            index = faiss.read_index(index_path)
         else:
+            xb = np.load(args.index_path).astype('float32')
+            logger.info("Building HNSW index ...")
             index = faiss.IndexHNSWFlat(d + 1, 512)
             index.hnsw.efSearch = 128
             index.hnsw.efConstruction = 200
@@ -199,12 +204,17 @@ if __name__ == '__main__':
                 hnsw_vectors = [np.hstack((doc_vector, aux_dims[idx].reshape(-1, 1))) for idx, doc_vector in enumerate(vectors)]
                 hnsw_vectors = np.concatenate(hnsw_vectors, axis=0)
                 index.add(hnsw_vectors)
-        if args.save_index:
-            faiss.write_index(index, os.path.join(args.output_dir, "wiki_index_hnsw.index"))
+            if args.save_index:
+                logger.info(f"Saving HNSW index to {index_path} ...")
+                faiss.write_index(index, index_path)
+            del xb
     else:
+        xb = np.load(args.index_path).astype('float32')
+        logger.info("Building Flat index ...")
         index = faiss.IndexFlatIP(d)
         index.add(xb)
         if args.gpu_faiss:
+            logger.info("Moving index to {n_gpu} GPU(s) ...")
             if n_gpu == 1:
                 res = faiss.StandardGpuResources()
                 index = faiss.index_cpu_to_gpu(res, 0, index) #TJH was 6 which would take 7 gpus but fails if < 7 available.
@@ -215,8 +225,9 @@ if __name__ == '__main__':
                 index = faiss.index_cpu_to_gpu_multiple(vres, vdev, index, co)
             #tjh https://github.com/facebookresearch/faiss/wiki/Faiss-on-the-GPU
             #tjh https://github.com/belvo/faiss/blob/master/benchs/bench_gpu_1bn.py contains example of multigpu sharded index
+        del xb
 
-    del xb
+
     
     logger.info(f"Loading corpus...")
     id2doc = json.load(open(args.corpus_dict))

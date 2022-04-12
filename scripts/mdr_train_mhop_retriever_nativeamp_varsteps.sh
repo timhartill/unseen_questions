@@ -11,6 +11,10 @@
 
 #hpqa train_file /home/thar011/data/mdr/hotpot/hotpot_train_with_neg_v0.json \
 #hpqa predict_file /home/thar011/data/mdr/hotpot/hotpot_dev_with_neg_v0.json \
+#beerqa train /home/thar011/data/beerqa/beerqa_train_v1.0_with_neg_v0.jsonl \
+#beerqa predict /home/thar011/data/beerqa/beerqa_dev_v1.0_with_neg_v0.jsonl \
+#bqa_nq_tqa train /home/thar011/data/DPR/bqa_nq_tqa_train_v1.0_with_neg_v0.jsonl
+#bqa_nq_tqa predict /home/thar011/data/DPR/bqa_nq_tqa_dev_v1.0_with_neg_v0.jsonl
 
 #beerqa train_file /home/thar011/data/beerqa/beerqa_train_v1.0_with_neg_v0.jsonl
 #beerqa predict_file /home/thar011/data/beerqa/beerqa_dev_v1.0_with_neg_v0.jsonl
@@ -21,14 +25,14 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix bqatest1 \
+    --prefix bqa_nq_tqa_test1 \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \
     --learning_rate 2e-5 \
     --fp16 \
-    --train_file /home/thar011/data/beerqa/beerqa_train_v1.0_with_neg_v0.jsonl \
-    --predict_file /home/thar011/data/beerqa/beerqa_dev_v1.0_with_neg_v0.jsonl \
+    --train_file /home/thar011/data/DPR/bqa_nq_tqa_train_v1.0_with_neg_v0.jsonl \
+    --predict_file /home/thar011/data/DPR/bqa_nq_tqa_dev_v1.0_with_neg_v0.jsonl \
     --seed 16 \
     --eval-period -1 \
     --max_c_len 300 \
