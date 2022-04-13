@@ -72,6 +72,9 @@ def convert_hnsw_query(query_vectors):
     query_nhsw_vectors = np.hstack((query_vectors, aux_dim.reshape(-1, 1)))
     return query_nhsw_vectors
 
+
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--eval_data', type=str, default=None, help="File containing the evaluation samples.")
@@ -184,32 +187,39 @@ if __name__ == '__main__':
         else:
             xb = np.load(args.index_path).astype('float32')
             logger.info("Building HNSW index ...")
-            index = faiss.IndexHNSWFlat(d + 1, 512)
-            index.hnsw.efSearch = 128
-            index.hnsw.efConstruction = 200
+            m = 512  # the number of links per vector - higher is more accurate but uses more RAM. memory usage is (d * 4 + m * 2 * 4) bytes per vector (d=d+1 in this case) ~258GB
+            index = faiss.IndexHNSWFlat(d + 1, m) # HNSW only supports L2 so conversions below are to convert dot sim space -> L2
+            index.hnsw.efSearch = 128  # speed-accuracy tradeoff: depth of layers explored during search. No impact on build or mem usage. Can be set anytime before searching.
+            index.hnsw.efConstruction = 200  # higher=better recall at lower m. No impact on mem usage but on build speed: depth of layers explored during index construction.
             phi = 0
             for i, vector in enumerate(xb):
                 norms = (vector ** 2).sum()
                 phi = max(phi, norms)
             logger.info('HNSWF DotProduct -> L2 space phi={}'.format(phi))
 
-            data = xb
-            buffer_size = 50000
-            n = len(data)
+            #data = xb
+            buffer_size = 1000000000  #50000
+            n = len(xb)
             print(n)
-            for i in tqdm(range(0, n, buffer_size)):
-                vectors = [np.reshape(t, (1, -1)) for t in data[i:i + buffer_size]]
+            for i in range(0, n, buffer_size):
+                vectors = [np.reshape(t, (1, -1)) for t in xb[i:i + buffer_size]]
                 norms = [(doc_vector ** 2).sum() for doc_vector in vectors]
                 aux_dims = [np.sqrt(phi - norm) for norm in norms]
                 hnsw_vectors = [np.hstack((doc_vector, aux_dims[idx].reshape(-1, 1))) for idx, doc_vector in enumerate(vectors)]
                 hnsw_vectors = np.concatenate(hnsw_vectors, axis=0)
+                logger.info(f"Finished preprocessing vectors for i+buff={i+buffer_size}. Adding to index ...")
                 index.add(hnsw_vectors)
+                logger.info(f"Finished adding vectors to index for i+buff={i+buffer_size}. ")
             if args.save_index:
                 logger.info(f"Saving HNSW index to {index_path} ...")
                 faiss.write_index(index, index_path)
             del xb
     else:
-        xb = np.load(args.index_path).astype('float32')
+        # SIDE NOTE: if vectors had been encoded for cosine sim objective (eg sentence-transformers) 
+        # can use faiss.normalize_L2(xb) (does this in-place) before index.add to perform L2 normalization on the database s.t very vector has same magnitude (sum of the squares always = 1) and cosine similarity becomes indistinguishable from dot product
+        # in this case must also do faiss.normalize(xq) on the search query..
+        
+        xb = np.load(args.index_path).astype('float32')  
         logger.info("Building Flat index ...")
         index = faiss.IndexFlatIP(d)
         index.add(xb)

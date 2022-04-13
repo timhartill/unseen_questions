@@ -25,7 +25,7 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix bqa_nq_tqa_test1 \
+    --prefix bqa_nq_tqa_test2 \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \

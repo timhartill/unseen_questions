@@ -26,8 +26,8 @@ cd ../code
 
 python mdr_eval_mhop_retrieval_nativeamp.py \
     --eval_data /home/thar011/data/beerqa/beerqa_qas_val.jsonl \
-    --index_path /home/thar011/data/mdr/bqatest1-04-05_bs24_no_momentum_cenone_ckpt_best/index.npy \
-    --corpus_dict /home/thar011/data/mdr/bqatest1-04-05_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
+    --index_path /large_data/thar011/out/mdr/encoded_corpora/bqatest1-04-05_bs24_no_momentum_cenone_ckpt_best/index.npy \
+    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/bqatest1-04-05_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
     --model_path /large_data/thar011/out/mdr/logs/bqatest1-04-05-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
     --batch_size 100 \
     --beam_size 1 \
@@ -43,7 +43,7 @@ python mdr_eval_mhop_retrieval_nativeamp.py \
     --max_hops 2 \
     --eval_stop \
     --fp16 \
-    --output_dir /large_data/thar011/out/mdr/logs/bqatest1-04-05-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/bqatest6_eval_varsteps_beam1_topk1_ckpt_best_test_hnsw
+    --output_dir /large_data/thar011/out/mdr/logs/bqatest1-04-05-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/bqatest7_eval_varsteps_beam1_topk1_ckpt_best_test_hnsw
 
 
 
