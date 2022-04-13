@@ -68,11 +68,20 @@ def get_gpu_resources_faiss(n_gpu, gpu_start=0, gpu_end=-1, tempmem=0):
 
 
 def convert_hnsw_query(query_vectors):
+    """ Convert query vectors from DotProduct space to L2 space as H
+    """
     aux_dim = np.zeros(len(query_vectors), dtype='float32')
     query_nhsw_vectors = np.hstack((query_vectors, aux_dim.reshape(-1, 1)))
     return query_nhsw_vectors
 
 
+def return_filtered_list(full_list, filter_key = -1, return_none=-1):
+    """ Return filtered list or [return_none] to prevent nan in np.mean()
+    """
+    filtered = [s for s in full_list if s != filter_key]
+    if filtered == []:
+        filtered = [return_none]
+    return filtered
 
 
 if __name__ == '__main__':
@@ -302,8 +311,10 @@ if __name__ == '__main__':
                         if "roberta" in  args.model_name and doc.strip() == "":
                             doc = id2doc[str(doc_id)]["title"]
                             curr_D[b_idx][n] = float("-inf")
-                        doc_path = (curr_doc[b_idx] + ' ' + doc).strip()
-                        query_pairs.append((curr_q[b_idx], doc_path))  #TJH question + retrieved doc text for each neighbour q+sp1
+                        if doc[-1] not in ['.', '?', '!']:  # Force full stop at end
+                            doc += '.'
+                        doc_path = (curr_doc[b_idx] + ' ' + doc).strip() #concat sps together separated by <space>
+                        query_pairs.append((curr_q[b_idx], doc_path))  # q + retrieved doc(s) text for each neighbour q+sp1
 
                 # save questions, doc_paths for next hop:
                 curr_q = [qp[0] for qp in query_pairs]  # [bsize * #beams * (curr_hop+1)]
@@ -438,7 +449,14 @@ if __name__ == '__main__':
                     })
                     
                 else:
+                    gold_answers = batch_ann[idx]["answer"]
+                    concat_p = "yes no "  # make ans_recall 1.0 for all yes/no questions..
+                    for p in paths:
+                        concat_p += " ".join([id2doc[doc_id]["title"] + " " + id2doc[doc_id]["text"] for doc_id in p])
+                    ans_recall = int(para_has_answer(gold_answers, concat_p, simple_tokenizer))
+                        
                     sp = batch_ann[idx]["sp"]
+                    
                     if args.eval_stop:
                         act_hops = len(sp)  # num gold paras = num of hops needed to answer this question
                         stop_preds_np = np.array(stop_preds)
@@ -460,22 +478,29 @@ if __name__ == '__main__':
                         stop_target = np.array([])
                         stop_accuracy_per_sample = -1.0
                     
-                    #assert len(set(sp)) == 2
                     type_ = batch_ann[idx]["type"]
                     if type_.strip() == '':
                         type_ = batch_ann[idx]["src"] # was 'single hop'
                     question = batch_ann[idx]["question"]
-                    p_recall, p_em = 0, 0
-                    sp_covered = [sp_title in retrieved_titles for sp_title in sp]
-                    if np.sum(sp_covered) > 0:
-                        p_recall = 1  #TJH either retrieved para in gold paras
-                    if np.sum(sp_covered) == len(sp_covered):  #works for variable # of hops
-                        p_em = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrived para in gold paras
-                    path_covered = [int(set(p) == set(sp)) for p in path_titles]  # for hpqa equiv but wont work for act_hops < max_hops 
-                    path_covered = np.sum(path_covered) > 0
-                    recall_1 = 0
-                    covered_1 = [sp_title in hop1_titles for sp_title in sp] # 1st retrieved para in gold paras. works for single hop 
-                    if np.sum(covered_1) > 0: recall_1 = 1
+
+                    if len(sp) > 0:  # there exist para-level annotationns eg nq or tqa
+                        p_recall, p_em = 0, 0
+                        sp_covered = [sp_title in retrieved_titles for sp_title in sp]
+                        if np.sum(sp_covered) > 0:
+                            p_recall = 1  #TJH either retrieved para in gold paras
+                        if np.sum(sp_covered) == len(sp_covered):  #works for variable # of hops
+                            p_em = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrived para in gold paras
+                        path_covered = [int(set(p) == set(sp)) for p in path_titles]  # for hpqa equiv but wont work for act_hops < max_hops 
+                        path_covered = np.sum(path_covered) > 0
+                        recall_1 = 0
+                        covered_1 = [sp_title in hop1_titles for sp_title in sp] # 1st retrieved para in gold paras. works for single hop 
+                        if np.sum(covered_1) > 0: recall_1 = 1
+                    else:           # no para level annotations
+                        p_recall = -1
+                        p_em = -1
+                        recall_1 = -1
+                        path_covered = -1
+                        
                     metrics.append({
                                     "question": question,
                                     "p_recall": p_recall,
@@ -483,7 +508,8 @@ if __name__ == '__main__':
                                     "type": type_,
                                     'recall_1': recall_1,
                                     'path_covered': int(path_covered),
-                                    'stop_acc': stop_accuracy_per_sample
+                                    'stop_acc': stop_accuracy_per_sample,
+                                    'ans_recall': ans_recall
                                     })
 
 
@@ -520,17 +546,33 @@ if __name__ == '__main__':
             logger.info(f"{t} Questions num: {len(type2items[t])}")
             logger.info(f'Ans Recall: {np.mean([m["ans_recall"] for m in type2items[t]])}')
     else:
-        logger.info(f'\tAvg PR: {np.mean([m["p_recall"] for m in metrics])}')
-        logger.info(f'\tAvg P-EM: {np.mean([m["p_em"] for m in metrics])}')
-        logger.info(f'\tAvg 1-Recall: {np.mean([m["recall_1"] for m in metrics])}')
-        logger.info(f'\tPath Recall: {np.mean([m["path_covered"] for m in metrics])}')
+        logger.info(f'\tAvg PR: {np.mean( return_filtered_list([m["p_recall"] for m in metrics]) )}')
+        logger.info(f'\tAvg P-EM: {np.mean( return_filtered_list([m["p_em"] for m in metrics]) )}')
+        logger.info(f'\tAvg 1-Recall: {np.mean( return_filtered_list([m["recall_1"] for m in metrics]) )}')
+        logger.info(f'\tPath Recall: {np.mean( return_filtered_list([m["path_covered"] for m in metrics]) )}')
+        logger.info(f'\tAns Recall: {np.mean([m["ans_recall"] for m in metrics])}')
         logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in metrics])}')
         for t in type2items.keys():
             logger.info(f"{t} Questions num: {len(type2items[t])}")
-            logger.info(f'\tAvg PR: {np.mean([m["p_recall"] for m in type2items[t]])}')
-            logger.info(f'\tAvg P-EM: {np.mean([m["p_em"] for m in type2items[t]])}')
-            logger.info(f'\tAvg 1-Recall: {np.mean([m["recall_1"] for m in type2items[t]])}')
-            logger.info(f'\tPath Recall: {np.mean([m["path_covered"] for m in type2items[t]])}')
+            logger.info(f'\tAvg PR: {np.mean( return_filtered_list([m["p_recall"] for m in type2items[t]]) )}')
+            logger.info(f'\tAvg P-EM: {np.mean( return_filtered_list([m["p_em"] for m in type2items[t]]) )}')
+            logger.info(f'\tAvg 1-Recall: {np.mean( return_filtered_list([m["recall_1"] for m in type2items[t]]) )}')
+            logger.info(f'\tPath Recall: {np.mean( return_filtered_list([m["path_covered"] for m in type2items[t]]) )}')
+            logger.info(f'\tAns Recall: {np.mean([m["ans_recall"] for m in type2items[t]])}')
             logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in type2items[t]])}')
+
+#        logger.info(f'\tAvg PR: {np.mean([m["p_recall"] for m in metrics])}')
+#        logger.info(f'\tAvg P-EM: {np.mean([m["p_em"] for m in metrics])}')
+#        logger.info(f'\tAvg 1-Recall: {np.mean([m["recall_1"] for m in metrics])}')
+#        logger.info(f'\tPath Recall: {np.mean([m["path_covered"] for m in metrics])}')
+#        logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in metrics])}')
+#        for t in type2items.keys():
+#            logger.info(f"{t} Questions num: {len(type2items[t])}")
+#            logger.info(f'\tAvg PR: {np.mean([m["p_recall"] for m in type2items[t]])}')
+#            logger.info(f'\tAvg P-EM: {np.mean([m["p_em"] for m in type2items[t]])}')
+#            logger.info(f'\tAvg 1-Recall: {np.mean([m["recall_1"] for m in type2items[t]])}')
+#            logger.info(f'\tPath Recall: {np.mean([m["path_covered"] for m in type2items[t]])}')
+#            logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in type2items[t]])}')
+
 
 
