@@ -181,7 +181,7 @@ if __name__ == '__main__':
 #    xb = np.load(args.index_path).astype('float32')
     
 #    d = 64                           # dimension
-#    nb = 1000                      # database size
+#    nb = 10000                      # database size
 #    nq = 10                       # nb of queries
 #    np.random.seed(1234)             # make reproducible
 #    xb = np.random.random((nb, d)).astype('float32')
@@ -210,6 +210,7 @@ if __name__ == '__main__':
             buffer_size = 1000000000  #50000
             n = len(xb)
             print(n)
+            index.verbose = True
             for i in range(0, n, buffer_size):
                 vectors = [np.reshape(t, (1, -1)) for t in xb[i:i + buffer_size]]
                 norms = [(doc_vector ** 2).sum() for doc_vector in vectors]
@@ -219,14 +220,15 @@ if __name__ == '__main__':
                 logger.info(f"Finished preprocessing vectors for i+buff={i+buffer_size}. Adding to index ...")
                 index.add(hnsw_vectors)
                 logger.info(f"Finished adding vectors to index for i+buff={i+buffer_size}. ")
+            index.verbose = False
+            del xb
             if args.save_index:
                 logger.info(f"Saving HNSW index to {index_path} ...")
                 faiss.write_index(index, index_path)
-            del xb
-    else:
+    else: # not hnsw
         # SIDE NOTE: if vectors had been encoded for cosine sim objective (eg sentence-transformers) 
         # can use faiss.normalize_L2(xb) (does this in-place) before index.add to perform L2 normalization on the database s.t very vector has same magnitude (sum of the squares always = 1) and cosine similarity becomes indistinguishable from dot product
-        # in this case must also do faiss.normalize(xq) on the search query..
+        # in this case must also do faiss.normalize_L2(xq) on the search query..
         
         xb = np.load(args.index_path).astype('float32')  
         logger.info("Building Flat index ...")
@@ -248,7 +250,7 @@ if __name__ == '__main__':
 
 
     
-    logger.info(f"Loading corpus...")
+    logger.info("Loading corpus...")
     id2doc = json.load(open(args.corpus_dict))
     evidence_key = 'title'
     if isinstance(id2doc["0"], list):
@@ -263,7 +265,7 @@ if __name__ == '__main__':
     
 
     logger.info("Encoding questions and searching")
-    questions = [_["question"][:-1] if _["question"].endswith("?") else _["question"] for _ in ds_items]
+    questions = [q["question"][:-1] if q["question"].endswith("?") else q["question"] for q in ds_items]
     metrics = []
     retrieval_outputs = []
     for b_start in tqdm(range(0, len(questions), args.batch_size)):
