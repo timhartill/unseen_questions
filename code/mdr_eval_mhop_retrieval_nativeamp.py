@@ -268,6 +268,8 @@ if __name__ == '__main__':
     questions = [q["question"][:-1] if q["question"].endswith("?") else q["question"] for q in ds_items]
     metrics = []
     retrieval_outputs = []
+    firsterr = True
+    
     for b_start in tqdm(range(0, len(questions), args.batch_size)):
         with torch.no_grad():
             # TJH test b_start=0
@@ -281,7 +283,7 @@ if __name__ == '__main__':
                 batch_q_encodes = move_to_cuda(dict(batch_q_encodes))
             with torch.cuda.amp.autocast(enabled=args.fp16):
                 q_embeds = model.encode_q(batch_q_encodes["input_ids"], batch_q_encodes["attention_mask"], 
-                                              batch_q_encodes.get("token_type_ids", None), include_stop=False)
+                                          batch_q_encodes.get("token_type_ids", None), include_stop=False)
 
             q_embeds_numpy = q_embeds.cpu().contiguous().numpy()
             if args.hnsw:
@@ -331,12 +333,12 @@ if __name__ == '__main__':
                 with torch.cuda.amp.autocast(enabled=args.fp16):
                     if args.eval_stop:
                         q_sp_embeds, stop_01 = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
-                                                 batch_q_sp_encodes.get("token_type_ids", None), include_stop=True) 
+                                                              batch_q_sp_encodes.get("token_type_ids", None), include_stop=True) 
                         stop_01_numpy = stop_01.cpu().contiguous().numpy()  # [bs * #beams * (curr_hop+1), 1]
                         # stop_01_numpy = np.array([[0,1,2,3]], dtype=np.int64)
                     else:
                         q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
-                                                 batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)
+                                                     batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)
                     
                 q_sp_embeds = q_sp_embeds.contiguous().cpu().numpy()  # [bs*#beams*(curr_hop+1), hs]
                 if args.hnsw:
@@ -382,7 +384,7 @@ if __name__ == '__main__':
             
 
             # start eval per batch
-
+            
             for idx in range(bsize): #TJH Score, rank paths, return top k paths and eval vs gt
                 search_scores = path_scores[idx]  # [#beams, #beams, ..]
                 # search_scores = array([[41.651543, 41.626137], 
@@ -400,15 +402,14 @@ if __name__ == '__main__':
                 # beam_shapes = tst3d.shape
                 # tst3d_coords = np.vstack(np.unravel_index(np.argsort(tst3d.ravel())[::-1], beam_shapes)).transpose() [2*2*2=8, 3]
                 # for (z, y, x) in tst3d_coords: print(f"[{z},{y},{x}]={tst3d[z, y, x]}")  #works! also works for 4d...
-                ranked_coords = np.vstack(np.unravel_index(np.argsort(search_scores.ravel())[::-1],
-                                           beam_shapes)).transpose()  # [#beams * #beams, 2] = ranked coords in [#beams, #beams] matrix of scores
-                retrieved_titles = []
-                hop1_titles = []
-                paths, path_titles = [], []
-                stop_preds = []
+                ranked_coords = np.vstack(np.unravel_index(np.argsort(search_scores.ravel())[::-1], beam_shapes)).transpose()  # [#beams * #beams, 2] = ranked coords in [#beams, #beams] matrix of scores
+
+                retrieved_titles = []       # [k * max_hops] list of all separate retrieved titles (docid_pidx) for this sample for each k
+                hop1_titles = []            # [k * 1] list of all first hop retrieved titles for this sample for each k
+                paths, path_titles = [], [] # [k, max_hops] list of lists of title seq/corpus idx seqs for this sample for each k
+                stop_preds = []             # [k] list of stop preds for this sample for each k
                 for k in range(args.topk):
-                    path_ids = ranked_coords[k]  # [max_hops] = k+1th highest scoring path eg [2, 1, 3] means I[0][idx][2] is best 1st para then I[1][idx][1] is best 2nd para then I[2][idx][3] is best 3rd para if 3 hops
-                    
+                    path_ids = ranked_coords[k]  # [max_hops] = k+1th highest scoring path eg [2, 1, 3] means I[0][idx][2] is best 1st para then I[1][idx][1] is best 2nd para then I[2][idx][3] is best 3rd para if 3 hops                    
                     curr_path = []
                     curr_path_para_ids = []
                     curr_stop_preds = []
@@ -417,19 +418,19 @@ if __name__ == '__main__':
                     for i, path_id in enumerate(path_ids):
                         np_coords_I.append( path_id )
                         hop_n_id = I_list[i][ tuple(np_coords_I) ]  #nparr[ tuple([idx, path_id[0], ...]) ] - must be tuple not list to work
-                        retrieved_titles.append( id2doc[str(hop_n_id)][evidence_key] )  #TODO make "title" a variable for the key
-                        curr_path.append( str(hop_n_id) )
+                        retrieved_titles.append( id2doc[str(hop_n_id)][evidence_key] )  
+                        curr_path.append( str(hop_n_id) )  
                         curr_path_para_ids.append( id2doc[str(hop_n_id)][evidence_key] )
                         if i == 0:
-                            hop1_titles.append(id2doc[str(hop_n_id)][evidence_key])
-                        if i > 0:  # no stop pred for q_only
+                            hop1_titles.append(id2doc[str(hop_n_id)][evidence_key]) # append 1st hop predicted para for each k
+                        if i > 0:  # no stop pred for q_only so start at i=1
                             np_coords_stop.append( path_id )
                             hop_n_stop_pred = stop_on_hop_list[i-1][ tuple(np_coords_stop) ]
                             curr_stop_preds.append( hop_n_stop_pred )
                             
-                    paths.append(curr_path)
-                    path_titles.append(curr_path_para_ids)
-                    stop_preds.append (curr_stop_preds)
+                    paths.append(curr_path)  # append [retrieved para corpus idxs] for each k
+                    path_titles.append(curr_path_para_ids)  # append [ title or docid_paraidx ] for each k
+                    stop_preds.append (curr_stop_preds)  # Appending stop pred for each k
 #                    hop_1_id = I[idx, path_ids[0]]   # path_ids[0]=idx of top ranked hop 1 neighbour
 #                    hop_2_id = I_[idx, path_ids[0], path_ids[1]]  # path_ids[1]=idx of top ranked hop 2 neighbour
 #                    retrieved_titles.append(id2doc[str(hop_1_id)]["title"])
@@ -461,6 +462,14 @@ if __name__ == '__main__':
                     
                     if args.eval_stop:
                         act_hops = len(sp)  # num gold paras = num of hops needed to answer this question
+                        if act_hops == 0: # no para annotations, find act_hops another way tot avoid nan in stop acc calc
+                            if batch_ann[idx]["type"].strip() == '':
+                                act_hops = 1
+                            else:
+                                if firsterr:
+                                    logger.info(f"WARNING: unable to determine act_hops for sample from {batch_ann[idx]['src']}. stop accuracy will be incorrect. Update program logic to determine act_hops")
+                                    firsterr = False
+                                
                         stop_preds_np = np.array(stop_preds)
                         stop_target = np.zeros((args.max_hops-1), dtype=np.int64)
                         if act_hops-1 < stop_target.shape[0]:
@@ -474,7 +483,7 @@ if __name__ == '__main__':
                         correct_counts = stop_acc.sum()
                         act_hops_denom = act_hops if act_hops < args.max_hops else args.max_hops-1
                         act_hops_denom *= stop_acc.shape[0]
-                        stop_accuracy_per_sample = float(correct_counts / act_hops_denom)
+                        stop_accuracy_per_sample = float(correct_counts / act_hops_denom)  # Note: since averaging over topk possible for topk 2+ stop acc to be lower than topk=1..
                     else:
                         stop_preds_np = np.array([])
                         stop_target = np.array([])
@@ -483,13 +492,12 @@ if __name__ == '__main__':
                     type_ = batch_ann[idx]["type"]
                     if type_.strip() == '':
                         type_ = batch_ann[idx]["src"] # was 'single hop'
-                    question = batch_ann[idx]["question"]
 
-                    if len(sp) > 0:  # there exist para-level annotationns eg nq or tqa
+                    if len(sp) > 0:  # if para-level annotationns exist ie not nq or tqa
                         p_recall, p_em = 0, 0
-                        sp_covered = [sp_title in retrieved_titles for sp_title in sp]
+                        sp_covered = [sp_title in retrieved_titles for sp_title in sp]  # [len(sp)]
                         if np.sum(sp_covered) > 0:
-                            p_recall = 1  #TJH either retrieved para in gold paras
+                            p_recall = 1  # Any gold para is in k * max_hops retrieved titles
                         if np.sum(sp_covered) == len(sp_covered):  #works for variable # of hops
                             p_em = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrived para in gold paras
                         path_covered = [int(set(p) == set(sp)) for p in path_titles]  # for hpqa equiv but wont work for act_hops < max_hops 
@@ -504,7 +512,7 @@ if __name__ == '__main__':
                         path_covered = -1
                         
                     metrics.append({
-                                    "question": question,
+                                    "question": batch_ann[idx]["question"],
                                     "p_recall": p_recall,
                                     "p_em": p_em,
                                     "type": type_,

@@ -15,6 +15,7 @@ Then extract to their json form.
 import os
 import json
 import random
+import numpy as np
 from html import unescape
 
 import utils
@@ -229,6 +230,104 @@ utils.saveas_jsonl(bqa_nq_qasval, os.path.join(OUTDIR_NQTQA, 'bqa_nq_qas_val.jso
 
 bqa_nq__tqa_qasval = beerqa_qasval + out_qasval_nq + out_qasval_tqa
 utils.saveas_jsonl(bqa_nq__tqa_qasval, os.path.join(OUTDIR_NQTQA, 'bqa_nq_tqa_qas_val.jsonl'))
+
+
+##### create train/dev files without Squad in them ie hpqa nq tqa and hpqa nq
+
+bqa_nq_dev = utils.load_jsonl( os.path.join(OUTDIR_NQTQA, 'bqa_nq_dev_v1.0_with_neg_v0.jsonl') )
+bqa_nq_train = utils.load_jsonl( os.path.join(OUTDIR_NQTQA, 'bqa_nq_train_v1.0_with_neg_v0.jsonl') )
+
+bqa_nq_tqa_dev = utils.load_jsonl( os.path.join(OUTDIR_NQTQA, 'bqa_nq_tqa_dev_v1.0_with_neg_v0.jsonl') )
+bqa_nq_tqa_train = utils.load_jsonl( os.path.join(OUTDIR_NQTQA, 'bqa_nq_tqa_train_v1.0_with_neg_v0.jsonl') )
+
+
+def strip_squad(split):
+    """ Strip squad samples from a split
+    """
+    out_list = []
+    for s in split:
+        if s['src'] != 'squad':
+            out_list.append( s )
+    print(f"Original: {len(split)} Minus SQUAD:{len(out_list)}")
+    return out_list
+
+
+bqa_nosquad_nq_dev = strip_squad(bqa_nq_dev) # Original: 20636 Minus SQUAD:12504
+utils.saveas_jsonl(bqa_nosquad_nq_dev, os.path.join(OUTDIR_NQTQA, 'bqa_nosquad_nq_dev_v1.0_with_neg_v0.jsonl'))
+
+bqa_nosquad_nq_train = strip_squad(bqa_nq_train) # Original: 203682 Minus SQUAD:144397
+utils.saveas_jsonl(bqa_nosquad_nq_train, os.path.join(OUTDIR_NQTQA, 'bqa_nosquad_nq_train_v1.0_with_neg_v0.jsonl'))
+
+
+bqa_nosquad_nq_tqa_dev = strip_squad(bqa_nq_tqa_dev) # Original: 27396 Minus SQUAD:19264
+utils.saveas_jsonl(bqa_nosquad_nq_tqa_dev, os.path.join(OUTDIR_NQTQA, 'bqa_nosquad_nq_tqa_dev_v1.0_with_neg_v0.jsonl'))
+
+bqa_nosquad_nq_tqa_train = strip_squad(bqa_nq_tqa_train) # Original: 264095 Minus SQUAD:204810
+utils.saveas_jsonl(bqa_nosquad_nq_tqa_train, os.path.join(OUTDIR_NQTQA, 'bqa_nosquad_nq_tqa_train_v1.0_with_neg_v0.jsonl'))
+
+
+def calc_stats(split):
+    """ Calculate stats, namely avg question length and number of unique support docs per source dataset
+    """
+    stats = {}
+    for s in split:
+        src = s['src']
+        if stats.get(src) is None:
+            stats[src] = {'q_len': [], 'unique_sps_title': set(), 'unique_sps_text':set(), 'unique_ans': set()}
+        stats[src]['q_len'].append( len(s['question']) ) 
+        stats[src]['unique_ans'].add( s['answers'][0] ) # only consider 1st answer if > 1
+        for p in s['pos_paras']:
+            stats[src]['unique_sps_title'].add( p['title'].lower() )
+            stats[src]['unique_sps_text'].add( p['text'].lower() )
+    for src in stats.keys():
+        stats[src]['num_samples'] = len(stats[src]['q_len'])
+        stats[src]['mean_q_len'] = float(np.mean(stats[src]['q_len']))
+        stats[src]['num_unique_titles'] = len(stats[src]['unique_sps_title'])
+        stats[src]['num_unique_paras'] = len(stats[src]['unique_sps_text'])
+        stats[src]['num_unique_answers'] = len(stats[src]['unique_ans'])       
+        print(f"{src}: #samples:{stats[src]['num_samples']}  AvgQlen:{stats[src]['mean_q_len']}  #Titles:{stats[src]['num_unique_titles']}  #Paras:{stats[src]['num_unique_paras']}  #Answers:{stats[src]['num_unique_answers']}")
+    return stats
+
+
+def calc_train_dev_overlap(stats_train, stats_dev):
+    """ Calculate overlap of train/dev titles, paras and answers
+    """
+    overlaps = {}
+    for src in stats_train.keys():
+        if overlaps.get(src) is None:
+            overlaps[src] = {'title_overlaps':0, 'para_overlaps':0, 'ans_overlaps':0}
+        if stats_dev.get(src) is not None:
+            overlaps[src]['title_overlaps'] = len(stats_train[src]['unique_sps_title'].intersection(stats_dev[src]['unique_sps_title']))
+            overlaps[src]['title_overlaps_pct'] = overlaps[src]['title_overlaps'] / stats_train[src]['num_unique_titles']
+
+            overlaps[src]['para_overlaps'] = len(stats_train[src]['unique_sps_text'].intersection(stats_dev[src]['unique_sps_text']))
+            overlaps[src]['para_overlaps_pct'] = overlaps[src]['para_overlaps'] / stats_train[src]['num_unique_paras']
+
+            overlaps[src]['ans_overlaps'] = len(stats_train[src]['unique_ans'].intersection(stats_dev[src]['unique_ans']))
+            overlaps[src]['ans_overlaps_pct'] = overlaps[src]['ans_overlaps'] / stats_train[src]['num_unique_answers']
+            print(f"{src}: {overlaps[src]}")
+        else:
+            print(f'{src} not present in dev split, skipping..')
+    return overlaps
+
+
+stats_bqa_nq_tqa_dev = calc_stats(bqa_nq_tqa_dev)
+#hotpotqa: #samples:5989  AvgQlen:92.02704959091668  #Titles:11227  #Paras:11227  #Answers:5067
+#squad: #samples:8132  AvgQlen:60.450319724545004  #Titles:54  #Paras:2179  #Answers:6826
+#nq: #samples:6515  AvgQlen:47.07720644666155  #Titles:5456  #Paras:5984  #Answers:5349
+#tqa: #samples:6760  AvgQlen:80.82204142011834  #Titles:6372  #Paras:6577  #Answers:5241
+
+stats_bqa_nq_tqa_train = calc_stats(bqa_nq_tqa_train)
+#squad: #samples:59285  AvgQlen:59.278266003204855  #Titles:385  #Paras:15686  #Answers:44323
+#hotpotqa: #samples:74758  AvgQlen:105.09486610128683  #Titles:89463  #Paras:89478  #Answers:43825
+#nq: #samples:69639  AvgQlen:47.32846537141544  #Titles:34879  #Paras:47431  #Answers:37538
+#tqa: #samples:60413  AvgQlen:79.90389485706719  #Titles:42472  #Paras:50502  #Answers:25764
+
+overlaps = calc_train_dev_overlap(stats_bqa_nq_tqa_train, stats_bqa_nq_tqa_dev)
+#squad: {'title_overlaps': 0, 'para_overlaps': 0, 'ans_overlaps': 1253, 'title_overlaps_pct': 0.0, 'para_overlaps_pct': 0.0, 'ans_overlaps_pct': 0.028269747083906775}
+#hotpotqa: {'title_overlaps': 6519, 'para_overlaps': 6519, 'ans_overlaps': 1863, 'title_overlaps_pct': 0.07286811307467891, 'para_overlaps_pct': 0.07285589753905988, 'ans_overlaps_pct': 0.04250998288648032}
+#nq: {'title_overlaps': 3443, 'para_overlaps': 2575, 'ans_overlaps': 2622, 'title_overlaps_pct': 0.09871269245104504, 'para_overlaps_pct': 0.054289388796356815, 'ans_overlaps_pct': 0.06984921945761628}
+#tqa: {'title_overlaps': 2825, 'para_overlaps': 1771, 'ans_overlaps': 3502, 'title_overlaps_pct': 0.06651440949331325, 'para_overlaps_pct': 0.035067918102253376, 'ans_overlaps_pct': 0.13592609843192052}
 
 
 

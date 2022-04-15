@@ -17,12 +17,12 @@ python mdr_encode_corpus_nativeamp.py \
     --predict_batch_size 250 \
     --model_name roberta-base \
     --predict_file /home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl \
-    --init_checkpoint /large_data/thar011/out/mdr/logs/bqatest1-04-05-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
-    --embed_save_path /large_data/thar011/out/mdr/encoded_corpora/bqatest1-04-05_bs24_no_momentum_cenone_ckpt_best \
+    --init_checkpoint /large_data/thar011/out/mdr/logs/bqa_nq_tqa_test2-04-13-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+    --embed_save_path /large_data/thar011/out/mdr/encoded_corpora/bqa_nq_tqa_test2-04-13_bs24_no_momentum_cenone_ckpt_best \
     --use_var_versions \
     --fp16 \
     --max_c_len 300 \
-    --num_workers 0
+    --num_workers 5
 
 
 

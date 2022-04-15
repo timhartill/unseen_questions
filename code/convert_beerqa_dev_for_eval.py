@@ -93,7 +93,7 @@ def map_title_to_docid(beerqa, titledict):
     """
     for sample in beerqa:
         sp = []
-        for title, para_idx in sample['para_agg_map'].items():    
+        for title, para_idx in sample['para_agg_map'].items():
             title_cased, status, doc_id = map_title_case(title, titledict, id_type='id', verbose=False)
             sp.append( doc_id+'_'+str(para_idx) )
             if status in ['nf', 'mc']:
