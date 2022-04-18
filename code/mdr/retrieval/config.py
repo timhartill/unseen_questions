@@ -71,6 +71,8 @@ def common_args():
     parser.add_argument("--debug", action="store_true", help="If set prints extra debug info in criterions")
     parser.add_argument("--max_hops", type=int, default=2, help="Maximum number of hops in train-dev samples.")
     parser.add_argument("--num_negs", type=int, default=2, help="Number of adversarial negatives to include for each sample in training.")
+    parser.add_argument("--query_use_sentences", action="store_true", help="Use the gold or predicted sentences within a paragraph in the query instead of the entire paragraph.")
+    parser.add_argument("--query_add_titles", action="store_true", help="If --query_use_sentences then prepend sentences with para title in query encoding.")
     
 
     return parser

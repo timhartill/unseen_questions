@@ -40,6 +40,7 @@ import logging
 import os
 from os import path
 import time
+from html import unescape  # To avoid ambiguity, unescape all titles
 
 import faiss
 import numpy as np
@@ -309,8 +310,8 @@ if __name__ == '__main__':
                 curr_size = curr_D.shape[0]
                 query_pairs = []
                 for b_idx in range(curr_size):
-                    for n, doc_id in enumerate(curr_I[b_idx]):  # TJH For each neighbour returned for current question
-                        doc = id2doc[str(doc_id)]["text"].strip()
+                    for n, doc_id in enumerate(curr_I[b_idx]):  # For each neighbour returned for current question
+                        doc = id2doc[str(doc_id)]["text"].strip()  # TJH update for extra sentence prediction model...
                         #doc = str(n)+'_'+str(doc_id)  
                         if "roberta" in  args.model_name and doc.strip() == "":
                             doc = id2doc[str(doc_id)]["title"]
@@ -418,11 +419,11 @@ if __name__ == '__main__':
                     for i, path_id in enumerate(path_ids):
                         np_coords_I.append( path_id )
                         hop_n_id = I_list[i][ tuple(np_coords_I) ]  #nparr[ tuple([idx, path_id[0], ...]) ] - must be tuple not list to work
-                        retrieved_titles.append( id2doc[str(hop_n_id)][evidence_key] )  
+                        retrieved_titles.append( unescape(id2doc[str(hop_n_id)][evidence_key]) )  
                         curr_path.append( str(hop_n_id) )  
-                        curr_path_para_ids.append( id2doc[str(hop_n_id)][evidence_key] )
+                        curr_path_para_ids.append( unescape(id2doc[str(hop_n_id)][evidence_key]) )
                         if i == 0:
-                            hop1_titles.append(id2doc[str(hop_n_id)][evidence_key]) # append 1st hop predicted para for each k
+                            hop1_titles.append( unescape(id2doc[str(hop_n_id)][evidence_key]) ) # append 1st hop predicted para for each k
                         if i > 0:  # no stop pred for q_only so start at i=1
                             np_coords_stop.append( path_id )
                             hop_n_stop_pred = stop_on_hop_list[i-1][ tuple(np_coords_stop) ]
@@ -444,7 +445,7 @@ if __name__ == '__main__':
                     gold_answers = batch_ann[idx]["answer"]
                     concat_p = "yes no "
                     for p in paths:
-                        concat_p += " ".join([id2doc[doc_id]["title"] + " " + id2doc[doc_id]["text"] for doc_id in p])
+                        concat_p += " ".join([unescape(id2doc[doc_id]["title"]) + " " + id2doc[doc_id]["text"] for doc_id in p])
                     metrics.append({
                         "question": batch_ann[idx]["question"],
                         "ans_recall": int(para_has_answer(gold_answers, concat_p, simple_tokenizer)),
@@ -455,14 +456,14 @@ if __name__ == '__main__':
                     gold_answers = batch_ann[idx]["answer"]
                     concat_p = "yes no "  # make ans_recall 1.0 for all yes/no questions..
                     for p in paths:
-                        concat_p += " ".join([id2doc[doc_id]["title"] + " " + id2doc[doc_id]["text"] for doc_id in p])
+                        concat_p += " ".join([unescape(id2doc[doc_id]["title"]) + " " + id2doc[doc_id]["text"] for doc_id in p])
                     ans_recall = int(para_has_answer(gold_answers, concat_p, simple_tokenizer))
                         
-                    sp = batch_ann[idx]["sp"]
+                    sp = [unescape(p) for p in batch_ann[idx]["sp"]]
                     
                     if args.eval_stop:
                         act_hops = len(sp)  # num gold paras = num of hops needed to answer this question
-                        if act_hops == 0: # no para annotations, find act_hops another way tot avoid nan in stop acc calc
+                        if act_hops == 0: # no para annotations, find act_hops another way to avoid nan in stop acc calc
                             if batch_ann[idx]["type"].strip() == '':
                                 act_hops = 1
                             else:

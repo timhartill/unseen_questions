@@ -14,6 +14,7 @@ import os
 import numpy as np
 import copy
 import time
+from html import unescape
 import fnmatch
 import torch
 from transformers import AutoTokenizer, AutoModelForPreTraining
@@ -656,7 +657,8 @@ def get_single_result(res, idx=0):
     return res.preds[idx].strip(), float(res.sequences_scores[idx]) # float(res.sequences_scores.detach().cpu().numpy()[idx])
 
 
-def encode_text(tokenizer, text, text_pair=None, max_input_length=512, truncation=True, return_tensors="pt", padding=False):
+def encode_text(tokenizer, text, text_pair=None, max_input_length=512, 
+                truncation=True, return_tensors="pt", padding=False):
     """ Encode text in standard way using various options
     padding='max_length' will pad to max_input_length
     truncation = True with text_pair will use 'longest first' strategy ie iteratively remove token from current longest of text or text_pair
@@ -668,10 +670,34 @@ def encode_text(tokenizer, text, text_pair=None, max_input_length=512, truncatio
     
     """
     if type(text) == str:
-        encode_dict = tokenizer.encode_plus(text, text_pair=text_pair, max_length=max_input_length, truncation=truncation, padding=padding, return_tensors=return_tensors)
+        encode_dict = tokenizer.encode_plus(text, text_pair=text_pair, max_length=max_input_length, 
+                                            truncation=truncation, padding=padding, return_tensors=return_tensors)
     else:
-        encode_dict = tokenizer.batch_encode_plus(text, max_length=max_input_length, truncation=truncation, padding=padding, return_tensors=return_tensors)
+        encode_dict = tokenizer.batch_encode_plus(text, max_length=max_input_length, 
+                                                  truncation=truncation, padding=padding, return_tensors=return_tensors)
     return encode_dict
 
 
+def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences=None, use_sentences=False, prepend_title=False):
+    """ Encode the query as either just the paragraph or as selected sentences from the paragraph optionally prepended by the title
+    sentence_spans = [ [s1startidx, s1endidx], [s2startidx, s2endidx], ...]
+    selected sentences = [sentenceidx1, sentenceidx2, ...]    
+    """
+    if not use_sentences or len(selected_sentences)==0:
+        return text.strip()
+    if prepend_title:
+        newtext = unescape(title.strip() + ':')
+    else:
+        newtext = ''
+    for sent_idx in selected_sentences:
+        if sent_idx < 0 or sent_idx >= len(sentence_spans): #hpqa has a few like this
+            continue
+        start, end = sentence_spans[sent_idx]
+        sent = text[start:end].strip()
+        if sent[-1] not in ['.','?','!']:
+            sent += '.'
+        newtext = newtext + ' ' + sent
+    if newtext.strip == '':
+        newtext = text
+    return newtext.strip()
 

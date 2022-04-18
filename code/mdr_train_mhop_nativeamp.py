@@ -125,7 +125,7 @@ def main():
             model = RobertaMomentumRetriever_var(bert_config, args)
         else:
             model = RobertaRetriever_var(bert_config, args)
-        eval_dataset = MhopDataset_var(tokenizer, args.predict_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=False, negs=args.num_negs, max_hops=args.max_hops)
+        eval_dataset = MhopDataset_var(args, tokenizer, args.predict_file, train=False)
         collate_fc = partial(mhop_collate_var, pad_id=tokenizer.pad_token_id)
     else:
         if args.momentum:
@@ -185,7 +185,7 @@ def main():
         train_loss_meter = AverageMeter()
         model.train() #TJH model_nv.train()
         if args.use_var_versions:
-            train_dataset = MhopDataset_var(tokenizer, args.train_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=True, negs=args.num_negs, max_hops=args.max_hops)
+            train_dataset = MhopDataset_var(args, tokenizer, args.train_file, train=True)
             mloss = mhop_loss_var
         else:
             train_dataset = MhopDataset(tokenizer, args.train_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=True)

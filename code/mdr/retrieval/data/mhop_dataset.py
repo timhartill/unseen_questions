@@ -44,26 +44,31 @@ import torch
 from torch.utils.data import Dataset
 import json
 import random
+from html import unescape
 
 from .data_utils import collate_tokens
 
-from utils import encode_text
+from utils import encode_text, encode_query_paras
 
 class MhopDataset_var(Dataset):
     """ Version of MhopDataset designed to work with mhop_loss_var
     output: {'q': [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spx], 'c': [sp1, sp2, .., spx], "neg": [neg1, neg2, ... negn], "act_hops": [sample#hops]} 
     """
-
-    def __init__(self, tokenizer, data_path, max_q_len, max_q_sp_len, max_c_len, train=False, negs=2, max_hops=2):
+    def __init__(self, args, tokenizer, data_path, train=False):
         super().__init__()
         self.tokenizer = tokenizer
-        self.max_q_len = max_q_len
-        self.max_c_len = max_c_len
-        self.max_q_sp_len = max_q_sp_len
+        self.max_q_len = args.max_q_len
+        self.max_c_len = args.max_c_len
+        self.max_q_sp_len = args.max_q_sp_len
         self.train = train
         self.data_path = data_path
-        self.negs = negs
-        self.max_hops = max_hops
+        self.negs = args.num_negs
+        self.max_hops = args.max_hops
+        self.use_sentences = args.query_use_sentences
+        self.prepend_query = args.query_add_titles
+        print(f"Using sentences in query: {self.use_sentences}")
+        if self.use_sentences:
+            print(f"Prepending sentences in query with title: {self.prepend_query}")    
         print(f"Loading data from {data_path}")
         self.data = [json.loads(line) for line in open(data_path).readlines()]
         if train: 
@@ -71,7 +76,7 @@ class MhopDataset_var(Dataset):
         print(f"Total sample count {len(self.data)}")
 
     def encode_para(self, para, max_len): #TJH Added truncation=True to eliminate warning - alternates removal of a token from each seq in the pair to get down to max_len
-        return encode_text(self.tokenizer, para["title"].strip(), text_pair=para["text"].strip(), max_input_length=max_len, truncation=True, padding=False, return_tensors="pt")
+        return encode_text(self.tokenizer, unescape(para["title"].strip()), text_pair=para["text"].strip(), max_input_length=max_len, truncation=True, padding=False, return_tensors="pt")
         #return self.tokenizer.encode_plus(para["title"].strip(), text_pair=para["text"].strip(), max_length=max_len, truncation=True, return_tensors="pt")
     
     def __getitem__(self, index):
@@ -138,9 +143,14 @@ class MhopDataset_var(Dataset):
         q_list_codes = [q_codes]
         query_paras = ''
         for i in range(self.max_hops-1):  #if 3 paras: encode: q+sp1, q+sp1+sp2 but not q+sp1+sp2+sp3. Note: queries with neg paras are ignored in loss calc..
-            if para_list[i]['text'][-1] not in ['.', '?', '!']:  # Force full stop at end since nq and tqa paras are chunked and might end mid sentence.
-                para_list[i]['text'] += '.'
-            query_paras += ' ' + para_list[i]['text']
+            if not self.use_sentences or i > num_hops-1:  #No sentence annots for neg paras
+                if para_list[i]['text'][-1] not in ['.', '?', '!']:  # Force full stop at end since nq and tqa paras are chunked and might end mid sentence.
+                    para_list[i]['text'] += '.'
+                query_paras += ' ' + para_list[i]['text']  
+            else:  # encode sentence or title:sentence rather than full para text
+                query_paras += ' ' + encode_query_paras(para_list[i]['text'], para_list[i]['title'],
+                                                        para_list[i]['sentence_spans'], para_list[i]['sentence_labels'],
+                                                        self.use_sentences, self.prepend_query)
             q_list_codes.append( encode_text(self.tokenizer, question, text_pair=query_paras.strip(), max_input_length=self.max_q_sp_len, truncation=True, padding=False, return_tensors="pt") )
         
         #q_sp_codes = encode_text(self.tokenizer, question, text_pair=start_para["text"].strip(), max_input_length=self.max_q_sp_len, truncation=True, padding=False, return_tensors="pt")
