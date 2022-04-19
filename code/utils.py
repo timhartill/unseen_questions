@@ -690,14 +690,14 @@ def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences
     else:
         newtext = ''
     for sent_idx in selected_sentences:
-        if sent_idx < 0 or sent_idx >= len(sentence_spans): #hpqa has a few like this
+        if sent_idx < 0 or sent_idx >= len(sentence_spans): #hpqa has a few annotation errors where sent_idx > num sentences
             continue
         start, end = sentence_spans[sent_idx]
         sent = text[start:end].strip()
         if sent[-1] not in ['.','?','!']:
             sent += '.'
         newtext = newtext + ' ' + sent
-    if newtext.strip == '':
+    if newtext.strip() == '':
         newtext = text
     return newtext.strip()
 

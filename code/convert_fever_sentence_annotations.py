@@ -1,165 +1,100 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Apr 18 13:14:05 2022
+Created on Tue Apr 19 14:27:21 2022
 
 @author: tim hartill
 
-Read sentence-level annotations from original HPQA train/dev files and add to mdr-formatted HPQA train/dev files
+Combine FEVER corpus sentence breakdown and FEVER train/dev sentence-level annotations 
+and output in same format as "BQA" HPQA sentence level annotations
 
-Output format example:
+Download fever corpus and train/dev files from https://fever.ai/dataset/fever.html
 
-{"question": "What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?", 
- "answers": ["Chief of Protocol"], 
- "type": "bridge", 
+{"question": "[CLAIM] What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?", 
+ "answers": ["Chief of Protocol"], [LABEL] 
+ "src": 'fever',
+ "type": "bridge",  [fever] 
  "pos_paras": [{"title": "Kiss and Tell (1945 film)", 
                 "text": "Kiss and Tell is a 1945 American comedy film starring then 17-year-old Shirley Temple as Corliss Archer. In the film, two teenage girls cause their respective parents much concern when they start to become interested in boys. The parents' bickering about which girl is the worse influence causes more problems than it solves.", 
                 "sentence_spans": [[0, 104], [104, 225], [225, 325]], 
                 "sentence_labels": [0]}, 
                {"title": "Shirley Temple", "text": "Shirley Temple Black (April 23, 1928\u00a0\u2013 February 10, 2014) was an American actress, singer, dancer, businesswoman, and diplomat who was Hollywood's number one box-office draw as a child actress from 1935 to 1938. As an adult, she was named United States ambassador to Ghana and to Czechoslovakia and also served as Chief of Protocol of the United States.", "sentence_spans": [[0, 211], [211, 353]], "sentence_labels": [0, 1]}], 
- "neg_paras": [{"title": "A Kiss for Corliss", 
+ "neg_paras": [ [N/A] {"title": "A Kiss for Corliss", 
                 "text": "A Kiss for Corliss is a 1949 American comedy film directed by Richard Wallace and written by Howard Dimsdale. It stars Shirley Temple in her final starring role as well as her final film appearance. It is a sequel to the 1945 film \"Kiss and Tell\". \"A Kiss for Corliss\" was retitled \"Almost a Bride\" before release and this title appears in the title sequence. The film was released on November 25, 1949, by United Artists."}, 
                {"title": "Kiss and Tell", "text": "Kiss and Tell or Kiss & Tell or Kiss n Tell may refer to:"}, {"title": "Secretary of State for Constitutional Affairs", "text": "The office of Secretary of State for Constitutional Affairs was a British Government position, created in 2003. Certain functions of the Lord Chancellor which related to the Lord Chancellor's Department were transferred to the Secretary of State. At a later date further functions were also transferred to the Secretary of State for Constitutional Affairs from the First Secretary of State, a position within the government held by the Deputy Prime Minister."}, {"title": "Joseph Kalite", "text": "Joseph Kalite (died 24 January 2014) was a Central African politician. As a government minister he either held the housing or health portfolio. Kalite, a Muslim, was reported to be killed by anti-balaka outside the Central Mosque in the capital Bangui during the Central African Republic conflict. He was killed with machetes on the day in Bangui after interim president Catherine Samba-Panza took power. At the time of the attack Kalite held no government position, nor did he under the S\u00e9l\u00e9ka rule. He was reported to have supported the rule of S\u00e9l\u00e9ka leader Michel Djotodia."}, {"title": "The Brave Archer and His Mate", "text": "The Brave Archer and His Mate, also known as The Brave Archer 4 and Mysterious Island, is a 1982 Hong Kong film adapted from Louis Cha's novels \"The Legend of the Condor Heroes\" and \"The Return of the Condor Heroes\". Together with \"Little Dragon Maiden\" (1983), \"The Brave Archer and His Mate\" is regarded as an unofficial sequel to the \"Brave Archer\" film trilogy (\"The Brave Archer\", \"The Brave Archer 2\" and \"The Brave Archer 3\")."}, {"title": "Little Dragon Maiden", "text": "Little Dragon Maiden, also known as The Brave Archer 5, is a 1983 Hong Kong film adapted from Louis Cha's novel \"The Return of the Condor Heroes\". \"Little Dragon Maiden\" and \"The Brave Archer and His Mate\" (1982) are seen as unofficial sequels to the \"Brave Archer\" film trilogy (\"The Brave Archer\", \"The Brave Archer 2\" and \"The Brave Archer 3\")."}, {"title": "The Brave Archer 3", "text": "The Brave Archer 3, also known as Blast of the Iron Palm, is a 1981 Hong Kong film adapted from Louis Cha's novel \"The Legend of the Condor Heroes\". The film was produced by the Shaw Brothers Studio and directed by Chang Cheh, starring Alexander Fu Sheng and Niu-niu in the lead roles. The film is the third part of a trilogy and was preceded by \"The Brave Archer\" (1977) and \"The Brave Archer 2\" (1978). The film has two unofficial sequels, \"The Brave Archer and His Mate\" (1982) and \"Little Dragon Maiden\" (1983), both of which were based on \"The Return of the Condor Heroes\". The theme song of the film, \"Say Cheung Kei\" (\u56db\u5f35\u6a5f), was composed by Chang Cheh, arranged by Joseph Koo and performed in Cantonese by Jenny Tseng."}, {"title": "The Brave Archer", "text": "The Brave Archer, also known as Kungfu Warlord, is a 1977 Hong Kong film adapted from Louis Cha's novel \"The Legend of the Condor Heroes\". The film was produced by the Shaw Brothers Studio and directed by Chang Cheh, starring Alexander Fu Sheng and Tanny Tien in the lead roles. The film is the first part of a trilogy and was followed by \"The Brave Archer 2\" (1978) and \"The Brave Archer 3\" (1981). The trilogy has two unofficial sequels, \"The Brave Archer and His Mate\" (1982) and \"Little Dragon Maiden\" (1983)."}, {"title": "Catherine Samba-Panza", "text": "Catherine Samba-Panza (born 26 June 1956) was interim President of the Central African Republic from 2014 to 2016. She was the first woman to hold the post of head of state in that country, as well as the eighth woman in Africa to do so. Prior to becoming head of state, she was Mayor of Bangui from 2013 to 2014."}, {"title": "The Brave Archer 2", "text": "The Brave Archer 2, also known as Kungfu Warlord 2, is a 1978 Hong Kong film adapted from Louis Cha's novel \"The Legend of the Condor Heroes\". The film was produced by the Shaw Brothers Studio and directed by Chang Cheh, starring Alexander Fu Sheng and Niu-niu in the lead roles. The film is the second part of a trilogy and was preceded by \"The Brave Archer\" (1977) and followed by \"The Brave Archer 3\" (1981). The trilogy has two unofficial sequels, \"The Brave Archer and His Mate\" (1982) and \"Little Dragon Maiden\" (1983)."}, {"title": "Charles Craft", "text": "Charles Craft (May 9, 1902 \u2013 September 19, 1968) was an English-born American film and television editor. Born in the county of Hampshire in England on May 9, 1902, Craft would enter the film industry in Hollywood in 1927. The first film he edited was the Universal Pictures silent film, \"Painting the Town\". Over the next 25 years, Craft would edit 90 feature-length films. In the early 1950s he would switch his focus to the small screen, his first show being \"Racket Squad\", from 1951\u201353, for which he was the main editor, editing 93 of the 98 episodes. He would work on several other series during the 1950s, including \"Meet Corliss Archer\" (1954), \"Science Fiction Theatre\" (1955\u201356), and \"Highway Patrol\" (1955\u201357). In the late 1950s and early 1960s he was one of the main editors on \"Sea Hunt\", starring Lloyd Bridges, editing over half of the episodes. His final film work would be editing \"Flipper's New Adventure\" (1964, the sequel to 1963's \"Flipper\". When the film was made into a television series, Craft would begin the editing duties on that show, editing the first 28 episodes before he retired in 1966. Craft died on September 19, 1968 in Los Angeles, California."}, {"title": "Lord High Treasurer", "text": "The post of Lord High Treasurer or Lord Treasurer was an English government position and has been a British government position since the Acts of Union of 1707. A holder of the post would be the third-highest-ranked Great Officer of State, below the Lord High Steward and the Lord High Chancellor."}, {"title": "Village accountant", "text": "The Village Accountant (variously known as \"Patwari\", \"Talati\", \"Patel\", \"Karnam\", \"Adhikari\", \"Shanbogaru\",\"Patnaik\" etc.) is an administrative government position found in rural parts of the Indian sub-continent. The office and the officeholder are called the \"patwari\" in Telangana, Bengal, North India and in Pakistan while in Sindh it is called \"tapedar\". The position is known as the \"karnam\" in Andhra Pradesh, \"patnaik\" in Orissa or \"adhikari\" in Tamil Nadu, while it is commonly known as the \"talati\" in Karnataka, Gujarat and Maharashtra. The position was known as the \"kulkarni\" in Northern Karnataka and Maharashtra. The position was known as the \"shanbogaru\" in South Karnataka."}, {"title": "Under-Secretary of State for War", "text": "The position of Under-Secretary of State for War was a British government position, first applied to Evan Nepean (appointed in 1794). In 1801 the offices for War and the Colonies were merged and the post became that of Under-Secretary of State for War and the Colonies. The position was re-instated in 1854 and remained until 1947, when it was combined with that of Financial Secretary to the War Office. In 1964 the War Office, Admiralty and Air Ministry were merged to form the Ministry of Defence, and the post was abolished."}, {"title": "Yeonguijeong", "text": "Yeonguijeong (] ) was a title created in 1400, during the Joseon Dynasty of Korea (1392-1910) and given to the Chief State Councillor as the highest government position of \"Uijeongbu\" (State Council). Existing for over 500 years, the function was handed over in 1895 during the Gabo Reform to the newly formed position of Prime Minister of Korea. Only one official at a time was appointed to the position and though was generally called \"Yeongsang\", was also referred to as \"Sangsang\", \"Sugyu\" or \"Wonbo\". Although, the title of Yeonguijeong was defined as the highest post in charge of every state affairs by law, its practical functions changed drastically depending on the particular King and whether that King's power was strong or weak."}, {"title": "Janet Waldo", "text": "Janet Marie Waldo (February 4, 1920 \u2013 June 12, 2016) was an American radio and voice actress. She is best known in animation for voicing Judy Jetson, Nancy in \"Shazzan\", Penelope Pitstop, and Josie in \"Josie and the Pussycats\", and on radio as the title character in \"Meet Corliss Archer\"."}, {"title": "Meet Corliss Archer (TV series)", "text": "Meet Corliss Archer is an American television sitcom that aired on CBS (July 13, 1951 - August 10, 1951) and in syndication via the Ziv Company from April to December 1954. The program was an adaptation of the radio series of the same name, which was based on a series of short stories by F. Hugh Herbert."}, {"title": "Centennial Exposition", "text": "The Centennial International Exhibition of 1876, the first official World's Fair in the United States, was held in Philadelphia, Pennsylvania, from May 10 to November 10, 1876, to celebrate the 100th anniversary of the signing of the Declaration of Independence in Philadelphia. Officially named the International Exhibition of Arts, Manufactures and Products of the Soil and Mine, it was held in Fairmount Park along the Schuylkill River on fairgrounds designed by Herman J. Schwarzmann. Nearly 10 million visitors attended the exhibition and thirty-seven countries participated in it."}, {"title": "Meet Corliss Archer", "text": "Meet Corliss Archer, a program from radio's Golden Age, ran from January 7, 1943 to September 30, 1956. Although it was CBS's answer to NBC's popular \"A Date with Judy\", it was also broadcast by NBC in 1948 as a summer replacement for \"The Bob Hope Show\". From October 3, 1952 to June 26, 1953, it aired on ABC, finally returning to CBS. Despite the program's long run, fewer than 24 episodes are known to exist."}], 
- "bridge": "Shirley Temple", 
- "_id": "5a8c7595554299585d9e36b6"}
+ "bridge": ["Shirley Temple"], [all paras]
+ "_id": "5a8c7595554299585d9e36b6"}  [F + fever id]
 
+NOTES:
+    - In FEVER, correctly recalling ANY evidence set counts as a win but in HPQ recalling both paras of a single evidence set is the win
+        - hence we make 1 sample out of each unique evidence set: q1 set1, q1 set2
+        - where multiple sentences in a single doc are pointed to in difft evidence sets we label all such sentences in the doc as positive and consolidate
+    - Since we are building this dataset to train a sentence prediction model we skip "NOT SUPPORTED" claims.
+    - We retain REFUTED claims in the belief that we are marking sentences as evidential toward deriving an answer rather than just positive examples ie "positive" means "evidential" not necessarily "supportive"
 """
-
 import os
 import json
 from html import unescape
 
 import utils
-from text_processing import create_sentence_spans
-
-HPQA_DEV = '/home/thar011/data/hpqa/hotpot_dev_fullwiki_v1.json'
-HPQA_TRAIN = '/home/thar011/data/hpqa/hotpot_train_v1.1.json'
-
-MDR_DEV = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_dev_with_neg_v0.json'
-MDR_TRAIN = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_train_with_neg_v0.json'
-MDR_PROCESSED_CORPUS = '/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json'
-
-MDR_UPDATED_DEV = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_dev_with_neg_v0_sentannots.jsonl'
-MDR_UPDATED_TRAIN = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_train_with_neg_v0_sentannots.jsonl'
+from text_processing import normalize_unicode, convert_brc, replace_chars, create_sentence_spans
 
 
-hpqa_dev = json.load(open(HPQA_DEV))        # 7405 dict_keys(['_id', 'answer', 'question', 'supporting_facts', 'context', 'type', 'level']) 
-hpqa_train = json.load(open(HPQA_TRAIN))  # 90447 #'supporting_facts' = [ [title, sentence_idx], ..]
+DEV = '/home/thar011/data/fever/shared_task_dev.jsonl'
+TRAIN = '/home/thar011/data/fever/train.jsonl'
+PROCESSED_CORPUS_DIR = '/home/thar011/data/fever/wiki-pages'
 
-mdr_dev = utils.load_jsonl(MDR_DEV)        # 7405  dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id'])
-mdr_train = utils.load_jsonl(MDR_TRAIN)     # 90447
-mdr_corpus = json.load(open(MDR_PROCESSED_CORPUS)) # 5233329  MDR processed file has the sentence mappings, easier than doing raw processing on hpqa wiki dump..
+UPDATED_DEV = '/home/thar011/data/fever/fever_dev_with_sent_annots.jsonl'
+UPDATED_TRAIN = '/home/thar011/data/fever/fever_train_with_sent_annots.jsonl'
 
-
-def build_title_dict(mdr_corpus):
-    """ Convert MDR processed corpus file from:
-        {'idx':{'title': 'title', 'text':'abstract text', 'sents': ['Sentence 1.', ' Sentence 2.', ...]} }
-    """
-    corpus_sents = {}
-    dup_titles = []
-    for idx in mdr_corpus:
-        spans = create_sentence_spans(mdr_corpus[idx]['sents'])
-        title = mdr_corpus[idx]['title']
-        if corpus_sents.get(unescape(title)) is not None:
-            print(f"Duplicate title: {title} (unescaped: {unescape(title)})")
-            dup_titles.append(title)
-        corpus_sents[unescape(title)] = {'sentence_spans':spans, 'text': mdr_corpus[idx]['text']}
-    print(f"Duplicate titles: {len(dup_titles)}")  #0
-    return corpus_sents, dup_titles
-
-hpqa_sentence_spans, dup_titles = build_title_dict(mdr_corpus)
-
-# [] and true for mdr_train para 1 and mdr_dev both paras also...so training para text lines up with corpus text..
-#[m for m in mdr_train if m['pos_paras'][0]['text'] != hpqa_sentence_spans[unescape(m['pos_paras'][0]['title'])]['text'] ]
+fever_dev = utils.load_jsonl(DEV)      # 19998 dict_keys(['id', 'verifiable', 'label', 'claim', 'evidence'])
+fever_train =  utils.load_jsonl(TRAIN) # 145449 dict_keys(['id', 'verifiable', 'label', 'claim', 'evidence'])
 
 
-def aggregate_sent_annots(supporting_facts):
-    """ Aggregate supporting fars from eg [['Allie Goertz', 0], ['Allie Goertz', 1], ['Allie Goertz', 2], ['Milhouse Van Houten', 0]]
-    to {'Allie Goertz': [0,1,2], 'Milhouse Van Houten': [0]}
-    """
-    label_dict = {}
-    for t, s in supporting_facts: 
-        title_unescaped = unescape(t)
-        if label_dict.get(title_unescaped) is None:
-            label_dict[title_unescaped] = []
-        label_dict[title_unescaped].append(s)
-    for t in label_dict:
-        label_dict[t].sort()    
-    return label_dict
-        
-
-
-def add_span_and_sent_annot(mdr_split, hpqa_split, sentence_spans):
-    """ Add keys for sentence_spans and sentence annotations
-    Note: mdr and hpqa files are in the same order...
-    """
-    for i, s in enumerate(mdr_split):
-        sent_labels = aggregate_sent_annots(hpqa_split[i]['supporting_facts'])
-        for para in s['pos_paras']:
-            title_unescaped = unescape(para['title'])  # a few titles are actually escaped..
-            spans = sentence_spans[title_unescaped]['sentence_spans']
-            para['sentence_spans'] = spans
-            para['sentence_labels'] = sent_labels[title_unescaped]
-        if i % 10000 == 0:
-            print(f"Processed: {i}")
-    return
-
-
-def check_sentence_annots(split):
-    """ check sentence annotations are all valid
-    """
-    errlist = []
-    for i, s in enumerate(split):
-        for j, para in enumerate(s['pos_paras']):
-            if len(para['sentence_labels']) == 0:
-                print(f"sample:{i} pospara: {j} Zero length sentence label!")
-                errlist.append([i,j,"zero len label"])
-            for sent_idx in para['sentence_labels']:
-                if sent_idx >= len(para['sentence_spans']):
-                    print(f"sample:{i} pospara: {j} sent idx > # sentences!")
-                    errlist.append([i,j,"idx > # sents"])
-                else:
-                    start, end = para['sentence_spans'][sent_idx]
-                    if start < 0 or len(para['text']) == 0:
-                        print(f"sample:{i} pospara: {j} invalid start")
-                        errlist.append([i,j,"invalid start or zero len text"])
-                    if end > len(para['text']):    
-                        print(f"sample:{i} pospara: {j} invalid end")
-                        errlist.append([i,j,"invalid end"])
-    return errlist
+def convert_text_and_lines(sample):
+    """ Standardize FEVER text, calculate sentence spans.
+    """   
+    new_sample = {}
+    new_sample['title'] = sample['id']
+    lines = normalize_unicode(convert_brc(sample['lines'])).split('\n')
+    newlines = []
+    for line in lines:
+        line_split = line.split('\t')
+        if len(line_split) > 1:
+            newline = line_split[1]
+            if newline != '':
+                newline = newline.strip()
+                if newline[-1] not in ['.', '!', '?']:
+                    newline += '.'
+                newlines.append(' ' + replace_chars(newline))
+    if newlines != []:
+        newlines[0] = newlines[0][1:]  # follow hpqa form where 1st sent doesn't start with space and all subsequent ones do
+    new_sample['text'] = ''.join(newlines)
+    new_sample['sentence_spans'] = create_sentence_spans(newlines)    
+    return new_sample 
     
 
-add_span_and_sent_annot(mdr_dev, hpqa_dev, hpqa_sentence_spans)
-add_span_and_sent_annot(mdr_train, hpqa_train, hpqa_sentence_spans)
+# build consolidated corpus
+wiki_jsonl_files = os.listdir(PROCESSED_CORPUS_DIR)  # 109 files
+wiki_fever = []
+for i,f in enumerate(wiki_jsonl_files):
+    curr_wiki = utils.load_jsonl(os.path.join(PROCESSED_CORPUS_DIR, f))
+    wiki_fever.extend(curr_wiki)
+print(f"Combined abstracts: {len(wiki_fever)}")  # Combined abstracts: 5416537  dict_keys(['id', 'text', 'lines'])
 
-utils.saveas_jsonl(mdr_dev, MDR_UPDATED_DEV)
-utils.saveas_jsonl(mdr_train, MDR_UPDATED_TRAIN)
+wiki_dict = {}
+for i, sample in enumerate(wiki_fever):
+    new_sample = convert_text_and_lines(sample)    
+    wiki_dict[new_sample['title']] = new_sample
+    if i % 50000 == 0:
+        print(f'Processed: {i}')
+print(f"Num docs: {len(wiki_dict)}")
+        
 
-errlist = check_sentence_annots(mdr_dev) # sample:5059 pospara: 0 sent idx > # sentences! Error is in hpqa sentence annot
-errlist = check_sentence_annots(mdr_train)  #Errors all seem to be in the hpqa sentence annots
-#sample:514 pospara: 1 sent idx > # sentences!
-#sample:8332 pospara: 0 sent idx > # sentences!
-#sample:9548 pospara: 1 sent idx > # sentences!
-#sample:13415 pospara: 0 sent idx > # sentences!
-#sample:20594 pospara: 0 sent idx > # sentences!
-#sample:22896 pospara: 0 sent idx > # sentences!
-#sample:27436 pospara: 0 sent idx > # sentences!
-#sample:37004 pospara: 1 sent idx > # sentences!
-#sample:38579 pospara: 0 sent idx > # sentences!
-#sample:41267 pospara: 0 sent idx > # sentences!
-#sample:45705 pospara: 1 sent idx > # sentences!
-#sample:49355 pospara: 0 sent idx > # sentences!
-#sample:50651 pospara: 1 sent idx > # sentences!
-#sample:52080 pospara: 0 sent idx > # sentences!
-#sample:60885 pospara: 1 sent idx > # sentences!
-#sample:67475 pospara: 0 sent idx > # sentences!
-#sample:77109 pospara: 0 sent idx > # sentences!
-#sample:85934 pospara: 0 sent idx > # sentences!
-#sample:86118 pospara: 1 sent idx > # sentences!
-#sample:86193 pospara: 1 sent idx > # sentences!
-#sample:88641 pospara: 0 sent idx > # sentences!
-#sample:89961 pospara: 0 sent idx > # sentences!
-
+#TODO output multiple samples one per consolidated evidence set
+#TODO consolidate all single evidences into separate samples 
+#eg [ [titleA, 0], [titleA, 5], [titleB, 6] ] -> {q, [titleA:[0,5]]} & {q, [titleb:[6]]}
+#TODO consolidate all multi evidense separately: eg [ [[A,4], [B,0], [B,2] ] ] -> {q, [A:[4], B:[0,2]]}
 
 
 

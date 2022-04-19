@@ -212,20 +212,23 @@ if __name__ == '__main__':
             n = len(xb)
             print(n)
             index.verbose = True
-            for i in range(0, n, buffer_size):
-                vectors = [np.reshape(t, (1, -1)) for t in xb[i:i + buffer_size]]
-                norms = [(doc_vector ** 2).sum() for doc_vector in vectors]
-                aux_dims = [np.sqrt(phi - norm) for norm in norms]
-                hnsw_vectors = [np.hstack((doc_vector, aux_dims[idx].reshape(-1, 1))) for idx, doc_vector in enumerate(vectors)]
-                hnsw_vectors = np.concatenate(hnsw_vectors, axis=0)
-                logger.info(f"Finished preprocessing vectors for i+buff={i+buffer_size}. Adding to index ...")
-                index.add(hnsw_vectors)
-                logger.info(f"Finished adding vectors to index for i+buff={i+buffer_size}. ")
-            index.verbose = False
+            #for i in range(0, n, buffer_size):
+            i=0
+            vectors = [np.reshape(t, (1, -1)) for t in xb[i:i + buffer_size]]
+            norms = [(doc_vector ** 2).sum() for doc_vector in vectors]
+            aux_dims = [np.sqrt(phi - norm) for norm in norms]
+            hnsw_vectors = [np.hstack((doc_vector, aux_dims[idx].reshape(-1, 1))) for idx, doc_vector in enumerate(vectors)]
+            hnsw_vectors = np.concatenate(hnsw_vectors, axis=0)
             del xb
+            logger.info(f"Finished preprocessing vectors for i+buff={i+buffer_size}. Adding to index ...")
+            index.add(hnsw_vectors)
+            logger.info(f"Finished adding vectors to index for i+buff={i+buffer_size}. ")
+            index.verbose = False
+            #del xb
             if args.save_index:
                 logger.info(f"Saving HNSW index to {index_path} ...")
                 faiss.write_index(index, index_path)
+            del hnsw_vectors    
     else: # not hnsw
         # SIDE NOTE: if vectors had been encoded for cosine sim objective (eg sentence-transformers) 
         # can use faiss.normalize_L2(xb) (does this in-place) before index.add to perform L2 normalization on the database s.t very vector has same magnitude (sum of the squares always = 1) and cosine similarity becomes indistinguishable from dot product

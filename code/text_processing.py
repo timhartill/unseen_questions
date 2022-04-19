@@ -195,6 +195,20 @@ def normalize_unicode(text):
     """Resolve different type of unicode encodings."""
     return unicodedata.normalize('NFD', text)
 
+
+def convert_brc(string):
+    """ Convert FEVER style text encoding
+    """
+    string = re.sub('-LRB-', '(', string)
+    string = re.sub('-RRB-', ')', string)
+    string = re.sub('-LSB-', '[', string)
+    string = re.sub('-RSB-', ']', string)
+    string = re.sub('-LCB-', '{', string)
+    string = re.sub('-RCB-', '}', string)
+    string = re.sub('-COLON-', ':', string)
+    return string
+
+
 def replace_control_chars(text, replace= ' '):
     """ Replace control chars with ' ' or eg '' """
     output = []
@@ -212,7 +226,7 @@ def white_space_fix(text):
 
 def replace_chars(instr): 
     """ Very basic text preprocessing """
-    outstr = instr.replace("’", "'").replace("‘", "'").replace(" .", ".").replace(" ?", "?").replace(" !", "!").replace(" ,", ",")
+    outstr = instr.replace("’", "'").replace("‘", "'").replace(" .", ".").replace(" ?", "?").replace(" !", "!").replace(" ,", ",").replace(" ;", ";").replace(" :", ":")
     return outstr.replace('“', '"').replace('”','"').replace("\t", " ").replace("\n", "")
 
 
@@ -233,6 +247,19 @@ def format_sentence(sentence, capitalize=True, add_endchar=True, endchar='.', st
         if capitalize:
             sentence = sentence[0].upper() + sentence[1:]            
     return sentence
+
+
+def create_sentence_spans(sent_list):
+    """ Convert list of sentences into [ [s0start, s0end], [s1start, s1end], ...] ( where ''.join(sent_list) should = the complete para text..)
+    """
+    sentence_spans = []
+    curr_para_len = 0
+    for s in sent_list:
+        slen = len(s)
+        if slen > 0:
+            sentence_spans.append( [curr_para_len, curr_para_len + slen] )
+            curr_para_len += slen
+    return sentence_spans
 
 
 # Adapted from https://github.com/Neutralzz/RefQA (Li et al)

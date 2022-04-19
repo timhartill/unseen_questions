@@ -22,12 +22,13 @@
 
 #bqa ~134k training samples vs ~90k hpqa. On 1 gpu bs24 est 1hr 15mins per epoch vs ~45mins per epoch.  
 
+#     --query_add_titles \
 
 cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix hpqa_sent_annots_test1 \
+    --prefix hpqa_sent_annots_test2_dont_add_titles \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \
@@ -49,7 +50,6 @@ python mdr_train_mhop_nativeamp.py \
     --max_hops 2 \
     --num_negs 2 \
     --query_use_sentences \
-    --query_add_titles \
     --output_dir /large_data/thar011/out/mdr/logs \
     --num_train_epochs 50 \
     --warmup-ratio 0.1

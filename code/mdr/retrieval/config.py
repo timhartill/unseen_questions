@@ -19,7 +19,7 @@ def common_args():
                         default="../data/nq-with-neg-train.txt")
     parser.add_argument("--predict_file", type=str,
                         default="../data/nq-with-neg-dev.txt")
-    parser.add_argument("--num_workers", default=10, type=int)
+    parser.add_argument("--num_workers", default=5, type=int)
     parser.add_argument("--do_train", default=False,
                         action='store_true', help="Whether to run training.")
     parser.add_argument("--do_predict", default=False,
