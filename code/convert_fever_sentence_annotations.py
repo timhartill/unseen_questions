@@ -37,7 +37,7 @@ import json
 from html import unescape
 
 import utils
-from text_processing import normalize_unicode, convert_brc, replace_chars, create_sentence_spans
+from text_processing import normalize_unicode, convert_brc, replace_chars, create_sentence_spans, strip_accents
 
 
 DEV = '/home/thar011/data/fever/shared_task_dev.jsonl'
@@ -139,9 +139,16 @@ def process_evidence(evidence_list):
     return evidence_consolidated
 
 
-            
+def build_unaccented_title_mapping(wiki_dict):
+    """ strip accents from titles as fever dev/train titles and the corpus have inconsistent accenting """
+    wiki_accent_map = {}
+    for t in wiki_dict.keys():
+        t_unaccented = strip_accents(t)
+        wiki_accent_map[t_unaccented] = t
+    return wiki_accent_map        
 
-def create_samples(split, wiki_dict):
+
+def create_samples(split, wiki_dict, wiki_accent_map):
     """ Create samples from split
     {"question": "[CLAIM] What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?", 
      "answers": ["Chief of Protocol"], [LABEL] 
@@ -185,6 +192,9 @@ def create_samples(split, wiki_dict):
                         title = title[:chk]    
                     new_title = normalize_unicode(convert_brc(unescape(title))).replace('_', ' ')
                     w = wiki_dict.get(title)
+                    if w is None:
+                        title_mapped = wiki_accent_map[strip_accents(title)]
+                        w = wiki_dict.get(title_mapped)
                     if w is not None:
                         pos_para_dict = {}
                         pos_para_dict['title'] = new_title
@@ -196,7 +206,7 @@ def create_samples(split, wiki_dict):
                         missing_titles.append({'title': title, 'split_idx':i})
                 pos_paras_list.append(pos_paras_single_set)
             for j, pos_paras in enumerate(pos_paras_list):
-                sample = {'question': q, 'answers': ans, 'src': 'fever', 'type': 'fever', '_id': fid+'_'+str(i)}
+                sample = {'question': q, 'answers': ans, 'src': 'fever', 'type': 'fever', '_id': fid+'_'+str(j)}
                 sample['bridge'] = [t['title'] for t in pos_paras]
                 sample['pos_paras'] = pos_paras
                 out_samples.append(sample)
@@ -204,57 +214,14 @@ def create_samples(split, wiki_dict):
             print(f"Processed: {i}")
     return out_samples, missing_titles
                     
-                        
-fever_dev_out, dev_missing = create_samples(fever_dev, wiki_dict)         # 173 missing       
-fever_train_out, train_missing = create_samples(fever_train, wiki_dict)   # 1283 missing             
+wiki_accent_map = build_unaccented_title_mapping(wiki_dict)
+                      
+fever_dev_out, dev_missing = create_samples(fever_dev, wiki_dict, wiki_accent_map)         # 0 missing       
+fever_train_out, train_missing = create_samples(fever_train, wiki_dict, wiki_accent_map)   # 0 missing             
      
+utils.saveas_jsonl(fever_dev_out, UPDATED_DEV)
+utils.saveas_jsonl(fever_train_out, UPDATED_TRAIN)
 
-fever_dev[19799]
-{'id': 108345,
- 'verifiable': 'VERIFIABLE',
- 'label': 'REFUTES',
- 'claim': 'Raven-Symoné refuses to be an actress.',
- 'evidence': [[[127152, 141660, 'Raven-Symoné', 0]],
-  [[127152, 141661, 'Raven-Symoné', 1]],
-  [[127152, 141662, 'Raven-Symoné', 6]],
-  [[127152, 141663, 'Raven-Symoné', 7]],
-  [[127152, 141664, 'Raven-Symoné', 8],
-   [127152, 141664, 'This_Is_My_Time_-LRB-Raven-Symoné_album-RRB-', 0]],
-  [[127152, 141665, 'Raven-Symoné', 9],
-   [127152, 141665, 'Raven-Symoné_-LRB-album-RRB-', 0]],
-  [[127152, 141666, 'Raven-Symoné', 17]],
-  [[127152, 141667, 'Raven-Symoné', 18]],
-  [[127152, 141668, 'Raven-Symoné', 19]],
-  [[127152, 141669, 'Raven-Symoné', 23]],
-  [[127152, 141670, 'Raven-Symoné', 24]]]}
-       
-wlist = [wiki_dict[w] for w in wiki_dict if 'Raven-Symon' in wiki_dict[w]['title']]  #7 accent in dev/train is wrong 
-    
-    
-{'title': 'This_Is_My_Time_-LRB-Raven-Symoné_album-RRB-',
- 'text': "This Is My Time is the third studio album by American singer-songwriter and actress Raven-Symoné, released in the United States on September 21, 2004 by Hollywood Records. The album is her debut with the Disney-owned label and debuted at number fifty-one on the U.S. Billboard 200, with 19,000 copies sold in its first week. It nevertheless became Raven-Symoné 's best-selling solo album, selling 235,000 copies up to February 2, 2007 in the U.S., according to Nielsen SoundScan.",
- 'sentence_spans': [[0, 172], [172, 325], [325, 481]]}
 
-{'title': 'Raven-Symoné',
- 'text': "Raven-Symoné Christina Pearman ( [ ˈreɪ.vən _ sɪˈmoʊn ] born December 10, 1985 ), sometimes credited as Raven, is an American actress, singer, songwriter, television personality, and producer. She first appeared on television in 1989 on The Cosby Show as Olivia Kendall. She released her debut album, Here 's to New Dreams in 1993; the single, `` That 's What Little Girls Are Made Of '' charted number 68 on the US Billboard Hot 100. The next album, Undeniable, was released on May 4, 1999. Raven-Symoné appeared in several successful television series, such as The Cosby Show and Hangin ' with Mr. Cooper, in the late 1980s and early 1990s. From 2003 to 2007, she starred in the Disney Channel series, That 's So Raven in which she played Raven Baxter, a psychic teenager who tried her best to keep her psychic powers a secret. During her time on That 's So Raven, Raven-Symoné released her third studio album, This is My Time ( 2004 ) which was her best selling solo album to date, charting at number 51 on the Billboard 200. A year after the end of That 's So Raven, she released her fourth studio album, Raven-Symoné ( 2008 ). The album peaked at number 159 on the Billboard 200. During 2003 to 2006, she participated in four soundtracks from Disney, RIAA-certified double-platinum album, The Cheetah Girls ( 2003 ), RIAA-certified gold album, That 's So Raven ( 2004 ), That 's So Raven Too! ( 2006 ) and RIAA-certified platinum album, The Cheetah Girls 2 ( 2006 ). The soundtracks sold a combined 4.1 million copies in the U.S. alone. As of April 2008, Raven-Symoné has sold 314,000 albums in the United States. Raven-Symoné transitioned to a film career, starring in several films aimed at young audiences, including Dr. Dolittle ( 1998 ), Dr. Dolittle 2 ( 2001 ), College Road Trip ( 2008 ), and successful television films, including Zenon: Girl of the 21st Century ( 1999 ), The Cheetah Girls ( 2003 ), its sequel Cheetah Girls 2 ( 2006 ), For One Night ( 2006 ), Revenge of the Bridesmaids ( 2010 ). Raven has also lent her voice to the animated series Kim Possible, for the character Monique and films such as Disney 's Tinker Bell. In 2011, Symoné starred in the short-lived ABC Family comedy series State of Georgia as Georgia Chamberlain, an aspiring actress with a huge ego who moves to New York City to try her hand at an acting career. In 2012, Raven-Symoné ranked number nine on VH1 `` 100 Greatest Kid Stars Of All Time '' list. In 2015, Raven-Symoné joined the cast of the new hit primetime drama Empire in the recurring role of Olivia, the vengeful ex-wife of one of the main characters. She stars alongside Terrence Howard, Malik Yoba, and Taraji P. Henson. In June 2015, she joined the ABC panel show The View, after a period of guest-hosting.",
- 'sentence_spans': [[0, 193],
-  [193, 271],
-  [271, 435],
-  [435, 492],
-  [492, 644],
-  [644, 831],
-  [831, 1031],
-  [1031, 1135],
-  [1135, 1188],
-  [1188, 1401],
-  [1401, 1475],
-  [1475, 1545],
-  [1545, 1623],
-  [1623, 2017],
-  [2017, 2151],
-  [2151, 2361],
-  [2361, 2457],
-  [2457, 2619],
-  [2619, 2690],
-  [2690, 2777]]}
+
 

@@ -195,6 +195,10 @@ def normalize_unicode(text):
     """Resolve different type of unicode encodings."""
     return unicodedata.normalize('NFD', text)
 
+def strip_accents(s):
+   """ strip accents from text """ 
+   return ''.join(c for c in unicodedata.normalize('NFD', s)
+                  if unicodedata.category(c) != 'Mn')
 
 def convert_brc(string):
     """ Convert FEVER style text encoding
