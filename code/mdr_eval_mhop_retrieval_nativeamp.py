@@ -195,7 +195,7 @@ if __name__ == '__main__':
             logger.info(f"Reading HNSW index from {index_path} ...")
             index = faiss.read_index(index_path)
         else:
-            xb = np.load(args.index_path).astype('float32')
+            xb = np.load(args.index_path).astype('float32')  # , mmap_mode='r' useless - loads whole file into ram
             logger.info("Building HNSW index ...")
             m = 512  # the number of links per vector - higher is more accurate but uses more RAM. memory usage is (d * 4 + m * 2 * 4) bytes per vector (d=d+1 in this case) ~258GB
             index = faiss.IndexHNSWFlat(d + 1, m) # HNSW only supports L2 so conversions below are to convert dot sim space -> L2
@@ -208,27 +208,30 @@ if __name__ == '__main__':
             logger.info('HNSWF DotProduct -> L2 space phi={}'.format(phi))
 
             #data = xb
-            buffer_size = 1000000000  #50000
+            buffer_size = 20000000  #1000000000  #50000
             n = len(xb)
-            print(n)
+            logger.info(f"Indexing {n} vectors with buffer size {buffer_size}...")
             index.verbose = True
-            #for i in range(0, n, buffer_size):
-            i=0
-            vectors = [np.reshape(t, (1, -1)) for t in xb[i:i + buffer_size]]
-            norms = [(doc_vector ** 2).sum() for doc_vector in vectors]
-            aux_dims = [np.sqrt(phi - norm) for norm in norms]
-            hnsw_vectors = [np.hstack((doc_vector, aux_dims[idx].reshape(-1, 1))) for idx, doc_vector in enumerate(vectors)]
-            hnsw_vectors = np.concatenate(hnsw_vectors, axis=0)
-            del xb
-            logger.info(f"Finished preprocessing vectors for i+buff={i+buffer_size}. Adding to index ...")
-            index.add(hnsw_vectors)
-            logger.info(f"Finished adding vectors to index for i+buff={i+buffer_size}. ")
+            for i in range(0, n, buffer_size):
+                #i=0
+                vectors = [np.reshape(t, (1, -1)) for t in xb[i:i + buffer_size]]
+                norms = [(doc_vector ** 2).sum() for doc_vector in vectors]
+                aux_dims = [np.sqrt(phi - norm) for norm in norms]
+                hnsw_vectors = [np.hstack((doc_vector, aux_dims[idx].reshape(-1, 1))) for idx, doc_vector in enumerate(vectors)]
+                hnsw_vectors = np.concatenate(hnsw_vectors, axis=0)  # could save hnsw vectors to disk here then delete xb, vectors, norms, aux_dims
+                #del xb
+                del aux_dims
+                del norms
+                del vectors
+                logger.info(f"Finished preprocessing vectors for {i} to {i+buffer_size}. Adding to index ...")
+                index.add(hnsw_vectors)
+                logger.info(f"Finished adding vectors to index for {i} to {i+buffer_size}. ")
+                del hnsw_vectors    
             index.verbose = False
-            #del xb
             if args.save_index:
                 logger.info(f"Saving HNSW index to {index_path} ...")
                 faiss.write_index(index, index_path)
-            del hnsw_vectors    
+            del xb
     else: # not hnsw
         # SIDE NOTE: if vectors had been encoded for cosine sim objective (eg sentence-transformers) 
         # can use faiss.normalize_L2(xb) (does this in-place) before index.add to perform L2 normalization on the database s.t very vector has same magnitude (sum of the squares always = 1) and cosine similarity becomes indistinguishable from dot product
