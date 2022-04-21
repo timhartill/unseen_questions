@@ -219,10 +219,11 @@ if __name__ == '__main__':
                 aux_dims = [np.sqrt(phi - norm) for norm in norms]
                 hnsw_vectors = [np.hstack((doc_vector, aux_dims[idx].reshape(-1, 1))) for idx, doc_vector in enumerate(vectors)]
                 hnsw_vectors = np.concatenate(hnsw_vectors, axis=0)  # could save hnsw vectors to disk here then delete xb, vectors, norms, aux_dims
-                #del xb
                 del aux_dims
                 del norms
                 del vectors
+                if i+buffer_size >= n:
+                    del xb
                 logger.info(f"Finished preprocessing vectors for {i} to {i+buffer_size}. Adding to index ...")
                 index.add(hnsw_vectors)
                 logger.info(f"Finished adding vectors to index for {i} to {i+buffer_size}. ")
