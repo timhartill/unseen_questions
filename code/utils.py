@@ -52,12 +52,11 @@ def load_jsonl(file, verbose=True):
     with open(file, "r") as f:
         all_json_list = f.read()
     all_json_list = all_json_list.split('\n')
-    num_jsons = len(all_json_list)
     if verbose:
-        print('JSON as text successfully loaded. Number of json messages in file is ', num_jsons)
+        print('JSON as text successfully loaded. Loading...')
     all_json_list = [json.loads(j) for j in all_json_list if j.strip() != '']
     if verbose:
-        print('Text successfully converted to JSON.')
+        print(f'Text successfully converted to JSON. Number of json messages: {len(all_json_list)}')
     return all_json_list
 
 

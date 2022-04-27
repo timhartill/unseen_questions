@@ -21,6 +21,7 @@
 # bs 10  beam 20 topk 20: 23.1GB GPU Used. Inference time goes from 3mins@topk1->15mins
 # bs 10  beam 50 topk 50: 29.7GB GPU used. Inference time: 25 mins
 
+#hnsw buffer size 20,000,000 takes ~35 hours and 500GB RAM to build index. 2nd pass of 15M vectors takes longer than 1st pass of 20M vectors.
 
 # after training (base or base+momentum), run mdr_encode_datasets then run this sh AFTER setting:
 # index_path, corpus_dict to location when mdr_encode_datasets output to
