@@ -12,6 +12,7 @@ import json
 import pickle
 import os
 import numpy as np
+import random
 import copy
 import time
 from html import unescape
@@ -699,4 +700,147 @@ def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences
     if newtext.strip() == '':
         newtext = text
     return newtext.strip()
+
+
+#  Utils for wikipedia docs ######
+
+def build_title_idx(docs, verbose=False):
+    """ The HPQA corpus files contain some hrefs that have casing different to the actual title casing.
+    Simply making everything lowercase wont work as this creates a smallish number of duplicates.
+    So we build a dict with key title.lower():
+        {'title_lower': [{'title': the title, 'id': id of this title}]}
+        Also title_lower is UNESCAPED meaning " ' & < > are as here not escaped like the orig titles which have eg &amp; for &
+    """
+    titledict = {}
+    dupdict = {}
+    for i, doc in enumerate(docs):
+        tlower = unescape(doc['title'].lower()) # unescaped
+        title_entry = {'title': doc['title'], 'id':doc['id'], 'idx': i} # not escaped so matches title in corpus
+        if titledict.get(tlower) is None:
+            titledict[tlower] = [title_entry]
+        else:
+            titledict[tlower].append(title_entry)
+            if verbose:
+                print(f"Dup lowercase: {tlower}  New Entry:{title_entry}")
+            dupdict[tlower] = titledict[tlower]
+        if i % 1000000 == 0:
+            print(f"Processed: {i} Dups so far:{len(dupdict)}")
+    print(f"Total dups: {len(dupdict)}")
+    return titledict, dupdict
+
+
+def map_title_case(hlink, titledict, id_type='idx', verbose=False):
+    """ Some titles in HPQA abstracts have incorrect casing. Attempt to map casing.
+    hlink is a wiki doc title not necessarily from and hlink..
+    titledict has key 'title' with entry(s) like: [{'title': 'Chinnar Wildlife Sanctuary', 'id': '9642568', 'idx': 0}]
+    id_type = 'id' will return wiki doc id, id_type='idx' will return idx of this title in docs
+    Note unescape will map eg &amp; to & but will have no effect on already unescaped text so can pass either escaped or unescaped version
+    
+    """
+    tlower = unescape(hlink.lower())
+    tmap = titledict.get(tlower)
+    status = 'nf'
+    idx = -1
+    if tmap is not None:                # if not found at all just return existing hlink
+        if len(tmap) == 1:
+            if hlink != tmap[0]['title']:
+                if verbose:
+                    print(f"Hlink case different. Orig:{hlink} actual: {tmap[0]['title']}")
+                status = 'sc'
+            else:
+                status = 'sok'
+            hlink = tmap[0]['title']    # only one candidate, use that
+            idx = tmap[0][id_type]
+        else:
+            for t in tmap:
+                if hlink == t['title']: # exact match amongst candidates found, use that
+                    return hlink, 'mok', t[id_type]
+            hlink = tmap[0]['title']    # otherwise just return first
+            idx = tmap[0][id_type]
+            status = 'mc'
+            if verbose:
+                print(f"Hlink lower:{tlower} No exact match found so assigning first: {hlink}")
+    return hlink, status, idx
+
+
+def get_hyperlinked_docs(docs, titledict, curr_d_idx, curr_p_idx, exclude=set()):
+    """ Return indices of docs that are linked to by curr_d_idx, curr_p_idx
+    """
+    docs_linked_to_idx = set()
+    docs_linked_to_id = set()
+    for title in docs[curr_d_idx]['paras'][curr_p_idx]['hyperlinks_cased'].keys():
+        new_title, status, d_idx = map_title_case(title, titledict)
+        if d_idx != -1 and d_idx not in exclude:
+            docs_linked_to_idx.add(d_idx)
+            docs_linked_to_id.add(docs[d_idx]['id'])
+    return docs_linked_to_idx, docs_linked_to_id
+
+
+def get_paras(docs, d_idxs, p_idxs=[0]):
+    """ Return paras for a set of doc idxs
+    """
+    paras = []
+    for d_idx in d_idxs:
+        para = ''
+        for p_idx in p_idxs:
+            if p_idx < len(docs[d_idx]['paras']) and p_idx > -1:
+                para += ' ' + docs[d_idx]['paras'][p_idx]['text']
+        paras.append( {'doc_id': docs[d_idx]['id'], 'title': docs[d_idx]['title'], 'title_unescaped': unescape(docs[d_idx]['title']),
+                       'text': para.strip(), 'para_idxs': p_idxs} )
+    return paras
+
+
+def get_para_idxs(para_list):
+    """ Return dict of {title: {idx: [idx in pos_paras]}} idx is a list to allow for possibility of same title duplicated in pos paras either for same title/difft paras or in case of FEVER same title, same para but difft sentence annotation
+    para_list: [[{'title': 'Kristian Zahrtmann', 'text': 'Peder Henrik Kristian Zahrtmann, known as Kristian Zahrtmann, (31 March 1843 – 22 June 1917) was a Danish painter. He was a part of the Danish artistic generation in the late 19th century, along with Peder Severin Krøyer and Theodor Esbern Philipsen, who broke away from both the strictures of traditional Academicism and the heritage of the Golden Age of Danish Painting, in favor of naturalism and realism.',
+                   'sentence_spans': [[0, 114], [114, 408]],
+                   'sentence_labels': [0, 1]}, ... ]
+    returns: {'Kristian Zahrtmann': [0],
+                 'Peder Severin Krøyer': [1],
+                 'Ossian Elgström': [2]}
+    """
+    para_idx_dict = {}
+    for idx, para in enumerate(para_list):
+        if para_idx_dict.get(para['title']) is None:
+            para_idx_dict[para['title']] = []
+        para_idx_dict[para['title']].append( idx )
+    return para_idx_dict
+        
+    
+def get_para_docidxs(para_list, titledict):
+    """ return list of doc idxs for para titles
+    """
+    para_doc_ids = []
+    for para in para_list:
+        new_title, status, d_idx = map_title_case(para['title'], titledict)    
+        para_doc_ids.append(d_idx)  # d_idx = -1 if not found
+    return para_doc_ids
+
+
+def add_neg_paras_single(docs, titledict, s):
+    """ Create negative paras for a sample using hyperlinks
+    """
+    pos_doc_idxs = get_para_docidxs(s['pos_paras'], titledict)
+    neg_idxs = set()
+    pos_doc_set = set(pos_doc_idxs)
+    for idx in pos_doc_idxs:
+        if idx != -1:
+            curr_negs = set()
+            num_paras = len(docs[idx]['paras'])
+            for i in range(num_paras):
+                docs_linked_to_idx, _ = get_hyperlinked_docs(docs, titledict, idx, i, exclude=pos_doc_set)
+                curr_negs = curr_negs.union(docs_linked_to_idx)
+                if len(curr_negs) >= 10:
+                    break
+            neg_idxs = neg_idxs.union(curr_negs)
+    neg_paras = get_paras(docs, neg_idxs)
+    final_negs = [{'title': unescape(n['title']), 'text': n['text'], 'src':'hl'} for n in neg_paras]
+    while len(final_negs) < 10:
+        rand_idx = random.randint(0, len(docs)-1)
+        if rand_idx not in neg_idxs and rand_idx not in pos_doc_set:
+            n = docs[rand_idx]['paras'][0]
+            title = unescape(docs[rand_idx]['title'])
+            final_negs.append({'title': title, 'text': n['text'], 'src':'rd'})
+    return final_negs
+
 

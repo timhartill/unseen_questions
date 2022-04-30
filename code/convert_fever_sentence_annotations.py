@@ -133,12 +133,12 @@ def process_evidence(evidence_list):
                     ev_multi_split[t+'_vvv'+str(j)] = [sentidx]
                 evidence_multi = ev_multi_split                          
             for t in evidence_multi:
-                evidence_multi[t].sort()            
+                evidence_multi[t].sort()
             evidence_consolidated.append(evidence_multi) # claim correct if retrieved evidence matchs all paras (but any single sentence in each para?) 
     if evidence_single != {}:
         for t in evidence_single: # claim correct if retrieved evidence matches any para (and any single sentence in para)
             evidence_single[t].sort()
-            evidence_consolidated.append( {t: evidence_single[t]} )  
+            evidence_consolidated.append( {t: evidence_single[t]} )
     return evidence_consolidated
 
 

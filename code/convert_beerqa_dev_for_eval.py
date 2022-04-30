@@ -47,44 +47,11 @@ print(f"Loading BeerQA file from {BEER_DENSE_DEV}...")
 beerqa = utils.load_jsonl(BEER_DENSE_DEV)  #14121
 
 print(f"Loading titledict from {BEER_TITLE_SAVE}...")
-titledict = json.load(open(BEER_TITLE_SAVE))
+titledict = json.load(open(BEER_TITLE_SAVE))  
 print(f"title_dict loaded from {BEER_TITLE_SAVE} has {len(titledict)} titles...")
 
 #titledict['chinnar wildlife sanctuary']  # [{'title': 'Chinnar Wildlife Sanctuary', 'id': '9642568', 'idx': 0}]
 
-
-def map_title_case(hlink, titledict, id_type='id', verbose=False):
-    """ Some titles in HPQA abstracts have incorrect casing. Attempt to map casing.
-    hlink is a wiki doc title not necessarily from and hlink..
-    titledict has key 'title' with entry(s) like: [{'title': 'Chinnar Wildlife Sanctuary', 'id': '9642568', 'idx': 0}]
-    id_type = 'id' will return wiki doc id, id_type='idx' will return idx of this title in docs
-    Note unescape will map eg &amp; to & but will have no effect on already unescaped text so can pass either escaped or unescaped version
-    
-    """
-    tlower = unescape(hlink.lower())
-    tmap = titledict.get(tlower)
-    status = 'nf'
-    idx = -1
-    if tmap is not None:                # if not found at all just return existing hlink
-        if len(tmap) == 1:
-            if hlink != tmap[0]['title']:
-                if verbose:
-                    print(f"Hlink case different. Orig:{hlink} actual: {tmap[0]['title']}")
-                status = 'sc'
-            else:
-                status = 'sok'
-            hlink = tmap[0]['title']    # only one candidate, use that
-            idx = tmap[0][id_type]
-        else:
-            for t in tmap:
-                if hlink == t['title']: # exact match amongst candidates found, use that
-                    return hlink, 'mok', t[id_type]
-            hlink = tmap[0]['title']    # otherwise just return first
-            idx = tmap[0][id_type]
-            status = 'mc'
-            if verbose:
-                print(f"Hlink lower:{tlower} No exact match found so assigning first: {hlink}")
-    return hlink, status, idx
 
 #title_cased, status, doc_id = map_title_case('chinnar wildlife sanctuary', titledict, id_type='id', verbose=False)
 
@@ -94,7 +61,7 @@ def map_title_to_docid(beerqa, titledict):
     for sample in beerqa:
         sp = []
         for title, para_idx in sample['para_agg_map'].items():
-            title_cased, status, doc_id = map_title_case(title, titledict, id_type='id', verbose=False)
+            title_cased, status, doc_id = utils.map_title_case(title, titledict, id_type='id', verbose=False)
             sp.append( doc_id+'_'+str(para_idx) )
             if status in ['nf', 'mc']:
                 print('Title: {title} has status {status}!')  # no such errors found

@@ -93,6 +93,7 @@ import random
 import text_processing
 import utils_elasticsearch as UES
 import utils
+from utils import build_title_idx, map_title_case, get_hyperlinked_docs, get_paras
 
 ####### MDR:
 #import utils #Duplicate "utils" with AISO so must run MDR and AISO portions separately from different working directories
@@ -150,68 +151,6 @@ def load_bz2_to_jsonl(infile, delkeys = ['offsets', 'offsets_with_links', 'url']
     if verbose:
         print(f"Read {count} rows from {infile}")
     return out
-
-
-def build_title_idx(docs):
-    """ The HPQA corpus files contain some hrefs that have casing different to the actual title casing.
-    Simply making everything lowercase wont work as this creates a smallish number of duplicates.
-    So we build a dict with key title.lower():
-        {'title_lower': [{'title': the title, 'id': id of this title}]}
-        Also title_lower is UNESCAPED meaning " ' & < > are as here not escaped like the orig titles which have eg &amp; for &
-    """
-    titledict = {}
-    dupdict = {}
-    for i, doc in enumerate(docs):
-        tlower = unescape(doc['title'].lower()) # unescaped
-        title_entry = {'title': doc['title'], 'id':doc['id'], 'idx': i} # not escaped so matches title in corpus
-        if titledict.get(tlower) is None:
-            titledict[tlower] = [title_entry]
-        else:
-            titledict[tlower].append(title_entry)
-            print(f"Dup lowercase: {tlower}  New Entry:{title_entry}")
-            dupdict[tlower] = titledict[tlower]
-        if i % 1000000 == 0:
-            print(f"Processed: {i} Dups so far:{len(dupdict)}")
-    print(f"Total dups: {len(dupdict)}")
-    return titledict, dupdict
-            
-
-def get_para(paras, idx=None, title=None):
-    if idx is not None:
-        out = [p for p in paras if p['id'] == idx]
-    elif title is not None:
-        out = [p for p in paras if p['title'] == title]
-    return out[0]    
-
-
-def map_title_case(hlink, titledict, verbose=False):
-    """ Some titles in HPQA abstracts have incorrect casing. Attempt to map casing.
-    Note unescape will map eg &amp; to & but will have no effect on already unescaped text so can pass either escaped or unescaped version
-    """
-    tlower = unescape(hlink.lower())
-    tmap = titledict.get(tlower)
-    status = 'nf'
-    idx = -1
-    if tmap is not None:                # if not found at all just return existing hlink
-        if len(tmap) == 1:
-            if hlink != tmap[0]['title']:
-                if verbose:
-                    print(f"Hlink case different. Orig:{hlink} actual: {tmap[0]['title']}")
-                status = 'sc'
-            else:
-                status = 'sok'
-            hlink = tmap[0]['title']    # only one candidate, use that
-            idx = tmap[0]['idx']
-        else:
-            for t in tmap:
-                if hlink == t['title']: # exact match amongst candidates found, use that
-                    return hlink, 'mok', t['idx']
-            hlink = tmap[0]['title']    # otherwise just return first
-            idx = tmap[0]['idx']
-            status = 'mc'
-            if verbose:
-                print(f"Hlink lower:{tlower} No exact match found so assigning first: {hlink}")
-    return hlink, status, idx
 
 
 def count_title_status(docs, titledict):
@@ -971,6 +910,10 @@ docs = [d for d in docs if len(d['paras']) > 0]  # 6133150 -> 5801916 docs
 print("Saving docs with merged paras to json file ...")
 #utils.saveas_json(docs, BEER_WIKI_SAVE_WITHMERGES, indent=None)
 utils.saveas_jsonl(docs, BEER_WIKI_SAVE_WITHMERGES)
+titledict, dupdict = build_title_idx(docs)  # Added - need to redo idxs after removing docs without paras
+utils.saveas_json(titledict, BEER_TITLE_SAVE, indent=None)
+
+
 
 # Load docs into ES
 # Note: Considered Updating hyperlinks with para_idx - as separate key - decided not to as don't have para id for test samples so no point
@@ -1033,32 +976,6 @@ UES.index_by_chunk(client, final_docs, chunksize=500)
 
 # Add adversarial negatives
 
-
-def get_hyperlinked_docs(docs, titledict, curr_d_idx, curr_p_idx, exclude=set()):
-    """ Return indices of docs that are linked to by curr_d_idx, curr_p_idx
-    """
-    docs_linked_to_idx = set()
-    docs_linked_to_id = set()
-    for title in docs[curr_d_idx]['paras'][curr_p_idx]['hyperlinks_cased'].keys():
-        new_title, status, d_idx = map_title_case(title, titledict)
-        if d_idx != -1 and d_idx not in exclude:
-            docs_linked_to_idx.add(d_idx)
-            docs_linked_to_id.add(docs[d_idx]['id'])
-    return docs_linked_to_idx, docs_linked_to_id
-
-
-def get_paras(docs, d_idxs, p_idxs=[0]):
-    """ Return paras for a set of doc idxs
-    """
-    paras = []
-    for d_idx in d_idxs:
-        para = ''
-        for p_idx in p_idxs:
-            if p_idx < len(docs[d_idx]['paras']) and p_idx > -1:
-                para += ' ' + docs[d_idx]['paras'][p_idx]['text']
-        paras.append( {'doc_id': docs[d_idx]['id'], 'title': docs[d_idx]['title'], 'title_unescaped': unescape(docs[d_idx]['title']),
-                       'text': para.strip(), 'para_idxs': p_idxs} )
-    return paras
 
 
 def get_paras_es(client, index_name, d_ids, p_idxs=[0]):
