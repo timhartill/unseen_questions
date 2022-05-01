@@ -84,9 +84,9 @@ def recursive_replace(nested_list, pid_to_title):
             if type(element) == list:
                 nested_list[i] = recursive_replace(element, pid_to_title)
             else:
-                nested_list[i] = pid_to_title[element]
+                nested_list[i] = unescape(pid_to_title[element])
     else:
-        return pid_to_title[nested_list]
+        return unescape(pid_to_title[nested_list])
     return nested_list        
 
 
@@ -255,7 +255,7 @@ def create_samples(split, corpus_dict, pid_to_title, hover_seq, split_type='trai
             seqs = calc_dependencies( hover_seq[ str(s["qid"]) ], verbose=False )     #remove_dups( hover_seq[ str(s["qid"]) ] ) # sometimes the same seq in different order appears, remove these
             sample['bridge'] = recursive_replace(seqs , pid_to_title)  # see recursive_replace docstring for example
         else: 
-            sample['bridge'] = [s['support_titles']] # no need to sequence dev..
+            sample['bridge'] = [unescape(st) for st in s['support_titles']] # no need to sequence dev..
         sample['num_hops'] = s['num_hops']  # note, numhops not present in other datasets, including in case it is useful downstream..
         sample['pos_paras'] = aggregate_evidence(s['support_facts'], corpus_dict, pid_to_title) 
         out_samples.append(sample)
@@ -282,12 +282,31 @@ def add_neg_paras(docs, titledict, split):
             print(f'Processed: {i}')
     return
 
+
+def unescape_bridge(split):
+    """ unescape the titles in bridge as neglected to do earlier..(and above code now fixed..)
+    """
+    for s in split:
+        for paralist in s['bridge']:
+            for i in range(len(paralist)):
+                paralist[i] = unescape(paralist[i])
+    return
+
+
 random.seed(42)
 add_neg_paras(docs, titledict, hover_dev_out)
 add_neg_paras(docs, titledict, hover_train_out)
 
+unescape_bridge(hover_dev_out)
+unescape_bridge(hover_train_out)
+
 utils.saveas_jsonl(hover_dev_out, UPDATED_DEV)
 utils.saveas_jsonl(hover_train_out, UPDATED_TRAIN)
+
+#hover_dev_out = utils.load_jsonl(UPDATED_DEV)
+#hover_train_out = utils.load_jsonl(UPDATED_TRAIN)
+
+
 
 
 #TODO Create qas file from dev

@@ -19,6 +19,8 @@
 #bqa_nq_tqa predict /home/thar011/data/DPR/bqa_nq_tqa_dev_v1.0_with_neg_v0.jsonl
 #bqa no squad nq tqa train /home/thar011/data/DPR/bqa_nosquad_nq_tqa_train_v1.0_with_neg_v0.jsonl
 #bqa no squad nq tqa predict /home/thar011/data/DPR/bqa_nosquad_nq_tqa_dev_v1.0_with_neg_v0.jsonl
+#hover train /home/thar011/data/baleen_downloads/hover/hover_train_with_neg_and_sent_annots.jsonl
+#hover 
 
 #bqa ~134k training samples vs ~90k hpqa. On 1 gpu bs24 est 1hr 15mins per epoch vs ~45mins per epoch.  
 
@@ -28,30 +30,35 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix hpqa_sent_annots_test2_dont_add_titles \
+    --prefix hover_sent_annots_test1 \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \
     --learning_rate 2e-5 \
     --fp16 \
-    --train_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_train_with_neg_v0_sentannots.jsonl \
-    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_dev_with_neg_v0_sentannots.jsonl \
+    --train_file /home/thar011/data/baleen_downloads/hover/hover_train_with_neg_and_sent_annots.jsonl \
+    --predict_file /home/thar011/data/baleen_downloads/hover/hover_dev_with_neg_and_sent_annots.jsonl \
     --seed 16 \
     --eval-period -1 \
     --max_c_len 300 \
     --max_q_len 70 \
-    --max_q_sp_len 350 \
+    --max_q_sp_len 400 \
     --shared-encoder \
     --gradient_accumulation_steps 1 \
     --use_var_versions \
     --reduction none \
     --retrieve_loss_multiplier 1.0 \
     --stop-drop 0.0 \
-    --max_hops 2 \
+    --max_hops 4 \
     --num_negs 2 \
     --query_use_sentences \
+    --query_add_titles \
     --output_dir /large_data/thar011/out/mdr/logs \
     --num_train_epochs 50 \
     --warmup-ratio 0.1
+
+
+
+
 
     
