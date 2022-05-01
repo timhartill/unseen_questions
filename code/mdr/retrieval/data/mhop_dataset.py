@@ -48,7 +48,7 @@ from html import unescape
 
 from .data_utils import collate_tokens
 
-from utils import encode_text, encode_query_paras
+from utils import encode_text, encode_query_paras, get_para_idxs, flatten
 
 class MhopDataset_var(Dataset):
     """ Version of MhopDataset designed to work with mhop_loss_var
@@ -68,11 +68,11 @@ class MhopDataset_var(Dataset):
         self.prepend_query = args.query_add_titles
         print(f"Using sentences in query: {self.use_sentences}")
         if self.use_sentences:
-            print(f"Prepending sentences in query with title: {self.prepend_query}")    
+            print(f"Prepending sentences in query with title: {self.prepend_query}")
         print(f"Loading data from {data_path}")
         self.data = [json.loads(line) for line in open(data_path).readlines()]
         if train: 
-            self.data = [_ for _ in self.data if len(_["neg_paras"]) >= 2]
+            self.data = [s for s in self.data if len(s["neg_paras"]) >= 2]
         print(f"Total sample count {len(self.data)}")
 
     def encode_para(self, para, max_len): #TJH Added truncation=True to eliminate warning - alternates removal of a token from each seq in the pair to get down to max_len
@@ -91,13 +91,21 @@ class MhopDataset_var(Dataset):
             question = question[:-1]
         #max_hops = 2 # max hops on any training/dev sample
         para_list = []
-        if sample["type"] == "comparison":
-            num_hops = 2 # this sample actual number of hops
+        if sample["type"] == "multi": 
+            # eg sample['bridge'] = [['Ossian Elgström', 'Kristian Zahrtmann', 'Peder Severin Krøyer'], ['bananarama'], ['tango']]
+            # means all paras from sample['bridge'][0] (but in any order) must come before sample['bridge'][1] which in turn (in any order if > 1 para) must come before sample['bridge'][2] ..
+            para_idxs = get_para_idxs(sample["pos_paras"])
+            for step_paras_list in sample["bridge"]:
+                random.shuffle(step_paras_list)
+                for p in step_paras_list:
+                    para_list += [sample["pos_paras"][pidx] for pidx in para_idxs[p]]  # > 1 pidx if para is repeated in pos_paras with difft sentence labels. This would only occur with FEVER 
+        elif sample["type"] == "comparison":
+            #num_hops = 2 # this sample actual number of hops
             random.shuffle(sample["pos_paras"])
             start_para, bridge_para = sample["pos_paras"]
             para_list = [start_para, bridge_para]
         elif sample["type"] == "bridge":
-            num_hops = 2 # this sample actual number of hops
+            #num_hops = 2 # this sample actual number of hops
             if len(sample["bridge"]) > 1:  #preprocessing couldn't identify unique final para
                 random.shuffle(sample["bridge"])
             for para in sample["pos_paras"]:
@@ -107,16 +115,16 @@ class MhopDataset_var(Dataset):
                     bridge_para = para
             para_list = [start_para, bridge_para]
         elif sample["type"].strip() == '': #single hop eg squad
-            num_hops = 1
+            #num_hops = 1
             start_para = sample["pos_paras"][0]
             para_list = [start_para]
         else:
             assert False, f"ERROR in Dataset: file:{self.data_path} index: {index}. Invalid type: {sample['type']}"
-            
+
         if self.train:
             random.shuffle(sample["neg_paras"])
 
-
+        num_hops = len(para_list)
         num_negs = len(sample["neg_paras"])
         neg_list = []
         for i in range(self.negs):
