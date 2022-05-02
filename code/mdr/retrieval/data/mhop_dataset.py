@@ -66,9 +66,11 @@ class MhopDataset_var(Dataset):
         self.max_hops = args.max_hops
         self.use_sentences = args.query_use_sentences
         self.prepend_query = args.query_add_titles
+        self.random_multi_seq = args.random_multi_seq
         print(f"Using sentences in query: {self.use_sentences}")
         if self.use_sentences:
             print(f"Prepending sentences in query with title: {self.prepend_query}")
+        print(f"Random para order for 'multi' type sequencing: {self.random_multi_seq}")    
         print(f"Loading data from {data_path}")
         self.data = [json.loads(line) for line in open(data_path).readlines()]
         if train: 
@@ -96,7 +98,8 @@ class MhopDataset_var(Dataset):
             # means all paras from sample['bridge'][0] (but in any order) must come before sample['bridge'][1] which in turn (in any order if > 1 para) must come before sample['bridge'][2] ..
             para_idxs = get_para_idxs(sample["pos_paras"])
             for step_paras_list in sample["bridge"]:
-                random.shuffle(step_paras_list)
+                if self.random_multi_seq:
+                    random.shuffle(step_paras_list)
                 for p in step_paras_list:
                     para_list += [sample["pos_paras"][pidx] for pidx in para_idxs[p]]  # > 1 pidx if para is repeated in pos_paras with difft sentence labels. This would only occur with FEVER 
         elif sample["type"] == "comparison":
