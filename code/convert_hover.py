@@ -249,7 +249,7 @@ def create_samples(split, corpus_dict, pid_to_title, hover_seq, split_type='trai
     """
     out_samples = []
     for i, s in enumerate(split):
-        sample = {'question': s['question'], 'answers': 'SUPPORTED' if s['label']==1 else 'NOT_SUPPORTED', 
+        sample = {'question': s['question'], 'answers': ['SUPPORTED'] if s['label']==1 else ['NOT_SUPPORTED'], 
                   'src': 'hover', 'type': 'multi', '_id': s['uid']}
         if split_type == 'train':
             seqs = calc_dependencies( hover_seq[ str(s["qid"]) ], verbose=False )     #remove_dups( hover_seq[ str(s["qid"]) ] ) # sometimes the same seq in different order appears, remove these
@@ -293,12 +293,24 @@ def unescape_bridge(split):
     return
 
 
+def make_answer_list(split):
+    """ turn answer into a list """
+    for s in split:
+        if type(s['answers']) != list:
+            s['answers'] = [s['answers']]
+    return
+
+
 random.seed(42)
 add_neg_paras(docs, titledict, hover_dev_out)
 add_neg_paras(docs, titledict, hover_train_out)
 
 unescape_bridge(hover_dev_out)
 unescape_bridge(hover_train_out)
+
+make_answer_list(hover_dev_out)
+make_answer_list(hover_train_out)
+
 
 utils.saveas_jsonl(hover_dev_out, UPDATED_DEV)
 utils.saveas_jsonl(hover_train_out, UPDATED_TRAIN)

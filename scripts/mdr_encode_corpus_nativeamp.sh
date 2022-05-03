@@ -14,11 +14,11 @@ cd ../code
 
 python mdr_encode_corpus_nativeamp.py \
     --do_predict \
-    --predict_batch_size 250 \
+    --predict_batch_size 500 \
     --model_name roberta-base \
     --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_tim.jsonl \
-    --init_checkpoint /large_data/thar011/out/mdr/logs/hover_sent_annots_test1-05-01-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
-    --embed_save_path /large_data/thar011/out/mdr/encoded_corpora/hover_sent_annots_test1-05-01_bs24_no_momentum_cenone_ckpt_best \
+    --init_checkpoint /large_data/thar011/out/mdr/logs/hover_sent_annots_test2_norand-05-02-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+    --embed_save_path /large_data/thar011/out/mdr/encoded_corpora/hover_sent_annots_test2_norand-05-02_bs24_no_momentum_cenone_ckpt_best \
     --use_var_versions \
     --fp16 \
     --max_c_len 300 \

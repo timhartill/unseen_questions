@@ -684,7 +684,10 @@ def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences
     selected sentences = [sentenceidx1, sentenceidx2, ...]    
     """
     if not use_sentences or len(selected_sentences)==0:
-        return text.strip()
+        txt = text.strip()
+        if txt[-1] not in ['.', '?', '!']:
+            txt += '.'            
+        return txt
     if prepend_title:
         newtext = unescape(title.strip() + ':')
     else:

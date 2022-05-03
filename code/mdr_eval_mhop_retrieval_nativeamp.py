@@ -114,6 +114,7 @@ if __name__ == '__main__':
     parser.add_argument("--eval_stop", action="store_true", help="Evaluate stop prediction accuracy in addition to evaluating para retrieval.")
     parser.add_argument('--stop-drop', type=float, default=0.0, help="Dropout on stop head. Included for compatibility with training model")
     parser.add_argument("--max_hops", type=int, default=2, help="Maximum number of hops in eval samples.")
+    
     args = parser.parse_args()
 
 #args.gpu_model=True
@@ -163,8 +164,8 @@ if __name__ == '__main__':
         model.to(device0)
     if args.gpu_faiss and n_gpu > 1:  #Note: FAISS freezes at index_cpu_to_gpu_multiple if gpu_resources is not a list of res's with global scope, hence defining here..
         tempmem = 0
-        logger.info(f"Preparing FAISS resources for {n_gpu} GPUs")   
-        gpu_resources = []    
+        logger.info(f"Preparing FAISS resources for {n_gpu} GPUs")
+        gpu_resources = []
         for i in range(n_gpu):
             res = faiss.StandardGpuResources()
             if tempmem >= 0:
@@ -232,7 +233,7 @@ if __name__ == '__main__':
             if args.save_index:
                 logger.info(f"Saving HNSW index to {index_path} ...")
                 faiss.write_index(index, index_path)
-            del xb
+            #del xb
     else: # not hnsw
         # SIDE NOTE: if vectors had been encoded for cosine sim objective (eg sentence-transformers) 
         # can use faiss.normalize_L2(xb) (does this in-place) before index.add to perform L2 normalization on the database s.t very vector has same magnitude (sum of the squares always = 1) and cosine similarity becomes indistinguishable from dot product
@@ -331,24 +332,32 @@ if __name__ == '__main__':
                 # save questions, doc_paths for next hop:
                 curr_q = [qp[0] for qp in query_pairs]  # [bsize * #beams * (curr_hop+1)]
                 curr_doc = [qp[1] for qp in query_pairs]
+                
+                q_sp_embeds_list = []
+                stop_01_list = []
+                for h_start in range(0, len(query_pairs), args.batch_size): 
+                    curr_query_pairs = query_pairs[h_start:h_start + args.batch_size]
+                    #TJH given query_pairs = [('a','a'), ('a','b'), ('a','c'), ('b','a'),('b','b'),('b','c')] where a = 102, b = 428, c = 438
+                    #    the following encodes to {'input_ids': [[0, 102, 2, 2, 102, 2, 1, 1, 1, 1], [0, 102, 2, 2, 428, 2, 1, 1, 1, 1], [0, 102, 2, 2, 438, 2, 1, 1, 1, 1], [0, 428, 2, 2, 102, 2, 1, 1, 1, 1], [0, 428, 2, 2, 428, 2, 1, 1, 1, 1], [0, 428, 2, 2, 438, 2, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]]}
+                    batch_q_sp_encodes = encode_text(tokenizer, curr_query_pairs, text_pair=None, max_input_length=args.max_q_sp_len, truncation=True, padding='max_length', return_tensors="pt")
+                    if args.gpu_model:
+                        batch_q_sp_encodes = move_to_cuda(dict(batch_q_sp_encodes))
+    
+                    with torch.cuda.amp.autocast(enabled=args.fp16):
+                        if args.eval_stop:
+                            q_sp_embeds, stop_01 = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
+                                                                  batch_q_sp_encodes.get("token_type_ids", None), include_stop=True) 
+                            stop_01_numpy = stop_01.cpu().contiguous().numpy()  # [bs * #beams * (curr_hop+1), 1]
+                            # stop_01_numpy = np.array([[0,1,2,3]], dtype=np.int64)
+                            stop_01_list.append(stop_01_numpy)
+                        else:
+                            q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
+                                                         batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)
+                        
+                    q_sp_embeds = q_sp_embeds.contiguous().cpu().numpy()  # [bs*#beams*(curr_hop+1), hs]
+                    q_sp_embeds_list.append( q_sp_embeds )
 
-                #TJH given query_pairs = [('a','a'), ('a','b'), ('a','c'), ('b','a'),('b','b'),('b','c')] where a = 102, b = 428, c = 438
-                #    the following encodes to {'input_ids': [[0, 102, 2, 2, 102, 2, 1, 1, 1, 1], [0, 102, 2, 2, 428, 2, 1, 1, 1, 1], [0, 102, 2, 2, 438, 2, 1, 1, 1, 1], [0, 428, 2, 2, 102, 2, 1, 1, 1, 1], [0, 428, 2, 2, 428, 2, 1, 1, 1, 1], [0, 428, 2, 2, 438, 2, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]]}
-                batch_q_sp_encodes = encode_text(tokenizer, query_pairs, text_pair=None, max_input_length=args.max_q_sp_len, truncation=True, padding='max_length', return_tensors="pt")
-                if args.gpu_model:
-                    batch_q_sp_encodes = move_to_cuda(dict(batch_q_sp_encodes))
-
-                with torch.cuda.amp.autocast(enabled=args.fp16):
-                    if args.eval_stop:
-                        q_sp_embeds, stop_01 = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
-                                                              batch_q_sp_encodes.get("token_type_ids", None), include_stop=True) 
-                        stop_01_numpy = stop_01.cpu().contiguous().numpy()  # [bs * #beams * (curr_hop+1), 1]
-                        # stop_01_numpy = np.array([[0,1,2,3]], dtype=np.int64)
-                    else:
-                        q_sp_embeds = model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
-                                                     batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)
-                    
-                q_sp_embeds = q_sp_embeds.contiguous().cpu().numpy()  # [bs*#beams*(curr_hop+1), hs]
+                q_sp_embeds = np.concatenate(q_sp_embeds_list, axis=0)
                 if args.hnsw:
                     q_sp_embeds = convert_hnsw_query(q_sp_embeds)
 
@@ -377,6 +386,7 @@ if __name__ == '__main__':
                 
         
                 if args.eval_stop:
+                    stop_01_numpy = np.concatenate(stop_01_list, axis=0)
                     newshape = [bsize] + [args.beam_size for i in range(curr_hop+1)]
                     stop_01_numpy = stop_01_numpy.reshape(newshape) # [bs,  #beams, ...] 
                     # stop_01_numpy = array([[0, 1],
