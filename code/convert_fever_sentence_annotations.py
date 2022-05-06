@@ -6,7 +6,7 @@ Created on Tue Apr 19 14:27:21 2022
 @author: tim hartill
 
 Combine FEVER corpus sentence breakdown and FEVER train/dev sentence-level annotations 
-and output in same format as "BQA" HPQA sentence level annotations
+and output in same format as "standard" sentence level annotations
 
 Download fever corpus and train/dev files from https://fever.ai/dataset/fever.html
 
@@ -32,7 +32,7 @@ NOTES:
     - In FEVER, correctly recalling ANY evidence set counts as a win but in HPQ recalling both paras of a single evidence set is the win
         - hence we make 1 sample out of each unique evidence set: q1 set1, q1 set2
         - where multiple sentences in a single doc are pointed to in difft evidence sets we label all such sentences in the doc as positive and consolidate
-    - Since we are building this dataset to train a sentence prediction model we skip "NOT SUPPORTED" claims.
+    - Since we are building this dataset to train a sentence prediction model we skip "NOT ENOUGH INFO" claims.
     - We retain REFUTED claims in the belief that we are marking sentences as evidential toward deriving an answer rather than just positive examples ie "positive" means "evidential" not necessarily "supportive"
 """
 import os

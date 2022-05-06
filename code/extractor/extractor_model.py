@@ -1,10 +1,17 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the 
-# LICENSE file in the root directory of this source tree.
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-"""
+"""
 
-from transformers import AutoModel, BertModel
+Reranker / Sentence Extractor / Reader Model
+
+Used for both 1st stage para/sentence reranking and 2nd stage sentence reranking
+
+
+@author Tim Hartill
+
+"""
+
+from transformers import AutoModel
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 import torch
@@ -24,12 +31,10 @@ class BertPooler(nn.Module):
         pooled_output = self.activation(pooled_output)
         return pooled_output
 
-class QAModel(nn.Module):
 
-    def __init__(self,
-                 config,
-                 args
-                 ):
+class ExtractorModel(nn.Module):
+
+    def __init__(self, config, args):
         super().__init__()
         self.model_name = args.model_name
         self.sp_weight = args.sp_weight
@@ -42,8 +47,7 @@ class QAModel(nn.Module):
         self.qa_outputs = nn.Linear(config.hidden_size, 2)
         self.rank = nn.Linear(config.hidden_size, 1) # noan
 
-        if self.sp_pred:
-            self.sp = nn.Linear(config.hidden_size, 1)
+        self.sp = nn.Linear(config.hidden_size, 1)
         self.loss_fct = CrossEntropyLoss(ignore_index=-1, reduction="none")
 
     def forward(self, batch):
@@ -51,37 +55,35 @@ class QAModel(nn.Module):
         outputs = self.encoder(batch['input_ids'], batch['attention_mask'], batch.get('token_type_ids', None))
 
         if "electra" in self.model_name:
-            sequence_output = outputs[0]
-            pooled_output = self.pooler(sequence_output)
+            sequence_output = outputs[0]  # [0]=raw seq output [bs, seq_len, hs]
+            pooled_output = self.pooler(sequence_output) # [bs, hs]
         else:
             sequence_output, pooled_output = outputs[0], outputs[1]
 
-        logits = self.qa_outputs(sequence_output)
-        outs = [o.squeeze(-1) for o in logits.split(1, dim=-1)]
-        outs = [o.float().masked_fill(batch["paragraph_mask"].ne(1), float("-inf")).type_as(o) for o in outs]
+        logits = self.qa_outputs(sequence_output) # [bs, seq_len, 2]
+        outs = [o.squeeze(-1) for o in logits.split(1, dim=-1)]  # [ [bs, hs], [bs, hs] ]
+        #TJH fill everything not in a para with -inf:  [ [bs, hs], [bs, hs] ]
+        outs = [o.float().masked_fill(batch["paragraph_mask"].ne(1), float("-inf")).type_as(o) for o in outs]  #TJH ne = elementwise not equal
 
-        start_logits, end_logits = outs[0], outs[1]
-        rank_score = self.rank(pooled_output)
+        start_logits, end_logits = outs[0], outs[1]  # start_logits: [bs, hs]  end_logits: [bs, hs]
+        rank_score = self.rank(pooled_output)  # [bs, 1]
 
-        if self.sp_pred:
-            gather_index = batch["sent_offsets"].unsqueeze(2).expand(-1, -1, sequence_output.size()[-1])
-            sent_marker_rep = torch.gather(sequence_output, 1, gather_index)
-            sp_score = self.sp(sent_marker_rep).squeeze(2)
-        else:
-            sp_score = None
+        gather_index = batch["sent_offsets"].unsqueeze(2).expand(-1, -1, sequence_output.size()[-1])
+        sent_marker_rep = torch.gather(sequence_output, 1, gather_index)  # gather along seq_len of [bs, seq_len, hs]
+        sp_score = self.sp(sent_marker_rep).squeeze(2)  # [bs, #sents, 1] -> [bs, #sents]
 
         if self.training:
 
             rank_target = batch["label"]
-            if self.sp_pred:
-                sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")
-                sp_loss = (sp_loss * batch["sent_offsets"]) * batch["label"]
-                sp_loss = sp_loss.sum()
+            sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")
+            sp_loss = (sp_loss * batch["sent_offsets"]) * batch["label"]
+            sp_loss = sp_loss.sum()
 
             start_positions, end_positions = batch["starts"], batch["ends"]
 
             rank_loss = F.binary_cross_entropy_with_logits(rank_score, rank_target.float(), reduction="sum")
 
+            # torch.unbind converts [ [1], [2], [3] ] to ([1,2,3]) like .squeeze(-1) only in tuple
             start_losses = [self.loss_fct(start_logits, starts) for starts in torch.unbind(start_positions, dim=1)]
             end_losses = [self.loss_fct(end_logits, ends) for ends in torch.unbind(end_positions, dim=1)]
             loss_tensor = torch.cat([t.unsqueeze(1) for t in start_losses], dim=1) + torch.cat([t.unsqueeze(1) for t in end_losses], dim=1)
@@ -95,10 +97,7 @@ class QAModel(nn.Module):
             else:
                 span_loss = - torch.log(torch.cat(m_prob)).sum()
 
-            if self.sp_pred:
-                loss = rank_loss + span_loss + sp_loss * self.sp_weight
-            else:
-                loss = rank_loss + span_loss
+            loss = rank_loss + span_loss + sp_loss * self.sp_weight
             return loss.unsqueeze(0)
 
         return {

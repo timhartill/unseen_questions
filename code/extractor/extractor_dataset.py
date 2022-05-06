@@ -57,8 +57,8 @@ def prepare(item, tokenizer, special_toks=["[SEP]", "[unused1]", "[unused2]"]):
         contexts.append(_process_p(para))
     context = " [SEP] ".join(contexts)
 
-    doc_tokens = []
-    char_to_word_offset = []
+    doc_tokens = []  # TJH: ['word1', 'word2', ..]
+    char_to_word_offset = []  # TJH: list with each char -> idx into doc_tokens
     prev_is_whitespace = True
 
     context = "yes no [SEP] " + context
@@ -83,24 +83,24 @@ def prepare(item, tokenizer, special_toks=["[SEP]", "[unused1]", "[unused2]"]):
 
         if token in special_toks:
             if token == "[unused1]":
-                sent_starts.append(len(all_doc_tokens))
+                sent_starts.append(len(all_doc_tokens))  # [sentence start idx -> subword idx]
 
             sub_tokens = [token]
         else:
             sub_tokens = tokenizer.tokenize(token)
 
         for sub_token in sub_tokens:
-            tok_to_orig_index.append(i)
-            all_doc_tokens.append(sub_token)
+            tok_to_orig_index.append(i)       # [ subword tok idx -> whole word token idx]
+            all_doc_tokens.append(sub_token)  # [ sub word tokens ]
 
     item["context_processed"] = {
-        "doc_tokens": doc_tokens,
-        "char_to_word_offset": char_to_word_offset,
-        "orig_to_tok_index": orig_to_tok_index,
-        "tok_to_orig_index": tok_to_orig_index,
-        "all_doc_tokens": all_doc_tokens,
-        "context": context,
-        "sent_starts": sent_starts
+        "doc_tokens": doc_tokens,                     # [whole words]
+        "char_to_word_offset": char_to_word_offset,   # [char idx -> whole word idx]
+        "orig_to_tok_index": orig_to_tok_index,       # [whole word idx -> subword idx]
+        "tok_to_orig_index": tok_to_orig_index,       # [ subword tok idx -> whole word token idx]
+        "all_doc_tokens": all_doc_tokens,             # [ sub word tokens ]
+        "context": context,                           # full context string    
+        "sent_starts": sent_starts                    # [sentence start idx -> subword idx]
     }
 
     return item
@@ -164,7 +164,7 @@ class QAEvalDataset(Dataset):
         item["encodings"] = self.tokenizer.encode_plus(q_toks, text_pair=item["wp_tokens"], max_length=self.max_seq_len, return_tensors="pt", is_pretokenized=True)
 
         item["paragraph_mask"] = torch.zeros(item["encodings"]["input_ids"].size()).view(-1)
-        item["paragraph_mask"][para_offset:-1] = 1
+        item["paragraph_mask"][para_offset:-1] = 1  # TJh mark everything from start of paras to end as "1"
         
         item["doc_tokens"] = context_ann["doc_tokens"]
         item["tok_to_orig_index"] = context_ann["tok_to_orig_index"]
@@ -304,19 +304,19 @@ class QADataset(Dataset):
 
     def __getitem__(self, index):
         item = prepare(self.data[index], self.tokenizer) 
-        context_ann = item["context_processed"]
+        context_ann = item["context_processed"]  #TJH context_processed added to item in prepare
         q_toks = self.tokenizer.tokenize(item["question"])[:self.max_q_len]
         para_offset = len(q_toks) + 2 # cls and seq
-        item["wp_tokens"] = context_ann["all_doc_tokens"]
+        item["wp_tokens"] = context_ann["all_doc_tokens"]  # [subword tokens]
         assert item["wp_tokens"][0] == "yes" and item["wp_tokens"][1] == "no"
-        item["para_offset"] = para_offset
+        item["para_offset"] = para_offset  #TJh start of paras
         max_toks_for_doc = self.max_seq_len - para_offset - 1
         if len(item["wp_tokens"]) > max_toks_for_doc:
             item["wp_tokens"] = item["wp_tokens"][:max_toks_for_doc]
         item["encodings"] = self.tokenizer.encode_plus(q_toks, text_pair=item["wp_tokens"], max_length=self.max_seq_len, return_tensors="pt", is_pretokenized=True)
 
         item["paragraph_mask"] = torch.zeros(item["encodings"]["input_ids"].size()).view(-1)
-        item["paragraph_mask"][para_offset:-1] = 1
+        item["paragraph_mask"][para_offset:-1] = 1  #TJH set para toks -> 1
         
         if self.train:
             # if item["label"] == 1:

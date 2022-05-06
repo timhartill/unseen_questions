@@ -12,10 +12,7 @@ import torch
 class RobertaRetriever_var(nn.Module):
     """ Version that handles configurable max hops. Works with mhop_loss_var(), MhopDataset_var() & mhop_collate_var()
     """
-    def __init__(self,
-                 config,
-                 args
-                 ):
+    def __init__(self, config, args):
         super().__init__()
 
         self.encoder = AutoModel.from_pretrained(args.model_name)
@@ -56,8 +53,6 @@ class RobertaRetriever_var(nn.Module):
                 vector, stop_logits = self.encode_seq_stop(q_input_ids, q_mask)
                 q_encoded.append( vector )
                 stop_encoded.append( stop_logits )
-#            q_encoded.append(self.encode_seq(q_input_ids, q_mask))
-#            stop_encoded.append(self.encode_stop(q_input_ids, q_mask))
 
         c_encoded = []
         for c_input_ids, c_mask in zip(batch['c_input_ids'], batch['c_mask']):

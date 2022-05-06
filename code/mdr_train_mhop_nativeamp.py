@@ -1,9 +1,3 @@
-# Portions Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the 
-# LICENSE file in the root directory of this source tree.
-
 """
 @author: Tim Hartill
 
@@ -71,23 +65,18 @@ from mdr.retrieval.utils.utils import AverageMeter, move_to_cuda, load_saved
 
 def main():
     args = train_args()
-    #if args.fp16:
 
-        #import apex
-        #apex.amp.register_half_function(torch, 'einsum')
     date_curr = date.today().strftime("%m-%d-%Y")
     if args.momentum:
         model_name = f"{args.prefix}-{date_curr}-mom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-m{args.m}-k{args.k}-t{args.temperature}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}-ce{args.reduction}"
     else:    
         model_name = f"{args.prefix}-{date_curr}-nomom-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-shared{args.shared_encoder}-ga{args.gradient_accumulation_steps}-var{args.use_var_versions}-ce{args.reduction}"
-#    args.output_dir = os.path.join(args.output_dir, date_curr, model_name)
     args.output_dir = os.path.join(args.output_dir, model_name)
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
         print(f"output directory {args.output_dir} already exists and is not empty.")
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir, exist_ok=True)
-#    tb_logger = SummaryWriter(os.path.join(args.output_dir.replace("logs","tflogs")))
     tb_logger = SummaryWriter(os.path.join(args.output_dir))
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', datefmt='%m/%d/%Y %H:%M:%S',
@@ -132,16 +121,11 @@ def main():
             model = RobertaMomentumRetriever(bert_config, args)
         else:
             model = RobertaRetriever(bert_config, args)
-        #model_nv = RobertaRetriever(bert_config, args)
         eval_dataset = MhopDataset(tokenizer, args.predict_file, args.max_q_len, args.max_q_sp_len, args.max_c_len)
         collate_fc = partial(mhop_collate, pad_id=tokenizer.pad_token_id)
-        #collate_fc_nv = partial(mhop_collate, pad_id=tokenizer.pad_token_id)
 
     if args.do_train and args.max_c_len > bert_config.max_position_embeddings:
-        raise ValueError(
-            "Cannot use sequence length %d because the BERT model "
-            "was only trained up to sequence length %d" %
-            (args.max_c_len, bert_config.max_position_embeddings))
+        raise ValueError( "Cannot use sequence length %d because the BERT model was only trained up to sequence length %d" % (args.max_c_len, bert_config.max_position_embeddings))
 
     eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True, num_workers=args.num_workers)
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
@@ -150,7 +134,6 @@ def main():
         model = load_saved(model, args.init_checkpoint)
 
     model.to(device)
-    #model_nv.to(device)
     print(f"number of trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     if args.do_train:
@@ -162,14 +145,6 @@ def main():
                 nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
         optimizer = Adam(optimizer_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
-
-#        if args.fp16:
-#            from apex import amp
-#            model, optimizer = amp.initialize(model, optimizer, opt_level=args.fp16_opt_level)
-#    else:
-#        if args.fp16:
-#            from apex import amp
-#            model = amp.initialize(model, opt_level=args.fp16_opt_level)
 
     scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
     
@@ -189,10 +164,8 @@ def main():
             mloss = mhop_loss_var
         else:
             train_dataset = MhopDataset(tokenizer, args.train_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=True)
-#            train_dataset_nv = MhopDataset(tokenizer, args.train_file, args.max_q_len, args.max_q_sp_len, args.max_c_len, train=True)
             mloss = mhop_loss
         train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size, pin_memory=True, collate_fn=collate_fc, num_workers=args.num_workers, shuffle=True)
-#        train_dataloader_nv = DataLoader(train_dataset_nv, batch_size=args.train_batch_size, pin_memory=True, collate_fn=collate_fc_nv, num_workers=args.num_workers, shuffle=True)
 
         t_total = len(train_dataloader) // args.gradient_accumulation_steps * args.num_train_epochs
         warmup_steps = t_total * args.warmup_ratio
@@ -211,8 +184,6 @@ def main():
                 batch = move_to_cuda(batch)
                 #TJH: outputs = model(batch) #intermittent error with amp. To reproduce: run next line (should work), then run this line (fail), then run next line again (also fail)
                 #TJH q_embeds = model.encode_q(batch['q_input_ids'][0], batch['q_mask'][0], batch.get("token_type_ids", None)) #intermittent Error with amp, no error without
-                #TJH q_embeds_nv = model.encode_q(batch_nv['q_input_ids'], batch_nv['q_mask'], batch_nv.get("token_type_ids", None)) #Error with amp, no error without
-                #TJH q_embeds_nv = model_nv.encode_q(batch_nv['q_input_ids'], batch_nv['q_mask'], batch_nv.get("token_type_ids", None))  # works
                 with torch.cuda.amp.autocast(enabled=args.fp16):
                     loss, outstr = mloss(model, batch, args)
                     if args.gradient_accumulation_steps > 1:
@@ -227,28 +198,17 @@ def main():
                 # Backward passes under autocast are not recommended.
                 # Backward ops run in the same dtype autocast chose for corresponding forward ops.
                 scaler.scale(loss).backward()
-#                if args.fp16:
-#                    with amp.scale_loss(loss, optimizer) as scaled_loss:
-#                        scaled_loss.backward()
-#                else:
-#                    loss.backward()
                 train_loss_meter.update(loss.item())
             
                 if (batch_step + 1) % args.gradient_accumulation_steps == 0:
                     # Unscales the gradients of optimizer's assigned params in-place
                     scaler.unscale_(optimizer)
-#                    if args.fp16:
-#                        torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
-#                    else:
-#                        torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                     # Since the gradients of optimizer's assigned params are now unscaled, clips as usual.
                     # You may use the same value for max_norm here as you would without gradient scaling.
                     torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)  #TODO max_grad_norm 2.0 default. Adjust?
                     # scaler.step() first unscales the gradients of the optimizer's assigned params.
-                    # If these gradients do not contain infs or NaNs, optimizer.step() is then called,
-                    # otherwise, optimizer.step() is skipped.
+                    # If these gradients do not contain infs or NaNs, optimizer.step() is then called, otherwise, optimizer.step() is skipped.
                     scaler.step(optimizer)
-#                    optimizer.step()
                     scaler.update() # Updates the scale for next iteration.
                     scheduler.step()  #Note: Using amp get "Detected call of `lr_scheduler.step()` before `optimizer.step()`". Can ignore this. Explanation: if the first iteration creates NaN gradients (e.g. due to a high scaling factor and thus gradient overflow), the optimizer.step() will be skipped and you might get this warning.
                     model.zero_grad() 

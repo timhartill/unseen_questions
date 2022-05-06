@@ -17,6 +17,8 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer, AutoModel,
 ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']                           
 model = 'google/electra-large-discriminator'
 
+config = AutoConfig.from_pretrained(model)
+
 #tokenizer = AutoTokenizer.from_pretrained(model)
 tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True, additional_special_tokens=ADDITIONAL_SPECIAL_TOKENS)
 sents = ['Sent one.', ' Sent 2.', ' Sent 3.']
@@ -41,6 +43,8 @@ tokenizer.vocab('[unused4]')  #5  : the 'unused' tokens are in the electra vocab
 vocab_toks = list(tokenizer.vocab.keys()) # 30522
 
 unused_toks = [v for v in vocab_toks if v.startswith('[unused')]  #994
+
+
 
 
 

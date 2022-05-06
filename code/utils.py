@@ -289,6 +289,15 @@ def flatten(alist):
     return t
 
 
+def unique_preserve_order(seq):
+    """ From https://stackoverflow.com/a/480227/1493011
+    Remove dups from list while preserving order
+    """
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+
+
 def create_uqa_example(question, context=None, answer=None, append_nl=True, append_q_char='?'):
     """ Returns an example in uqa format
     Note: to create a self supervised example put the input para in question and set context = ' ' and append_q_char='.'
