@@ -266,6 +266,15 @@ def create_sentence_spans(sent_list):
     return sentence_spans
 
 
+def get_sentence_list(text, sentence_spans):
+    """ Return list of sentences from sentence_spans = [ [s1startidx, s1endidx], [s2startidx, s2endidx], ...]
+    """
+    sents = []
+    for start, end in sentence_spans:
+        sents.append( text[start:end] )
+    return sents 
+
+
 # Adapted from https://github.com/Neutralzz/RefQA (Li et al)
 def identity_translate(cloze_question, mask_type=''):
     """ Replace mask with WH word..."""

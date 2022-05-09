@@ -34,9 +34,9 @@ from transformers import AutoConfig, AutoTokenizer
 from torch.utils.data import DataLoader
 
 from mdr.retrieval.data.encode_datasets import EmDataset, em_collate
-from mdr.retrieval.models.retriever import CtxEncoder, RobertaCtxEncoder
-from mdr.retrieval.config import encode_args
-from mdr.retrieval.utils.utils import move_to_cuda, load_saved
+from mdr.retrieval.models.mhop_retriever import RobertaCtxEncoder
+from mdr_config import encode_args
+from utils import move_to_cuda, load_saved
 
 def main():
     args = encode_args()
@@ -76,7 +76,9 @@ def main():
     if "roberta" in args.model_name:
         model = RobertaCtxEncoder(bert_config, args)
     else:
-        model = CtxEncoder(bert_config, args)
+        logger.info("Invalid model. Only Roberta is supported.")
+        assert False, "Exiting due to invalid model name.."
+        #model = CtxEncoder(bert_config, args)
 
     eval_dataset = EmDataset(tokenizer, args.predict_file, args.max_q_len, args.max_c_len, args.is_query_embed, args.embed_save_path)
     eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=em_collate, pin_memory=True, num_workers=args.num_workers)

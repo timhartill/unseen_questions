@@ -12,6 +12,96 @@
 """Base tokenizer/tokens classes and utilities."""
 
 import copy
+from text_processing import normalize_unicode as normalize
+
+
+
+def para_has_answer(answer, para, tokenizer):
+    assert isinstance(answer, list)
+    text = normalize(para)
+    tokens = tokenizer.tokenize(text)
+    text = tokens.words(uncased=True)
+    assert len(text) == len(tokens)
+    for single_answer in answer:
+        single_answer = normalize(single_answer)
+        single_answer = tokenizer.tokenize(single_answer)
+        single_answer = single_answer.words(uncased=True)
+        for i in range(0, len(text) - len(single_answer) + 1):
+            if single_answer == text[i: i + len(single_answer)]:
+                return True
+    return False
+
+
+def match_answer_span(p, answer, tokenizer, match="string"):
+    # p has been normalized
+    if match == 'string':
+        tokens = tokenizer.tokenize(p)
+        text = tokens.words(uncased=True)
+        matched = set()
+        for single_answer in answer:
+            single_answer = normalize(single_answer)
+            single_answer = tokenizer.tokenize(single_answer)
+            single_answer = single_answer.words(uncased=True)
+            for i in range(0, len(text) - len(single_answer) + 1):
+                if single_answer == text[i: i + len(single_answer)]:
+                    matched.add(tokens.slice(
+                        i, i + len(single_answer)).untokenize())
+        return list(matched)
+    elif match == 'regex':
+        # Answer is a regex
+        single_answer = normalize(answer[0])
+        return regex_match(p, single_answer)
+
+
+def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
+                         orig_answer_text):
+    tok_answer_text = " ".join(tokenizer.tokenize(orig_answer_text))
+
+    for new_start in range(input_start, input_end + 1):
+        for new_end in range(input_end, new_start - 1, -1):
+            text_span = " ".join(doc_tokens[new_start:(new_end + 1)])
+            if text_span == tok_answer_text:
+                return (new_start, new_end)
+
+    return (input_start, input_end)
+
+
+def whitespace_tokenize(text):
+    """Runs basic whitespace cleaning and splitting on a peice of text."""
+    text = text.strip()
+    if not text:
+        return []
+    tokens = text.split()
+    return tokens
+
+
+def find_ans_span_with_char_offsets(detected_ans, char_to_word_offset, doc_tokens, all_doc_tokens, orig_to_tok_index, tokenizer):
+    # could return mutiple spans for an answer string
+    ans_text = detected_ans["text"]
+    char_spans = detected_ans["char_spans"]
+    ans_subtok_spans = []
+    for char_start, char_end in char_spans:
+        tok_start = char_to_word_offset[char_start]
+        # char_end points to the last char of the answer, not one after
+        tok_end = char_to_word_offset[char_end]
+        sub_tok_start = orig_to_tok_index[tok_start]
+
+        if tok_end < len(doc_tokens) - 1:
+            sub_tok_end = orig_to_tok_index[tok_end + 1] - 1
+        else:
+            sub_tok_end = len(all_doc_tokens) - 1
+
+        actual_text = " ".join(doc_tokens[tok_start:(tok_end + 1)])
+        cleaned_answer_text = " ".join(whitespace_tokenize(ans_text))
+        if actual_text.find(cleaned_answer_text) == -1:
+            print("Could not find answer: '{}' vs. '{}'".format(
+                actual_text, cleaned_answer_text))
+
+        (sub_tok_start, sub_tok_end) = _improve_answer_span(
+            all_doc_tokens, sub_tok_start, sub_tok_end, tokenizer, ans_text)
+        ans_subtok_spans.append((sub_tok_start, sub_tok_end))
+
+    return ans_subtok_spans
 
 
 
@@ -297,12 +387,6 @@ STOPWORDS = {
     'isn', 'ma', 'mightn', 'mustn', 'needn', 'shan', 'shouldn', 'wasn', 'weren',
     'won', 'wouldn', "'ll", "'re", "'ve", "n't", "'s", "'d", "'m", "''", "``"
 }
-
-import unicodedata
-
-def normalize(text):
-    """Resolve different type of unicode encodings."""
-    return unicodedata.normalize('NFD', text)
 
 
 def filter_word(text):

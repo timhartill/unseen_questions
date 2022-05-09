@@ -11,28 +11,10 @@ import torch
 from torch.utils.data import Dataset, Sampler
 from tqdm import tqdm
 
-from .basic_tokenizer import SimpleTokenizer
-from .utils import (find_ans_span_with_char_offsets, match_answer_span, para_has_answer, _is_whitespace)
+from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer, match_answer_span, find_ans_span_with_char_offsets
+from text_processing import is_whitespace, get_sentence_list
 
-def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_beginning=False):
-    """Convert a list of 1d tensors into a padded 2d tensor."""
-    if len(values[0].size()) > 1:
-        values = [v.view(-1) for v in values]
-    size = max(v.size(0) for v in values)
-    res = values[0].new(len(values), size).fill_(pad_idx)
-
-    def copy_tensor(src, dst):
-        assert dst.numel() == src.numel()
-        if move_eos_to_beginning:
-            assert src[-1] == eos_idx
-            dst[0] = eos_idx
-            dst[1:] = src[:-1]
-        else:
-            dst.copy_(src)
-
-    for i, v in enumerate(values):
-        copy_tensor(v, res[i][size - len(v):] if left_pad else res[i][:len(v)])
-    return res
+from utils import collate_tokens
 
 
 def prepare(item, tokenizer, special_toks=["[SEP]", "[unused1]", "[unused2]"]):
@@ -43,9 +25,10 @@ def prepare(item, tokenizer, special_toks=["[SEP]", "[unused1]", "[unused2]"]):
         """
         handle each para
         """
-        title, sents = para["title"].strip(), para["sents"]
+        title, sentence_spans = para["title"].strip(), para["sentence_spans"]
         # return "[unused1] " + title + " [unused1] " + text # mark title
         # return title + " " + text
+        sents = get_sentence_list(para["text"], sentence_spans)
         pre_sents = []
         for idx, sent in enumerate(sents):
             pre_sents.append("[unused1] " + sent.strip())
@@ -53,7 +36,7 @@ def prepare(item, tokenizer, special_toks=["[SEP]", "[unused1]", "[unused2]"]):
         # return " ".join(pre_sents)
     # mark passage boundary
     contexts = []
-    for para in item["passages"]:
+    for para in item["pos_paras"]:
         contexts.append(_process_p(para))
     context = " [SEP] ".join(contexts)
 
@@ -61,10 +44,10 @@ def prepare(item, tokenizer, special_toks=["[SEP]", "[unused1]", "[unused2]"]):
     char_to_word_offset = []  # TJH: list with each char -> idx into doc_tokens
     prev_is_whitespace = True
 
-    context = "yes no [SEP] " + context
+    context = "yes no [SEP] " + context  # ELECTRA tokenises yes, no to single tokens
 
     for c in context:
-        if _is_whitespace(c):
+        if is_whitespace(c):
             prev_is_whitespace = True
         else:
             if prev_is_whitespace:
@@ -105,96 +88,11 @@ def prepare(item, tokenizer, special_toks=["[SEP]", "[unused1]", "[unused2]"]):
 
     return item
 
-class QAEvalDataset(Dataset):
 
-    def __init__(self,
-        tokenizer,
-        retrievel_results,
-        max_seq_len,
-        max_q_len,
-        ):
-
-        retriever_outputs = retrievel_results
-        self.tokenizer = tokenizer
-        self.max_seq_len = max_seq_len
-        self.max_q_len = max_q_len
-        self.data = []
-
-        for item in retriever_outputs:
-            if item["question"].endswith("?"):
-                item["question"] = item["question"][:-1]
-
-            # for validation, add target predictions
-            sp_titles = None
-            gold_answer = item.get("answer", [])
-            sp_gold = []
-
-            for chain in item["candidate_chains"]:
-                chain_titles = [_["title"] for _ in chain]
-
-                if sp_titles:
-                    label = int(set(chain_titles) == sp_titles)
-                else:
-                    label = -1
-                self.data.append({
-                    "question": item["question"],
-                    "passages": chain,
-                    "label": label,
-                    "qid": item["_id"],
-                    "gold_answer": gold_answer,
-                    "sp_gold": sp_gold
-                })
-
-        print(f"Total instances size {len(self.data)}")
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, index):
-        item = prepare(self.data[index], self.tokenizer) 
-        context_ann = item["context_processed"]
-        q_toks = self.tokenizer.tokenize(item["question"])[:self.max_q_len]
-        para_offset = len(q_toks) + 2 # cls and seq
-        item["wp_tokens"] = context_ann["all_doc_tokens"]
-        assert item["wp_tokens"][0] == "yes" and item["wp_tokens"][1] == "no"
-        item["para_offset"] = para_offset
-        max_toks_for_doc = self.max_seq_len - para_offset - 1
-        if len(item["wp_tokens"]) > max_toks_for_doc:
-            item["wp_tokens"] = item["wp_tokens"][:max_toks_for_doc]
-        item["encodings"] = self.tokenizer.encode_plus(q_toks, text_pair=item["wp_tokens"], max_length=self.max_seq_len, return_tensors="pt", is_pretokenized=True)
-
-        item["paragraph_mask"] = torch.zeros(item["encodings"]["input_ids"].size()).view(-1)
-        item["paragraph_mask"][para_offset:-1] = 1  # TJh mark everything from start of paras to end as "1"
-        
-        item["doc_tokens"] = context_ann["doc_tokens"]
-        item["tok_to_orig_index"] = context_ann["tok_to_orig_index"]
-
-        # filter sentence offsets exceeding max sequence length
-        sent_labels, sent_offsets = [], []
-        for idx, s in enumerate(item["context_processed"]["sent_starts"]):
-            if s >= len(item["wp_tokens"]):
-                break
-            if "sp_sent_labels" in item:
-                sent_labels.append(item["sp_sent_labels"][idx])
-            sent_offsets.append(s + para_offset)
-            assert item["encodings"]["input_ids"].view(-1)[s+para_offset] == self.tokenizer.convert_tokens_to_ids("[unused1]")
-
-        # supporting fact label
-        item["sent_offsets"] = sent_offsets
-        item["sent_offsets"] = torch.LongTensor(item["sent_offsets"])
-        item["label"] = torch.LongTensor([item["label"]])
-        return item
 
 class QADataset(Dataset):
 
-    def __init__(self,
-        tokenizer,
-        data_path,
-        max_seq_len,
-        max_q_len,
-        train=False,
-        no_sent_label=False
-        ):
+    def __init__(self, tokenizer, data_path, max_seq_len, max_q_len, train=False, no_sent_label=False):
 
         retriever_outputs = [json.loads(l) for l in tqdm(open(data_path).readlines())]
         self.tokenizer = tokenizer
@@ -243,7 +141,7 @@ class QADataset(Dataset):
                 ds_count = 0 # track how many distant supervised chain to use
                 ds_limit = 5
                 for chain in item["candidate_chains"]:
-                    chain_titles = [_["title"] for _ in chain]
+                    chain_titles = [c["title"] for c in chain]
                     if set(chain_titles) == sp_titles:
                         continue
                     if question_type == "bridge":
@@ -306,25 +204,30 @@ class QADataset(Dataset):
         item = prepare(self.data[index], self.tokenizer) 
         context_ann = item["context_processed"]  #TJH context_processed added to item in prepare
         q_toks = self.tokenizer.tokenize(item["question"])[:self.max_q_len]
-        para_offset = len(q_toks) + 2 # cls and seq
+        para_offset = len(q_toks) + 2 # cls and sep
         item["wp_tokens"] = context_ann["all_doc_tokens"]  # [subword tokens]
         assert item["wp_tokens"][0] == "yes" and item["wp_tokens"][1] == "no"
-        item["para_offset"] = para_offset  #TJh start of paras
+        item["para_offset"] = para_offset  #TJH start of paras
         max_toks_for_doc = self.max_seq_len - para_offset - 1
         if len(item["wp_tokens"]) > max_toks_for_doc:
             item["wp_tokens"] = item["wp_tokens"][:max_toks_for_doc]
-        item["encodings"] = self.tokenizer.encode_plus(q_toks, text_pair=item["wp_tokens"], max_length=self.max_seq_len, return_tensors="pt", is_pretokenized=True)
-
+        #TJH: is_split_into_words doesnt work:    
+        #item["encodings"] = self.tokenizer.encode_plus(q_toks, text_pair=item["wp_tokens"], max_length=self.max_seq_len, return_tensors="pt", is_split_into_words=True)
+        input_ids = torch.tensor([[self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks) + [self.tokenizer.sep_token_id] + self.tokenizer.convert_tokens_to_ids(item["wp_tokens"]) + [self.tokenizer.sep_token_id]],
+                                 dtype = torch.int64)
+        attention_mask = torch.tensor([[1] * input_ids.shape[1]], dtype = torch.int64)
+        token_type_ids = torch.tensor([[0] * (len(q_toks)+2) + [1] * (input_ids.shape[1]-(len(q_toks)+2))], dtype = torch.int64)
+        item["encodings"] = {'input_ids': input_ids, 'token_type_ids': token_type_ids, 'attention_mask': attention_mask}
         item["paragraph_mask"] = torch.zeros(item["encodings"]["input_ids"].size()).view(-1)
         item["paragraph_mask"][para_offset:-1] = 1  #TJH set para toks -> 1
         
         if self.train:
             # if item["label"] == 1:
-            if item["ans_covered"]:
-                if item["gold_answer"][0] == "yes":
+            if item["ans_covered"]:  #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
+                if item["gold_answer"][0] in ["yes", "SUPPORTED", "SUPPORTS"]:
                     # ans_type = 0
                     starts, ends= [para_offset], [para_offset]
-                elif item["gold_answer"][0] == "no":
+                elif item["gold_answer"][0] in ["no", "REFUTES", "NOT_SUPPORTED"]:
                     # ans_type = 1
                     starts, ends= [para_offset + 1], [para_offset + 1]
                 else:
@@ -336,9 +239,13 @@ class QADataset(Dataset):
                         if len(char_starts) > 0:
                             char_ends = [start + len(span) - 1 for start in char_starts]
                             answer = {"text": span, "char_spans": list(zip(char_starts, char_ends))}
-                            ans_spans = find_ans_span_with_char_offsets(
-                            answer, context_ann["char_to_word_offset"], context_ann["doc_tokens"], context_ann["all_doc_tokens"], context_ann["orig_to_tok_index"], self.tokenizer)
-                            for s, e in ans_spans:
+                            ans_spans = find_ans_span_with_char_offsets(answer, 
+                                                                        context_ann["char_to_word_offset"], 
+                                                                        context_ann["doc_tokens"], 
+                                                                        context_ann["all_doc_tokens"], 
+                                                                        context_ann["orig_to_tok_index"], 
+                                                                        self.tokenizer)
+                            for s, e in ans_spans:  #TJH accurate into context_ann["all_doc_tokens"] / item["wp_tokens"]
                                 ans_starts.append(s)
                                 ans_ends.append(e)
                     starts, ends = [], []
@@ -346,7 +253,7 @@ class QADataset(Dataset):
                         if s >= len(item["wp_tokens"]):
                             continue
                         else:
-                            s = min(s, len(item["wp_tokens"]) - 1) + para_offset
+                            s = min(s, len(item["wp_tokens"]) - 1) + para_offset  #TJH accurate into item["encodings"]["input_ids"][0]
                             e = min(e, len(item["wp_tokens"]) - 1) + para_offset
                             starts.append(s)
                             ends.append(e)

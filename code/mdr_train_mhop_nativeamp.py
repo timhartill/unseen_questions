@@ -56,11 +56,13 @@ from tqdm import tqdm
 from transformers import (AdamW, AutoConfig, AutoTokenizer,
                           get_linear_schedule_with_warmup)
 
-from mdr.retrieval.config import train_args
+from mdr_config import train_args
 from mdr.retrieval.criterions import (mhop_eval, mhop_loss, mhop_loss_var, mhop_eval_var)
 from mdr.retrieval.data.mhop_dataset import MhopDataset, mhop_collate, MhopDataset_var, mhop_collate_var
 from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriever_var, RobertaMomentumRetriever, RobertaMomentumRetriever_var
-from mdr.retrieval.utils.utils import AverageMeter, move_to_cuda, load_saved
+#from mdr.retrieval.utils.utils import AverageMeter 
+
+from utils import move_to_cuda, load_saved, AverageMeter
 
 
 def main():

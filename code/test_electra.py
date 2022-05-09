@@ -31,7 +31,8 @@ q_toks = tokenizer.tokenize(item["question"])[:70] # ['the', 'question', '?']  -
 
 c_toks = tokenizer.tokenize(context)
 
-encodings = tokenizer.encode_plus(q_toks, text_pair=c_toks, max_length=200, return_tensors="pt", is_split_into_words=True)
+encodings = tokenizer.encode_plus(q_toks, text_pair=c_toks, max_length=200, return_tensors="pt", 
+                                  is_split_into_words=True)
 #{'input_ids': tensor([[ 101, 1996, 3160, 1029,  102, 2748, 2053,  102, 2516, 1015,    2, 2741,
 #         2028, 1012,    2, 2741, 1016, 1012,    2, 2741, 1017, 1012,  102, 2516,
 #         1016,    2, 2741, 2028, 1012,    2, 2741, 1016, 1012,    2, 2741, 1017, 1012,  102]]), 

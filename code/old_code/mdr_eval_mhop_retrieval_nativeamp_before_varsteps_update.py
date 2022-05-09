@@ -47,7 +47,7 @@ from tqdm import tqdm
 from transformers import AutoConfig, AutoTokenizer
 
 from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriever_var
-from mdr.retrieval.utils.basic_tokenizer import SimpleTokenizer
+from mdr_basic_tokenizer_and_utils import SimpleTokenizer
 from mdr.retrieval.utils.utils import (load_saved, move_to_cuda, para_has_answer)
 
 from utils import encode_text

@@ -61,11 +61,11 @@ class ExtractorModel(nn.Module):
             sequence_output, pooled_output = outputs[0], outputs[1]
 
         logits = self.qa_outputs(sequence_output) # [bs, seq_len, 2]
-        outs = [o.squeeze(-1) for o in logits.split(1, dim=-1)]  # [ [bs, hs], [bs, hs] ]
-        #TJH fill everything not in a para with -inf:  [ [bs, hs], [bs, hs] ]
+        outs = [o.squeeze(-1) for o in logits.split(1, dim=-1)]  # [ [bs, seq_len], [bs, seq_len] ]
+        #TJH fill everything not in a para with -inf:  [ [bs, seq_len], [bs, seq_len] ]
         outs = [o.float().masked_fill(batch["paragraph_mask"].ne(1), float("-inf")).type_as(o) for o in outs]  #TJH ne = elementwise not equal
 
-        start_logits, end_logits = outs[0], outs[1]  # start_logits: [bs, hs]  end_logits: [bs, hs]
+        start_logits, end_logits = outs[0], outs[1]  # start_logits: [bs, seq_len]  end_logits: [bs, seq_len]
         rank_score = self.rank(pooled_output)  # [bs, 1]
 
         gather_index = batch["sent_offsets"].unsqueeze(2).expand(-1, -1, sequence_output.size()[-1])

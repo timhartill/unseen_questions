@@ -46,9 +46,9 @@ import json
 import random
 from html import unescape
 
-from .data_utils import collate_tokens
+#from .data_utils import collate_tokens
 
-from utils import encode_text, encode_query_paras, get_para_idxs, flatten
+from utils import encode_text, encode_query_paras, get_para_idxs, flatten, collate_tokens
 
 class MhopDataset_var(Dataset):
     """ Version of MhopDataset designed to work with mhop_loss_var

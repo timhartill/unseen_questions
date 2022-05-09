@@ -20,8 +20,7 @@ from html import unescape
 
 import utils
 
-from mdr.retrieval.utils.basic_tokenizer import SimpleTokenizer
-from mdr.retrieval.utils.utils import para_has_answer
+from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
 
 
 OUTDIR_NQTQA = '/home/thar011/data/DPR/'

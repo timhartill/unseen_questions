@@ -290,3 +290,20 @@ class RobertaMomentumRetriever(nn.Module):
         return vectors
 
 
+class RobertaCtxEncoder(nn.Module):
+    """ Paragraph encoder
+    """
+    def __init__(self,
+                 config,
+                 args
+                 ):
+        super().__init__()
+        self.encoder = AutoModel.from_pretrained(args.model_name)
+        self.project = nn.Sequential(nn.Linear(config.hidden_size, config.hidden_size), nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps))
+
+    def forward(self, batch):
+        input_ids, attention_mask = batch["input_ids"], batch["input_mask"]
+        cls_rep = self.encoder(input_ids,  attention_mask)[0][:, 0, :]
+        vector = self.project(cls_rep)
+        return {'embed': vector}
+    

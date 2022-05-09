@@ -42,6 +42,25 @@ def list_files_pattern(dirtolist, pattern='*'):
     return [file for file in os.listdir(dirtolist) if fnmatch.fnmatch(file, pattern)]
 
 
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+        
+
 def load_jsonl(file, verbose=True):
     """ Load a list of json msgs from a file formatted as 
            {json msg 1}
@@ -497,6 +516,83 @@ def check_mem():
     return mem
 
 
+# Below from and adapted from https://github.com/facebookresearch/multihop_dense_retrieval:
+
+def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_beginning=False):
+    """Convert a list of 1d tensors into a padded 2d tensor."""
+    if len(values[0].size()) > 1:
+        values = [v.view(-1) for v in values]
+    size = max(v.size(0) for v in values)
+    res = values[0].new(len(values), size).fill_(pad_idx)
+
+    def copy_tensor(src, dst):
+        assert dst.numel() == src.numel()
+        if move_eos_to_beginning:
+            assert src[-1] == eos_idx
+            dst[0] = eos_idx
+            dst[1:] = src[:-1]
+        else:
+            dst.copy_(src)
+
+    for i, v in enumerate(values):
+        copy_tensor(v, res[i][size - len(v):] if left_pad else res[i][:len(v)])
+    return res
+
+
+def load_saved(model, path, exact=True, strict=False):
+    try:
+        state_dict = torch.load(path)
+    except:
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+    
+    def filter(x): return x[7:] if x.startswith('module.') else x
+    if exact:
+        state_dict = {filter(k): v for (k, v) in state_dict.items()}
+    else:
+        state_dict = {filter(k): v for (k, v) in state_dict.items() if filter(k) in model.state_dict()}
+    model.load_state_dict(state_dict, strict=strict) #TJH Added , strict=False: when strict=True can't load orig mdr models/..pt due to imcompatible roberta versions
+    return model
+
+def move_to_cuda(sample):
+    if len(sample) == 0:
+        return {}
+
+    def _move_to_cuda(maybe_tensor):
+        if torch.is_tensor(maybe_tensor):
+            return maybe_tensor.cuda()
+        elif isinstance(maybe_tensor, dict):
+            return {
+                key: _move_to_cuda(value)
+                for key, value in maybe_tensor.items()
+            }
+        elif isinstance(maybe_tensor, list):
+            return [_move_to_cuda(x) for x in maybe_tensor]
+        else:
+            return maybe_tensor
+
+    return _move_to_cuda(sample)
+
+
+def convert_to_half(sample):
+    if len(sample) == 0:
+        return {}
+
+    def _convert_to_half(maybe_floatTensor):
+        if torch.is_tensor(maybe_floatTensor) and maybe_floatTensor.type() == "torch.FloatTensor":
+            return maybe_floatTensor.half()
+        elif isinstance(maybe_floatTensor, dict):
+            return {
+                key: _convert_to_half(value)
+                for key, value in maybe_floatTensor.items()
+            }
+        elif isinstance(maybe_floatTensor, list):
+            return [_convert_to_half(x) for x in maybe_floatTensor]
+        else:
+            return maybe_floatTensor
+
+    return _convert_to_half(sample)
+
+
 #######################
 # HF Utils
 #######################
@@ -666,6 +762,8 @@ def get_single_result(res, idx=0):
     return res.preds[idx].strip(), float(res.sequences_scores[idx]) # float(res.sequences_scores.detach().cpu().numpy()[idx])
 
 
+# Utils related to retrieval below here
+
 def encode_text(tokenizer, text, text_pair=None, max_input_length=512, 
                 truncation=True, return_tensors="pt", padding=False):
     """ Encode text in standard way using various options
@@ -714,7 +812,10 @@ def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences
     return newtext.strip()
 
 
+
+########################
 #  Utils for wikipedia docs ######
+########################
 
 def build_title_idx(docs, verbose=False):
     """ The HPQA corpus files contain some hrefs that have casing different to the actual title casing.
@@ -854,5 +955,7 @@ def add_neg_paras_single(docs, titledict, s):
             title = unescape(docs[rand_idx]['title'])
             final_negs.append({'title': title, 'text': n['text'], 'src':'rd'})
     return final_negs
+
+
 
 

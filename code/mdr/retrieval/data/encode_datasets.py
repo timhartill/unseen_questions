@@ -15,28 +15,14 @@ import numpy as np
 from torch.utils.data import Dataset
 from tqdm import tqdm
 import codecs
-from .data_utils import collate_tokens
+#from .data_utils import collate_tokens
 import unicodedata
 import re
 import os
 from html import unescape
 
-from utils import encode_text
-
-
-def normalize(text):
-    """Resolve different type of unicode encodings."""
-    return unicodedata.normalize('NFD', text)
-
-def convert_brc(string):
-    string = re.sub('-LRB-', '(', string)
-    string = re.sub('-RRB-', ')', string)
-    string = re.sub('-LSB-', '[', string)
-    string = re.sub('-RSB-', ']', string)
-    string = re.sub('-LCB-', '{', string)
-    string = re.sub('-RCB-', '}', string)
-    string = re.sub('-COLON-', ':', string)
-    return string
+from utils import encode_text, collate_tokens
+from text_processing import normalize_unicode, convert_brc
 
 class EmDataset(Dataset):
 
@@ -121,7 +107,7 @@ class EmDataset(Dataset):
         # if sample["text"].endswith("."):
         #     sample["text"] = sample["text"][:-1]
 
-        sent_codes = encode_text(self.tokenizer, normalize(sample["title"].strip()), text_pair=sample['text'].strip(), max_input_length=self.max_len, truncation=True, padding=False, return_tensors="pt")
+        sent_codes = encode_text(self.tokenizer, normalize_unicode(sample["title"].strip()), text_pair=sample['text'].strip(), max_input_length=self.max_len, truncation=True, padding=False, return_tensors="pt")
         #sent_codes = self.tokenizer.encode_plus(normalize(sample["title"].strip()), text_pair=sample['text'].strip(), max_length=self.max_len, truncation=True, return_tensors="pt")
         return sent_codes
     

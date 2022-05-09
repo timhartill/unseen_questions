@@ -49,10 +49,9 @@ from tqdm import tqdm
 from transformers import AutoConfig, AutoTokenizer
 
 from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriever_var
-from mdr.retrieval.utils.basic_tokenizer import SimpleTokenizer
-from mdr.retrieval.utils.utils import (load_saved, move_to_cuda, para_has_answer)
+from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
 
-from utils import encode_text
+from utils import encode_text, load_saved, move_to_cuda
 
 
 def get_gpu_resources_faiss(n_gpu, gpu_start=0, gpu_end=-1, tempmem=0):
