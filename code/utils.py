@@ -936,6 +936,7 @@ def add_neg_paras_single(docs, titledict, s):
     pos_doc_idxs = get_para_docidxs(s['pos_paras'], titledict)
     neg_idxs = set()
     pos_doc_set = set(pos_doc_idxs)
+    status = 'ok'
     for idx in pos_doc_idxs:
         if idx != -1:
             curr_negs = set()
@@ -948,14 +949,29 @@ def add_neg_paras_single(docs, titledict, s):
             neg_idxs = neg_idxs.union(curr_negs)
     neg_paras = get_paras(docs, neg_idxs)
     final_negs = [{'title': unescape(n['title']), 'text': n['text'], 'src':'hl'} for n in neg_paras]
+    if len(final_negs) == 0:
+        status = 'nf'
+    elif len(final_negs) < 10:
+        status = 'sf'
     while len(final_negs) < 10:
         rand_idx = random.randint(0, len(docs)-1)
         if rand_idx not in neg_idxs and rand_idx not in pos_doc_set:
             n = docs[rand_idx]['paras'][0]
             title = unescape(docs[rand_idx]['title'])
             final_negs.append({'title': title, 'text': n['text'], 'src':'rd'})
-    return final_negs
+    return final_negs, status
 
 
+def add_neg_paras(docs, titledict, split):
+    """ Add adversarial negatives by taking hyperlinked docs to the pos paras that are not any of the pos paras
+    """
+    status_counts = {'ok':0, 'nf':0, 'sf':0}
+    for i,s in enumerate(split):
+        s['neg_paras'], status = add_neg_paras_single(docs, titledict, s)
+        status_counts[status] += 1
+        if i % 5000 == 0:
+            print(f'Processed: {i}')
+    print(f"Status counts: total:{len(split)} {status_counts}")
+    return
 
 

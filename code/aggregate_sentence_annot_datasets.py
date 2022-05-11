@@ -12,8 +12,8 @@ import os
 import utils
 
 
-FEVER_TRAIN = '/home/thar011/data/fever/train_with_sent_annots.jsonl'
-FEVER_DEV = '/home/thar011/data/fever/shared_task_dev_with_sent_annots.jsonl'
+FEVER_TRAIN = '/home/thar011/data/fever/fever_train_with_sent_annots.jsonl'
+FEVER_DEV = '/home/thar011/data/fever/fever_dev_with_sent_annots.jsonl'
 
 HOVER_TRAIN = '/home/thar011/data/baleen_downloads/hover/hover_train_with_neg_and_sent_annots.jsonl'
 HOVER_DEV = '/home/thar011/data/baleen_downloads/hover/hover_dev_with_neg_and_sent_annots.jsonl'

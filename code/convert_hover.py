@@ -273,15 +273,6 @@ titledict, dupdict = utils.build_title_idx(docs) # better to rebuild titledict a
 
 
 
-def add_neg_paras(docs, titledict, split):
-    """ Add adversarial negatives by taking hyperlinked docs to the pos paras that are not any of the pos paras
-    """
-    for i,s in enumerate(split):
-        s['neg_paras'] = utils.add_neg_paras_single(docs, titledict, s)
-        if i % 5000 == 0:
-            print(f'Processed: {i}')
-    return
-
 
 def unescape_bridge(split):
     """ unescape the titles in bridge as neglected to do earlier..(and above code now fixed..)
@@ -302,8 +293,8 @@ def make_answer_list(split):
 
 
 random.seed(42)
-add_neg_paras(docs, titledict, hover_dev_out)
-add_neg_paras(docs, titledict, hover_train_out)
+utils.add_neg_paras(docs, titledict, hover_dev_out)
+utils.add_neg_paras(docs, titledict, hover_train_out)
 
 unescape_bridge(hover_dev_out)
 unescape_bridge(hover_train_out)

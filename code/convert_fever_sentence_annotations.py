@@ -38,6 +38,7 @@ NOTES:
 import os
 import json
 from html import unescape
+import random
 
 import utils
 from text_processing import normalize_unicode, convert_brc, replace_chars, create_sentence_spans, strip_accents
@@ -46,6 +47,8 @@ from text_processing import normalize_unicode, convert_brc, replace_chars, creat
 DEV = '/home/thar011/data/fever/shared_task_dev.jsonl'
 TRAIN = '/home/thar011/data/fever/train.jsonl'
 PROCESSED_CORPUS_DIR = '/home/thar011/data/fever/wiki-pages'
+
+BQA_CORPUS = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl'
 
 UPDATED_DEV = '/home/thar011/data/fever/fever_dev_with_sent_annots.jsonl'
 UPDATED_TRAIN = '/home/thar011/data/fever/fever_train_with_sent_annots.jsonl'
@@ -216,15 +219,30 @@ def create_samples(split, wiki_dict, wiki_accent_map):
         if i % 25000 == 0:
             print(f"Processed: {i}")
     return out_samples, missing_titles
-                    
+
+
+
+
+               
 wiki_accent_map = build_unaccented_title_mapping(wiki_dict)
-                      
+
+docs = utils.load_jsonl(BQA_CORPUS)
+titledict, dupdict = utils.build_title_idx(docs) # better to rebuild titledict as docs idxs changed after removal of docs with no paras.. 
+
+
 fever_dev_out, dev_missing = create_samples(fever_dev, wiki_dict, wiki_accent_map)         # 0 missing       
-fever_train_out, train_missing = create_samples(fever_train, wiki_dict, wiki_accent_map)   # 0 missing             
+fever_train_out, train_missing = create_samples(fever_train, wiki_dict, wiki_accent_map)   # 0 missing  
+
+random.seed(4242)                     
+utils.add_neg_paras(docs, titledict, fever_dev_out)  # Status counts: total:15182 {'ok': 14331, 'nf': 576, 'sf': 275}
+utils.add_neg_paras(docs, titledict, fever_train_out) # Status counts: total:130658 {'ok': 125419, 'nf': 3720, 'sf': 1519}
+           
      
 utils.saveas_jsonl(fever_dev_out, UPDATED_DEV)
 utils.saveas_jsonl(fever_train_out, UPDATED_TRAIN)
 
+#fever_dev_out = utils.load_jsonl(UPDATED_DEV)      # 19998 dict_keys(['id', 'verifiable', 'label', 'claim', 'evidence'])
+#fever_train_out =  utils.load_jsonl(UPDATED_TRAIN) # 145449 dict_keys(['id', 'verifiable', 'label', 'claim', 'evidence'])
 
 
 
