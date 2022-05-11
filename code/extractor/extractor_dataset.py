@@ -6,6 +6,7 @@
 import collections
 import json
 import random
+import copy
 
 import torch
 from torch.utils.data import Dataset, Sampler
@@ -14,7 +15,10 @@ from tqdm import tqdm
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer, match_answer_span, find_ans_span_with_char_offsets
 from text_processing import is_whitespace, get_sentence_list
 
-from utils import collate_tokens
+from utils import collate_tokens, get_para_idxs
+
+
+    
 
 
 def prepare(item, tokenizer, special_toks=["[SEP]", "[unused1]", "[unused2]"]):
@@ -30,7 +34,7 @@ def prepare(item, tokenizer, special_toks=["[SEP]", "[unused1]", "[unused2]"]):
         # return title + " " + text
         sents = get_sentence_list(para["text"], sentence_spans)
         pre_sents = []
-        for idx, sent in enumerate(sents):
+        for idx, sent in enumerate(para_idxs[t]sents):
             pre_sents.append("[unused1] " + sent.strip())
         return title + " " + " ".join(pre_sents)
         # return " ".join(pre_sents)
@@ -88,7 +92,56 @@ def prepare(item, tokenizer, special_toks=["[SEP]", "[unused1]", "[unused2]"]):
 
     return item
 
+def consistent_bridge_format(sample):
+    """ translate hpqa and fever bridge format into consistent hover 'multi' format:
+         eg sample['bridge'] = [['Ossian Elgström', 'Kristian Zahrtmann', 'Peder Severin Krøyer'], ['bananarama'], ['tango']]
+            means all paras from sample['bridge'][0] (but in any order) must come before sample['bridge'][1] which in turn (in any order if > 1 para) must come before sample['bridge'][2] ..
 
+    hpqa: comparison: - no bridge key -> [ [p1, p2] ]
+          bridge: bridge has final para -> [[p1], [p2]]
+    squad, nq, tqa: type '' [[1st pos para]] 
+    fever:  bridge [p1, p2] -> [[p1], [p2]]
+    """
+    if sample.get('src') is None: #if no src key assume this is MDR-formatted HPQA data and reformat
+        if sample.get('bridge') is not None and type(sample['bridge']) is not list:
+            sample['bridge'] = [ sample['bridge'] ]
+        sample['src'] = 'hotpotqa'
+        if sample['type'] == 'bridge':
+            for para in sample['pos_paras']:
+                if para['title'] != sample['bridge'][0]:
+                    start_para = para
+                else:
+                    bridge_para = para
+            bridge_list = [ [start_para['title']], [bridge_para['title']] ]
+        else: #comparison can be any order
+            bridge_list = [ [sample['pos_paras'][0]['title'], sample['pos_paras'][1]['title']] ]
+    elif sample['type'] == '': # single hop eg squad, nq, tqa 
+        bridge_list = [ [sample['pos_paras'][0]['title']] ]    
+    elif sample['type'] == 'fever':
+        if len(sample['bridge']) == 1:
+            bridge_list = [ sample['bridge'] ]
+        else:
+            bridge_list = [ list(set(sample['bridge'])) ] # can have para title repeated for difft sentence labels in FEVER multi
+            para_idxs = get_para_idxs(sample['pos_paras'])
+            new_pos_paras = []
+            for t in para_idxs:
+                idx_list = para_idxs[t]
+                new_para = copy.deepcopy(sample['pos_paras'][idx_list[0]])
+                if len(idx_list) > 1: # multiple identical paras, merge sentence labels
+                    for idx in idx_list[1:]:
+                        merge_labels = sample['pos_paras'][idx]['sentence_labels']
+                        new_para['sentence_labels'].extend(merge_labels)
+                    new_para['sentence_labels'].sort()
+                    new_pos_paras.append(new_para)
+                else:
+                    new_pos_paras.append( new_para )
+            sample['pos_paras'] = new_pos_paras                                
+    elif sample['type'] == 'multi':
+        bridge_list = sample['bridge']
+    sample['bridge'] = bridge_list 
+    return       
+    
+    
 
 class QADataset(Dataset):
 
@@ -101,10 +154,19 @@ class QADataset(Dataset):
         self.train = train
         self.no_sent_label = no_sent_label
         self.simple_tok = SimpleTokenizer()
-        self.data = []
+        self.data = []  # Each alternate sample will be a blank placeholder denoting a negative for preceding positive
+        for sample in retriever_outputs:
+            if sample["question"].endswith("?"):
+                sample["question"] = sample["question"][:-1]
+            consistent_bridge_format(sample)  # TODO test all datasets  
+            #TODO add para label in __get_item__
+            self.data.append(sample)
+            self.data.append({})  # dummy entry for neg example - construct actual neg from data[index-1] 
+            #TODO How to have fixed set of eval queries for eval?
+
 
         if train:
-            self.qid2gold = collections.defaultdict(list) # idx 
+            self.qid2gold = collections.defaultdict(list) # idx of q + gold sp in self.data
             self.qid2neg = collections.defaultdict(list)
             for item in retriever_outputs:
                 if item["question"].endswith("?"):
@@ -142,7 +204,7 @@ class QADataset(Dataset):
                 ds_limit = 5
                 for chain in item["candidate_chains"]:
                     chain_titles = [c["title"] for c in chain]
-                    if set(chain_titles) == sp_titles:
+                    if set(chain_titles) == sp_titles: 
                         continue
                     if question_type == "bridge":
                         answer_covered = int(len(set(chain_titles) & ans_titles) > 0)
@@ -294,6 +356,30 @@ class QADataset(Dataset):
 
         item["label"] = torch.LongTensor([item["label"]])
         return item
+
+
+
+class AlternateSampler(Sampler):
+    """
+    Shuffle pairs of idxs assuming that even idx=pos example, odd=corresponding neg example
+    Each pos/neg will tend to be on same gpu so shared normalisation.. 
+    """
+    def __init__(self, dset):
+        self.num_samples = len(dset)
+        self.idx_pairs = [(i, i+1) for i in range(0, self.num_samples, 2)]
+
+    def __len__(self):
+        return self.num_samples
+
+    def __iter__(self):
+        indices = []
+        random.shuffle(self.idx_pairs)
+        for idxs in self.idx_pairs:
+            for i in idxs:
+                indices.append(i)
+        return iter(indices)
+
+
 
 class MhopSampler(Sampler):
     """

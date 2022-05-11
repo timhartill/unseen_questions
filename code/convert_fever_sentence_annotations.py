@@ -100,7 +100,7 @@ print(f"Num docs: {len(wiki_dict)}")
 #TODO output multiple samples one per consolidated evidence set
 #TODO consolidate all single evidences into separate samples 
 #eg [ [titleA, 0], [titleA, 5], [titleB, 6] ] -> {q, [titleA:[0,5]]} & {q, [titleb:[6]]}
-#TODO consolidate all multi evidense separately: eg [ [[A,4], [B,0], [B,2] ] ] -> {q, [A:[4], B:[0,2]]}
+#TODO consolidate all multi evidence separately: eg [ [[A,4], [B,0], [B,2] ] ] -> {q, [A:[4], B:[0,2]]}
 
 def get_title_sidx(entry):
     """ eg [131371, 146150, 'Telemundo', 4]

@@ -154,7 +154,7 @@ class MhopDataset_var(Dataset):
         q_list_codes = [q_codes]
         query_paras = ''
         for i in range(self.max_hops-1):  #if 3 paras: encode: q+sp1, q+sp1+sp2 but not q+sp1+sp2+sp3. Note: queries with neg paras are ignored in loss calc..
-            if not self.use_sentences or i > num_hops-1:  #No sentence annots for neg paras
+            if not self.use_sentences or i > num_hops-1:  # No sentence annots for neg paras
                 if para_list[i]['text'][-1] not in ['.', '?', '!']:  # Force full stop at end since nq and tqa paras are chunked and might end mid sentence.
                     para_list[i]['text'] += '.'
                 query_paras += ' ' + para_list[i]['text']  
