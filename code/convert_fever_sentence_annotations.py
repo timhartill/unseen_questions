@@ -32,6 +32,8 @@ NOTES:
     - In FEVER, correctly recalling ANY evidence set counts as a win but in HPQ recalling both paras of a single evidence set is the win
         - hence we make 1 sample out of each unique evidence set: q1 set1, q1 set2
         - where multiple sentences in a single doc are pointed to in difft evidence sets we label all such sentences in the doc as positive and consolidate
+        - where the same doc occurs multiple times in a single evidence set with difft sentences labelled we keep them spearate although later in the pipeline we end up merging into a single para with all sentence labels
+        - where multiple docs occur in a single evidence set we keep separate
     - Since we are building this dataset to train a sentence prediction model we skip "NOT ENOUGH INFO" claims.
     - We retain REFUTED claims in the belief that we are marking sentences as evidential toward deriving an answer rather than just positive examples ie "positive" means "evidential" not necessarily "supportive"
 """

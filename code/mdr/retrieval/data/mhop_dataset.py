@@ -98,8 +98,8 @@ class MhopDataset_var(Dataset):
             # means all paras from sample['bridge'][0] (but in any order) must come before sample['bridge'][1] which in turn (in any order if > 1 para) must come before sample['bridge'][2] ..
             para_idxs = get_para_idxs(sample["pos_paras"])
             for step_paras_list in sample["bridge"]:
-                if self.random_multi_seq:
-                    random.shuffle(step_paras_list)
+                if self.random_multi_seq and self.train:
+                    random.shuffle(step_paras_list)  #TODO Dont shuffle if not self.train
                 for p in step_paras_list:
                     para_list += [sample["pos_paras"][pidx] for pidx in para_idxs[p]]  # > 1 pidx if para is repeated in pos_paras with difft sentence labels. This would only occur with FEVER 
         elif sample["type"] == "comparison":

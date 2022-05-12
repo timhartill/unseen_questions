@@ -975,3 +975,64 @@ def add_neg_paras(docs, titledict, split):
     return
 
 
+def consistent_bridge_format(sample):
+    """ translate sample bridge format into consistent 'multi' format:
+         eg sample['bridge'] = [['Ossian Elgström', 'Kristian Zahrtmann', 'Peder Severin Krøyer'], ['bananarama'], ['tango']]
+            means all paras from sample['bridge'][0] (but in any order) must come before sample['bridge'][1] which in turn (in any order if > 1 para) must come before sample['bridge'][2] ..
+
+    hpqa: comparison: - no bridge key -> [ [p1, p2] ]
+          bridge: bridge has final para -> [[p1], [p2]]
+    squad, nq, tqa: type='' -> [ [p1] ] 
+    fever:  bridge [p1, p2] -> [[p1], [p2]]  
+            bridge [p1] -> [ [p1] ]
+    """
+    if sample.get('src') is None: #if no src key assume this is MDR-formatted HPQA data and reformat
+        if sample.get('bridge') is not None and type(sample['bridge']) is not list:
+            sample['bridge'] = [ sample['bridge'] ]
+        sample['src'] = 'hotpotqa'
+    if sample.get('_id') is None:  #bqa id key = 'id'
+        if sample.get('id') is not None:
+            sample['_id'] = sample['id']
+        else:
+            sample['_id'] = 'noid'
+        
+    if sample['type'] == 'comparison': #bqa hpqa sample
+        bridge_list = [ [sample['pos_paras'][0]['title'], sample['pos_paras'][1]['title']] ]
+    elif sample['type'] == 'bridge':  #bqa hpqa sample
+            for para in sample['pos_paras']:
+                if para['title'] != sample['bridge'][0]:
+                    start_para = para
+                else:
+                    bridge_para = para
+            bridge_list = [ [start_para['title']], [bridge_para['title']] ]    
+    elif sample['type'] == '': # single hop eg squad, nq, tqa 
+        bridge_list = [ [sample['pos_paras'][0]['title']] ]    
+    elif sample['type'] == 'fever':
+        if len(sample['bridge']) == 1:
+            bridge_list = [ sample['bridge'] ]
+        else:
+            if len(set(sample['bridge'])) == len(sample['bridge']): # multiple & unique paras 
+                bridge_list = [ [title] for title in sample['bridge']]  # unclear whether order matters but treat as though it does matter
+            else:
+                bridge_list = [ list(set(sample['bridge'])) ] # para title repeated for difft sentence labels in FEVER multi
+                para_idxs = get_para_idxs(sample['pos_paras'])
+                new_pos_paras = []
+                for t in para_idxs:
+                    idx_list = para_idxs[t]
+                    new_para = copy.deepcopy(sample['pos_paras'][idx_list[0]])
+                    if len(idx_list) > 1: # multiple identical paras, merge sentence labels
+                        for idx in idx_list[1:]:
+                            merge_labels = sample['pos_paras'][idx]['sentence_labels']
+                            new_para['sentence_labels'].extend(merge_labels)
+                        new_para['sentence_labels'].sort()
+                        new_pos_paras.append(new_para)
+                    else:
+                        new_pos_paras.append( new_para )
+                sample['pos_paras'] = new_pos_paras                                
+    elif sample['type'] == 'multi':
+        bridge_list = sample['bridge']
+    sample['bridge'] = bridge_list 
+    return       
+    
+    
+
