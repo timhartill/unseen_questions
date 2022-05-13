@@ -785,8 +785,9 @@ def encode_text(tokenizer, text, text_pair=None, max_input_length=512,
     return encode_dict
 
 
-def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences=None, use_sentences=False, prepend_title=False):
-    """ Encode the query as either just the paragraph or as selected sentences from the paragraph optionally prepended by the title
+def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences=None, 
+                       use_sentences=False, prepend_title=False, title_sep = ':'):
+    """ Encode the query as either just the paragraph or as selected sentences from the paragraph prepended by the title
     sentence_spans = [ [s1startidx, s1endidx], [s2startidx, s2endidx], ...]
     selected sentences = [sentenceidx1, sentenceidx2, ...]    
     """
@@ -796,7 +797,7 @@ def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences
             txt += '.'            
         return txt
     if prepend_title:
-        newtext = unescape(title.strip() + ':')
+        newtext = unescape(title.strip() + title_sep)
     else:
         newtext = ''
     for sent_idx in selected_sentences:
@@ -1031,6 +1032,7 @@ def consistent_bridge_format(sample):
                 sample['pos_paras'] = new_pos_paras                                
     elif sample['type'] == 'multi':
         bridge_list = sample['bridge']
+    sample['num_hops'] = len(flatten(bridge_list))
     sample['bridge'] = bridge_list 
     return       
     

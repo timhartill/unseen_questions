@@ -99,7 +99,7 @@ class MhopDataset_var(Dataset):
             para_idxs = get_para_idxs(sample["pos_paras"])
             for step_paras_list in sample["bridge"]:
                 if self.random_multi_seq and self.train:
-                    random.shuffle(step_paras_list)  #TODO Dont shuffle if not self.train
+                    random.shuffle(step_paras_list)  
                 for p in step_paras_list:
                     para_list += [sample["pos_paras"][pidx] for pidx in para_idxs[p]]  # > 1 pidx if para is repeated in pos_paras with difft sentence labels. This would only occur with FEVER 
         elif sample["type"] == "comparison":
@@ -161,7 +161,7 @@ class MhopDataset_var(Dataset):
             else:  # encode sentence or title:sentence rather than full para text
                 query_paras += ' ' + encode_query_paras(para_list[i]['text'], para_list[i]['title'],
                                                         para_list[i]['sentence_spans'], para_list[i]['sentence_labels'],
-                                                        self.use_sentences, self.prepend_query)
+                                                        self.use_sentences, self.prepend_query, title_sep=':')
             q_list_codes.append( encode_text(self.tokenizer, question, text_pair=query_paras.strip(), max_input_length=self.max_q_sp_len, truncation=True, padding=False, return_tensors="pt") )
         
         #q_sp_codes = encode_text(self.tokenizer, question, text_pair=start_para["text"].strip(), max_input_length=self.max_q_sp_len, truncation=True, padding=False, return_tensors="pt")

@@ -2,6 +2,7 @@
 Dataset for stage 1 extractor
 
 prepare() fn adapted from https://github.com/facebookresearch/multihop_dense_retrieval 
+encode_query_stage1() inspired by https://github.com/stanford-futuredata/Baleen
 
 @author Tim Hartill
 
@@ -11,6 +12,7 @@ import collections
 import json
 import random
 import copy
+import numpy as np
 
 import torch
 from torch.utils.data import Dataset, Sampler
@@ -19,7 +21,63 @@ from tqdm import tqdm
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer, match_answer_span, find_ans_span_with_char_offsets
 from text_processing import is_whitespace, get_sentence_list
 
-from utils import collate_tokens, get_para_idxs, consistent_bridge_format
+from utils import collate_tokens, get_para_idxs, consistent_bridge_format, encode_query_paras
+
+
+def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
+    """ Encode query as: question [unused2] title 1 | sent 1. sent 2 [unused2] title 2 | sent 0 ...
+    sample = the (positive) sample
+    index  = the true index which alternates pos/negs. if a neg index then sample is from self.data[index-1]
+    train = whether to randomize para order (train) or keep fixed (dev)
+    
+    returns: 
+        query
+        tokenised query
+        idx of para to rerank (-1 to choose neg para)
+        
+    """
+    if index % 2 == 0:
+        encode_pos = True
+    else:
+        encode_pos = False
+        
+    if sample['num_hops'] == 1:
+        build_to_hop = 1
+    elif sample['num_hops'] == 2:
+        if train:
+            if encode_pos or sample.get('last_build_to_hop') is None:
+                build_to_hop = random.randint(1,2)
+                sample['last_build_to_hop'] = build_to_hop
+            else:
+                build_to_hop = sample['last_build_to_hop']
+        else: # make deterministic for eval
+            orig_index = index // 2
+            if orig_index % 2 == 0:
+                build_to_hop = 2
+            else:
+                build_to_hop = 1
+    else:
+        build_to_hop = sample['num_hops']  # comparatively few 3 or 4 hops so always use full seq. Note there a a tiny number of fevr examples > 4 hops
+    para_list = []
+    para_idxs = get_para_idxs(sample["pos_paras"])
+    for step_paras_list in sample["bridge"]:
+        if train and encode_pos:  # don't shuffle if a neg; use order last used for corresponding positive
+            random.shuffle(step_paras_list)
+        for title in step_paras_list:
+            para_list.append( sample["pos_paras"][ para_idxs[title][0] ] )
+    query = sample['question']  # + ' [unused2] '
+    for i, para in enumerate(para_list):
+        if i+1 >= build_to_hop:
+            if encode_pos:
+                rerank_para = para_idxs[para['title']][0]
+            else:
+                rerank_para = -1
+            break
+        query += ' [unused2] ' + encode_query_paras(para['text'], para['title'], 
+                                                    para['sentence_spans'], para['sentence_labels'],
+                                                    use_sentences=True, prepend_title=True, title_sep=' |')
+    q_toks = tokenizer.tokenize(query)[:max_q_len]
+    return query, q_toks, rerank_para
 
 
 
@@ -109,7 +167,7 @@ class ExtractorDataset(Dataset):
         for sample in samples:
             if sample["question"].endswith("?"):
                 sample["question"] = sample["question"][:-1]
-            consistent_bridge_format(sample)    
+            consistent_bridge_format(sample)
             #TODO add para label in __get_item__
             self.data.append(sample)
             self.data.append({})  # dummy entry for neg example - construct actual neg from data[index-1] 
@@ -210,6 +268,16 @@ class ExtractorDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
+        if index % 2 == 0:
+            encode_pos = True
+            sample = self.data[index]
+        else:
+            encode_pos = False
+            sample = self.data[index-1]
+        #query, q_toks, rerank_para = encode_query_stage1(sample, tokenizer, train, max_q_len, index)
+        query, q_toks, rerank_para = encode_query_stage1(sample, self.tokenizer, self.train, self.max_q_len, index)
+        #TODO Update prepare st if eval & neg takes 1st neg para if train and neg takes rand neg para
+        #TODO if pos take sample['pos_paras'][rerank_para]
         item = prepare(self.data[index], self.tokenizer) 
         context_ann = item["context_processed"]  #TJH context_processed added to item in prepare
         q_toks = self.tokenizer.tokenize(item["question"])[:self.max_q_len]
