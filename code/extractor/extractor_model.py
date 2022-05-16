@@ -76,7 +76,7 @@ class ExtractorModel(nn.Module):
 
             rank_target = batch["label"]
             sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")
-            sp_loss = (sp_loss * batch["sent_offsets"]) * batch["label"]
+            sp_loss = (sp_loss * batch["sent_offsets"]) * batch["label"]  #TODO do I want this?
             sp_loss = sp_loss.sum()
 
             start_positions, end_positions = batch["starts"], batch["ends"]

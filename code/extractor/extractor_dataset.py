@@ -1,7 +1,7 @@
 """
 Dataset for stage 1 extractor
 
-prepare() fn adapted from https://github.com/facebookresearch/multihop_dense_retrieval 
+encode_context_stage1() adapted from prepare() fn in https://github.com/facebookresearch/multihop_dense_retrieval 
 encode_query_stage1() inspired by https://github.com/stanford-futuredata/Baleen
 
 @author Tim Hartill
@@ -12,14 +12,14 @@ import collections
 import json
 import random
 import copy
-import numpy as np
+#import numpy as np
 
 import torch
 from torch.utils.data import Dataset, Sampler
 from tqdm import tqdm
 
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer, match_answer_span, find_ans_span_with_char_offsets
-from text_processing import is_whitespace, get_sentence_list
+from text_processing import is_whitespace, get_sentence_list, split_into_sentences
 
 from utils import collate_tokens, get_para_idxs, consistent_bridge_format, encode_query_paras
 
@@ -34,7 +34,7 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
         query
         tokenised query
         idx of para to rerank (-1 to choose neg para)
-        
+        build_to_hop = number of hops the query + next para cover eg 1=q_only->sp1, 2=q+sp1->sp2  if build_to_hop=num_hops then query + next para is fully evidential
     """
     if index % 2 == 0:
         encode_pos = True
@@ -57,7 +57,7 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
             else:
                 build_to_hop = 1
     else:
-        build_to_hop = sample['num_hops']  # comparatively few 3 or 4 hops so always use full seq. Note there a a tiny number of fevr examples > 4 hops
+        build_to_hop = sample['num_hops']  # comparatively few 3+ hops so always use full seq. Note there a a tiny number of fevr examples > 4 hops
     para_list = []
     para_idxs = get_para_idxs(sample["pos_paras"])
     for step_paras_list in sample["bridge"]:
@@ -77,35 +77,52 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
                                                     para['sentence_spans'], para['sentence_labels'],
                                                     use_sentences=True, prepend_title=True, title_sep=' |')
     q_toks = tokenizer.tokenize(query)[:max_q_len]
-    return query, q_toks, rerank_para
+    return query, q_toks, rerank_para, build_to_hop
 
 
 
-def prepare(item, tokenizer, special_toks=["[SEP]", "[unused0]", "[unused1]", "[unused2]", "[unused3]"]):
+def encode_context_stage1(sample, tokenizer, rerank_para, train, special_toks=["[SEP]", "[unused0]", "[unused1]"]):
     """
-    tokenize the passages chains, add sentence start markers for SP sentence identification
+    encode context: add non-extractive answer choices, add sentence start markers [unused1] for sentence identification
+    encode as: "yes no [unused0] [SEP] title [unused1] sent0 [unused1] sent1 [unused1] sent2 ..."
+    if rerank_para = -1 then add a neg para from neg_paras key: random if train, first neg if eval
     """
-    def _process_p(para):
-        """
-        handle each para
-        """
-        title, sentence_spans = para["title"].strip(), para["sentence_spans"]
-        # return "[unused1] " + title + " [unused1] " + text # mark title
-        # return title + " " + text
+    def _process_pos(para):
+        """ positive para """
+        title, sentence_spans, sentence_labels = para["title"].strip(), para["sentence_spans"], set(para["sentence_labels"])
         sents = get_sentence_list(para["text"], sentence_spans)
         pre_sents = []
+        s_labels = []
         for idx, sent in enumerate(sents):
             pre_sents.append("[unused1] " + sent.strip())
-        return title + " " + " ".join(pre_sents)
-        # return " ".join(pre_sents)
-    # mark passage boundary
-    contexts = []
-    for para in item["pos_paras"]:
-        contexts.append(_process_p(para))
-    context = " [SEP] ".join(contexts)
+            s_labels.append( 1 if idx in sentence_labels else 0 )
+        return title + " " + " ".join(pre_sents), s_labels
+    
+    def _process_neg(para):
+        """ neg para """
+        title = para["title"].strip()
+        sents = split_into_sentences(para["text"])
+        pre_sents = []
+        s_labels = []
+        for idx, sent in enumerate(sents):
+            pre_sents.append("[unused1] " + sent.strip())
+            s_labels.append(0)
+        return title + " " + " ".join(pre_sents), s_labels
+        
+    
+    if rerank_para > -1:
+        para = sample["pos_paras"][rerank_para]
+        context, s_labels = _process_pos(para)
+    else:
+        if train:
+            neg_para = random.choice(sample["neg_paras"])
+        else:
+            neg_para = sample["neg_paras"][0] # make eval deterministic
+        context, s_labels = _process_neg(neg_para)
+        para = neg_para
 
-    doc_tokens = []  # TJH: ['word1', 'word2', ..]
-    char_to_word_offset = []  # TJH: list with each char -> idx into doc_tokens
+    doc_tokens = []  # ['word1', 'word2', ..]
+    char_to_word_offset = []  # list with each char -> idx into doc_tokens
     prev_is_whitespace = True
 
     context = "yes no [unused0] [SEP] " + context  # ELECTRA tokenises yes, no to single tokens
@@ -140,20 +157,22 @@ def prepare(item, tokenizer, special_toks=["[SEP]", "[unused0]", "[unused1]", "[
             tok_to_orig_index.append(i)       # [ subword tok idx -> whole word token idx]
             all_doc_tokens.append(sub_token)  # [ sub word tokens ]
 
-    item["context_processed"] = {
+    sample["context_processed"] = {
         "doc_tokens": doc_tokens,                     # [whole words]
         "char_to_word_offset": char_to_word_offset,   # [char idx -> whole word idx]
         "orig_to_tok_index": orig_to_tok_index,       # [whole word idx -> subword idx]
-        "tok_to_orig_index": tok_to_orig_index,       # [ subword tok idx -> whole word token idx]
+        "tok_to_orig_index": tok_to_orig_index,       # [ subword token idx -> whole word token idx]
         "all_doc_tokens": all_doc_tokens,             # [ sub word tokens ]
-        "context": context,                           # full context string    
-        "sent_starts": sent_starts                    # [sentence start idx -> subword idx]
+        "context": context,                           # full context string
+        "sent_starts": sent_starts,                   # [sentence start idx -> subword token idx]
+        "sent_labels": s_labels,                      # [multihot sentence labels]
+        "passage": para,                              # the pos or neg para {'title':.. 'text':..., pos/neg specific keys}
     }
-    return item
+    return sample
 
 
 
-class ExtractorDataset(Dataset):
+class Stage1Dataset(Dataset):
 
     def __init__(self, args, tokenizer, train=False):
         self.data_path = args.predict_file
@@ -168,99 +187,8 @@ class ExtractorDataset(Dataset):
             if sample["question"].endswith("?"):
                 sample["question"] = sample["question"][:-1]
             consistent_bridge_format(sample)
-            #TODO add para label in __get_item__
             self.data.append(sample)
             self.data.append({})  # dummy entry for neg example - construct actual neg from data[index-1] 
-            #TODO How to have fixed set of eval queries for eval if building on the fly? Just use fixed "bridge" order?
-
-
-        if train:
-            self.qid2gold = collections.defaultdict(list) # idx of q + gold sp in self.data
-            self.qid2neg = collections.defaultdict(list)
-            for item in retriever_outputs:
-                if item["question"].endswith("?"):
-                    item["question"] = item["question"][:-1]
-
-                sp_sent_labels = []
-                sp_gold = []
-                if not self.no_sent_label:
-                    for sp in item["sp"]:
-                        for _ in sp["sp_sent_ids"]:
-                            sp_gold.append([sp["title"], _])
-                        for idx in range(len(sp["sents"])):
-                            sp_sent_labels.append(int(idx in sp["sp_sent_ids"]))
-
-                question_type = item["type"]
-                self.data.append({
-                    "question": item["question"],
-                    "passages": item["sp"], 
-                    "label": 1,
-                    "qid": item["_id"],
-                    "gold_answer": item["answer"],
-                    "sp_sent_labels": sp_sent_labels,
-                    "ans_covered": 1, # includes partial chains.
-                    "sp_gold": sp_gold
-                })
-                self.qid2gold[item["_id"]].append(len(self.data) - 1)
-
-                sp_titles = set([_["title"] for _ in item["sp"]])
-                if question_type == "bridge":
-                    ans_titles = set([p["title"] for p in item["sp"] if para_has_answer(item["answer"], "".join(p["sents"]), self.simple_tok)])
-                else:
-                    ans_titles = set()
-                # top ranked negative chains
-                ds_count = 0 # track how many distant supervised chain to use
-                ds_limit = 5
-                for chain in item["candidate_chains"]:
-                    chain_titles = [c["title"] for c in chain]
-                    if set(chain_titles) == sp_titles: 
-                        continue
-                    if question_type == "bridge":
-                        answer_covered = int(len(set(chain_titles) & ans_titles) > 0)  #if any pred para is an sp title that has the answer in it
-                        ds_count += answer_covered
-                    else:
-                        answer_covered = 0
-                    self.data.append({
-                        "question": item["question"],
-                        "passages": chain,
-                        "label": 0,
-                        "qid": item["_id"],
-                        "gold_answer": item["answer"],
-                        "ans_covered": answer_covered,
-                        "sp_gold": sp_gold
-                    })
-                    self.qid2neg[item["_id"]].append(len(self.data) - 1)
-        else:
-            for item in retriever_outputs:
-                if item["question"].endswith("?"):
-                    item["question"] = item["question"][:-1]
-
-                # for validation, add target predictions
-                sp_titles = set([_["title"] for _ in item["sp"]]) if "sp" in item else None
-                gold_answer = item.get("answer", [])
-                sp_gold = []
-                if "sp" in item:
-                    for sp in item["sp"]:
-                        for _ in sp["sp_sent_ids"]:
-                            sp_gold.append([sp["title"], _])
-
-                chain_seen = set()
-                for chain in item["candidate_chains"]:
-                    chain_titles = [_["title"] for _ in chain]
-
-
-                    if sp_titles:
-                        label = int(set(chain_titles) == sp_titles)
-                    else:
-                        label = -1
-                    self.data.append({
-                        "question": item["question"],
-                        "passages": chain,
-                        "label": label,
-                        "qid": item["_id"],
-                        "gold_answer": gold_answer,
-                        "sp_gold": sp_gold
-                    })
 
         print(f"Data size {len(self.data)}")
 
@@ -268,28 +196,25 @@ class ExtractorDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
-        if index % 2 == 0:
-            encode_pos = True
+        if index % 2 == 0:  # encode positive sample
             sample = self.data[index]
-        else:
-            encode_pos = False
+            #sample = data[index]
+        else:               # encode neg sample
             sample = self.data[index-1]
-        #query, q_toks, rerank_para = encode_query_stage1(sample, tokenizer, train, max_q_len, index)
-        query, q_toks, rerank_para = encode_query_stage1(sample, self.tokenizer, self.train, self.max_q_len, index)
-        #TODO Update prepare st if eval & neg takes 1st neg para if train and neg takes rand neg para
-        #TODO if pos take sample['pos_paras'][rerank_para]
-        item = prepare(self.data[index], self.tokenizer) 
-        context_ann = item["context_processed"]  #TJH context_processed added to item in prepare
-        q_toks = self.tokenizer.tokenize(item["question"])[:self.max_q_len]
-        para_offset = len(q_toks) + 2 # cls and sep
+        #query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, tokenizer, train, max_q_len, index)
+        query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, self.tokenizer, self.train, self.max_q_len, index)
+        #item = encode_context_stage1(sample, tokenizer, rerank_para, train)
+        item = encode_context_stage1(sample, self.tokenizer, rerank_para, self.train)
+        context_ann = item["context_processed"]  
+        #q_toks = self.tokenizer.tokenize(item["question"])[:self.max_q_len]
+        para_offset = len(q_toks) + 2 #  + cls and sep
         item["wp_tokens"] = context_ann["all_doc_tokens"]  # [subword tokens]
         assert item["wp_tokens"][0] == "yes" and item["wp_tokens"][1] == "no"
-        item["para_offset"] = para_offset  # start of paras para_offset = yes, para_offset+1=no para_offset+2=unanswerable
+        item["para_offset"] = para_offset  # start of paras para_offset = yes, para_offset+1=no para_offset+2=unanswerable/[unused0]
         max_toks_for_doc = self.max_seq_len - para_offset - 1
         if len(item["wp_tokens"]) > max_toks_for_doc:
             item["wp_tokens"] = item["wp_tokens"][:max_toks_for_doc]
-        #TJH: is_split_into_words doesnt work:    
-        #item["encodings"] = self.tokenizer.encode_plus(q_toks, text_pair=item["wp_tokens"], max_length=self.max_seq_len, return_tensors="pt", is_split_into_words=True)
+        #input_ids = torch.tensor([[tokenizer.cls_token_id] + tokenizer.convert_tokens_to_ids(q_toks) + [tokenizer.sep_token_id] + tokenizer.convert_tokens_to_ids(item["wp_tokens"]) + [tokenizer.sep_token_id]], dtype=torch.int64)
         input_ids = torch.tensor([[self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks) + [self.tokenizer.sep_token_id] + self.tokenizer.convert_tokens_to_ids(item["wp_tokens"]) + [self.tokenizer.sep_token_id]],
                                  dtype=torch.int64)
         attention_mask = torch.tensor([[1] * input_ids.shape[1]], dtype=torch.int64)
@@ -300,17 +225,17 @@ class ExtractorDataset(Dataset):
         
         
         if self.train:
-        #TODO if neg sample: point to [unused0]
-        #TODO if full pos sample: point to yes/no/ans span
-        #TODO if partial pos sample & classification and/or comparison question: point to [unused0]
-        #TODO if partial pos sample & bridge & answer in para: point to answer or [unused0]??? bridge = len(sample['bridge']) > 1
-            if item["ans_covered"]:  #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
-                if item["gold_answer"][0] in ["yes", "SUPPORTED", "SUPPORTS"]:
+            #if neg sample: point to [unused0]/insufficient evidence
+            #if full pos sample: point to yes/no/ans span
+            #if partial pos sample: point to [unused0]
+            if rerank_para > -1 and build_to_hop >= item['num_hops']: # if pos & fully evidential ie query + next para = full para set
+                if item["answers"][0] in ["yes", "SUPPORTED", "SUPPORTS"]: #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
                     starts, ends= [para_offset], [para_offset]
-                elif item["gold_answer"][0] in ["no", "REFUTES", "NOT_SUPPORTED"]:
+                elif item["answers"][0] in ["no", "REFUTES", "NOT_SUPPORTED"]:
                     starts, ends= [para_offset + 1], [para_offset + 1]
                 else:
-                    matched_spans = match_answer_span(context_ann["context"], item["gold_answer"], self.simple_tok)
+                    #matched_spans = match_answer_span(context_ann["context"], item["answers"], simple_tok)
+                    matched_spans = match_answer_span(context_ann["context"], item["answers"], self.simple_tok)
                     ans_starts, ans_ends= [], []
                     for span in matched_spans:
                         char_starts = [i for i in range(len(context_ann["context"])) if context_ann["context"].startswith(span, i)]
@@ -328,7 +253,7 @@ class ExtractorDataset(Dataset):
                                 ans_ends.append(e)
                     starts, ends = [], []
                     for s, e in zip(ans_starts, ans_ends):
-                        if s >= len(item["wp_tokens"]):
+                        if s >= len(item["wp_tokens"]): 
                             continue
                         else:
                             s = min(s, len(item["wp_tokens"]) - 1) + para_offset  #TJH accurate into item["encodings"]["input_ids"][0]
@@ -343,32 +268,22 @@ class ExtractorDataset(Dataset):
             item["starts"] = torch.LongTensor(starts)
             item["ends"] = torch.LongTensor(ends)
 
-            if item["label"]:
-                assert len(item["sp_sent_labels"]) == len(item["context_processed"]["sent_starts"])
-        else:
-            #     # for answer extraction
+        else:   # for answer extraction
             item["doc_tokens"] = context_ann["doc_tokens"]
             item["tok_to_orig_index"] = context_ann["tok_to_orig_index"]
 
         # filter sentence offsets exceeding max sequence length
         sent_labels, sent_offsets = [], []
         for idx, s in enumerate(item["context_processed"]["sent_starts"]):
-            if s >= len(item["wp_tokens"]):
+            if s >= len(item["wp_tokens"]): #if wp_tokens truncated, sent labels could be invalid
                 break
-            if "sp_sent_labels" in item:
-                sent_labels.append(item["sp_sent_labels"][idx])
+            sent_labels.append(item["context_processed"]["sent_labels"][idx])
             sent_offsets.append(s + para_offset)
-            assert item["encodings"]["input_ids"].view(-1)[s+para_offset] == self.tokenizer.convert_tokens_to_ids("[unused1]")
+            assert item["encodings"]["input_ids"].view(-1)[s+para_offset] == 2  #self.tokenizer.convert_tokens_to_ids("[unused1]")
 
-        # supporting fact label
-        item["sent_offsets"] = sent_offsets
-        item["sent_offsets"] = torch.LongTensor(item["sent_offsets"])
-        if self.train:
-            item["sent_labels"] = sent_labels if len(sent_labels) != 0 else [0] * len(sent_offsets)
-            item["sent_labels"] = torch.LongTensor(item["sent_labels"])
-            item["ans_covered"] = torch.LongTensor([item["ans_covered"]])
-
-        item["label"] = torch.LongTensor([item["label"]])
+        item["sent_offsets"] = torch.LongTensor(sent_offsets)
+        item["sent_labels"] = torch.LongTensor(sent_labels)
+        item["label"] = torch.LongTensor([1  if rerank_para > -1 else 0]) # pos sample, next para always evidential, neg sample, next para never evidential 
         return item
 
 
@@ -428,7 +343,8 @@ class MhopSampler(Sampler):
             sample_indice += neg_samples[:self.neg_num]
         return iter(sample_indice)
 
-def qa_collate(samples, pad_id=0):
+
+def stage1_collate(samples, pad_id=0):
     if len(samples) == 0:
         return {}
 
@@ -438,24 +354,22 @@ def qa_collate(samples, pad_id=0):
         'paragraph_mask': collate_tokens([s['paragraph_mask'] for s in samples], 0),
         'label': collate_tokens([s["label"] for s in samples], -1),
         "sent_offsets": collate_tokens([s["sent_offsets"] for s in samples], 0),
+        "sent_labels": collate_tokens([s['sent_labels'] for s in samples], 0)
         }
 
     # training labels
     if "starts" in samples[0]:
         batch["starts"] = collate_tokens([s['starts'] for s in samples], -1)
         batch["ends"] = collate_tokens([s['ends'] for s in samples], -1)
-        # batch["ans_types"] = collate_tokens([s['ans_type'] for s in samples], -1)
-        batch["sent_labels"] = collate_tokens([s['sent_labels'] for s in samples], 0)
-        #batch["ans_covered"] = collate_tokens([s['ans_covered'] for s in samples], 0)
-
-    # roberta does not use token_type_ids
+        
+    # roberta does not use token_type_ids but electra does
     if "token_type_ids" in samples[0]["encodings"]:
         batch["token_type_ids"] = collate_tokens([s["encodings"]['token_type_ids']for s in samples], 0)
 
     batched = {
-        "qids": [s["qid"] for s in samples],
-        "passages": [s["passages"] for s in samples],
-        "gold_answer": [s["gold_answer"] for s in samples],
+        "qids": [s["_id"] for s in samples],
+        "passages": [[s["context_processed"]['passage']] for s in samples],
+        "gold_answer": [s["answers"] for s in samples],
         "sp_gold": [s["sp_gold"] for s in samples],
         "para_offsets": [s["para_offset"] for s in samples],
         "net_inputs": batch,

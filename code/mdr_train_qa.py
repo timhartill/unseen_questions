@@ -329,8 +329,8 @@ def predict(args, model, eval_dataloader, logger, fixed_thresh=None):
 
             #ems.append(exact_match_score(top_pred, id2gold[qid][0])) #TJH changed
             #f1, prec, recall = f1_score(top_pred, id2gold[qid][0]) #TJH changed
-	    ems.append(exact_match_score(top_pred, id2gold[qid]))
-	    f1, prec, recall = f1_score(top_pred, id2gold[qid])            
+            ems.append(exact_match_score(top_pred, id2gold[qid]))
+            f1, prec, recall = f1_score(top_pred, id2gold[qid])            
             f1s.append(f1)
 
             if args.sp_pred:

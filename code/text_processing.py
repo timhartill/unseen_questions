@@ -275,6 +275,19 @@ def get_sentence_list(text, sentence_spans):
     return sents 
 
 
+def split_into_sentences(text):
+    """ split a paragraph/doc into a list of sentences following convention that 2nd+ sents begin with <space>
+    """
+    doc = nlp(text)
+    sent_list = []
+    for i, sent in enumerate(doc.sents):
+        if i == 0:
+            sent_list.append( sent.text.strip() )
+        else:
+            sent_list.append( ' ' + sent.text.strip() )
+    return sent_list
+
+
 # Adapted from https://github.com/Neutralzz/RefQA (Li et al)
 def identity_translate(cloze_question, mask_type=''):
     """ Replace mask with WH word..."""

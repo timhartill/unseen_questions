@@ -1032,6 +1032,12 @@ def consistent_bridge_format(sample):
                 sample['pos_paras'] = new_pos_paras                                
     elif sample['type'] == 'multi':
         bridge_list = sample['bridge']
+        
+    sp_gold = []
+    for para in sample['pos_paras']:
+        for sent_idx in para['sentence_labels']:
+            sp_gold.append( [para['title'], sent_idx] )
+    sample['sp_gold'] = sp_gold            
     sample['num_hops'] = len(flatten(bridge_list))
     sample['bridge'] = bridge_list 
     return       
