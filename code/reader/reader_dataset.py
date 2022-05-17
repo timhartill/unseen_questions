@@ -41,6 +41,8 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
     else:
         encode_pos = False
         
+    print(f"enc_query. index:{index} encode_pos:{encode_pos}")
+        
     if sample['num_hops'] == 1:
         build_to_hop = 1
     elif sample['num_hops'] == 2:
@@ -77,6 +79,8 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
                                                     para['sentence_spans'], para['sentence_labels'],
                                                     use_sentences=True, prepend_title=True, title_sep=' |')
     q_toks = tokenizer.tokenize(query)[:max_q_len]
+    print(f"enc_query. index:{index} encode_pos:{encode_pos} rerank_para:{rerank_para}  build_to_hop:{build_to_hop}")
+
     return query, q_toks, rerank_para, build_to_hop
 
 
@@ -108,8 +112,7 @@ def encode_context_stage1(sample, tokenizer, rerank_para, train, special_toks=["
             pre_sents.append("[unused1] " + sent.strip())
             s_labels.append(0)
         return title + " " + " ".join(pre_sents), s_labels
-        
-    
+           
     if rerank_para > -1:
         para = sample["pos_paras"][rerank_para]
         context, s_labels = _process_pos(para)
@@ -121,12 +124,10 @@ def encode_context_stage1(sample, tokenizer, rerank_para, train, special_toks=["
         context, s_labels = _process_neg(neg_para)
         para = neg_para
 
+    context = "yes no [unused0] [SEP] " + context  # ELECTRA tokenises yes, no to single tokens
     doc_tokens = []  # ['word1', 'word2', ..]
     char_to_word_offset = []  # list with each char -> idx into doc_tokens
     prev_is_whitespace = True
-
-    context = "yes no [unused0] [SEP] " + context  # ELECTRA tokenises yes, no to single tokens
-
     for c in context:
         if is_whitespace(c):
             prev_is_whitespace = True
@@ -144,11 +145,9 @@ def encode_context_stage1(sample, tokenizer, rerank_para, train, special_toks=["
     all_doc_tokens = []
     for (i, token) in enumerate(doc_tokens):
         orig_to_tok_index.append(len(all_doc_tokens))
-
         if token in special_toks:
             if token == "[unused1]":
                 sent_starts.append(len(all_doc_tokens))  # [sentence start idx -> subword idx]
-
             sub_tokens = [token]
         else:
             sub_tokens = tokenizer.tokenize(token)
@@ -174,11 +173,11 @@ def encode_context_stage1(sample, tokenizer, rerank_para, train, special_toks=["
 
 class Stage1Dataset(Dataset):
 
-    def __init__(self, args, tokenizer, train=False):
-        self.data_path = args.predict_file
-        samples = [json.loads(l) for l in tqdm(open(self.data_path).readlines())]
+    def __init__(self, args, tokenizer, data_path, train=False):
+        self.data_path = data_path
+        samples = [json.loads(l) for l in tqdm(open(data_path).readlines())]
         self.tokenizer = tokenizer
-        self.max_seq_len = args.max_seq_len
+        self.max_seq_len = args.max_c_len
         self.max_q_len = args.max_q_len
         self.train = train
         self.simple_tok = SimpleTokenizer()
@@ -291,14 +290,14 @@ class Stage1Dataset(Dataset):
 class AlternateSampler(Sampler):
     """
     Shuffle pairs of idxs assuming that even idx=pos example, odd=corresponding neg example
-    Each pos/neg will tend to be on same gpu so shared normalisation.. 
+    Each pos/neg will tend to be on same gpu so pseudo shared normalisation.. 
     """
     def __init__(self, dset):
         self.num_samples = len(dset)
         self.idx_pairs = [(i, i+1) for i in range(0, self.num_samples, 2)]
 
     def __len__(self):
-        return self.num_samples
+        return self.num_samples * 2
 
     def __iter__(self):
         indices = []
@@ -376,7 +375,7 @@ def stage1_collate(samples, pad_id=0):
     }
 
     # for answer extraction
-    if "doc_tokens" in samples[0]:
+    if "doc_tokens" in samples[0]:  # only for eval
         batched["doc_tokens"] = [s["doc_tokens"] for s in samples]
         batched["tok_to_orig_index"] = [s["tok_to_orig_index"] for s in samples]
         batched["wp_tokens"] = [s["wp_tokens"] for s in samples]

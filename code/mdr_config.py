@@ -4,7 +4,6 @@
 # This source code is licensed under the license found in the 
 # LICENSE file in the root directory of this source tree.
 import argparse
-from ast import parse
 from typing import NamedTuple
 
 class ClusterConfig(NamedTuple):
@@ -18,15 +17,13 @@ def common_args():
     parser.add_argument("--train_file", type=str,
                         default="../data/nq-with-neg-train.txt")
     parser.add_argument("--predict_file", type=str, default="../data/nq-with-neg-dev.txt")
-    parser.add_argument("--num_workers", default=5, type=int)
-    parser.add_argument("--do_train", default=False,
-                        action='store_true', help="Whether to run training.")
-    parser.add_argument("--do_predict", default=False,
-                        action='store_true', help="Whether to run eval on the dev set.")
+    parser.add_argument("--num_workers", default=10, type=int)
+    parser.add_argument("--do_train", default=False, action='store_true', help="Whether to run training.")
+    parser.add_argument("--do_predict", default=False, action='store_true', help="Whether to run eval on the dev set.")
+    parser.add_argument("--do_test", default=False, action="store_true", help="for final test submission")
 
     # model
-    parser.add_argument("--model_name",
-                        default="bert-base-uncased", type=str)
+    parser.add_argument("--model_name", default="bert-base-uncased", type=str)
     parser.add_argument("--init_checkpoint", type=str,
                         help="Initial checkpoint (usually from a pre-trained BERT model).",
                         default="")
@@ -36,10 +33,11 @@ def common_args():
     parser.add_argument("--max_q_len", default=50, type=int,
                         help="The maximum number of tokens for the question. Questions longer than this will "
                              "be truncated to this length.")
+    parser.add_argument("--max_ans_len", default=35, type=int)
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--fp16_opt_level', type=str, default='O1',
                         help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
-                        "See details at https://nvidia.github.io/apex/amp.html")
+                        "See details at https://nvidia.github.io/apex/amp.html - NOT USED in py native amp implementation")
     parser.add_argument("--no_cuda", default=False, action='store_true',
                         help="Whether not to use CUDA when available")
     parser.add_argument("--local_rank", type=int, default=-1,
@@ -50,6 +48,7 @@ def common_args():
     parser.add_argument("--predict_batch_size", default=512,
                         type=int, help="Total batch size for predictions.")
     parser.add_argument("--shared-encoder", action="store_true")
+    parser.add_argument("--save-prediction", default="", type=str)
 
     # multi vector scheme
     parser.add_argument("--multi-vector", type=int, default=1)
@@ -72,11 +71,10 @@ def common_args():
     parser.add_argument("--num_negs", type=int, default=2, help="Number of adversarial negatives to include for each sample in training.")
     parser.add_argument("--query_use_sentences", action="store_true", help="Use the gold or predicted sentences within a paragraph in the query instead of the entire paragraph.")
     parser.add_argument("--query_add_titles", action="store_true", help="If --query_use_sentences then prepend sentences with para title in query encoding.")
-    parser.add_argument("--random_multi_seq", action="store_true", help="If training type multi para sequencing, randomize para seq in each step.")
-    
-    
+    parser.add_argument("--random_multi_seq", action="store_true", help="If training type multi para sequencing, randomize para seq in each step.")   
 
     return parser
+
 
 def train_args():
     parser = common_args()
@@ -99,8 +97,6 @@ def train_args():
                         help="How often to save the model checkpoint.")
     parser.add_argument("--iterations_per_loop", default=1000, type=int,
                         help="How many steps to make in each estimator call.")
-    parser.add_argument("--accumulate_gradients", type=int, default=1,
-                        help="Number of steps to accumulate gradient on (divide the batch_size and accumulate)")
     parser.add_argument('--seed', type=int, default=3,
                         help="random seed for initialization")
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
@@ -108,15 +104,16 @@ def train_args():
     parser.add_argument('--eval-period', type=int, default=2500)
     parser.add_argument("--max_grad_norm", default=2.0, type=float, help="Max gradient norm.")
     parser.add_argument("--stop-drop", default=0.0, type=float)
-    parser.add_argument("--use-adam", action="store_true")
+    parser.add_argument("--use-adam", action="store_true", help="use adam or adamW")
     parser.add_argument("--warmup-ratio", default=0, type=float, help="Linear warmup over warmup_steps.")
     parser.add_argument("--reduction", default="none", type=str,
                         help="type of reduction to apply in cross-entropy loss - 'sum', 'mean' or 'none' gives sum over mean per hop.")
     parser.add_argument("--retrieve_loss_multiplier", default=1.0, type=float,
                         help="Retrieve loss multiplier. Final loss will be stop_loss + retrieve_loss_multiplier*retrieve_loss")
-
+    parser.add_argument("--sp-weight", default=0, type=float, help="weight of the sentence relevance prediction loss")
 
     return parser.parse_args()
+
 
 def encode_args():
     parser = common_args()

@@ -212,6 +212,15 @@ def convert_brc(string):
     string = re.sub('-COLON-', ':', string)
     return string
 
+def convert_to_unicode(text):
+    """Converts `text` to Unicode (if it's not already), assuming utf-8 input."""
+    if isinstance(text, str):
+        return text
+    elif isinstance(text, bytes):
+        return text.decode("utf-8", "ignore")
+    else:
+        raise ValueError("Unsupported string type: %s" % (type(text)))
+        
 
 def replace_control_chars(text, replace= ' '):
     """ Replace control chars with ' ' or eg '' """

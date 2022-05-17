@@ -4,7 +4,9 @@
 
 Reranker / Sentence Extractor / Reader Model
 
-Used for both 1st stage para/sentence reranking and 2nd stage sentence reranking
+Used for both 1st stage para/sentence reranking and 2nd stage sentence reranking inspired by https://github.com/stanford-futuredata/Baleen
+
+Adapted from https://github.com/facebookresearch/multihop_dense_retrieval
 
 
 @author Tim Hartill
@@ -32,13 +34,12 @@ class BertPooler(nn.Module):
         return pooled_output
 
 
-class ExtractorModel(nn.Module):
+class Stage1Model(nn.Module):
 
     def __init__(self, config, args):
         super().__init__()
         self.model_name = args.model_name
         self.sp_weight = args.sp_weight
-        self.sp_pred = args.sp_pred
         self.encoder = AutoModel.from_pretrained(args.model_name)
 
         if "electra" in args.model_name:
@@ -76,7 +77,7 @@ class ExtractorModel(nn.Module):
 
             rank_target = batch["label"]
             sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")
-            sp_loss = (sp_loss * batch["sent_offsets"]) * batch["label"]  #TODO do I want this?
+            sp_loss = (sp_loss * batch["sent_labels"]) * batch["label"]  #TODO do I want this? was * batch["sent_offsets"]
             sp_loss = sp_loss.sum()
 
             start_positions, end_positions = batch["starts"], batch["ends"]
