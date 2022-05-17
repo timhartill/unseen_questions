@@ -26,8 +26,8 @@ from utils import collate_tokens, get_para_idxs, consistent_bridge_format, encod
 
 def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
     """ Encode query as: question [unused2] title 1 | sent 1. sent 2 [unused2] title 2 | sent 0 ...
-    sample = the (positive) sample
-    index  = the true index which alternates pos/negs. if a neg index then sample is from self.data[index-1]
+    sample = the (positive or corresponding negative) sample
+    index  = the true index which alternates pos/negs. 
     train = whether to randomize para order (train) or keep fixed (dev)
     
     returns: 
@@ -173,6 +173,7 @@ class Stage1Dataset(Dataset):
 
     def __init__(self, args, tokenizer, data_path, train=False):
         self.data_path = data_path
+        print(f"Train:{train} Loading from: {data_path}..")
         samples = [json.loads(l) for l in tqdm(open(data_path).readlines())]
         self.tokenizer = tokenizer
         self.max_seq_len = args.max_c_len
@@ -180,12 +181,13 @@ class Stage1Dataset(Dataset):
         self.train = train
         self.simple_tok = SimpleTokenizer()
         self.data = []  # Each alternate sample will be a blank placeholder denoting a negative for preceding positive
-        for sample in samples:
+        print(f"Standardizing formats...")
+        for sample in tqdm(samples):
             if sample["question"].endswith("?"):
                 sample["question"] = sample["question"][:-1]
             consistent_bridge_format(sample)
             self.data.append(sample)
-            self.data.append({})  # dummy entry for neg example - construct actual neg from data[index-1] 
+            self.data.append(copy.deepcopy(sample))  # dummy entry for neg example - construct actual neg from data[index-1] 
 
         print(f"Data size {len(self.data)}")
 
@@ -193,13 +195,18 @@ class Stage1Dataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
-        if index % 2 == 0:  # encode positive sample
-            sample = self.data[index]
+        sample = self.data[index]
+#        if index % 2 == 0:  # encode positive sample
+#            sample = self.data[index]
             #sample = data[index]
-        else:               # encode neg sample
-            sample = self.data[index-1]
+#        else:               # encode neg sample
+#            sample = self.data[index-1]
+#        print(f"__getitem__ Index:{index}")
         #query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, tokenizer, train, max_q_len, index)
         query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, self.tokenizer, self.train, self.max_q_len, index)
+        if index % 2 == 0:  # encoding positive sample
+            self.data[index+1]['last_build_to_hop'] = build_to_hop #force corresponding neg to build to same # of hops as the positive
+            self.data[index+1]['bridge'] = copy.deepcopy(sample['bridge']) # force neg to use same para order as positive
         #item = encode_context_stage1(sample, tokenizer, rerank_para, train)
         item = encode_context_stage1(sample, self.tokenizer, rerank_para, self.train)
         item["index"] = index
@@ -344,7 +351,7 @@ class MhopSampler(Sampler):
 def stage1_collate(samples, pad_id=0):
     if len(samples) == 0:
         return {}
-
+    
     batch = {
         'input_ids': collate_tokens([s["encodings"]['input_ids'] for s in samples], pad_id),
         'attention_mask': collate_tokens([s["encodings"]['attention_mask'] for s in samples], 0),

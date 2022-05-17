@@ -153,7 +153,7 @@ def main():
         warmup_steps = t_total * args.warmup_ratio
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=t_total)
 
-        nan_max_log = 2
+        #nan_max_log = 2
         
         logger.info('Start training....')
         for epoch in range(int(args.num_train_epochs)):
