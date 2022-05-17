@@ -110,6 +110,7 @@ def main():
 
     eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True, num_workers=args.num_workers)
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
+    #TJH batch = next(iter(eval_dataloader))
 
     if args.init_checkpoint != "":
         model = load_saved(model, args.init_checkpoint)
@@ -146,6 +147,7 @@ def main():
         train_dataset = Stage1Dataset(args, tokenizer, args.train_file, train=True)
         train_sampler = AlternateSampler(train_dataset)
         train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size, pin_memory=True, collate_fn=collate_fc, num_workers=args.num_workers, sampler=train_sampler)
+        #train_dataloader = DataLoader(train_dataset, pin_memory=True, collate_fn=collate_fc, num_workers=0, batch_sampler=torch.utils.data.BatchSampler(train_sampler, batch_size=args.train_batch_size, drop_last=False))
 
         t_total = len(train_dataloader) // args.gradient_accumulation_steps * args.num_train_epochs
         warmup_steps = t_total * args.warmup_ratio
@@ -160,8 +162,6 @@ def main():
                 #TJH batch = next(iter(train_dataloader))
                 batch_step += 1
                 batch_inputs = move_to_cuda(batch["net_inputs"])
-                #TJH: outputs = model(batch) #intermittent error with amp. To reproduce: run next line (should work), then run this line (fail), then run next line again (also fail)
-                #TJH q_embeds = model.encode_q(batch['q_input_ids'][0], batch['q_mask'][0], batch.get("token_type_ids", None)) #intermittent Error with amp, no error without
                 with torch.cuda.amp.autocast(enabled=args.fp16):
                     loss = model( batch_inputs )
                     if n_gpu > 1:

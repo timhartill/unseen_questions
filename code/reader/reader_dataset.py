@@ -40,9 +40,7 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
         encode_pos = True
     else:
         encode_pos = False
-        
-    print(f"enc_query. index:{index} encode_pos:{encode_pos}")
-        
+               
     if sample['num_hops'] == 1:
         build_to_hop = 1
     elif sample['num_hops'] == 2:
@@ -79,7 +77,7 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
                                                     para['sentence_spans'], para['sentence_labels'],
                                                     use_sentences=True, prepend_title=True, title_sep=' |')
     q_toks = tokenizer.tokenize(query)[:max_q_len]
-    print(f"enc_query. index:{index} encode_pos:{encode_pos} rerank_para:{rerank_para}  build_to_hop:{build_to_hop}")
+    #print(f"enc_query. index:{index} encode_pos:{encode_pos} rerank_para:{rerank_para}  build_to_hop:{build_to_hop}")
 
     return query, q_toks, rerank_para, build_to_hop
 
@@ -204,6 +202,7 @@ class Stage1Dataset(Dataset):
         query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, self.tokenizer, self.train, self.max_q_len, index)
         #item = encode_context_stage1(sample, tokenizer, rerank_para, train)
         item = encode_context_stage1(sample, self.tokenizer, rerank_para, self.train)
+        item["index"] = index
         context_ann = item["context_processed"]  
         #q_toks = self.tokenizer.tokenize(item["question"])[:self.max_q_len]
         para_offset = len(q_toks) + 2 #  + cls and sep
@@ -221,8 +220,7 @@ class Stage1Dataset(Dataset):
         item["encodings"] = {'input_ids': input_ids, 'token_type_ids': token_type_ids, 'attention_mask': attention_mask}
         item["paragraph_mask"] = torch.zeros(item["encodings"]["input_ids"].size()).view(-1)
         item["paragraph_mask"][para_offset:-1] = 1  #TJH set para toks -> 1
-        
-        
+                
         if self.train:
             #if neg sample: point to [unused0]/insufficient evidence
             #if full pos sample: point to yes/no/ans span
@@ -293,11 +291,11 @@ class AlternateSampler(Sampler):
     Each pos/neg will tend to be on same gpu so pseudo shared normalisation.. 
     """
     def __init__(self, dset):
-        self.num_samples = len(dset)
+        self.num_samples = len(dset) 
         self.idx_pairs = [(i, i+1) for i in range(0, self.num_samples, 2)]
 
     def __len__(self):
-        return self.num_samples * 2
+        return self.num_samples
 
     def __iter__(self):
         indices = []
@@ -305,7 +303,7 @@ class AlternateSampler(Sampler):
         for idxs in self.idx_pairs:
             for i in idxs:
                 indices.append(i)
-        return iter(indices)
+        yield from iter(indices)
 
 
 
@@ -373,6 +371,9 @@ def stage1_collate(samples, pad_id=0):
         "para_offsets": [s["para_offset"] for s in samples],
         "net_inputs": batch,
     }
+    
+    if "index" in samples[0]:
+        batched["index"] = [s["index"] for s in samples]
 
     # for answer extraction
     if "doc_tokens" in samples[0]:  # only for eval
