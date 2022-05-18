@@ -50,7 +50,7 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
                 sample['last_build_to_hop'] = build_to_hop
             else:
                 build_to_hop = sample['last_build_to_hop']
-        else: # make deterministic for eval
+        else: # make deterministic for eval half taking 1st hop. half second hop
             orig_index = index // 2
             if orig_index % 2 == 0:
                 build_to_hop = 2
@@ -196,12 +196,6 @@ class Stage1Dataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.data[index]
-#        if index % 2 == 0:  # encode positive sample
-#            sample = self.data[index]
-            #sample = data[index]
-#        else:               # encode neg sample
-#            sample = self.data[index-1]
-#        print(f"__getitem__ Index:{index}")
         #query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, tokenizer, train, max_q_len, index)
         query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, self.tokenizer, self.train, self.max_q_len, index)
         if index % 2 == 0:  # encoding positive sample

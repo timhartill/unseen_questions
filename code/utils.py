@@ -796,22 +796,20 @@ def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences
         if txt[-1] not in ['.', '?', '!']:
             txt += '.'            
         return txt
-    if prepend_title:
-        newtext = unescape(title.strip() + title_sep)
-    else:
-        newtext = ''
+    newtext = ''
     for sent_idx in selected_sentences:
-        if sent_idx < 0 or sent_idx >= len(sentence_spans): #hpqa has a few annotation errors where sent_idx > num sentences
+        if sent_idx < 0 or sent_idx >= len(sentence_spans): #hpqa, fever have a few annotation errors where sent_idx > num sentences
             continue
         start, end = sentence_spans[sent_idx]
         sent = text[start:end].strip()
         if sent[-1] not in ['.','?','!']:
             sent += '.'
         newtext = newtext + ' ' + sent
-    if newtext.strip() == '':
-        newtext = text
+    if newtext.strip() == '':  # If no sents found due to annotation errors, use truncated para
+        newtext = text[:600].strip() + '...'
+    if prepend_title:
+        newtext = unescape(title.strip() + title_sep) + ' ' + newtext
     return newtext.strip()
-
 
 
 ########################
