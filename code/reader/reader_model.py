@@ -40,6 +40,9 @@ class Stage1Model(nn.Module):
         super().__init__()
         self.model_name = args.model_name
         self.sp_weight = args.sp_weight
+        self.debug = args.debug
+        self.debug_count = 3
+        self.sent_score_force_zero = args.sent_score_force_zero
         self.encoder = AutoModel.from_pretrained(args.model_name)
 
         if "electra" in args.model_name:
@@ -76,14 +79,14 @@ class Stage1Model(nn.Module):
         if self.training:
 
             rank_target = batch["label"]
+            rank_loss = F.binary_cross_entropy_with_logits(rank_score, rank_target.float(), reduction="sum")
+
             sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")
-            sp_loss = (sp_loss * batch["sent_labels"]) * batch["label"]  #TODO do I want this? was * batch["sent_offsets"]
+            if self.sent_score_force_zero:
+                sp_loss = (sp_loss * batch["sent_labels"]) * batch["label"]  #TODO needed? was * batch["sent_offsets"]
             sp_loss = sp_loss.sum()
 
             start_positions, end_positions = batch["starts"], batch["ends"]
-
-            rank_loss = F.binary_cross_entropy_with_logits(rank_score, rank_target.float(), reduction="sum")
-
             # torch.unbind converts [ [1], [2], [3] ] to ([1,2,3]) like .squeeze(-1) only in tuple
             start_losses = [self.loss_fct(start_logits, starts) for starts in torch.unbind(start_positions, dim=1)]
             end_losses = [self.loss_fct(end_logits, ends) for ends in torch.unbind(end_positions, dim=1)]
@@ -97,13 +100,16 @@ class Stage1Model(nn.Module):
                     start_logits.size(0)).long()-1).sum()
             else:
                 span_loss = - torch.log(torch.cat(m_prob)).sum()
-
+            
             loss = rank_loss + span_loss + sp_loss * self.sp_weight
+            if self.debug and self.debug_count > 0:
+                print(f"LOSSES: rank_loss:{rank_loss}  span_loss:{span_loss}  sp_loss_before_weight:{sp_loss}  sp_weight:{self.sp_weight}")
+                self.debug_count -= 1
             return loss.unsqueeze(0)
 
         return {
-            'start_logits': start_logits,
-            'end_logits': end_logits,
-            'rank_score': rank_score,
-            "sp_score": sp_score
+            'start_logits': start_logits,   # [bs, seq_len]
+            'end_logits': end_logits,       # [bs, seq_len]
+            'rank_score': rank_score,       # [bs,1] is para evidential 0<->1
+            "sp_score": sp_score            # [bs, num_sentences] is sentence evidential [0,1,0,0..]
             }

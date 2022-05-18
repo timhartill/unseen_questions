@@ -4,11 +4,7 @@
 # This source code is licensed under the license found in the 
 # LICENSE file in the root directory of this source tree.
 import argparse
-from typing import NamedTuple
 
-class ClusterConfig(NamedTuple):
-    dist_backend: str
-    dist_url: str
 
 def common_args():
     parser = argparse.ArgumentParser()
@@ -72,6 +68,8 @@ def common_args():
     parser.add_argument("--query_use_sentences", action="store_true", help="Use the gold or predicted sentences within a paragraph in the query instead of the entire paragraph.")
     parser.add_argument("--query_add_titles", action="store_true", help="If --query_use_sentences then prepend sentences with para title in query encoding.")
     parser.add_argument("--random_multi_seq", action="store_true", help="If training type multi para sequencing, randomize para seq in each step.")   
+    parser.add_argument("--sent_score_force_zero", action="store_true", help="Stage 1 reader training : Zero sentence scores where sent or para label is zero.")   
+
 
     return parser
 

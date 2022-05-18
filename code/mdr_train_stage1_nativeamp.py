@@ -28,6 +28,8 @@ args.output_dir = '/large_data/thar011/out/mdr/logs'
 args.gradient_accumulation_steps = 1
 args.use_adam=True
 args.sp_weight = 1.0
+args.sent_score_force_zero = True
+
 """
 
 import logging
@@ -157,7 +159,7 @@ def main():
         
         logger.info('Start training....')
         for epoch in range(int(args.num_train_epochs)):
-            nan_count = 0
+            #nan_count = 0
             for batch in tqdm(train_dataloader):
                 #TJH batch = next(iter(train_dataloader))
                 batch_step += 1
@@ -233,6 +235,14 @@ def main():
 
 
 def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
+    """      model returns {
+            'start_logits': start_logits,   # [bs, seq_len]
+            'end_logits': end_logits,       # [bs, seq_len]
+            'rank_score': rank_score,       # [bs,1] is para evidential 0<->1
+            "sp_score": sp_score            # [bs, num_sentences] is sentence evidential [0,1,0,0..]
+            }
+
+    """
     model.eval()
     id2result = collections.defaultdict(list)
     id2answer = collections.defaultdict(list)
@@ -246,15 +256,12 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             outputs = model(batch_to_feed)
             scores = outputs["rank_score"]
             scores = scores.view(-1).tolist()
-            if args.sp_pred:
-                sp_scores = outputs["sp_score"]
-                sp_scores = sp_scores.float().masked_fill(batch_to_feed["sent_offsets"].eq(0), float("-inf")).type_as(sp_scores)
-                batch_sp_scores = sp_scores.sigmoid()
-
-            # ans_type_predicted = torch.argmax(outputs["ans_type_logits"], dim=1).view(-1).tolist()
+            sp_scores = outputs["sp_score"]
+            sp_scores = sp_scores.float().masked_fill(batch_to_feed["sent_offsets"].eq(0), float("-inf")).type_as(sp_scores)
+            batch_sp_scores = sp_scores.sigmoid()
             outs = [outputs["start_logits"], outputs["end_logits"]]
         for qid, label, score in zip(batch_qids, batch_labels, scores):
-            id2result[qid].append((label, score))
+            id2result[qid].append((label, score))  #TODO TJH adjust for negs with same qid
 
         # answer prediction
         span_scores = outs[0][:, :, None] + outs[1][:, None]
@@ -263,14 +270,11 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
         span_mask = span_scores.data.new(max_seq_len, max_seq_len).copy_(torch.from_numpy(span_mask))
         span_scores_masked = span_scores.float().masked_fill((1 - span_mask[None].expand_as(span_scores)).bool(), -1e10).type_as(span_scores)
         start_position = span_scores_masked.max(dim=2)[0].max(dim=1)[1]
-        end_position = span_scores_masked.max(dim=2)[1].gather(
-            1, start_position.unsqueeze(1)).squeeze(1)
+        end_position = span_scores_masked.max(dim=2)[1].gather(1, start_position.unsqueeze(1)).squeeze(1)
         answer_scores = span_scores_masked.max(dim=2)[0].max(dim=1)[0].tolist()
         para_offset = batch['para_offsets']
-        start_position_ = list(
-            np.array(start_position.tolist()) - np.array(para_offset))
-        end_position_ = list(
-            np.array(end_position.tolist()) - np.array(para_offset)) 
+        start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))
+        end_position_ = list(np.array(end_position.tolist()) - np.array(para_offset)) 
 
         for idx, qid in enumerate(batch_qids):
             id2gold[qid] = batch["gold_answer"][idx]
@@ -298,17 +302,16 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
 
             # get the sp sentences
             pred_sp = []
-            if args.sp_pred:
-                sp_score = batch_sp_scores[idx].tolist()
-                passages = batch["passages"][idx]
-                for passage, sent_offset in zip(passages, [0, len(passages[0]["sents"])]):
-                    for idx, _ in enumerate(passage["sents"]):
-                        try:
-                            if sp_score[idx + sent_offset] >= 0.5:
-                                pred_sp.append([passage["title"], idx])
-                        except:
-                            # logger.info(f"sentence exceeds max lengths")
-                            continue
+            sp_score = batch_sp_scores[idx].tolist()
+            passages = batch["passages"][idx]  #TODO TJH my passages are the single final passage as list: [{'title':.. 'text':.., 'sentence_spans':.. 'sentence_labels':.. latter 2 only only if pos}]
+            for passage, sent_offset in zip(passages, [0, len(passages[0]["sents"])]):
+                for idx, _ in enumerate(passage["sents"]):
+                    try:
+                        if sp_score[idx + sent_offset] >= 0.5:
+                            pred_sp.append([passage["title"], idx])
+                    except:
+                        # logger.info(f"sentence exceeds max lengths")
+                        continue
             id2answer[qid].append({
                 "pred_str": pred_str.strip(),
                 "rank_score": rank_score,
