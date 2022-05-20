@@ -66,7 +66,7 @@ class Stage1Model(nn.Module):
 
         logits = self.qa_outputs(sequence_output) # [bs, seq_len, 2]
         outs = [o.squeeze(-1) for o in logits.split(1, dim=-1)]  # [ [bs, seq_len], [bs, seq_len] ]
-        #TJH fill everything not in a para with -inf:  [ [bs, seq_len], [bs, seq_len] ]
+        #TJH could remove para mask but would need to adjust 'doc_tokens' to include everything new. originally fill everything not in a para with -inf:  [ [bs, seq_len], [bs, seq_len] ]
         outs = [o.float().masked_fill(batch["paragraph_mask"].ne(1), float("-inf")).type_as(o) for o in outs]  #TJH ne = elementwise not equal
 
         start_logits, end_logits = outs[0], outs[1]  # start_logits: [bs, seq_len]  end_logits: [bs, seq_len]

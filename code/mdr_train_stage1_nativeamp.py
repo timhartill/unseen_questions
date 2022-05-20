@@ -239,46 +239,60 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             'start_logits': start_logits,   # [bs, seq_len]
             'end_logits': end_logits,       # [bs, seq_len]
             'rank_score': rank_score,       # [bs,1] is para evidential 0<->1
-            "sp_score": sp_score            # [bs, num_sentences] is sentence evidential [0,1,0,0..]
+            "sp_score": sp_score            # [bs, num_sentences] is sentence evidential [0.2,0.1,0.99..]
             }
-
+    
+        batch.keys(): dict_keys(['qids', 'passages', 'gold_answer', 'sp_gold', 'para_offsets', 
+                                 'net_inputs', 'index', 'doc_tokens', 'tok_to_orig_index', 'wp_tokens', 'full'])
+        batch['net_inputs'].keys(): dict_keys(['input_ids', 'attention_mask', 'paragraph_mask', 'label', 
+                                               'sent_offsets', 'sent_labels', 'token_type_ids'])
     """
     model.eval()
     id2result = collections.defaultdict(list)
     id2answer = collections.defaultdict(list)
     id2gold = {}
     id2goldsp = {}
+    id2fullpartial = {}
     for batch in tqdm(eval_dataloader):
+        #TJH batch = next(iter(eval_dataloader))  
+        # batch_to_feed = batch["net_inputs"] 
         batch_to_feed = move_to_cuda(batch["net_inputs"])
         batch_qids = batch["qids"]
-        batch_labels = batch["net_inputs"]["label"].view(-1).tolist()
+        batch_index = batch["index"]
+        batch_full = batch["full"]
+        batch_labels = batch["net_inputs"]["label"].view(-1).tolist() # list [bs] = 1/0
         with torch.no_grad():
-            outputs = model(batch_to_feed)
+            outputs = model(batch_to_feed)  # dict_keys(['start_logits', 'end_logits', 'rank_score', 'sp_score'])
             scores = outputs["rank_score"]
-            scores = scores.view(-1).tolist()
-            sp_scores = outputs["sp_score"]
-            sp_scores = sp_scores.float().masked_fill(batch_to_feed["sent_offsets"].eq(0), float("-inf")).type_as(sp_scores)
-            batch_sp_scores = sp_scores.sigmoid()
-            outs = [outputs["start_logits"], outputs["end_logits"]]
-        for qid, label, score in zip(batch_qids, batch_labels, scores):
-            id2result[qid].append((label, score))  #TODO TJH adjust for negs with same qid
+            scores = scores.view(-1).tolist()  # list [bs] = 0.00562..
+            sp_scores = outputs["sp_score"]    # [bs, max#sentsinbatch]
+            sp_scores = sp_scores.float().masked_fill(batch_to_feed["sent_offsets"].eq(0), float("-inf")).type_as(sp_scores)  #mask scores past end of # sents in sample
+            batch_sp_scores = sp_scores.sigmoid()  # [bs, max#sentsinbatch]  [0.678, 0.5531, 0.0, 0.0, ...]
+            outs = [outputs["start_logits"], outputs["end_logits"]]  # [ [bs, maxseqleninbatch], [bs, maxseqleninbatch] ]
+        for qid, index, full, label, score in zip(batch_qids, batch_index, batch_full, batch_labels, scores):
+            if index % 2 != 0: # odd indices are evaluating neg paras
+                neg_flag = '__neg__'
+            else: 
+                neg_flag = ''
+            id2result[qid+neg_flag].append( (label, score) )  #TODO TJH adjust for negs with same qid [ (para label, para score) ]
+            id2fullpartial[qid+neg_flag] = int(full)  # 1 = query+para = full path (to neg or pos), 0 = partial path
 
         # answer prediction
-        span_scores = outs[0][:, :, None] + outs[1][:, None]
+        span_scores = outs[0][:, :, None] + outs[1][:, None]  # [bs, maxseqleninbatch, maxseqleninbatch]
         max_seq_len = span_scores.size(1)
-        span_mask = np.tril(np.triu(np.ones((max_seq_len, max_seq_len)), 0), args.max_ans_len)
-        span_mask = span_scores.data.new(max_seq_len, max_seq_len).copy_(torch.from_numpy(span_mask))
-        span_scores_masked = span_scores.float().masked_fill((1 - span_mask[None].expand_as(span_scores)).bool(), -1e10).type_as(span_scores)
-        start_position = span_scores_masked.max(dim=2)[0].max(dim=1)[1]
-        end_position = span_scores_masked.max(dim=2)[1].gather(1, start_position.unsqueeze(1)).squeeze(1)
-        answer_scores = span_scores_masked.max(dim=2)[0].max(dim=1)[0].tolist()
-        para_offset = batch['para_offsets']
-        start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))
+        span_mask = np.tril(np.triu(np.ones((max_seq_len, max_seq_len)), 0), args.max_ans_len)          # [maxseqleninbatch, maxseqleninbatch]
+        span_mask = span_scores.data.new(max_seq_len, max_seq_len).copy_(torch.from_numpy(span_mask))   # [maxseqleninbatch, maxseqleninbatch]
+        span_scores_masked = span_scores.float().masked_fill((1 - span_mask[None].expand_as(span_scores)).bool(), -1e10).type_as(span_scores)  # [bs, maxseqleninbatch, maxseqleninbatch]
+        start_position = span_scores_masked.max(dim=2)[0].max(dim=1)[1]  # [bs]
+        end_position = span_scores_masked.max(dim=2)[1].gather(1, start_position.unsqueeze(1)).squeeze(1) # [bs]
+        answer_scores = span_scores_masked.max(dim=2)[0].max(dim=1)[0].tolist() # [bs]
+        para_offset = batch['para_offsets']  # [bs]
+        start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))  #para masking adjusted to start after base question
         end_position_ = list(np.array(end_position.tolist()) - np.array(para_offset)) 
 
         for idx, qid in enumerate(batch_qids):
             id2gold[qid] = batch["gold_answer"][idx]
-            id2goldsp[qid] = batch["sp_gold"][idx]
+            id2goldsp[qid] = batch["sp_gold"][idx] # [['Where Blood and Fire Bring Rest', 2], ['The Shining (film)', 1]]
 
             rank_score = scores[idx]
             start = start_position_[idx]
@@ -320,8 +334,8 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             })
     acc = []
     for qid, res in id2result.items():
-        res.sort(key=lambda x: x[1], reverse=True)
-        acc.append(res[0][0] == 1)
+        res.sort(key=lambda x: x[1], reverse=True)  # [(para label, para score)]  pointless sort since always 1 element?
+        acc.append(res[0][0] == 1)  # acc of para label derived using "ans_covered" - only relevant where using retrieval results
     logger.info(f"evaluated {len(id2result)} questions...")
     logger.info(f'chain ranking em: {np.mean(acc)}')
 
