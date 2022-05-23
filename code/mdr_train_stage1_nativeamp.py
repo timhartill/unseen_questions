@@ -255,7 +255,7 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
     id2goldsp = {}
     id2fullpartial = {}
     for batch in tqdm(eval_dataloader):
-        #TJH batch = next(iter(eval_dataloader))  
+        #TJH batch = next(iter(eval_dataloader))
         # batch_to_feed = batch["net_inputs"] 
         batch_to_feed = move_to_cuda(batch["net_inputs"])
         batch_qids = batch["qids"]
@@ -265,14 +265,14 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
         with torch.no_grad():
             outputs = model(batch_to_feed)  # dict_keys(['start_logits', 'end_logits', 'rank_score', 'sp_score'])
             scores = outputs["rank_score"]
-            scores = scores.view(-1).tolist()  # list [bs] = 0.00562..
+            scores = scores.sigmoid().view(-1).tolist()  # added .sigmoid()  list [bs] = 0.46923
             sp_scores = outputs["sp_score"]    # [bs, max#sentsinbatch]
             sp_scores = sp_scores.float().masked_fill(batch_to_feed["sent_offsets"].eq(0), float("-inf")).type_as(sp_scores)  #mask scores past end of # sents in sample
             batch_sp_scores = sp_scores.sigmoid()  # [bs, max#sentsinbatch]  [0.678, 0.5531, 0.0, 0.0, ...]
             outs = [outputs["start_logits"], outputs["end_logits"]]  # [ [bs, maxseqleninbatch], [bs, maxseqleninbatch] ]
 
         for qid, index, full, label, score in zip(batch_qids, batch_index, batch_full, batch_labels, scores):
-            id2result[qid].append( (label, score) )   #[ (para label, para score) ]
+            id2result[qid].append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
             id2fullpartial[qid] = int(full)  # 1 = query+para = full path (to neg or pos), 0 = partial path
 
         # answer prediction
@@ -293,6 +293,10 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             id2goldsp[qid] = batch["sp_gold"][idx]
             
             rank_score = scores[idx]
+            if rank_score >= 0.5:
+                para_pred = 1
+            else:
+                para_pred = 0
             start = start_position_[idx]
             end = end_position_[idx]
             span_score = answer_scores[idx]
@@ -318,7 +322,7 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             passage =  batch["passages"][idx][0]
             #sent_offset = batch['net_inputs']['sent_offsets'][idx].tolist()
             for sent_idx, sent_score in enumerate(sp_score):
-                if sent_score >= 0.5:
+                if sent_score >= 0.5:  #TODO configure this threshold
                     pred_sp.append([passage["title"], sent_idx])
 
 #            passages = batch["passages"][idx]  
@@ -331,8 +335,10 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
                         # logger.info(f"sentence exceeds max lengths")
 #                        continue
             id2answer[qid].append({
+                "full": id2fullpartial[qid],
                 "pred_str": pred_str.strip(),
                 "rank_score": rank_score,
+                "para_pred": para_pred,
                 "span_score": span_score,
                 "pred_sp": pred_sp
             })
@@ -343,69 +349,79 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
 #    logger.info(f"evaluated {len(id2result)} questions...")
 #    logger.info(f'chain ranking em: {np.mean(acc)}')
 
-    best_em, best_f1, best_joint_em, best_joint_f1, best_sp_em, best_sp_f1 = 0, 0, 0, 0, 0, 0
+    best_em, best_f1, best_joint_em, best_joint_f1, best_sp_em, best_sp_f1, best_para_acc = 0, 0, 0, 0, 0, 0, 0
     best_res = None
-    if fixed_thresh:
-        lambdas = [fixed_thresh]
-    else:
-        # selecting threshhold on the dev data
-        lambdas = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+#    if fixed_thresh:
+#        lambdas = [fixed_thresh]
+#    else:
+#        # selecting threshhold on the dev data
+#        lambdas = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
 
-    for lambda_ in lambdas:
-        ems, f1s, sp_ems, sp_f1s, joint_ems, joint_f1s = [], [], [], [], [], []
-        results = collections.defaultdict(dict)
-        for qid, res in id2result.items():
-            ans_res = id2answer[qid]
-            ans_res.sort(key=lambda x: lambda_ * x["rank_score"] + (1 - lambda_) * x["span_score"], reverse=True)
-            top_pred = ans_res[0]["pred_str"]
-            top_pred_sp = ans_res[0]["pred_sp"]
+#    for lambda_ in lambdas:
+    ems, f1s, sp_ems, sp_f1s, joint_ems, joint_f1s, para_acc = [], [], [], [], [], [], []
+    results = collections.defaultdict(dict)
+    for qid, res in id2result.items():
+        ans_res = id2answer[qid]  # now only one ans so sort does nothing..
+        #ans_res.sort(key=lambda x: lambda_ * x["rank_score"] + (1 - lambda_) * x["span_score"], reverse=True)
+        top_pred = ans_res[0]["pred_str"]
+        top_pred_sp = ans_res[0]["pred_sp"]
+        top_pred_para = ans_res[0]["para_pred"]
 
-            results["answer"][qid] = top_pred
-            results["sp"][qid] = top_pred_sp
+        results["answer"][qid] = top_pred
+        results["sp"][qid] = top_pred_sp
+        results["para"][qid] = top_pred_para
+        
+        # para evidentiality eval (accuracy)
+        para_acc.append(int(top_pred_para == res[0][0]))
 
-            ems.append(exact_match_score(top_pred, id2gold[qid][0])) 
-            f1, prec, recall = f1_score(top_pred, id2gold[qid][0]) 
-            #ems.append(exact_match_score(top_pred, id2gold[qid])) # not using multi-answer versions of exact match, f1
-            #f1, prec, recall = f1_score(top_pred, id2gold[qid])            
-            f1s.append(f1)
+        # answer eval
+        ems.append(exact_match_score(top_pred, id2gold[qid][0])) 
+        f1, prec, recall = f1_score(top_pred, id2gold[qid][0]) 
+        #ems.append(exact_match_score(top_pred, id2gold[qid])) # not using multi-answer versions of exact match, f1
+        #f1, prec, recall = f1_score(top_pred, id2gold[qid])            
+        f1s.append(f1)
 
-            metrics = {'sp_em': 0, 'sp_f1': 0, 'sp_prec': 0, 'sp_recall': 0}
-            update_sp(metrics, top_pred_sp, id2goldsp[qid])
-            sp_ems.append(metrics['sp_em'])
-            sp_f1s.append(metrics['sp_f1'])
-            # joint metrics
-            joint_prec = prec * metrics["sp_prec"]
-            joint_recall = recall * metrics["sp_recall"]
-            if joint_prec + joint_recall > 0:
-                joint_f1 = 2 * joint_prec * joint_recall / (joint_prec + joint_recall)
-            else:
-                joint_f1 = 0.
-            joint_em = ems[-1] * sp_ems[-1]
-            joint_ems.append(joint_em)
-            joint_f1s.append(joint_f1)
+        # sentence eval incl para
+        metrics = {'sp_em': 0, 'sp_f1': 0, 'sp_prec': 0, 'sp_recall': 0}
+        update_sp(metrics, top_pred_sp, id2goldsp[qid])
+        sp_ems.append(metrics['sp_em'])
+        sp_f1s.append(metrics['sp_f1'])
+        # joint metrics
+        joint_prec = prec * metrics["sp_prec"]
+        joint_recall = recall * metrics["sp_recall"]
+        if joint_prec + joint_recall > 0:
+            joint_f1 = 2 * joint_prec * joint_recall / (joint_prec + joint_recall)
+        else:
+            joint_f1 = 0.
+        joint_em = ems[-1] * sp_ems[-1]
+        joint_ems.append(joint_em)
+        joint_f1s.append(joint_f1)
 
-        if best_joint_f1 < np.mean(joint_f1s):
-            best_joint_f1 = np.mean(joint_f1s)
-            best_joint_em = np.mean(joint_ems)
-            best_sp_f1 = np.mean(sp_f1s)
-            best_sp_em = np.mean(sp_ems)
-            best_f1 = np.mean(f1s)
-            best_em = np.mean(ems)
-            best_res = results
+    #if best_joint_f1 < np.mean(joint_f1s):
+    best_joint_f1 = np.mean(joint_f1s)
+    best_joint_em = np.mean(joint_ems)
+    best_sp_f1 = np.mean(sp_f1s)
+    best_sp_em = np.mean(sp_ems)
+    best_f1 = np.mean(f1s)
+    best_em = np.mean(ems)
+    best_para_acc = np.mean(para_acc)
+    best_res = results
 
-        logger.info(f".......Using combination factor {lambda_}......")
-        logger.info(f'answer em: {np.mean(ems)}, count: {len(ems)}')
-        logger.info(f'answer f1: {np.mean(f1s)}, count: {len(f1s)}')
-        logger.info(f'sp em: {np.mean(sp_ems)}, count: {len(sp_ems)}')
-        logger.info(f'sp f1: {np.mean(sp_f1s)}, count: {len(sp_f1s)}')
-        logger.info(f'joint em: {np.mean(joint_ems)}, count: {len(joint_ems)}')
-        logger.info(f'joint f1: {np.mean(joint_f1s)}, count: {len(joint_f1s)}')
+    #logger.info(f".......Using combination factor {lambda_}......")
+    logger.info("------------------------------------------------")
+    logger.info(f'answer em: {np.mean(ems)}, count: {len(ems)}')
+    logger.info(f'answer f1: {np.mean(f1s)}, count: {len(f1s)}')
+    logger.info(f'sp em: {np.mean(sp_ems)}, count: {len(sp_ems)}')
+    logger.info(f'sp f1: {np.mean(sp_f1s)}, count: {len(sp_f1s)}')
+    logger.info(f'joint em: {np.mean(joint_ems)}, count: {len(joint_ems)}')
+    logger.info(f'joint f1: {np.mean(joint_f1s)}, count: {len(joint_f1s)}')
+    logger.info(f'para acc: {np.mean(para_acc)}, count:{len(para_acc)}')
     logger.info(f"Best joint F1 from combination {best_joint_f1}")
     if args.save_prediction != "":
         json.dump(best_res, open(f"{args.save_prediction}", "w"))
 
     model.train()
-    return {"em": best_em, "f1": best_f1, "joint_em": best_joint_em, "joint_f1": best_joint_f1, "sp_em": best_sp_em, "sp_f1": best_sp_f1}
+    return {"em": best_em, "f1": best_f1, "joint_em": best_joint_em, "joint_f1": best_joint_f1, "sp_em": best_sp_em, "sp_f1": best_sp_f1, "para_acc": best_para_acc}
 
 
 #################
