@@ -1035,7 +1035,7 @@ def consistent_bridge_format(sample):
     for para in sample['pos_paras']:
         for sent_idx in para['sentence_labels']:
             sp_gold.append( [para['title'], sent_idx] )
-    sample['sp_gold'] = sp_gold            
+    sample['sp_gold'] = sp_gold           # full evidence annotation over all evidential paras 
     sample['num_hops'] = len(flatten(bridge_list))
     sample['bridge'] = bridge_list 
     return       

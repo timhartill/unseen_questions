@@ -73,9 +73,9 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
     for i, para in enumerate(para_list):
         if i+1 >= build_to_hop:
             if encode_pos:
-                rerank_para = para_idxs[para['title']][0]
+                rerank_para = para_idxs[para['title']][0]  #always select next pos para
             else:
-                rerank_para = -1
+                rerank_para = -1  # select either 1st (eval) or random (train) neg para
             break
         query += ' [unused2] ' + encode_query_paras(para['text'], para['title'], 
                                                     para['sentence_spans'], para['sentence_labels'],
@@ -191,8 +191,16 @@ class Stage1Dataset(Dataset):
             if sample["question"].endswith("?"):
                 sample["question"] = sample["question"][:-1]
             consistent_bridge_format(sample)
-            data.append(sample)
-            data.append(copy.deepcopy(sample))  # dummy entry for neg example - construct actual neg from data[index-1] 
+            if sample['answers'][0] in ["SUPPORTED", "SUPPORTS"]: #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
+                sample['answers'][0] = 'yes'
+            elif sample['answers'][0] in ["REFUTES", "NOT_SUPPORTED"]:
+                sample['answers'][0] = 'no'
+            data.append(sample)                 # pos example - para is always pos but may not be final
+            neg_sample = copy.deepcopy(sample)
+            neg_sample['_id'] += '__neg__'
+            neg_sample['answers'] = ['[unused0]']   # neg sample always has 'insufficient evidence' answer
+            neg_sample['sp_gold_single'] = [[]]     # neg sample 'correct' title/sents dont exist 
+            data.append(neg_sample)  # neg example - para is always neg but may not be final
         self.data = data
         print(f"Data size {len(self.data)}")
 
@@ -203,9 +211,9 @@ class Stage1Dataset(Dataset):
         sample = self.data[index]
         #query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, tokenizer, train, max_q_len, index)
         query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, self.tokenizer, self.train, self.max_q_len, index)
-        if index % 2 == 0:  # encoding positive sample
-            self.data[index+1]['last_build_to_hop'] = build_to_hop #force corresponding neg to build to same # of hops as the positive
-            self.data[index+1]['bridge'] = copy.deepcopy(sample['bridge']) # force neg to use same para order as positive
+        if index % 2 == 0:                                                  # encoding positive sample -> make neg query be encoded the same way
+            self.data[index+1]['last_build_to_hop'] = build_to_hop          #force corresponding neg to build to same # of hops as the positive
+            self.data[index+1]['bridge'] = copy.deepcopy(sample['bridge'])  # force neg to use same para order as positive
         #item = encode_context_stage1(sample, tokenizer, rerank_para, train, query)
         item = encode_context_stage1(sample, self.tokenizer, rerank_para, self.train, query)
         item["index"] = index
@@ -233,7 +241,7 @@ class Stage1Dataset(Dataset):
             #if full pos sample: point to yes/no/ans span
             #if partial pos sample: point to [unused0]
             if rerank_para > -1 and build_to_hop >= item['num_hops']: # if pos & fully evidential ie query + next para = full para set
-                if item["answers"][0] in ["yes", "SUPPORTED", "SUPPORTS"]: #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
+                if item["answers"][0] in ["yes", "SUPPORTED", "SUPPORTS"]: # ans mapped to y/n in init above but kept here in case want to change back
                     starts, ends= [ans_offset], [ans_offset]
                 elif item["answers"][0] in ["no", "REFUTES", "NOT_SUPPORTED"]:
                     starts, ends= [ans_offset + 1], [ans_offset + 1]
@@ -272,13 +280,27 @@ class Stage1Dataset(Dataset):
             item["starts"] = torch.LongTensor(starts)
             item["ends"] = torch.LongTensor(ends)
 
-        else:   # for answer extraction
+        else:   # eval sample 
             item["full"] = torch.LongTensor([1 if build_to_hop >= item['num_hops'] else 0])
             item["doc_tokens"] = context_ann["doc_tokens"]
             item["tok_to_orig_index"] = context_ann["tok_to_orig_index"]
+            if rerank_para > -1 and build_to_hop < item['num_hops']: # update labels if pos but partial sample
+                item = copy.deepcopy(item) # need to override answer
+                item['answers'] = ['[unused0]']
+        
+        if rerank_para > -1: # negs already have sp_gold_single = [[]]
+            sp_gold_single = []
+            for sentence_label in item["context_processed"]["passage"]["sentence_labels"]:
+                if sentence_label < len(item["context_processed"]["passage"]["sentence_spans"]):
+                    sp_gold_single.append( [item["context_processed"]["passage"]["title"], sentence_label] )
+            if sp_gold_single == []:
+                sp_gold_single = [[]]
+            item['sp_gold_single'] = sp_gold_single
+        
 
         # filter sentence offsets exceeding max sequence length
         sent_labels, sent_offsets = [], []
+        sp_gold_single = []
         for idx, s in enumerate(item["context_processed"]["sent_starts"]):
             if s >= len(item["wp_tokens"]): #if wp_tokens truncated, sent labels could be invalid
                 break
@@ -375,7 +397,7 @@ def stage1_collate(samples, pad_id=0):
         "qids": [s["_id"] for s in samples],
         "passages": [[s["context_processed"]['passage']] for s in samples],
         "gold_answer": [s["answers"] for s in samples],
-        "sp_gold": [s["sp_gold"] for s in samples],
+        "sp_gold": [s["sp_gold_single"] for s in samples],
         "para_offsets": [s["para_offset"] for s in samples],
         "net_inputs": batch,
     }
