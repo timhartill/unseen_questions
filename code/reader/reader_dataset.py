@@ -165,7 +165,7 @@ def encode_context_stage1(sample, tokenizer, rerank_para, train, query, special_
         "orig_to_tok_index": orig_to_tok_index,       # [whole word idx -> subword idx]
         "tok_to_orig_index": tok_to_orig_index,       # [ subword token idx -> whole word token idx]
         "all_doc_tokens": all_doc_tokens,             # [ sub word tokens ]
-        "context": context,                           # full context string
+        "context": context,                           # full context string including 'sentences' part of query
         "sent_starts": sent_starts,                   # [sentence start idx -> subword token idx]
         "sent_labels": s_labels,                      # [multihot sentence labels]
         "passage": para,                              # the pos or neg para {'title':.. 'text':..., pos/neg specific keys}
@@ -219,7 +219,7 @@ class Stage1Dataset(Dataset):
         item["index"] = index
         context_ann = item["context_processed"]
         #q_toks = self.tokenizer.tokenize(item["question"])[:self.max_q_len]
-        para_offset = len(q_toks) + 1 #  + cls 
+        para_offset = len(q_toks) + 1 #  cls 
         item["wp_tokens"] = context_ann["all_doc_tokens"]  # [subword tokens]
         #assert item["wp_tokens"][0] == "yes" and item["wp_tokens"][1] == "no"
         item["para_offset"] = para_offset  # 1st tok after basic question ie start of sentences component of query
@@ -233,14 +233,20 @@ class Stage1Dataset(Dataset):
         token_type_ids = torch.tensor([[0] * para_offset + [1] * (input_ids.shape[1]-para_offset)], dtype=torch.int64)
         item["encodings"] = {'input_ids': input_ids, 'token_type_ids': token_type_ids, 'attention_mask': attention_mask}
         item["paragraph_mask"] = torch.zeros(item["encodings"]["input_ids"].size()).view(-1)
-        item["paragraph_mask"][para_offset:-1] = 1  #TJH set para toks -> 1
+        item["paragraph_mask"][para_offset:-1] = 1  #set sentences part of query + para toks -> 1
+        #NOTE if query very long then 1st [SEP] will be the EOS token at pos 511 & ans_offset will be at 512 over max seq len...
+        #ans_offset = torch.where(input_ids[0] == tokenizer.sep_token_id)[0][0].item()+1
         ans_offset = torch.where(input_ids[0] == self.tokenizer.sep_token_id)[0][0].item()+1  # tok after 1st [SEP] = yes = start of non extractive answer options
-        
+        if ans_offset >= 509: #non extractive ans options + eval para truncated due to very long query
+            ans_offset = -1  
+                   
         if self.train:
             #if neg sample: point to [unused0]/insufficient evidence
             #if full pos sample: point to yes/no/ans span
             #if partial pos sample: point to [unused0]
-            if rerank_para > -1 and build_to_hop >= item['num_hops']: # if pos & fully evidential ie query + next para = full para set
+            if ans_offset == -1:
+                starts, ends = [-1], [-1]  #CE will ignore -1
+            elif rerank_para > -1 and build_to_hop >= item['num_hops']: # if pos & fully evidential ie query + next para = full para set
                 if item["answers"][0] in ["yes", "SUPPORTED", "SUPPORTS"]: # ans mapped to y/n in init above but kept here in case want to change back
                     starts, ends= [ans_offset], [ans_offset]
                 elif item["answers"][0] in ["no", "REFUTES", "NOT_SUPPORTED"]:
@@ -265,7 +271,7 @@ class Stage1Dataset(Dataset):
                                 ans_ends.append(e)
                     starts, ends = [], []
                     for s, e in zip(ans_starts, ans_ends):
-                        if s >= len(item["wp_tokens"]): 
+                        if s >= len(item["wp_tokens"]) or s < 0: 
                             continue
                         else:
                             s = min(s, len(item["wp_tokens"]) - 1) + para_offset  #TJH accurate into item["encodings"]["input_ids"][0]

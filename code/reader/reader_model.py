@@ -86,7 +86,7 @@ class Stage1Model(nn.Module):
                 sp_loss = (sp_loss * batch["sent_labels"]) * batch["label"]  #TODO needed? was * batch["sent_offsets"]
             sp_loss = sp_loss.sum()
 
-            start_positions, end_positions = batch["starts"], batch["ends"]
+            start_positions, end_positions = batch["starts"], batch["ends"]  
             # torch.unbind converts [ [1], [2], [3] ] to ([1,2,3]) like .squeeze(-1) only in tuple
             start_losses = [self.loss_fct(start_logits, starts) for starts in torch.unbind(start_positions, dim=1)]
             end_losses = [self.loss_fct(end_logits, ends) for ends in torch.unbind(end_positions, dim=1)]

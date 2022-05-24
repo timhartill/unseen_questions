@@ -14,7 +14,7 @@ args.prefix='TEST'
 args.fp16=True
 args.do_train=True
 args.predict_batch_size=100
-args.train_batch_size=4
+args.train_batch_size=12
 args.model_name='google/electra-large-discriminator'
 args.learning_rate=5e-5
 args.train_file='/home/thar011/data/sentences/sent_train.jsonl'
@@ -22,7 +22,7 @@ args.predict_file ='/home/thar011/data/sentences/sent_dev.jsonl'
 args.seed=42
 args.eval_period=250
 args.max_c_len= 512
-args.max_q_len=200
+args.max_q_len=70
 args.warmup_ratio=0.1
 args.output_dir = '/large_data/thar011/out/mdr/logs'
 args.gradient_accumulation_steps = 1
@@ -110,8 +110,8 @@ def main():
     eval_dataset = Stage1Dataset(args, tokenizer, args.predict_file, train=False)
     collate_fc = partial(stage1_collate, pad_id=tokenizer.pad_token_id)
 
-
-    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True, num_workers=args.num_workers)
+    # turned off num_workers for eval after too many open files error
+    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True)  #, num_workers=args.num_workers)
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
     #TJH batch = next(iter(eval_dataloader))
 
@@ -161,8 +161,17 @@ def main():
         logger.info('Start training....')
         for epoch in range(int(args.num_train_epochs)):
             #nan_count = 0
+            model.debug_count = 3
+            logger.info(f"Starting epoch {epoch}..")
             for batch in tqdm(train_dataloader):
                 #TJH batch = next(iter(train_dataloader))
+                #if batch_step == 611:
+                #    logger.info("ERROR LOG Outputting batch 611:")
+                #    logger.info(f"INDEX:{batch['index']}")
+                #    logger.info(f"STARTS:{batch['net_inputs']['starts']}")
+                #    logger.info(f"ENDS:{batch['net_inputs']['ends']}")
+                #    logger.info(f"PARA OFFSETS:{batch['para_offsets']}")
+                #    logger.info(f"ANSWERS:{batch['gold_answer']}")
                 batch_step += 1
                 batch_inputs = move_to_cuda(batch["net_inputs"])
                 with torch.cuda.amp.autocast(enabled=args.fp16):
@@ -203,17 +212,17 @@ def main():
                     if args.eval_period != -1 and global_step % args.eval_period == 0:
                         metrics = predict(args, model, eval_dataloader, device, logger)
                         main_metric = metrics["sp_em"]  #TODO: set this to the right "main" metric originally "em"
-                        logger.info("Step %d Train loss %.2f EM %.2f on epoch=%d" % (global_step, train_loss_meter.avg, main_metric*100, epoch))
+                        logger.info("Step %d Train loss %.2f SP_EM %.2f on epoch=%d" % (global_step, train_loss_meter.avg, main_metric*100, epoch))
 
                         if best_main_metric < main_metric:
-                            logger.info("Saving model with best EM %.2f -> EM %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
+                            logger.info("Saving model with best SP_EM %.2f -> EM %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
                             torch.save(model.state_dict(), os.path.join(args.output_dir, "checkpoint_best.pt"))
                             model = model.to(device)
                             best_main_metric = main_metric
 
             metrics = predict(args, model, eval_dataloader, device, logger)
             main_metric = metrics["sp_em"] # originally 'em'
-            logger.info("Step %d Train loss %.2f EM %.2f on epoch=%d" % (global_step, train_loss_meter.avg, main_metric*100, epoch))
+            logger.info("Step %d Train loss %.2f SP_EM %.2f on epoch=%d" % (global_step, train_loss_meter.avg, main_metric*100, epoch))
             #if args.debug:
             #    logger.info(f"Cumulative Loss NaN count:{nan_count}")
             for k, v in metrics.items():
@@ -221,7 +230,7 @@ def main():
             torch.save(model.state_dict(), os.path.join(args.output_dir, "checkpoint_last.pt"))
 
             if best_main_metric < main_metric:
-                logger.info("Saving model with best EM %.2f -> EM %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
+                logger.info("Saving model with best SP_EM %.2f -> EM %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
                 torch.save(model.state_dict(), os.path.join(args.output_dir, "checkpoint_best.pt"))
                 best_main_metric = main_metric
 
@@ -254,6 +263,7 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
     id2gold = {}
     id2goldsp = {}
     id2fullpartial = {}
+    id2index = {}
     for batch in tqdm(eval_dataloader):
         #TJH batch = next(iter(eval_dataloader))
         # batch_to_feed = batch["net_inputs"] 
@@ -274,6 +284,7 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
         for qid, index, full, label, score in zip(batch_qids, batch_index, batch_full, batch_labels, scores):
             id2result[qid].append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
             id2fullpartial[qid] = int(full)  # 1 = query+para = full path (to neg or pos), 0 = partial path
+            id2index[qid] = index
 
         # answer prediction
         span_scores = outs[0][:, :, None] + outs[1][:, None]  # [bs, maxseqleninbatch, maxseqleninbatch]
@@ -335,7 +346,6 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
                         # logger.info(f"sentence exceeds max lengths")
 #                        continue
             id2answer[qid].append({
-                "full": id2fullpartial[qid],
                 "pred_str": pred_str.strip(),
                 "rank_score": rank_score,
                 "para_pred": para_pred,
@@ -361,6 +371,12 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
     ems, f1s, sp_ems, sp_f1s, joint_ems, joint_f1s, para_acc = [], [], [], [], [], [], []
     results = collections.defaultdict(dict)
     for qid, res in id2result.items():
+        full = id2fullpartial[qid]
+        index = id2index[qid]
+        pos = index % 2 == 0
+        sample = eval_dataloader.dataset.data[index]
+        src = sample['src']
+        num_hops = sample['num_hops']
         ans_res = id2answer[qid]  # now only one ans so sort does nothing..
         #ans_res.sort(key=lambda x: lambda_ * x["rank_score"] + (1 - lambda_) * x["span_score"], reverse=True)
         top_pred = ans_res[0]["pred_str"]
@@ -375,8 +391,8 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
         para_acc.append(int(top_pred_para == res[0][0]))
 
         # answer eval
-        ems.append(exact_match_score(top_pred, id2gold[qid][0])) 
-        f1, prec, recall = f1_score(top_pred, id2gold[qid][0]) 
+        ems.append(exact_match_score(top_pred, id2gold[qid][0]))
+        f1, prec, recall = f1_score(top_pred, id2gold[qid][0])
         #ems.append(exact_match_score(top_pred, id2gold[qid])) # not using multi-answer versions of exact match, f1
         #f1, prec, recall = f1_score(top_pred, id2gold[qid])            
         f1s.append(f1)
@@ -416,12 +432,13 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
     logger.info(f'joint em: {np.mean(joint_ems)}, count: {len(joint_ems)}')
     logger.info(f'joint f1: {np.mean(joint_f1s)}, count: {len(joint_f1s)}')
     logger.info(f'para acc: {np.mean(para_acc)}, count:{len(para_acc)}')
-    logger.info(f"Best joint F1 from combination {best_joint_f1}")
+    #logger.info(f"Best joint F1 from combination {best_joint_f1}")
     if args.save_prediction != "":
         json.dump(best_res, open(f"{args.save_prediction}", "w"))
 
     model.train()
-    return {"em": best_em, "f1": best_f1, "joint_em": best_joint_em, "joint_f1": best_joint_f1, "sp_em": best_sp_em, "sp_f1": best_sp_f1, "para_acc": best_para_acc}
+    return {"em": best_em, "f1": best_f1, "joint_em": best_joint_em, "joint_f1": best_joint_f1, 
+            "sp_em": best_sp_em, "sp_f1": best_sp_f1, "para_acc": best_para_acc}
 
 
 #################
