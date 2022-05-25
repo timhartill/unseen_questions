@@ -5,9 +5,9 @@ Adapted from MDR train_mhop.py and train_momentum.py
 Description: train a stage 1 reader from pretrained ELECTRA encoder
 
 Usage: Run from base/scripts dir: 
-    bash mdr_train_mhop_retriever_varsteps.sh 
+    mdr_train_stage1_reader_nativeamp.sh
     or
-    bash mdr_train_mhop_retriever_momentum_varsteps.sh  after updating --init-retriever with the prior trained ckpt to start from
+    mdr_eval_stage1_reader_nativeamp.sh
 
 Debug Args to add after running args = train_args()  
 args.prefix='TEST'
@@ -31,8 +31,11 @@ args.sp_weight = 1.0
 args.sent_score_force_zero = False
 args.debug = True
 
+# for eval only:
+args.do_train=False
+args.do_predict=True
 args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage1_test1_hpqa_hover_fever_nosentforcezero-05-24-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
-
+args.save_prediction = 'stage1_dev_predictions.jsonl'
 """
 
 import logging
@@ -59,7 +62,7 @@ from reader.reader_model import Stage1Model
 
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
 from mdr_basic_tokenizer_and_utils import get_final_text
-from utils import move_to_cuda, load_saved, AverageMeter, saveas_jsonl
+from utils import move_to_cuda, load_saved, AverageMeter, saveas_jsonl, return_filtered_list
 
 ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']
 
@@ -241,7 +244,7 @@ def main():
 
     elif args.do_predict:
         metrics = predict(args, model, eval_dataloader, device, logger)
-        logger.info(f"test performance {metrics}")
+        logger.info(f"eval performance summary {metrics}")
     elif args.do_test:
         eval_final(args, model, eval_dataloader, weight=0.8)  #TJH NOT UPDATED
     return
@@ -279,7 +282,7 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             batch_sp_scores = sp_scores.sigmoid()  # [bs, max#sentsinbatch]  [0.678, 0.5531, 0.0, 0.0, ...]
             outs = [outputs["start_logits"], outputs["end_logits"]]  # [ [bs, maxseqleninbatch], [bs, maxseqleninbatch] ]
 
-        for idx, qid, label, sp_labels in enumerate(zip(batch_qids, batch_labels, batch_sp_labels)):
+        for idx, (qid, label, sp_labels) in enumerate(zip(batch_qids, batch_labels, batch_sp_labels)):
             # full: 1 = query+para = full path (to neg or pos), 0 = partial path
             # index into eval_dataloader.dataset.data[idx] list
             # sp_gold from sp_gold_single = [ [title1, 0], [title1, 2], ..] restricted to just the para
@@ -337,6 +340,8 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             for sent_idx, sent_score in enumerate(sp_score):
                 if sent_score >= 0.5:  #TODO configure this threshold
                     pred_sp.append([passage["title"], sent_idx])
+            if pred_sp == []:
+                pred_sp = [[]]
 
             id2answer[qid] = {
                 "rank_score": rank_score,       # para evidentiality score
@@ -355,18 +360,12 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
         pos = index % 2 == 0
         sample = eval_dataloader.dataset.data[index]
         ans_res = id2answer[qid]
-        #ans_res.sort(key=lambda x: lambda_ * x["rank_score"] + (1 - lambda_) * x["span_score"], reverse=True) # now only one ans so sort does nothing..
 
-        # para evidentiality eval (accuracy)
-        para_acc.append(int(ans_res['para_pred'] == res['para_label']))
-
+        para_acc.append(int(ans_res['para_pred'] == res['para_label']))  # para evidentiality eval (accuracy)
         # answer eval
-        ems.append(exact_match_score(ans_res["pred_str"], res["gold_answer"][0]))
+        ems.append(exact_match_score(ans_res["pred_str"], res["gold_answer"][0])) # not using multi-answer versions of exact match, f1
         f1, prec, recall = f1_score(ans_res["pred_str"], res["gold_answer"][0])
-        #ems.append(exact_match_score(ans_res["pred_str"], id2gold[qid])) # not using multi-answer versions of exact match, f1
-        #f1, prec, recall = f1_score(ans_res["pred_str"], id2gold[qid])
         f1s.append(f1)
-
         # sentence eval incl para
         metrics = {'sp_em': 0, 'sp_f1': 0, 'sp_prec': 0, 'sp_recall': 0}
         update_sp(metrics, ans_res["pred_sp"], res['sp_gold'])
@@ -382,6 +381,7 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
         joint_em = ems[-1] * sp_ems[-1]
         joint_ems.append(joint_em)
         joint_f1s.append(joint_f1)
+        
         out_sample = {}
         out_sample['question'] = sample['question'] 
         out_sample['context'] = sample['context_processed']['context']  # question + context = full untokenised input not incorprating truncation of q or c
@@ -400,9 +400,15 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
         out_sample['full'] = res['full']
         out_sample['act_hops'] = res['act_hops']
         out_sample['_id'] = qid
+        out_sample['answer_em'] = int(ems[-1])
+        out_sample['answer_f1'] = f1s[-1]
+        out_sample.update(metrics)
+        out_sample['joint_em'] = joint_em
+        out_sample['joint_f1'] = joint_f1
+        out_sample['para_acc'] = para_acc[-1]
+        
         out_list.append(out_sample)
 
-    #if best_joint_f1 < np.mean(joint_f1s):
     best_joint_f1 = np.mean(joint_f1s)
     best_joint_em = np.mean(joint_ems)
     best_sp_f1 = np.mean(sp_f1s)
@@ -411,22 +417,56 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
     best_em = np.mean(ems)
     best_para_acc = np.mean(para_acc)
 
-    #logger.info(f".......Using combination factor {lambda_}......")
     logger.info("------------------------------------------------")
-    logger.info(f'answer em: {np.mean(ems)}, count: {len(ems)}')
-    logger.info(f'answer f1: {np.mean(f1s)}, count: {len(f1s)}')
-    logger.info(f'sp em: {np.mean(sp_ems)}, count: {len(sp_ems)}')
-    logger.info(f'sp f1: {np.mean(sp_f1s)}, count: {len(sp_f1s)}')
-    logger.info(f'joint em: {np.mean(joint_ems)}, count: {len(joint_ems)}')
-    logger.info(f'joint f1: {np.mean(joint_f1s)}, count: {len(joint_f1s)}')
-    logger.info(f'para acc: {np.mean(para_acc)}, count:{len(para_acc)}')
-    #logger.info(f"Best joint F1 from combination {best_joint_f1}")
+    logger.info(f"Metrics over total eval set. n={len(ems)}")
+    logger.info(f'answer em: {np.mean(ems)}')
+    logger.info(f'answer f1: {np.mean(f1s)}')
+    logger.info(f'sp em: {np.mean(sp_ems)}')
+    logger.info(f'sp f1: {np.mean(sp_f1s)}')
+    logger.info(f'joint em: {np.mean(joint_ems)}')
+    logger.info(f'joint f1: {np.mean(joint_f1s)}')
+    logger.info(f'para acc: {np.mean(para_acc)}')
+    
+    create_grouped_metrics(logger, out_list, group_key='src')
+    create_grouped_metrics(logger, out_list, group_key='pos')
+    create_grouped_metrics(logger, out_list, group_key='act_hops')
+    create_grouped_metrics(logger, out_list, group_key='full')
+
+    
     if args.save_prediction != "":
         saveas_jsonl(out_list, os.path.join(args.output_dir, args.save_prediction), update=25000)
 
     model.train()
     return {"em": best_em, "f1": best_f1, "joint_em": best_joint_em, "joint_f1": best_joint_f1, 
             "sp_em": best_sp_em, "sp_f1": best_sp_f1, "para_acc": best_para_acc}
+
+
+def create_grouped_metrics(logger, sample_list, group_key='src',
+                           metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc']):
+    """ output metrics by group
+    """
+    grouped_metrics = {}
+    for sample in sample_list:
+        if grouped_metrics.get(sample[group_key]) is None:
+            grouped_metrics[sample[group_key]] = {}
+        for key in metric_keys:
+            if grouped_metrics[sample[group_key]].get(key) is None:
+                grouped_metrics[sample[group_key]][key] = []
+            grouped_metrics[sample[group_key]][key].append( sample[key] )
+    logger.info("------------------------------------------------")     
+    logger.info(f"Metrics grouped by: {group_key}")
+    logger.info("------------------------------------------------")
+    for group in grouped_metrics:
+        mgroup = grouped_metrics[group]
+        logger.info(f"{group_key}: {group}")
+        for key in metric_keys:
+            n = len(mgroup[key])
+            val = np.mean( mgroup[key] ) if n > 0 else -1
+            logger.info(f'{key}: {val}  n={n}')
+        logger.info("------------------------------------------------")
+    return  
+    
+    
 
 
 #################

@@ -51,7 +51,7 @@ from transformers import AutoConfig, AutoTokenizer
 from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriever_var
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
 
-from utils import encode_text, load_saved, move_to_cuda
+from utils import encode_text, load_saved, move_to_cuda, return_filtered_list
 
 
 def get_gpu_resources_faiss(n_gpu, gpu_start=0, gpu_end=-1, tempmem=0):
@@ -73,15 +73,6 @@ def convert_hnsw_query(query_vectors):
     aux_dim = np.zeros(len(query_vectors), dtype='float32')
     query_nhsw_vectors = np.hstack((query_vectors, aux_dim.reshape(-1, 1)))
     return query_nhsw_vectors
-
-
-def return_filtered_list(full_list, filter_key = -1, return_none=-1):
-    """ Return filtered list or [return_none] to prevent nan in np.mean()
-    """
-    filtered = [s for s in full_list if s != filter_key]
-    if filtered == []:
-        filtered = [return_none]
-    return filtered
 
 
 if __name__ == '__main__':

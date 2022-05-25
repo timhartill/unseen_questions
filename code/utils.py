@@ -289,6 +289,15 @@ def build_dict_from_jsonl(jsonl, key):
     return out_dict
 
 
+def return_filtered_list(full_list, filter_key = -1, return_none=-1):
+    """ Return filtered list or [return_none] to e.g. prevent nan in np.mean()
+    """
+    filtered = [s for s in full_list if s != filter_key]
+    if filtered == []:
+        filtered = [return_none]
+    return filtered
+
+
 # from https://github.com/castorini/transformers-arithmetic/blob/main/main.py
 def convert_to_base(num: int, base: int, numerals="0123456789abcdefghijklmnopqrstuvwxyz") -> str:
     """ convert base 10 integer into another base """
