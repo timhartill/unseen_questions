@@ -515,6 +515,10 @@ def check_mem():
         return vis_mem
     return mem
 
+def get_model_device(model):
+    """ returns device that model is on i.e. the device that the first parameter is on"""
+    return next(model.parameters()).device
+
 
 # Below from and adapted from https://github.com/facebookresearch/multihop_dense_retrieval:
 

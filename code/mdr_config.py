@@ -44,7 +44,7 @@ def common_args():
     parser.add_argument("--predict_batch_size", default=512,
                         type=int, help="Total batch size for predictions.")
     parser.add_argument("--shared-encoder", action="store_true")
-    parser.add_argument("--save-prediction", default="", type=str)
+    parser.add_argument("--save_prediction", default="", type=str)
 
     # multi vector scheme
     parser.add_argument("--multi-vector", type=int, default=1)

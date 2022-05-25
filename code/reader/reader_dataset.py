@@ -288,6 +288,7 @@ class Stage1Dataset(Dataset):
 
         else:   # eval sample 
             item["full"] = torch.LongTensor([1 if build_to_hop >= item['num_hops'] else 0])
+            item["act_hops"] = torch.LongTensor([build_to_hop])
             item["doc_tokens"] = context_ann["doc_tokens"]
             item["tok_to_orig_index"] = context_ann["tok_to_orig_index"]
             if rerank_para > -1 and build_to_hop < item['num_hops']: # update labels if pos but partial sample
@@ -403,7 +404,7 @@ def stage1_collate(samples, pad_id=0):
         "qids": [s["_id"] for s in samples],
         "passages": [[s["context_processed"]['passage']] for s in samples],
         "gold_answer": [s["answers"] for s in samples],
-        "sp_gold": [s["sp_gold_single"] for s in samples],
+        "sp_gold": [s["sp_gold_single"] for s in samples],  # override full sp_gold with the subset for the para relevant to sample query
         "para_offsets": [s["para_offset"] for s in samples],
         "net_inputs": batch,
     }
@@ -417,5 +418,6 @@ def stage1_collate(samples, pad_id=0):
         batched["tok_to_orig_index"] = [s["tok_to_orig_index"] for s in samples]
         batched["wp_tokens"] = [s["wp_tokens"] for s in samples]
         batched["full"] = [s["full"] for s in samples]
+        batched["act_hops"] = [s["act_hops"] for s in samples]
 
     return batched

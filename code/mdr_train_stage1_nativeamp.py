@@ -28,8 +28,10 @@ args.output_dir = '/large_data/thar011/out/mdr/logs'
 args.gradient_accumulation_steps = 1
 args.use_adam=True
 args.sp_weight = 1.0
-args.sent_score_force_zero = True
+args.sent_score_force_zero = False
 args.debug = True
+
+args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage1_test1_hpqa_hover_fever_nosentforcezero-05-24-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
 
 """
 
@@ -57,7 +59,7 @@ from reader.reader_model import Stage1Model
 
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
 from mdr_basic_tokenizer_and_utils import get_final_text
-from utils import move_to_cuda, load_saved, AverageMeter
+from utils import move_to_cuda, load_saved, AverageMeter, saveas_jsonl
 
 ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']
 
@@ -116,6 +118,7 @@ def main():
     #TJH batch = next(iter(eval_dataloader))
 
     if args.init_checkpoint != "":
+        logger.info(f"Loading checkpoint: {args.init_checkpoint}")
         model = load_saved(model, args.init_checkpoint)
 
     model.to(device)
@@ -258,20 +261,15 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
                                                'sent_offsets', 'sent_labels', 'token_type_ids'])
     """
     model.eval()
-    id2result = collections.defaultdict(list)
-    id2answer = collections.defaultdict(list)
-    id2gold = {}
-    id2goldsp = {}
-    id2fullpartial = {}
-    id2index = {}
+    id2result = collections.defaultdict(list)  #  inputs / golds
+    id2answer = collections.defaultdict(list)   # corresponding predictions
     for batch in tqdm(eval_dataloader):
         #TJH batch = next(iter(eval_dataloader))
         # batch_to_feed = batch["net_inputs"] 
         batch_to_feed = move_to_cuda(batch["net_inputs"])
         batch_qids = batch["qids"]
-        batch_index = batch["index"] # index into eval_dataloader.dataset.data[idx] list
-        batch_full = batch["full"]
         batch_labels = batch["net_inputs"]["label"].view(-1).tolist() # list [bs] = 1/0
+        batch_sp_labels = batch['net_inputs']['sent_labels'].tolist()
         with torch.no_grad():
             outputs = model(batch_to_feed)  # dict_keys(['start_logits', 'end_logits', 'rank_score', 'sp_score'])
             scores = outputs["rank_score"]
@@ -281,10 +279,16 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             batch_sp_scores = sp_scores.sigmoid()  # [bs, max#sentsinbatch]  [0.678, 0.5531, 0.0, 0.0, ...]
             outs = [outputs["start_logits"], outputs["end_logits"]]  # [ [bs, maxseqleninbatch], [bs, maxseqleninbatch] ]
 
-        for qid, index, full, label, score in zip(batch_qids, batch_index, batch_full, batch_labels, scores):
-            id2result[qid].append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
-            id2fullpartial[qid] = int(full)  # 1 = query+para = full path (to neg or pos), 0 = partial path
-            id2index[qid] = index
+        for idx, qid, label, sp_labels in enumerate(zip(batch_qids, batch_labels, batch_sp_labels)):
+            # full: 1 = query+para = full path (to neg or pos), 0 = partial path
+            # index into eval_dataloader.dataset.data[idx] list
+            # sp_gold from sp_gold_single = [ [title1, 0], [title1, 2], ..] restricted to just the para
+            # act_hops = number of hops the query + next para cover eg 1=q_only->sp1, 2=q+sp1->sp2  if act_hops=orig num_hops then query + next para is fully evidential
+            golds = {'para_label': label, 'sp_labels': sp_labels, 
+                     'full': int(batch['full'][idx]), 'index': batch['index'][idx], 
+                     'gold_answer': batch['gold_answer'][idx], 'sp_gold': batch['sp_gold'][idx],
+                     'act_hops': int(batch['act_hops'][idx])}
+            id2result[qid] = golds                    #.append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
 
         # answer prediction
         span_scores = outs[0][:, :, None] + outs[1][:, None]  # [bs, maxseqleninbatch, maxseqleninbatch]
@@ -296,18 +300,16 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
         end_position = span_scores_masked.max(dim=2)[1].gather(1, start_position.unsqueeze(1)).squeeze(1) # [bs]
         answer_scores = span_scores_masked.max(dim=2)[0].max(dim=1)[0].tolist() # [bs]
         para_offset = batch['para_offsets']  # [bs]
-        start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))  #para masking adjusted to start after base question
+        start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))  #para masking adjusted to start after base question so can predict span in query sents
         end_position_ = list(np.array(end_position.tolist()) - np.array(para_offset)) 
 
-        for idx, qid in enumerate(batch_qids):               
-            id2gold[qid] = batch["gold_answer"][idx]
-            id2goldsp[qid] = batch["sp_gold"][idx]
-            
+        for idx, qid in enumerate(batch_qids):                          
             rank_score = scores[idx]
             if rank_score >= 0.5:
                 para_pred = 1
             else:
                 para_pred = 0
+                
             start = start_position_[idx]
             end = end_position_[idx]
             span_score = answer_scores[idx]
@@ -336,70 +338,38 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
                 if sent_score >= 0.5:  #TODO configure this threshold
                     pred_sp.append([passage["title"], sent_idx])
 
-#            passages = batch["passages"][idx]  
-#            for passage, sent_offset in zip(passages, [0, len(passages[0]["sents"])]):
-#                for idx, _ in enumerate(passage["sents"]):
-#                    try:
-#                        if sp_score[idx + sent_offset] >= 0.5:
-#                            pred_sp.append([passage["title"], idx])
-#                    except:
-                        # logger.info(f"sentence exceeds max lengths")
-#                        continue
-            id2answer[qid].append({
-                "pred_str": pred_str.strip(),
-                "rank_score": rank_score,
-                "para_pred": para_pred,
-                "span_score": span_score,
-                "pred_sp": pred_sp
-            })
-#    acc = []
-#    for qid, res in id2result.items():
-#        res.sort(key=lambda x: x[1], reverse=True)  # [(para label, para score)]  pointless sort since always 1 element?
-#        acc.append(res[0][0] == 1)  # acc of para label derived using "ans_covered" - only relevant where using retrieval results
-#    logger.info(f"evaluated {len(id2result)} questions...")
-#    logger.info(f'chain ranking em: {np.mean(acc)}')
-
+            id2answer[qid] = {
+                "rank_score": rank_score,       # para evidentiality score
+                "para_pred": para_pred,         # 0/1 decision on whether para is evidential
+                "pred_str": pred_str.strip(),   # predicted answer span string
+                "span_score": span_score,       # answer confidence score 
+                "pred_sp": pred_sp,             # predicted sentences [ [title1, 0], [title1, 2], ..]
+                "pred_sp_scores": sp_score       # evidentiality score of each sentence marker
+            }
+            
     best_em, best_f1, best_joint_em, best_joint_f1, best_sp_em, best_sp_f1, best_para_acc = 0, 0, 0, 0, 0, 0, 0
-    best_res = None
-#    if fixed_thresh:
-#        lambdas = [fixed_thresh]
-#    else:
-#        # selecting threshhold on the dev data
-#        lambdas = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-
-#    for lambda_ in lambdas:
+    out_list = []
     ems, f1s, sp_ems, sp_f1s, joint_ems, joint_f1s, para_acc = [], [], [], [], [], [], []
-    results = collections.defaultdict(dict)
     for qid, res in id2result.items():
-        full = id2fullpartial[qid]
-        index = id2index[qid]
+        index = res['index']
         pos = index % 2 == 0
         sample = eval_dataloader.dataset.data[index]
-        src = sample['src']
-        num_hops = sample['num_hops']
-        ans_res = id2answer[qid]  # now only one ans so sort does nothing..
-        #ans_res.sort(key=lambda x: lambda_ * x["rank_score"] + (1 - lambda_) * x["span_score"], reverse=True)
-        top_pred = ans_res[0]["pred_str"]
-        top_pred_sp = ans_res[0]["pred_sp"]
-        top_pred_para = ans_res[0]["para_pred"]
+        ans_res = id2answer[qid]
+        #ans_res.sort(key=lambda x: lambda_ * x["rank_score"] + (1 - lambda_) * x["span_score"], reverse=True) # now only one ans so sort does nothing..
 
-        results["answer"][qid] = top_pred
-        results["sp"][qid] = top_pred_sp
-        results["para"][qid] = top_pred_para
-        
         # para evidentiality eval (accuracy)
-        para_acc.append(int(top_pred_para == res[0][0]))
+        para_acc.append(int(ans_res['para_pred'] == res['para_label']))
 
         # answer eval
-        ems.append(exact_match_score(top_pred, id2gold[qid][0]))
-        f1, prec, recall = f1_score(top_pred, id2gold[qid][0])
-        #ems.append(exact_match_score(top_pred, id2gold[qid])) # not using multi-answer versions of exact match, f1
-        #f1, prec, recall = f1_score(top_pred, id2gold[qid])            
+        ems.append(exact_match_score(ans_res["pred_str"], res["gold_answer"][0]))
+        f1, prec, recall = f1_score(ans_res["pred_str"], res["gold_answer"][0])
+        #ems.append(exact_match_score(ans_res["pred_str"], id2gold[qid])) # not using multi-answer versions of exact match, f1
+        #f1, prec, recall = f1_score(ans_res["pred_str"], id2gold[qid])
         f1s.append(f1)
 
         # sentence eval incl para
         metrics = {'sp_em': 0, 'sp_f1': 0, 'sp_prec': 0, 'sp_recall': 0}
-        update_sp(metrics, top_pred_sp, id2goldsp[qid])
+        update_sp(metrics, ans_res["pred_sp"], res['sp_gold'])
         sp_ems.append(metrics['sp_em'])
         sp_f1s.append(metrics['sp_f1'])
         # joint metrics
@@ -412,6 +382,25 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
         joint_em = ems[-1] * sp_ems[-1]
         joint_ems.append(joint_em)
         joint_f1s.append(joint_f1)
+        out_sample = {}
+        out_sample['question'] = sample['question'] 
+        out_sample['context'] = sample['context_processed']['context']  # question + context = full untokenised input not incorprating truncation of q or c
+        out_sample['ans'] = res["gold_answer"]
+        out_sample['ans_pred'] = ans_res['pred_str']
+        out_sample['ans_pred_score'] = ans_res['span_score']
+        out_sample['sp'] = res['sp_gold']
+        out_sample['sp_pred'] = ans_res['pred_sp']
+        out_sample['sp_labels'] = res['sp_labels']
+        out_sample['sp_scores'] = ans_res['pred_sp_scores']
+        out_sample['para_gold'] = res['para_label']
+        out_sample['para_pred'] = ans_res['para_pred']
+        out_sample['para_score'] = ans_res['rank_score']
+        out_sample['src'] = sample['src']
+        out_sample['pos'] = pos
+        out_sample['full'] = res['full']
+        out_sample['act_hops'] = res['act_hops']
+        out_sample['_id'] = qid
+        out_list.append(out_sample)
 
     #if best_joint_f1 < np.mean(joint_f1s):
     best_joint_f1 = np.mean(joint_f1s)
@@ -421,7 +410,6 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
     best_f1 = np.mean(f1s)
     best_em = np.mean(ems)
     best_para_acc = np.mean(para_acc)
-    best_res = results
 
     #logger.info(f".......Using combination factor {lambda_}......")
     logger.info("------------------------------------------------")
@@ -434,7 +422,7 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
     logger.info(f'para acc: {np.mean(para_acc)}, count:{len(para_acc)}')
     #logger.info(f"Best joint F1 from combination {best_joint_f1}")
     if args.save_prediction != "":
-        json.dump(best_res, open(f"{args.save_prediction}", "w"))
+        saveas_jsonl(out_list, os.path.join(args.output_dir, args.save_prediction), update=25000)
 
     model.train()
     return {"em": best_em, "f1": best_f1, "joint_em": best_joint_em, "joint_f1": best_joint_f1, 
