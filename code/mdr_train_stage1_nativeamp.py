@@ -62,7 +62,7 @@ from reader.reader_model import Stage1Model
 
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
 from mdr_basic_tokenizer_and_utils import get_final_text
-from utils import move_to_cuda, load_saved, AverageMeter, saveas_jsonl, return_filtered_list
+from utils import move_to_cuda, load_saved, AverageMeter, saveas_jsonl
 
 ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']
 
@@ -85,6 +85,7 @@ def main():
                                   logging.StreamHandler()])
     logger = logging.getLogger(__name__)
     logger.info(args)
+    logger.info(f"Output dir: {args.output_dir}")
 
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -218,25 +219,26 @@ def main():
                     if args.eval_period != -1 and global_step % args.eval_period == 0:
                         metrics = predict(args, model, eval_dataloader, device, logger)
                         main_metric = metrics["sp_em"]  #TODO: set this to the right "main" metric originally "em"
-                        logger.info("Step %d Train loss %.2f SP_EM %.2f on epoch=%d" % (global_step, train_loss_meter.avg, main_metric*100, epoch))
+                        logger.info("Bat Step %d Glob Step %d Train loss %.2f SP_EM %.2f on epoch=%d" % (batch_step, global_step, train_loss_meter.avg, main_metric*100, epoch))
 
                         if best_main_metric < main_metric:
-                            logger.info("Saving model with best SP_EM %.2f -> EM %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
+                            logger.info("Saving model with best SP_EM %.2f -> SP_EM %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
                             torch.save(model.state_dict(), os.path.join(args.output_dir, "checkpoint_best.pt"))
                             model = model.to(device)
                             best_main_metric = main_metric
 
             metrics = predict(args, model, eval_dataloader, device, logger)
             main_metric = metrics["sp_em"] # originally 'em'
-            logger.info("Step %d Train loss %.2f SP_EM %.2f on epoch=%d" % (global_step, train_loss_meter.avg, main_metric*100, epoch))
+            logger.info("Bat Step %d Glob Step %d Train loss %.2f SP_EM %.2f on epoch=%d" % (batch_step, global_step, train_loss_meter.avg, main_metric*100, epoch))
             #if args.debug:
             #    logger.info(f"Cumulative Loss NaN count:{nan_count}")
             for k, v in metrics.items():
                 tb_logger.add_scalar(k, v*100, epoch)
+            logger.info(f'Saving checkpoint_last.pt end the end of epoch {epoch}')
             torch.save(model.state_dict(), os.path.join(args.output_dir, "checkpoint_last.pt"))
 
             if best_main_metric < main_metric:
-                logger.info("Saving model with best SP_EM %.2f -> EM %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
+                logger.info("Saving model with best SP_EM %.2f -> SP_EM %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
                 torch.save(model.state_dict(), os.path.join(args.output_dir, "checkpoint_best.pt"))
                 best_main_metric = main_metric
 

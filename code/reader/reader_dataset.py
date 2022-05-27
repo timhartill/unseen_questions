@@ -388,7 +388,7 @@ def stage1_collate(samples, pad_id=0):
         'paragraph_mask': collate_tokens([s['paragraph_mask'] for s in samples], 0),
         'label': collate_tokens([s["label"] for s in samples], -1),
         "sent_offsets": collate_tokens([s["sent_offsets"] for s in samples], 0),
-        "sent_labels": collate_tokens([s['sent_labels'] for s in samples], 0)
+        "sent_labels": collate_tokens([s['sent_labels'] for s in samples], 0)  #TODO should this be -1 ??
         }
 
     # training labels

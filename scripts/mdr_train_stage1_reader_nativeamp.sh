@@ -7,7 +7,7 @@ cd ../code
 
 python mdr_train_stage1_nativeamp.py \
     --do_train \
-    --prefix stage1_test1_hpqa_hover_fever_nosentforcezero \
+    --prefix stage1_test3_hpqa_hover_fever_nosentforcezero_fullevalmetrics \
     --predict_batch_size 100 \
     --model_name google/electra-large-discriminator \
     --train_batch_size 12 \
@@ -16,7 +16,7 @@ python mdr_train_stage1_nativeamp.py \
     --train_file /home/thar011/data/sentences/sent_train.jsonl \
     --predict_file /home/thar011/data/sentences/sent_dev.jsonl \
     --seed 42 \
-    --eval-period 250 \
+    --eval-period 2000 \
     --max_c_len 512 \
     --max_q_len 70 \
     --gradient_accumulation_steps 8 \
@@ -24,7 +24,7 @@ python mdr_train_stage1_nativeamp.py \
     --sp-weight 1.0 \
     --output_dir /large_data/thar011/out/mdr/logs \
     --save_prediction stage1_dev_predictions.jsonl \
-    --num_train_epochs 10 \
+    --num_train_epochs 7 \
     --debug \
     --warmup-ratio 0.1
 
