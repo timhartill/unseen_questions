@@ -71,9 +71,9 @@ class Stage1Model(nn.Module):
 
         start_logits, end_logits = outs[0], outs[1]  # start_logits: [bs, seq_len]  end_logits: [bs, seq_len]
         rank_score = self.rank(pooled_output)  # [bs, 1]
-        #TODO
-        gather_index = batch["sent_offsets"].unsqueeze(2).expand(-1, -1, sequence_output.size()[-1])
-        sent_marker_rep = torch.gather(sequence_output, 1, gather_index)  # gather along seq_len of [bs, seq_len, hs]
+        # batch['sent_offsets'] = [bs, max#sentsinbatch]
+        gather_index = batch["sent_offsets"].unsqueeze(2).expand(-1, -1, sequence_output.size()[-1])  #[bs, max#sentsinbatch, hs]
+        sent_marker_rep = torch.gather(sequence_output, 1, gather_index)  # [bs, max#sentsinbatch, hs] gather along seq_len of [bs, seq_len, hs]
         sp_score = self.sp(sent_marker_rep).squeeze(2)  # [bs, #sents, 1] -> [bs, #sents]
 
         if self.training:
@@ -81,9 +81,12 @@ class Stage1Model(nn.Module):
             rank_target = batch["label"]
             rank_loss = F.binary_cross_entropy_with_logits(rank_score, rank_target.float(), reduction="sum")
 
-            sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")
+            #batch["sent_labels"] = [bs, max#sentsinbatch]
+            sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")  # [bs, max#sentsinbatch]
             if self.sent_score_force_zero:
-                sp_loss = (sp_loss * batch["sent_labels"]) * batch["label"]  #TODO needed? was * batch["sent_offsets"]
+                # sent_mask = (batch["sent_offsets"] != 0).type(torch.int64)  #[bs, max#sentsinbatch] 
+                # sp_loss = (sp_loss * sent_mask) * batch["label"]  # TODO with/without * batch["label"] ? with = zeros scores for neg samples...I may not want this..
+                sp_loss = (sp_loss * batch["sent_offsets"]) * batch["label"]  # batch["sent_offsets"] padded with zeros so effectively zeros the loss for padding...
             sp_loss = sp_loss.sum()
 
             start_positions, end_positions = batch["starts"], batch["ends"]  
