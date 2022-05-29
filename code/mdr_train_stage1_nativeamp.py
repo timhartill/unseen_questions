@@ -340,7 +340,7 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             passage =  batch["passages"][idx][0]
             #sent_offset = batch['net_inputs']['sent_offsets'][idx].tolist()
             for sent_idx, sent_score in enumerate(sp_score):
-                if sent_score >= 0.5:  #TODO configure this threshold
+                if sent_score >= 0.5:  #TODO configure this threshold  #create dict with thresh key
                     pred_sp.append([passage["title"], sent_idx])
             if pred_sp == []:
                 pred_sp = [[]]
@@ -353,7 +353,9 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
                 "pred_sp": pred_sp,             # predicted sentences [ [title1, 0], [title1, 2], ..]
                 "pred_sp_scores": sp_score       # evidentiality score of each sentence marker
             }
-            
+    
+    #TODO Calc best sp threshold here, copy corresponding pred_sp at thresh -> pred sp        
+    
     best_em, best_f1, best_joint_em, best_joint_f1, best_sp_em, best_sp_f1, best_para_acc = 0, 0, 0, 0, 0, 0, 0
     out_list = []
     ems, f1s, sp_ems, sp_f1s, joint_ems, joint_f1s, para_acc = [], [], [], [], [], [], []
