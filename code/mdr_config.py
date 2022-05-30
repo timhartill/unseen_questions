@@ -68,7 +68,8 @@ def common_args():
     parser.add_argument("--query_use_sentences", action="store_true", help="Use the gold or predicted sentences within a paragraph in the query instead of the entire paragraph.")
     parser.add_argument("--query_add_titles", action="store_true", help="If --query_use_sentences then prepend sentences with para title in query encoding.")
     parser.add_argument("--random_multi_seq", action="store_true", help="If training type multi para sequencing, randomize para seq in each step.")   
-    parser.add_argument("--sent_score_force_zero", action="store_true", help="Stage 1 reader training : Zero sentence scores where sent or para label is zero.")   
+    parser.add_argument("--sent_score_force_zero", action="store_true", help="Stage 1 reader training : Zero sentence scores where sent or para label is zero.")    
+    parser.add_argument("--sp_percent_thresh", type=float, default=0.55, help="maximum mean fraction of sentences in para for a given sp score threshold to take in order for that thresh to be selected.")
 
 
     return parser

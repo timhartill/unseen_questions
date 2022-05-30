@@ -30,6 +30,7 @@ args.use_adam=True
 args.sp_weight = 1.0
 args.sent_score_force_zero = False
 args.debug = True
+args.sp_percent_thresh = 0.55
 
 # for eval only:
 args.do_train=False
@@ -258,8 +259,7 @@ def main():
 
 
 def predict(args, model, eval_dataloader, device, logger, 
-            sp_thresh=[0.003125, 0.00625, 0.0125, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7],
-            sp_percent_thresh = 0.55):
+            sp_thresh=[0.003125, 0.00625, 0.0125, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7]):
     """      model returns {
             'start_logits': start_logits,   # [bs, seq_len]
             'end_logits': end_logits,       # [bs, seq_len]
@@ -274,6 +274,7 @@ def predict(args, model, eval_dataloader, device, logger,
         
         Calculates the sp threshold as the highest sp_recall returning less than sp_percent_thresh of the sentences in the para
     """
+    sp_percent_thresh = args.sp_percent_thresh # default 0.55
     model.eval()
     id2result = collections.defaultdict(list)  #  inputs / golds
     id2answer = collections.defaultdict(list)   # corresponding predictions
@@ -301,6 +302,8 @@ def predict(args, model, eval_dataloader, device, logger,
             # act_hops = number of hops the query + next para cover eg 1=q_only->sp1, 2=q+sp1->sp2  if act_hops=orig num_hops then query + next para is fully evidential
             # sp_num = # sentences in this sample
             sp_num = len([o for o in batch_sp_offsets[idx] if o != 0])
+            if sp_num == 0:
+                logger.info(f"Warning: Sentence Offsets for idx {idx}  qid {qid} are all zero: {batch_sp_offsets[idx]}. The query may have filled entire sequence len and caused para truncation.")
             golds = {'para_label': label, 'sp_labels': sp_labels, 
                      'full': int(batch['full'][idx]), 'index': batch['index'][idx], 
                      'gold_answer': batch['gold_answer'][idx], 'sp_gold': batch['sp_gold'][idx],
@@ -377,8 +380,11 @@ def predict(args, model, eval_dataloader, device, logger,
         metrics = {'sp_em': 0.0, 'sp_f1': 0.0, 'sp_prec': 0.0, 'sp_recall': 0.0, 'sp_percent': 0.0}
         for qid, res in id2result.items():
             ans_res = id2answer[qid]
-            em, prec, recall = update_sp(metrics, ans_res["pred_sp_dict"][thresh], res['sp_gold'])
-            metrics['sp_percent'] += ( len(ans_res["pred_sp_dict"][thresh]) / res["sp_num"] )
+            em, prec, recall = update_sp(metrics, ans_res['pred_sp_dict'][thresh], res['sp_gold'])
+            if res['sp_num'] > 0:
+                metrics['sp_percent'] += ( len(ans_res['pred_sp_dict'][thresh]) / res['sp_num'] )
+            else:
+                metrics['sp_percent'] += 1.0
         metrics['sp_em'] /= num_results
         metrics['sp_f1'] /= num_results
         metrics['sp_prec'] /= num_results

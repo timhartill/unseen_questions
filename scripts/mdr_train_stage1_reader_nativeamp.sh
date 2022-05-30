@@ -26,6 +26,7 @@ python mdr_train_stage1_nativeamp.py \
     --save_prediction stage1_dev_predictions.jsonl \
     --num_train_epochs 7 \
     --sent_score_force_zero \
+    --sp_percent_thresh 0.55 \
     --debug \
     --warmup-ratio 0.1
 
