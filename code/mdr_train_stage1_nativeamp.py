@@ -34,8 +34,12 @@ args.debug = True
 # for eval only:
 args.do_train=False
 args.do_predict=True
-args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage1_test1_hpqa_hover_fever_nosentforcezero-05-24-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
-args.save_prediction = 'stage1_dev_predictions.jsonl'
+
+#05/27/2022 14:12:47 - INFO - __main__ - Step 18000 Train loss 1.90 SP_EM 85.46 on epoch=3
+#05/27/2022 14:12:47 - INFO - __main__ - Saving model with best SP_EM 85.33 -> SP_EM 85.46 on epoch=3
+args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage1_test3_hpqa_hover_fever_nosentforcezero_fullevalmetrics-05-26-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
+
+args.save_prediction = 'stage1_dev_predictions_TEST.jsonl'
 """
 
 import logging
@@ -44,6 +48,7 @@ import json
 import collections
 import random
 import time
+import copy
 from datetime import date
 from functools import partial
 
@@ -217,8 +222,9 @@ def main():
                     tb_logger.add_scalar('smoothed_train_loss', train_loss_meter.avg, global_step)
 
                     if args.eval_period != -1 and global_step % args.eval_period == 0:
+                        logger.info(f"Starting predict on Batch Step {batch_step}  Global Step {global_step}  Epoch {epoch} ..")
                         metrics = predict(args, model, eval_dataloader, device, logger)
-                        main_metric = metrics["sp_em"]  #TODO: set this to the right "main" metric originally "em"
+                        main_metric = metrics["sp_em"]  
                         logger.info("Bat Step %d Glob Step %d Train loss %.2f SP_EM %.2f on epoch=%d" % (batch_step, global_step, train_loss_meter.avg, main_metric*100, epoch))
 
                         if best_main_metric < main_metric:
@@ -227,11 +233,10 @@ def main():
                             model = model.to(device)
                             best_main_metric = main_metric
 
+            logger.info(f"End of Epoch {epoch}: Starting predict on Batch Step {batch_step}  Global Step {global_step}  Epoch {epoch} ..")
             metrics = predict(args, model, eval_dataloader, device, logger)
             main_metric = metrics["sp_em"] # originally 'em'
             logger.info("Bat Step %d Glob Step %d Train loss %.2f SP_EM %.2f on epoch=%d" % (batch_step, global_step, train_loss_meter.avg, main_metric*100, epoch))
-            #if args.debug:
-            #    logger.info(f"Cumulative Loss NaN count:{nan_count}")
             for k, v in metrics.items():
                 tb_logger.add_scalar(k, v*100, epoch)
             logger.info(f'Saving checkpoint_last.pt end the end of epoch {epoch}')
@@ -252,7 +257,9 @@ def main():
     return
 
 
-def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
+def predict(args, model, eval_dataloader, device, logger, 
+            sp_thresh=[0.003125, 0.00625, 0.0125, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7],
+            sp_percent_thresh = 0.55):
     """      model returns {
             'start_logits': start_logits,   # [bs, seq_len]
             'end_logits': end_logits,       # [bs, seq_len]
@@ -264,6 +271,8 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
                                  'net_inputs', 'index', 'doc_tokens', 'tok_to_orig_index', 'wp_tokens', 'full'])
         batch['net_inputs'].keys(): dict_keys(['input_ids', 'attention_mask', 'paragraph_mask', 'label', 
                                                'sent_offsets', 'sent_labels', 'token_type_ids'])
+        
+        Calculates the sp threshold as the highest sp_recall returning less than sp_percent_thresh of the sentences in the para
     """
     model.eval()
     id2result = collections.defaultdict(list)  #  inputs / golds
@@ -275,6 +284,7 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
         batch_qids = batch["qids"]
         batch_labels = batch["net_inputs"]["label"].view(-1).tolist() # list [bs] = 1/0
         batch_sp_labels = batch['net_inputs']['sent_labels'].tolist()
+        batch_sp_offsets = batch['net_inputs']['sent_offsets'].tolist()
         with torch.no_grad():
             outputs = model(batch_to_feed)  # dict_keys(['start_logits', 'end_logits', 'rank_score', 'sp_score'])
             scores = outputs["rank_score"]
@@ -289,10 +299,12 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             # index into eval_dataloader.dataset.data[idx] list
             # sp_gold from sp_gold_single = [ [title1, 0], [title1, 2], ..] restricted to just the para
             # act_hops = number of hops the query + next para cover eg 1=q_only->sp1, 2=q+sp1->sp2  if act_hops=orig num_hops then query + next para is fully evidential
+            # sp_num = # sentences in this sample
+            sp_num = len([o for o in batch_sp_offsets[idx] if o != 0])
             golds = {'para_label': label, 'sp_labels': sp_labels, 
                      'full': int(batch['full'][idx]), 'index': batch['index'][idx], 
                      'gold_answer': batch['gold_answer'][idx], 'sp_gold': batch['sp_gold'][idx],
-                     'act_hops': int(batch['act_hops'][idx])}
+                     'act_hops': int(batch['act_hops'][idx]), 'sp_num': sp_num}
             id2result[qid] = golds                    #.append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
 
         # answer prediction
@@ -335,49 +347,86 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
             pred_str = get_final_text(tok_text, orig_text, do_lower_case=True, verbose_logging=False)
 
             # get the sp sentences [ [title1, 0], [title1, 2], ..]
-            pred_sp = []
             sp_score = batch_sp_scores[idx].tolist()
             passage =  batch["passages"][idx][0]
             #sent_offset = batch['net_inputs']['sent_offsets'][idx].tolist()
-            for sent_idx, sent_score in enumerate(sp_score):
-                if sent_score >= 0.5:  #TODO configure this threshold  #create dict with thresh key
-                    pred_sp.append([passage["title"], sent_idx])
-            if pred_sp == []:
-                pred_sp = [[]]
+            pred_sp_dict = {}
+            for thresh in sp_thresh:
+                pred_sp = []
+                for sent_idx, sent_score in enumerate(sp_score):
+                    if sent_score >= thresh and sent_idx < id2result[qid]['sp_num']:  
+                        pred_sp.append([passage["title"], sent_idx])
+                if pred_sp == []:
+                    pred_sp = [[]]
+                pred_sp_dict[thresh] = pred_sp
 
             id2answer[qid] = {
                 "rank_score": rank_score,       # para evidentiality score
                 "para_pred": para_pred,         # 0/1 decision on whether para is evidential
                 "pred_str": pred_str.strip(),   # predicted answer span string
                 "span_score": span_score,       # answer confidence score 
-                "pred_sp": pred_sp,             # predicted sentences [ [title1, 0], [title1, 2], ..]
-                "pred_sp_scores": sp_score       # evidentiality score of each sentence marker
+                "pred_sp_dict": pred_sp_dict,   # {threshold val: predicted sentences [ [title1, 0], [title1, 2], ..] }
+                "pred_sp_scores": sp_score      # evidentiality score of each sentence marker
             }
+
     
-    #TODO Calc best sp threshold here, copy corresponding pred_sp at thresh -> pred sp        
+    #Calc best sp threshold, copy corresponding pred_sp at thresh -> pred sp  
+    num_results = len(id2result)
+    sp_metrics = {}
+    for thresh in sp_thresh:
+        metrics = {'sp_em': 0.0, 'sp_f1': 0.0, 'sp_prec': 0.0, 'sp_recall': 0.0, 'sp_percent': 0.0}
+        for qid, res in id2result.items():
+            ans_res = id2answer[qid]
+            em, prec, recall = update_sp(metrics, ans_res["pred_sp_dict"][thresh], res['sp_gold'])
+            metrics['sp_percent'] += ( len(ans_res["pred_sp_dict"][thresh]) / res["sp_num"] )
+        metrics['sp_em'] /= num_results
+        metrics['sp_f1'] /= num_results
+        metrics['sp_prec'] /= num_results
+        metrics['sp_recall'] /= num_results
+        metrics['sp_percent'] /= num_results
+        sp_metrics[thresh] = copy.deepcopy(metrics)
+        logger.info(f"sp threshold: {thresh} metrics: {metrics}")
+
+
+    best_thresh = -1.0
+    best_sp_recall = -1.0
+    for thresh in sp_thresh:
+        if sp_metrics[thresh]['sp_percent'] >= sp_percent_thresh:
+            continue
+        if sp_metrics[thresh]['sp_recall'] > best_sp_recall:  # take lowest thresh with same recall that is over the sentence % threshold
+            best_thresh = thresh
+            best_sp_recall = sp_metrics[thresh]['sp_recall']
+    if best_thresh == -1:
+        logger.info(f"Unable to determine best threshold selecting less than {sp_percent_thresh} of sentences. Setting theshold to 0.5")
+        best_thresh = 0.5
+        best_sp_recall = sp_metrics[best_thresh]['sp_recall']
+
+    logger.info(f"Determined best sentence score thresh as {best_thresh} yielding mean sp_recall of {best_sp_recall} and selecting mean {sp_metrics[best_thresh]['sp_percent']} of sentences.")        
+            
     
-    best_em, best_f1, best_joint_em, best_joint_f1, best_sp_em, best_sp_f1, best_para_acc = 0, 0, 0, 0, 0, 0, 0
     out_list = []
-    ems, f1s, sp_ems, sp_f1s, joint_ems, joint_f1s, para_acc = [], [], [], [], [], [], []
+    ems, f1s, sp_ems, sp_f1s, sp_precs, sp_recalls, joint_ems, joint_f1s, para_acc = [], [], [], [], [], [], [], [], []
     for qid, res in id2result.items():
         index = res['index']
         pos = index % 2 == 0
         sample = eval_dataloader.dataset.data[index]
         ans_res = id2answer[qid]
-
+        ans_res['pred_sp'] = ans_res['pred_sp_dict'][best_thresh]  # select the sp pred from best thresh found
         para_acc.append(int(ans_res['para_pred'] == res['para_label']))  # para evidentiality eval (accuracy)
         # answer eval
-        ems.append(exact_match_score(ans_res["pred_str"], res["gold_answer"][0])) # not using multi-answer versions of exact match, f1
-        f1, prec, recall = f1_score(ans_res["pred_str"], res["gold_answer"][0])
+        ems.append(exact_match_score(ans_res['pred_str'], res['gold_answer'][0])) # not using multi-answer versions of exact match, f1
+        f1, prec, recall = f1_score(ans_res['pred_str'], res['gold_answer'][0])
         f1s.append(f1)
         # sentence eval incl para
         metrics = {'sp_em': 0, 'sp_f1': 0, 'sp_prec': 0, 'sp_recall': 0}
-        update_sp(metrics, ans_res["pred_sp"], res['sp_gold'])
+        update_sp(metrics, ans_res['pred_sp'], res['sp_gold'])
         sp_ems.append(metrics['sp_em'])
         sp_f1s.append(metrics['sp_f1'])
+        sp_precs.append(metrics['sp_prec'])
+        sp_recalls.append(metrics['sp_recall'])
         # joint metrics
-        joint_prec = prec * metrics["sp_prec"]
-        joint_recall = recall * metrics["sp_recall"]
+        joint_prec = prec * metrics['sp_prec']
+        joint_recall = recall * metrics['sp_recall']
         if joint_prec + joint_recall > 0:
             joint_f1 = 2 * joint_prec * joint_recall / (joint_prec + joint_recall)
         else:
@@ -417,19 +466,23 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
     best_joint_em = np.mean(joint_ems)
     best_sp_f1 = np.mean(sp_f1s)
     best_sp_em = np.mean(sp_ems)
+    best_sp_prec = np.mean(sp_precs)
+    best_sp_recall = np.mean(sp_recalls)
     best_f1 = np.mean(f1s)
     best_em = np.mean(ems)
     best_para_acc = np.mean(para_acc)
 
     logger.info("------------------------------------------------")
     logger.info(f"Metrics over total eval set. n={len(ems)}")
-    logger.info(f'answer em: {np.mean(ems)}')
-    logger.info(f'answer f1: {np.mean(f1s)}')
-    logger.info(f'sp em: {np.mean(sp_ems)}')
-    logger.info(f'sp f1: {np.mean(sp_f1s)}')
-    logger.info(f'joint em: {np.mean(joint_ems)}')
-    logger.info(f'joint f1: {np.mean(joint_f1s)}')
-    logger.info(f'para acc: {np.mean(para_acc)}')
+    logger.info(f'answer em: {best_em}')
+    logger.info(f'answer f1: {best_f1}')
+    logger.info(f'sp em: {best_sp_em}')
+    logger.info(f'sp f1: {best_sp_f1}')
+    logger.info(f'sp prec: {best_sp_prec}')
+    logger.info(f'sp recall: {best_sp_recall}')
+    logger.info(f'joint em: {best_joint_em}')
+    logger.info(f'joint f1: {best_joint_f1}')
+    logger.info(f'para acc: {best_para_acc}')
     
     create_grouped_metrics(logger, out_list, group_key='src')
     create_grouped_metrics(logger, out_list, group_key='pos')
@@ -442,7 +495,7 @@ def predict(args, model, eval_dataloader, device, logger, fixed_thresh=None):
 
     model.train()
     return {"em": best_em, "f1": best_f1, "joint_em": best_joint_em, "joint_f1": best_joint_f1, 
-            "sp_em": best_sp_em, "sp_f1": best_sp_f1, "para_acc": best_para_acc}
+            "sp_em": best_sp_em, "sp_f1": best_sp_f1, "sp_prec": best_sp_prec, "sp_recall": best_sp_recall, "para_acc": best_para_acc}
 
 
 def create_grouped_metrics(logger, sample_list, group_key='src',
