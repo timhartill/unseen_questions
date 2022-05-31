@@ -251,7 +251,7 @@ def main():
         logger.info("Training finished!")
 
     elif args.do_predict:
-        metrics = predict(args, model, eval_dataloader, device, logger)
+        metrics = predict(args, model, eval_dataloader, device, logger, use_fixed_thresh=False)
         logger.info(f"eval performance summary {metrics}")
     elif args.do_test:
         eval_final(args, model, eval_dataloader, weight=0.8)  #TJH NOT UPDATED
@@ -259,7 +259,8 @@ def main():
 
 
 def predict(args, model, eval_dataloader, device, logger, 
-            sp_thresh=[0.003125, 0.00625, 0.0125, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7]):
+            sp_thresh=[0.003125, 0.00625, 0.0125, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7],
+            use_fixed_thresh=True):
     """      model returns {
             'start_logits': start_logits,   # [bs, seq_len]
             'end_logits': end_logits,       # [bs, seq_len]
@@ -323,7 +324,7 @@ def predict(args, model, eval_dataloader, device, logger,
         start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))  #para masking adjusted to start after base question so can predict span in query sents
         end_position_ = list(np.array(end_position.tolist()) - np.array(para_offset)) 
 
-        for idx, qid in enumerate(batch_qids):                          
+        for idx, qid in enumerate(batch_qids):
             rank_score = scores[idx]
             if rank_score >= 0.5:
                 para_pred = 1
@@ -357,7 +358,7 @@ def predict(args, model, eval_dataloader, device, logger,
             for thresh in sp_thresh:
                 pred_sp = []
                 for sent_idx, sent_score in enumerate(sp_score):
-                    if sent_score >= thresh and sent_idx < id2result[qid]['sp_num']:  
+                    if sent_score >= thresh and sent_idx < id2result[qid]['sp_num']:  # sp_scores past max sent offset already forced to zero above
                         pred_sp.append([passage["title"], sent_idx])
                 if pred_sp == []:
                     pred_sp = [[]]
@@ -408,7 +409,10 @@ def predict(args, model, eval_dataloader, device, logger,
         best_sp_recall = sp_metrics[best_thresh]['sp_recall']
 
     logger.info(f"Determined best sentence score thresh as {best_thresh} yielding mean sp_recall of {best_sp_recall} and selecting mean {sp_metrics[best_thresh]['sp_percent']} of sentences.")        
-            
+    if use_fixed_thresh:
+        best_thresh = 0.5
+        best_sp_recall = sp_metrics[best_thresh]['sp_recall']
+        logger.info(f"Using fixed threshold: {best_thresh} with sp_recall: {best_sp_recall}")
     
     out_list = []
     ems, f1s, sp_ems, sp_f1s, sp_precs, sp_recalls, joint_ems, joint_f1s, para_acc = [], [], [], [], [], [], [], [], []
