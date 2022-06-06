@@ -409,7 +409,7 @@ def predict(args, model, eval_dataloader, device, logger,
         best_sp_recall = sp_metrics[best_thresh]['sp_recall']
 
     logger.info(f"Determined best sentence score thresh as {best_thresh} yielding mean sp_recall of {best_sp_recall} and selecting mean {sp_metrics[best_thresh]['sp_percent']} of sentences.")        
-    if use_fixed_thresh:
+    if use_fixed_thresh:  #during training use fixed threshold 0.5 and determine best ckpt base on sp_em
         best_thresh = 0.5
         best_sp_recall = sp_metrics[best_thresh]['sp_recall']
         logger.info(f"Using fixed threshold: {best_thresh} with sp_recall: {best_sp_recall}")

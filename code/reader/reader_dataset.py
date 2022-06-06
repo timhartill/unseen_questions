@@ -1,8 +1,8 @@
 """
 Dataset for stage 1 extractor
 
-encode_context_stage1() adapted from prepare() fn in https://github.com/facebookresearch/multihop_dense_retrieval 
-encode_query_stage1() inspired by https://github.com/stanford-futuredata/Baleen
+Portions adapted from https://github.com/facebookresearch/multihop_dense_retrieval 
+Two stage approach inspired by https://github.com/stanford-futuredata/Baleen
 
 @author Tim Hartill
 
@@ -21,20 +21,21 @@ from tqdm import tqdm
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer, match_answer_span, find_ans_span_with_char_offsets
 from text_processing import is_whitespace, get_sentence_list, split_into_sentences
 
-from utils import collate_tokens, get_para_idxs, consistent_bridge_format, encode_query_paras
+from utils import collate_tokens, get_para_idxs, consistent_bridge_format, encode_query_paras, encode_title_sents
 
 
-def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
+def encode_query(sample, tokenizer, train, max_q_len, index, stage=1):
     """ Encode query as: question [unused2] title 1 | sent 1. sent 2 [unused2] title 2 | sent 0 ...
     sample = the (positive or corresponding negative) sample
     index  = the true index which alternates pos/negs. 
     train = whether to randomize para order (train) or keep fixed (dev)
     
     returns: 
-        query: actually just the portion of the query following the question (not tokenised)
-        tokenised question: just the question part of the query (tokenised) 
-        idx of para to rerank (-1 to choose neg para)
-        build_to_hop: number of hops the query + next para cover eg 1=q_only->sp1, 2=q+sp1->sp2  if build_to_hop=num_hops then query + next para is fully evidential
+        query: actually just the portion of the query following the question (not tokenised). '' in stage 2
+        tokenised question: just the question part of the query (tokenised)
+        idx of para to rerank (-1 to choose neg para) for stage 1 or in stage 2 -1 for neg example, -2 for pos
+        build_to_hop: number of hops the query + next para cover eg 1=q_only->sp1, 2=q+sp1->sp2 (stage 1) or query + context sents cover (stage 2)
+                      if build_to_hop=num_hops then query + next para is fully evidential (stage 1) or context sentences fully evidential (stage 2)
     """
     if index % 2 == 0:
         encode_pos = True
@@ -57,7 +58,7 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
             else:
                 build_to_hop = 1
     else:
-        build_to_hop = sample['num_hops']  # comparatively few 3+ hops so always use full seq. Note there a a tiny number of fevr examples > 4 hops
+        build_to_hop = sample['num_hops']  # comparatively few 3+ hops so always use full seq. Note there a a tiny number of fever examples > 4 hops
 
     para_list = []
     para_idxs = get_para_idxs(sample["pos_paras"])
@@ -70,24 +71,29 @@ def encode_query_stage1(sample, tokenizer, train, max_q_len, index):
     question = sample['question']  # + ' [unused2] '
     q_toks = tokenizer.tokenize(question)[:max_q_len]
     query = ''
-    for i, para in enumerate(para_list):
-        if i+1 >= build_to_hop:
-            if encode_pos:
-                rerank_para = para_idxs[para['title']][0]  #always select next pos para
-            else:
-                rerank_para = -1  # select either 1st (eval) or random (train) neg para
-            break
-        query += ' [unused2] ' + encode_query_paras(para['text'], para['title'], 
-                                                    para['sentence_spans'], para['sentence_labels'],
-                                                    use_sentences=True, prepend_title=True, title_sep=' |')
-    #q_toks = tokenizer.tokenize(query)[:max_q_len]
+    if stage == 1:
+        for i, para in enumerate(para_list):
+            if i+1 >= build_to_hop:
+                if encode_pos:
+                    rerank_para = para_idxs[ para['title'] ][0]  # always select next pos para
+                else:
+                    rerank_para = -1  # select either 1st (eval) or random (train) neg para when encoding context
+                break
+            query += ' [unused2] ' + encode_query_paras(para['text'], para['title'], 
+                                                        para['sentence_spans'], para['sentence_labels'],
+                                                        use_sentences=True, prepend_title=True, title_sep=' |')
+    else:   # stage 2
+        if encode_pos:
+            rerank_para = -2
+        else:
+            rerank_para = -1
     #print(f"enc_query. index:{index} encode_pos:{encode_pos} rerank_para:{rerank_para}  build_to_hop:{build_to_hop}")
-
     return query, q_toks, rerank_para, build_to_hop
 
 
 
-def encode_context_stage1(sample, tokenizer, rerank_para, train, query, special_toks=["[SEP]", "[unused0]", "[unused1]"]):
+def encode_context_stage1(sample, tokenizer, rerank_para, train, query, 
+                          special_toks=["[SEP]", "[unused0]", "[unused1]"]):
     """
     encode context: add post question part of query, non-extractive answer choices, add sentence start markers [unused1] for sentence identification
     encode as: "sentences part of query [SEP] yes no [unused0] [SEP] title [unused1] sent0 [unused1] sent1 [unused1] sent2 ..."
@@ -210,7 +216,7 @@ class Stage1Dataset(Dataset):
     def __getitem__(self, index):
         sample = self.data[index]
         #query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, tokenizer, train, max_q_len, index)
-        query, q_toks, rerank_para, build_to_hop = encode_query_stage1(sample, self.tokenizer, self.train, self.max_q_len, index)
+        query, q_toks, rerank_para, build_to_hop = encode_query(sample, self.tokenizer, self.train, self.max_q_len, index)
         if index % 2 == 0:                                                  # encoding positive sample -> make neg query be encoded the same way
             self.data[index+1]['last_build_to_hop'] = build_to_hop          #force corresponding neg to build to same # of hops as the positive
             self.data[index+1]['bridge'] = copy.deepcopy(sample['bridge'])  # force neg to use same para order as positive
@@ -319,6 +325,154 @@ class Stage1Dataset(Dataset):
         item["sent_labels"] = torch.LongTensor(sent_labels)
         item["label"] = torch.LongTensor([1  if rerank_para > -1 else 0]) # pos sample, next para always evidential, neg sample, next para never evidential 
         return item
+
+
+class Stage2Dataset(Dataset):
+
+    def __init__(self, args, tokenizer, data_path, train=False):
+        self.data_path = data_path
+        print(f"Train:{train} Loading from: {data_path}..")
+        samples = [json.loads(l) for l in tqdm(open(data_path).readlines())]
+        self.tokenizer = tokenizer
+        self.max_seq_len = args.max_c_len
+        self.max_q_len = args.max_q_len
+        self.train = train
+        self.simple_tok = SimpleTokenizer()
+        data = []  # Each alternate sample will be a blank placeholder denoting a negative for preceding positive
+        print("Standardizing formats...")
+        for sample in tqdm(samples):
+            if sample["question"].endswith("?"):
+                sample["question"] = sample["question"][:-1]
+            consistent_bridge_format(sample)
+            if sample['answers'][0] in ["SUPPORTED", "SUPPORTS"]: #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
+                sample['answers'][0] = 'yes'
+            elif sample['answers'][0] in ["REFUTES", "NOT_SUPPORTED"]:
+                sample['answers'][0] = 'no'
+            data.append(sample)                 # pos example - para is always pos but may not be final
+            neg_sample = copy.deepcopy(sample)
+            neg_sample['_id'] += '__neg__'
+            neg_sample['answers'] = ['[unused0]']   # neg sample always has 'insufficient evidence' answer
+            neg_sample['sp_gold_single'] = [[]]     # neg sample 'correct' title/sents dont exist 
+            data.append(neg_sample)  # neg example - para is always neg but may not be final
+        self.data = data
+        print(f"Data size {len(self.data)}")
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        sample = self.data[index]
+        #query, q_toks, rerank_para, build_to_hop = encode_query(sample, tokenizer, train, max_q_len, index, stage=2)
+        query, q_toks, rerank_para, build_to_hop = encode_query(sample, self.tokenizer, self.train, self.max_q_len, index, stage=2)
+        if index % 2 == 0:                                                  # encoding positive sample -> make neg query be encoded the same way
+            self.data[index+1]['last_build_to_hop'] = build_to_hop          #force corresponding neg to build to same # of hops as the positive
+            self.data[index+1]['bridge'] = copy.deepcopy(sample['bridge'])  # force neg to use same para order as positive
+        #item = encode_context_stage1(sample, tokenizer, rerank_para, train, query)
+        item = encode_context_stage1(sample, self.tokenizer, rerank_para, self.train, query)
+        item["index"] = index
+        context_ann = item["context_processed"]
+        #q_toks = self.tokenizer.tokenize(item["question"])[:self.max_q_len]
+        para_offset = len(q_toks) + 1 #  cls 
+        item["wp_tokens"] = context_ann["all_doc_tokens"]  # [subword tokens]
+        #assert item["wp_tokens"][0] == "yes" and item["wp_tokens"][1] == "no"
+        item["para_offset"] = para_offset  # 1st tok after basic question ie start of sentences component of query
+        max_toks_for_doc = self.max_seq_len - para_offset - 1
+        if len(item["wp_tokens"]) > max_toks_for_doc:
+            item["wp_tokens"] = item["wp_tokens"][:max_toks_for_doc]
+        #input_ids = torch.tensor([[tokenizer.cls_token_id] + tokenizer.convert_tokens_to_ids(q_toks) + tokenizer.convert_tokens_to_ids(item["wp_tokens"]) + [tokenizer.sep_token_id]], dtype=torch.int64)
+        input_ids = torch.tensor([[self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks) + self.tokenizer.convert_tokens_to_ids(item["wp_tokens"]) + [self.tokenizer.sep_token_id]],
+                                 dtype=torch.int64)
+        attention_mask = torch.tensor([[1] * input_ids.shape[1]], dtype=torch.int64)
+        token_type_ids = torch.tensor([[0] * para_offset + [1] * (input_ids.shape[1]-para_offset)], dtype=torch.int64)
+        item["encodings"] = {'input_ids': input_ids, 'token_type_ids': token_type_ids, 'attention_mask': attention_mask}
+        item["paragraph_mask"] = torch.zeros(item["encodings"]["input_ids"].size()).view(-1)
+        item["paragraph_mask"][para_offset:-1] = 1  #set sentences part of query + para toks -> 1
+        #NOTE if query very long then 1st [SEP] will be the EOS token at pos 511 & ans_offset will be at 512 over max seq len...
+        #ans_offset = torch.where(input_ids[0] == tokenizer.sep_token_id)[0][0].item()+1
+        ans_offset = torch.where(input_ids[0] == self.tokenizer.sep_token_id)[0][0].item()+1  # tok after 1st [SEP] = yes = start of non extractive answer options
+        if ans_offset >= 509: #non extractive ans options + eval para truncated due to very long query
+            ans_offset = -1  
+                   
+        if self.train:
+            #if neg sample: point to [unused0]/insufficient evidence
+            #if full pos sample: point to yes/no/ans span
+            #if partial pos sample: point to [unused0]
+            if ans_offset == -1:
+                starts, ends = [-1], [-1]  #CE will ignore -1
+            elif rerank_para > -1 and build_to_hop >= item['num_hops']: # if pos & fully evidential ie query + next para = full para set
+                if item["answers"][0] in ["yes", "SUPPORTED", "SUPPORTS"]: # ans mapped to y/n in init above but kept here in case want to change back
+                    starts, ends= [ans_offset], [ans_offset]
+                elif item["answers"][0] in ["no", "REFUTES", "NOT_SUPPORTED"]:
+                    starts, ends= [ans_offset + 1], [ans_offset + 1]
+                else:
+                    #matched_spans = match_answer_span(context_ann["context"], item["answers"], simple_tok)
+                    matched_spans = match_answer_span(context_ann["context"], item["answers"], self.simple_tok)
+                    ans_starts, ans_ends= [], []
+                    for span in matched_spans:
+                        char_starts = [i for i in range(len(context_ann["context"])) if context_ann["context"].startswith(span, i)]
+                        if len(char_starts) > 0:
+                            char_ends = [start + len(span) - 1 for start in char_starts]
+                            answer = {"text": span, "char_spans": list(zip(char_starts, char_ends))}
+                            ans_spans = find_ans_span_with_char_offsets(answer, 
+                                                                        context_ann["char_to_word_offset"], 
+                                                                        context_ann["doc_tokens"], 
+                                                                        context_ann["all_doc_tokens"], 
+                                                                        context_ann["orig_to_tok_index"], 
+                                                                        self.tokenizer)
+                            for s, e in ans_spans:  #TJH accurate into context_ann["all_doc_tokens"] / item["wp_tokens"]
+                                ans_starts.append(s)
+                                ans_ends.append(e)
+                    starts, ends = [], []
+                    for s, e in zip(ans_starts, ans_ends):
+                        if s >= len(item["wp_tokens"]) or s < 0: 
+                            continue
+                        else:
+                            s = min(s, len(item["wp_tokens"]) - 1) + para_offset  #TJH accurate into item["encodings"]["input_ids"][0]
+                            e = min(e, len(item["wp_tokens"]) - 1) + para_offset
+                            starts.append(s)
+                            ends.append(e)
+                    if len(starts) == 0:  # answer not in para
+                        starts, ends = [ans_offset + 2], [ans_offset + 2]     # was CE ignore_index = -1 now [unused0] aka insuff evidence=unanswerable
+            else:
+                starts, ends= [ans_offset + 2], [ans_offset + 2] # was [-1] now [unused0] aka insuff evidence=unanswerable
+                        
+            item["starts"] = torch.LongTensor(starts)
+            item["ends"] = torch.LongTensor(ends)
+
+        else:   # eval sample 
+            item["full"] = torch.LongTensor([1 if build_to_hop >= item['num_hops'] else 0])
+            item["act_hops"] = torch.LongTensor([build_to_hop])
+            item["doc_tokens"] = context_ann["doc_tokens"]
+            item["tok_to_orig_index"] = context_ann["tok_to_orig_index"]
+            if rerank_para > -1 and build_to_hop < item['num_hops']: # update labels if pos but partial sample
+                item = copy.deepcopy(item) # need to override answer
+                item['answers'] = ['[unused0]']
+        
+        if rerank_para > -1: # negs already have sp_gold_single = [[]]
+            sp_gold_single = []
+            for sentence_label in item["context_processed"]["passage"]["sentence_labels"]:
+                if sentence_label < len(item["context_processed"]["passage"]["sentence_spans"]):
+                    sp_gold_single.append( [item["context_processed"]["passage"]["title"], sentence_label] )
+            if sp_gold_single == []:
+                sp_gold_single = [[]]
+            item['sp_gold_single'] = sp_gold_single
+        
+
+        # filter sentence offsets exceeding max sequence length
+        sent_labels, sent_offsets = [], []
+        sp_gold_single = []
+        for idx, s in enumerate(item["context_processed"]["sent_starts"]):
+            if s >= len(item["wp_tokens"]): #if wp_tokens truncated, sent labels could be invalid
+                break
+            sent_labels.append(item["context_processed"]["sent_labels"][idx])
+            sent_offsets.append(s + para_offset)
+            assert item["encodings"]["input_ids"].view(-1)[s+para_offset] == 2  #self.tokenizer.convert_tokens_to_ids("[unused1]")
+
+        item["sent_offsets"] = torch.LongTensor(sent_offsets)
+        item["sent_labels"] = torch.LongTensor(sent_labels)
+        item["label"] = torch.LongTensor([1  if rerank_para > -1 else 0]) # pos sample, next para always evidential, neg sample, next para never evidential 
+        return item
+
 
 
 

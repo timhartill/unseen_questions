@@ -800,9 +800,11 @@ def encode_text(tokenizer, text, text_pair=None, max_input_length=512,
 
 def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences=None, 
                        use_sentences=False, prepend_title=False, title_sep = ':'):
-    """ Encode the query as either just the paragraph or as selected sentences from the paragraph prepended by the title
+    """ Encode the para portion of the query as either just the paragraph or as selected sentences from the paragraph 
+    prepended by the title eg: "title | sentence 1. sentence 4."
     sentence_spans = [ [s1startidx, s1endidx], [s2startidx, s2endidx], ...]
-    selected sentences = [sentenceidx1, sentenceidx2, ...]    
+    selected sentences = [sentenceidx1, sentenceidx2, ...]
+    In retriever title_sep =':', in reader it is ' |'
     """
     if not use_sentences or len(selected_sentences)==0:
         txt = text.strip()
@@ -818,10 +820,26 @@ def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences
         if sent[-1] not in ['.','?','!']:
             sent += '.'
         newtext = newtext + ' ' + sent
-    if newtext.strip() == '':  # If no sents found due to annotation errors, use truncated para
+    if newtext.strip() == '':  # If no sents found due to annotation errors, use potentially truncated para
         newtext = text[:600].strip() + '...'
     if prepend_title:
         newtext = unescape(title.strip() + title_sep) + ' ' + newtext
+    return newtext.strip()
+
+
+def encode_title_sents(text, title, sentence_spans, selected_sentences, title_sep = ' |', sentence_sep = '[unused1]'):
+    """ encode para as eg: "[unused1] title | sentence 1. [unused1] title | sentence 4." 
+    """
+    newtitle = sentence_sep.strip() + ' ' + unescape(title.strip()) + ' ' + title_sep.strip() + ' '
+    newtext = ''
+    for sent_idx in selected_sentences:
+        if sent_idx < 0 or sent_idx >= len(sentence_spans): #hpqa, fever have a few annotation errors where sent_idx > num sentences
+            continue
+        start, end = sentence_spans[sent_idx]
+        sent = text[start:end].strip()
+        if sent[-1] not in ['.','?','!']:
+            sent += '.'
+        newtext = newtext + ' ' + newtitle + sent
     return newtext.strip()
 
 
