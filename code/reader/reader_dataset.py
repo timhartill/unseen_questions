@@ -21,7 +21,7 @@ from tqdm import tqdm
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer, match_answer_span, find_ans_span_with_char_offsets
 from text_processing import is_whitespace, get_sentence_list, split_into_sentences
 
-from utils import collate_tokens, get_para_idxs, consistent_bridge_format, encode_query_paras, encode_title_sents
+from utils import collate_tokens, get_para_idxs, consistent_bridge_format, encode_query_paras, encode_title_sents, context_toks_to_ids, flatten
 
 
 def encode_query(sample, tokenizer, train, max_q_len, index, stage=1):
@@ -62,6 +62,7 @@ def encode_query(sample, tokenizer, train, max_q_len, index, stage=1):
 
     para_list = []
     para_idxs = get_para_idxs(sample["pos_paras"])
+    sample['para_idxs'] = para_idxs  #save recalculating these in encode_context_stage2
     for step_paras_list in sample["bridge"]:
         if train and encode_pos:  # don't shuffle if a neg; use order last used for corresponding positive
             random.shuffle(step_paras_list)
@@ -92,8 +93,7 @@ def encode_query(sample, tokenizer, train, max_q_len, index, stage=1):
 
 
 
-def encode_context_stage1(sample, tokenizer, rerank_para, train, query, 
-                          special_toks=["[SEP]", "[unused0]", "[unused1]"]):
+def encode_context_stage1(sample, tokenizer, rerank_para, train, query, special_toks=["[SEP]", "[unused0]", "[unused1]"]):
     """
     encode context: add post question part of query, non-extractive answer choices, add sentence start markers [unused1] for sentence identification
     encode as: "sentences part of query [SEP] yes no [unused0] [SEP] title [unused1] sent0 [unused1] sent1 [unused1] sent2 ..."
@@ -134,49 +134,107 @@ def encode_context_stage1(sample, tokenizer, rerank_para, train, query,
         para = neg_para
 
     context = query + " [SEP] yes no [unused0] [SEP] " + context  # ELECTRA tokenises yes, no to single tokens
-    doc_tokens = []  # ['word1', 'word2', ..]
-    char_to_word_offset = []  # list with each char -> idx into doc_tokens
-    prev_is_whitespace = True
-    for c in context:
-        if is_whitespace(c):
-            prev_is_whitespace = True
-        else:
-            if prev_is_whitespace:
-                doc_tokens.append(c)
-            else:
-                doc_tokens[-1] += c
-            prev_is_whitespace = False
-        char_to_word_offset.append(len(doc_tokens) - 1)
-
-    sent_starts = []
-    orig_to_tok_index = []
-    tok_to_orig_index = []
-    all_doc_tokens = []
-    for (i, token) in enumerate(doc_tokens):
-        orig_to_tok_index.append(len(all_doc_tokens))
-        if token in special_toks:
-            if token == "[unused1]":
-                sent_starts.append(len(all_doc_tokens))  # [sentence start idx -> subword idx]
-            sub_tokens = [token]
-        else:
-            sub_tokens = tokenizer.tokenize(token)
-
-        for sub_token in sub_tokens:
-            tok_to_orig_index.append(i)       # [ subword tok idx -> whole word token idx]
-            all_doc_tokens.append(sub_token)  # [ sub word tokens ]
-
+    (doc_tokens, char_to_word_offset, orig_to_tok_index, tok_to_orig_index, 
+     all_doc_tokens, sent_starts) = context_toks_to_ids(context, tokenizer, sent_marker='[unused1]', special_toks=special_toks)
+    
     sample["context_processed"] = {
-        "doc_tokens": doc_tokens,                     # [whole words]
-        "char_to_word_offset": char_to_word_offset,   # [char idx -> whole word idx]
-        "orig_to_tok_index": orig_to_tok_index,       # [whole word idx -> subword idx]
-        "tok_to_orig_index": tok_to_orig_index,       # [ subword token idx -> whole word token idx]
-        "all_doc_tokens": all_doc_tokens,             # [ sub word tokens ]
-        "context": context,                           # full context string including 'sentences' part of query
-        "sent_starts": sent_starts,                   # [sentence start idx -> subword token idx]
-        "sent_labels": s_labels,                      # [multihot sentence labels]
-        "passage": para,                              # the pos or neg para {'title':.. 'text':..., pos/neg specific keys}
+            "doc_tokens": doc_tokens,                     # [whole words]
+            "char_to_word_offset": char_to_word_offset,   # [char idx -> whole word idx]
+            "orig_to_tok_index": orig_to_tok_index,       # [whole word idx -> subword idx]
+            "tok_to_orig_index": tok_to_orig_index,       # [ subword token idx -> whole word token idx]
+            "all_doc_tokens": all_doc_tokens,             # [ sub word tokens ]
+            "context": context,                           # full context string including 'sentences' part of query
+            "sent_starts": sent_starts,                   # [sentence start idx -> subword token idx]
+            "sent_labels": s_labels,                      # [multihot sentence labels]
+            "passage": para,                              # the pos or neg para {'title':.. 'text':..., pos/neg specific keys}
     }
     return sample
+
+
+def encode_context_stage2(sample, tokenizer, rerank_para, train, query, special_toks=["[SEP]", "[unused0]", "[unused1]"]):
+    """
+    encode context for stage 2: add post question part of query, non-extractive answer choices, add sentence start markers [unused1] for sentence identification
+    encode as: " [SEP] yes no [unused0] [SEP] [unused1] title2 | sent0 [unused1] title2 | sent2 [unused1] title0 | sent2 ..."
+    if rerank_para = -1 then add a neg para from neg_paras key: random if train, first neg if eval
+    """
+    def _process_pos(para):
+        """ positive para """
+        title, sentence_spans, sentence_labels = para["title"].strip(), para["sentence_spans"], set(para["sentence_labels"])
+        sents = get_sentence_list(para["text"], sentence_spans)
+        pre_sents = []
+        s_labels = []
+        for idx, sent in enumerate(sents):
+            pre_sents.append("[unused1] " + sent.strip())
+            s_labels.append( 1 if idx in sentence_labels else 0 )
+        return title + " " + " ".join(pre_sents), s_labels
+    
+    def _process_neg(para):
+        """ neg para """
+        title = para["title"].strip()
+        sents = split_into_sentences(para["text"])
+        pre_sents = []
+        s_labels = []
+        for idx, sent in enumerate(sents):
+            pre_sents.append("[unused1] " + sent.strip())
+            s_labels.append(0)
+        return title + " " + " ".join(pre_sents), s_labels
+          
+    para_titles = flatten(sample['bridge'])
+    all_pos_sents = []
+    all_neg_sents = []
+    for t in para_titles:
+        para = sample['pos_paras'][ sample['para_idxs'][t][0] ]
+        pos_sents = encode_title_sents(para['text'], t, para['sentence_spans'], para['sentence_labels'])
+        all_pos_sents.extend( pos_sents )
+        #TODO Add neg sents from pos paras
+        neg_sent_idxs = []
+        for i in range(len(para['sentence_spans'])):
+            if i not in para['sentence_labels']:
+                neg_sent_idxs.append(i)
+        neg_sents = encode_title_sents(para['text'], t, para['sentence_spans'], neg_sent_idxs)
+        all_neg_sents.append( neg_sents )
+
+    pos_labels = [1] * len(all_pos_sents)
+    
+    #TODO If necessary add neg sents from neg paras
+    
+        
+    if rerank_para == -1: #TODO neg sample - replace assorted pos paras with neg sents, CLS label will be insuff evidence
+        pass 
+    #TODO combine pos and neg
+    # all_pair = list(zip(all_sents, all_sent_labels))
+    # random.shuffle(all_pair)
+    # context = ' '.join([s[0] for s in all_pair])
+    # s_labels = [s[1] for s in all_pair]
+        
+    if rerank_para > -1:
+        para = sample["pos_paras"][rerank_para]
+        context, s_labels = _process_pos(para)
+    else:
+        if train:
+            neg_para = random.choice(sample["neg_paras"])
+        else:
+            neg_para = sample["neg_paras"][0] # make eval deterministic
+        context, s_labels = _process_neg(neg_para)
+        para = neg_para
+
+    context = query + " [SEP] yes no [unused0] [SEP] " + context  # ELECTRA tokenises yes, no to single tokens
+    (doc_tokens, char_to_word_offset, orig_to_tok_index, tok_to_orig_index, 
+     all_doc_tokens, sent_starts) = context_toks_to_ids(context, tokenizer, sent_marker='[unused1]', special_toks=special_toks)
+    
+    sample["context_processed"] = {
+            "doc_tokens": doc_tokens,                     # [whole words]
+            "char_to_word_offset": char_to_word_offset,   # [char idx -> whole word idx]
+            "orig_to_tok_index": orig_to_tok_index,       # [whole word idx -> subword idx]
+            "tok_to_orig_index": tok_to_orig_index,       # [ subword token idx -> whole word token idx]
+            "all_doc_tokens": all_doc_tokens,             # [ sub word tokens ]
+            "context": context,                           # full context string including 'sentences' part of query
+            "sent_starts": sent_starts,                   # [sentence start idx -> subword token idx]
+            "sent_labels": s_labels,                      # [multihot sentence labels]
+            "passage": para,                              # the pos or neg para {'title':.. 'text':..., pos/neg specific keys}
+    }
+    return sample
+
 
 
 
@@ -367,8 +425,8 @@ class Stage2Dataset(Dataset):
         if index % 2 == 0:                                                  # encoding positive sample -> make neg query be encoded the same way
             self.data[index+1]['last_build_to_hop'] = build_to_hop          #force corresponding neg to build to same # of hops as the positive
             self.data[index+1]['bridge'] = copy.deepcopy(sample['bridge'])  # force neg to use same para order as positive
-        #item = encode_context_stage1(sample, tokenizer, rerank_para, train, query)
-        item = encode_context_stage1(sample, self.tokenizer, rerank_para, self.train, query)
+        #item = encode_context_stage2(sample, tokenizer, rerank_para, train, query)
+        item = encode_context_stage2(sample, self.tokenizer, rerank_para, self.train, query)
         item["index"] = index
         context_ann = item["context_processed"]
         #q_toks = self.tokenizer.tokenize(item["question"])[:self.max_q_len]

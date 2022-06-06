@@ -21,7 +21,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForPreTraining
 from transformers import GPTJForCausalLM, AutoModelForCausalLM
 from bart import MyBart
-from text_processing import normalize_num, split_digits_special
+from text_processing import normalize_num, split_digits_special, is_whitespace
 
 MULTI_ANS_SEP = '#!#'
 
@@ -775,7 +775,7 @@ def get_single_result(res, idx=0):
     return res.preds[idx].strip(), float(res.sequences_scores[idx]) # float(res.sequences_scores.detach().cpu().numpy()[idx])
 
 
-# Utils related to retrieval below here
+# Utils related to retrieval + reader below here
 
 def encode_text(tokenizer, text, text_pair=None, max_input_length=512, 
                 truncation=True, return_tensors="pt", padding=False):
@@ -831,7 +831,7 @@ def encode_title_sents(text, title, sentence_spans, selected_sentences, title_se
     """ encode para as eg: "[unused1] title | sentence 1. [unused1] title | sentence 4." 
     """
     newtitle = sentence_sep.strip() + ' ' + unescape(title.strip()) + ' ' + title_sep.strip() + ' '
-    newtext = ''
+    newtext = []
     for sent_idx in selected_sentences:
         if sent_idx < 0 or sent_idx >= len(sentence_spans): #hpqa, fever have a few annotation errors where sent_idx > num sentences
             continue
@@ -839,8 +839,54 @@ def encode_title_sents(text, title, sentence_spans, selected_sentences, title_se
         sent = text[start:end].strip()
         if sent[-1] not in ['.','?','!']:
             sent += '.'
-        newtext = newtext + ' ' + newtitle + sent
-    return newtext.strip()
+        newtext.append(newtitle + sent)
+    return newtext
+
+
+def context_toks_to_ids(context, tokenizer, sent_marker='[unused1]', 
+                        special_toks=["[SEP]", "[unused0]", "[unused1]"]):
+    """ Tokenize context, noting sentence marker offsets 
+        and building mappings between char offsets->whole words->subwords
+        
+    Returns:
+        doc_tokens,                     # [whole words]
+        char_to_word_offset,            # [char idx -> whole word idx] (not used outside this fn)
+        orig_to_tok_index,              # [whole word idx -> subword idx]
+        tok_to_orig_index,              # [ subword token idx -> whole word token idx]
+        all_doc_tokens,                 # [ sub word tokens ]
+        sent_starts,                    # [sentence start idx -> subword token idx]
+    """
+    doc_tokens = []  # ['word1', 'word2', ..]
+    char_to_word_offset = []  # list with each char -> idx into doc_tokens
+    prev_is_whitespace = True
+    for c in context:
+        if is_whitespace(c):
+            prev_is_whitespace = True
+        else:
+            if prev_is_whitespace:
+                doc_tokens.append(c)
+            else:
+                doc_tokens[-1] += c
+            prev_is_whitespace = False
+        char_to_word_offset.append(len(doc_tokens) - 1)
+
+    sent_starts = []
+    orig_to_tok_index = []
+    tok_to_orig_index = []
+    all_doc_tokens = []
+    for (i, token) in enumerate(doc_tokens):
+        orig_to_tok_index.append(len(all_doc_tokens))
+        if token in special_toks:
+            if token == sent_marker:
+                sent_starts.append(len(all_doc_tokens))  # [sentence start idx -> subword idx]
+            sub_tokens = [token]
+        else:
+            sub_tokens = tokenizer.tokenize(token)
+
+        for sub_token in sub_tokens:
+            tok_to_orig_index.append(i)       # [ subword tok idx -> whole word token idx]
+            all_doc_tokens.append(sub_token)  # [ sub word tokens ]
+    return doc_tokens, char_to_word_offset, orig_to_tok_index, tok_to_orig_index, all_doc_tokens, sent_starts 
 
 
 ########################
