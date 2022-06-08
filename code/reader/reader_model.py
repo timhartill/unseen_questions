@@ -85,7 +85,7 @@ class Stage1Model(nn.Module):
             sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")  # [bs, max#sentsinbatch]
             if self.sent_score_force_zero:
                 sent_mask = (batch["sent_offsets"] != 0).type(torch.int64)  #[bs, max#sentsinbatch] padding = 0, rela sent offset = 1
-                sp_loss = (sp_loss * sent_mask)  # TODO with/without * batch["label"] ? with = zeros scores for neg samples...I may not want this..
+                sp_loss = (sp_loss * sent_mask)  
                 #sp_loss = (sp_loss * batch["sent_offsets"]) * batch["label"]  # batch["sent_offsets"] padded with zeros so effectively zeros the loss for padding...
             sp_loss = sp_loss.sum()
 

@@ -2,12 +2,12 @@
 @author: Tim Hartill
 
 Adapted from MDR train_mhop.py and train_momentum.py
-Description: train a stage 1 reader from pretrained ELECTRA encoder
+Description: train a stage 2 reader from pretrained ELECTRA encoder
 
 Usage: Run from base/scripts dir: 
-    mdr_train_stage1_reader_nativeamp.sh
+    mdr_train_stage2_reader_nativeamp.sh
     or
-    mdr_eval_stage1_reader_nativeamp.sh
+    mdr_eval_stage2_reader_nativeamp.sh
 
 Debug Args to add after running args = train_args()  
 args.prefix='TEST'
@@ -40,7 +40,7 @@ args.do_predict=True
 #05/27/2022 14:12:47 - INFO - __main__ - Saving model with best SP_EM 85.33 -> SP_EM 85.46 on epoch=3
 args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage1_test3_hpqa_hover_fever_nosentforcezero_fullevalmetrics-05-26-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
 
-args.save_prediction = 'stage1_dev_predictions_TEST.jsonl'
+args.save_prediction = 'stage2_dev_predictions_TEST.jsonl'
 """
 
 import logging
@@ -64,7 +64,7 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer,
                           get_linear_schedule_with_warmup)
 
 from mdr_config import train_args
-from reader.reader_dataset import Stage1Dataset, stage1_collate, AlternateSampler
+from reader.reader_dataset import Stage2Dataset, stage1_collate, AlternateSampler
 from reader.reader_model import Stage1Model
 
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
@@ -77,7 +77,7 @@ def main():
     args = train_args()
 
     date_curr = date.today().strftime("%m-%d-%Y")
-    model_name = f"{args.prefix}-{date_curr}-rstage1-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-ga{args.gradient_accumulation_steps}"
+    model_name = f"{args.prefix}-{date_curr}-rstage2-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-ga{args.gradient_accumulation_steps}"
     args.output_dir = os.path.join(args.output_dir, model_name)
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
@@ -119,9 +119,9 @@ def main():
     if args.do_train and args.max_c_len > bert_config.max_position_embeddings:
         raise ValueError( "Cannot use sequence length %d because the model was only trained up to sequence length %d" % (args.max_c_len, bert_config.max_position_embeddings))
     
-    model = Stage1Model(bert_config, args)
-    eval_dataset = Stage1Dataset(args, tokenizer, args.predict_file, train=False)
-    collate_fc = partial(stage1_collate, pad_id=tokenizer.pad_token_id)
+    model = Stage1Model(bert_config, args)  #TODO need separate stage2 model?
+    eval_dataset = Stage2Dataset(args, tokenizer, args.predict_file, train=False)
+    collate_fc = partial(stage1_collate, pad_id=tokenizer.pad_token_id)  #TODO change collate name -> reader_collate
 
     # turned off num_workers for eval after too many open files error
     eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True)  #, num_workers=args.num_workers)
@@ -161,7 +161,7 @@ def main():
         best_main_metric = 0
         train_loss_meter = AverageMeter()
         model.train() #TJH model_nv.train()
-        train_dataset = Stage1Dataset(args, tokenizer, args.train_file, train=True)
+        train_dataset = Stage2Dataset(args, tokenizer, args.train_file, train=True)
         train_sampler = AlternateSampler(train_dataset)
         train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size, pin_memory=True, collate_fn=collate_fc, num_workers=args.num_workers, sampler=train_sampler)
         #train_dataloader = DataLoader(train_dataset, pin_memory=True, collate_fn=collate_fc, num_workers=0, batch_sampler=torch.utils.data.BatchSampler(train_sampler, batch_size=args.train_batch_size, drop_last=False))
@@ -276,7 +276,7 @@ def predict(args, model, eval_dataloader, device, logger,
         
         Calculates the sp threshold as the highest sp_recall returning less than sp_percent_thresh of the sentences in the para
     """
-    sp_percent_thresh = args.sp_percent_thresh # default 0.55
+    sp_percent_thresh = args.sp_percent_thresh # default 0.55 percentage of sentences to reduce to
     model.eval()
     id2result = collections.defaultdict(list)  #  inputs / golds
     id2answer = collections.defaultdict(list)   # corresponding predictions
@@ -353,16 +353,14 @@ def predict(args, model, eval_dataloader, device, logger,
 
             # get the sp sentences [ [title1, 0], [title1, 2], ..]
             sp_score = batch_sp_scores[idx].tolist()
-            passage =  batch["passages"][idx][0]
+            #passage =  batch["passages"][idx][0]
             #sent_offset = batch['net_inputs']['sent_offsets'][idx].tolist()
             pred_sp_dict = {}
             for thresh in sp_thresh:
                 pred_sp = []
                 for sent_idx, sent_score in enumerate(sp_score):
                     if sent_score >= thresh and sent_idx < id2result[qid]['sp_num']:  # sp_scores past max sent offset already forced to zero above
-                        pred_sp.append([passage["title"], sent_idx])
-                if pred_sp == []:
-                    pred_sp = [[]]
+                        pred_sp.append(sent_idx)
                 pred_sp_dict[thresh] = pred_sp
 
             id2answer[qid] = {
@@ -382,7 +380,9 @@ def predict(args, model, eval_dataloader, device, logger,
         metrics = {'sp_em': 0.0, 'sp_f1': 0.0, 'sp_prec': 0.0, 'sp_recall': 0.0, 'sp_percent': 0.0}
         for qid, res in id2result.items():
             ans_res = id2answer[qid]
-            em, prec, recall = update_sp(metrics, ans_res['pred_sp_dict'][thresh], res['sp_gold'])
+            sp_gold = [str(s) for s in res['sp_gold']] if res['sp_gold'] != [] else [''] # update_sp dislikes ints
+            sp_pred = [str(s) for s in ans_res['pred_sp_dict'][thresh]] if ans_res['pred_sp_dict'][thresh] != [] else ['']
+            em, prec, recall = update_sp(metrics, sp_pred, sp_gold)
             if res['sp_num'] > 0:
                 metrics['sp_percent'] += ( len(ans_res['pred_sp_dict'][thresh]) / res['sp_num'] )
             else:
@@ -430,7 +430,9 @@ def predict(args, model, eval_dataloader, device, logger,
         f1s.append(f1)
         # sentence eval incl para
         metrics = {'sp_em': 0, 'sp_f1': 0, 'sp_prec': 0, 'sp_recall': 0}
-        update_sp(metrics, ans_res['pred_sp'], res['sp_gold'])
+        sp_gold = [str(s) for s in res['sp_gold']] if res['sp_gold'] != [] else [''] # update_sp dislikes ints
+        sp_pred = [str(s) for s in ans_res['pred_sp']] if ans_res['pred_sp'] != [] else ['']
+        update_sp(metrics, sp_pred, sp_gold)
         sp_ems.append(metrics['sp_em'])
         sp_f1s.append(metrics['sp_f1'])
         sp_precs.append(metrics['sp_prec'])
@@ -497,8 +499,8 @@ def predict(args, model, eval_dataloader, device, logger,
     
     create_grouped_metrics(logger, out_list, group_key='src')
     create_grouped_metrics(logger, out_list, group_key='pos')
-    create_grouped_metrics(logger, out_list, group_key='act_hops')
-    create_grouped_metrics(logger, out_list, group_key='full')
+    #create_grouped_metrics(logger, out_list, group_key='act_hops')
+    #create_grouped_metrics(logger, out_list, group_key='full')
 
     
     if args.save_prediction != "":

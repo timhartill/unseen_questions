@@ -34,8 +34,8 @@ def encode_query(sample, tokenizer, train, max_q_len, index, stage=1):
         query: actually just the portion of the query following the question (not tokenised). '' in stage 2
         tokenised question: just the question part of the query (tokenised)
         idx of para to rerank (-1 to choose neg para) for stage 1 or in stage 2 -1 for neg example, -2 for pos
-        build_to_hop: number of hops the query + next para cover eg 1=q_only->sp1, 2=q+sp1->sp2 (stage 1) or query + context sents cover (stage 2)
-                      if build_to_hop=num_hops then query + next para is fully evidential (stage 1) or context sentences fully evidential (stage 2)
+        build_to_hop: number of hops the query + next para cover eg 1=q_only->sp1, 2=q+sp1->sp2 (stage 1) IGNORED in stage 2
+                      if build_to_hop=num_hops then query + next para is fully evidential (stage 1) 
     """
     if index % 2 == 0:
         encode_pos = True
@@ -154,7 +154,9 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
     """
     encode context for stage 2: add non-extractive answer choices, add sentence start markers [unused1] for sentence identification
     encode as: " [SEP] yes no [unused0] [SEP] [unused1] title2 | sent0 [unused1] title2 | sent2 [unused1] title0 | sent2 ..."
-    if rerank_para = -1 then substitute some/all pos sents with neg sents
+    if rerank_para == -1 then substitute some/all pos sents with neg sents -> label = insuff evidence
+    else pos sample -> all pos sents present -> label = fully evidential
+    In both pos/neg samples, additional neg sents are added
     if train negs to add are random
     if eval neg ordering is deterministic
     """
@@ -166,13 +168,13 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
         pos_sents = encode_title_sents(para['text'], t.strip(), para['sentence_spans'], para['sentence_labels'])
         all_pos_sents.extend( pos_sents )
         neg_sent_idxs = []
-        for i in range(len(para['sentence_spans'])): #Add neg sents from pos paras
+        for i in range(len(para['sentence_spans'])): # Add neg sents from pos paras
             if i not in para['sentence_labels']:
                 neg_sent_idxs.append(i)
         neg_sents = encode_title_sents(para['text'], t, para['sentence_spans'], neg_sent_idxs)
         all_neg_sents.extend( neg_sents )
         
-    num_pos_initial = len(all_pos_sents)
+    num_pos_initial = len(all_pos_sents) # annotation errors mean occasionally there are 0 positive sents
     all_pos_labels = [1] * num_pos_initial
     
     first_time = True
@@ -199,7 +201,9 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
         else:
             divisor = 2
         firstnegidx = num_pos_initial // divisor
-        for neg_idx, i in enumerate(range(firstnegidx, num_pos_initial)):
+        neg_idx = -1
+        for i in range(firstnegidx, num_pos_initial):
+            neg_idx += 1
             all_pos_sents[i] = all_neg_sents[neg_idx]
             all_pos_labels[i] = 0
         all_neg_sents = all_neg_sents[neg_idx+1:]
@@ -207,7 +211,7 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
     max_sents = random.choice([7,8,9]) if train else 9
     num_to_add = max_sents - num_pos_initial
     if num_to_add > 0:
-        all_pos_sents.extend( all_neg_sents[:num_to_add] )  #  additional negs
+        all_pos_sents.extend( all_neg_sents[:num_to_add] )  # additional negs
         num_to_add = len(all_pos_sents) - len(all_pos_labels)
         all_pos_labels += [0] * num_to_add
         
@@ -217,7 +221,7 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
         random.shuffle(all_pair)
     context = ' '.join([s[0] for s in all_pair])
     s_labels = [s[1] for s in all_pair]
-    pos_sent_idxs = [i for i,s in enumerate(s_labels) if s == 1]
+    pos_sent_idxs = [i for i,s in enumerate(s_labels) if s == 1]  
 
     context = " [SEP] yes no [unused0] [SEP] " + context  # ELECTRA tokenises yes, no to single tokens
     (doc_tokens, char_to_word_offset, orig_to_tok_index, tok_to_orig_index, 
@@ -423,7 +427,7 @@ class Stage2Dataset(Dataset):
         #query, q_toks, rerank_para, build_to_hop = encode_query(sample, tokenizer, train, max_q_len, index, stage=2)
         query, q_toks, rerank_para, build_to_hop = encode_query(sample, self.tokenizer, self.train, self.max_q_len, index, stage=2)
         if index % 2 == 0:                                                  # encoding positive sample -> make neg query be encoded the same way
-            self.data[index+1]['last_build_to_hop'] = build_to_hop          #force corresponding neg to build to same # of hops as the positive
+            self.data[index+1]['last_build_to_hop'] = build_to_hop          # force corresponding neg to build to same # of hops as the positive (ignored in stage 2)
             self.data[index+1]['bridge'] = copy.deepcopy(sample['bridge'])  # force neg to use same para order as positive
         #item = encode_context_stage2(sample, tokenizer, rerank_para, train)
         item = encode_context_stage2(sample, self.tokenizer, rerank_para, self.train)
@@ -454,10 +458,10 @@ class Stage2Dataset(Dataset):
         if self.train:
             #if neg sample: point to [unused0]/insufficient evidence
             #if full pos sample: point to yes/no/ans span
-            #if partial pos sample: point to [unused0]
+            #unlike stage 1 there are no partial pos samples but sent annot errs mean there are some "pos" samples that have no valid sent labels..
             if ans_offset == -1:
                 starts, ends = [-1], [-1]  #CE will ignore -1
-            elif rerank_para != -1 and build_to_hop >= item['num_hops']: # if pos & fully evidential ie query + next para = full para set
+            elif rerank_para != -1 and item["context_processed"]["passage"]["pos_sent_idxs"] != []: # if pos ie fully evidential ie all positive sents present (plus a few negs as distractors)
                 if item["answers"][0] in ["yes", "SUPPORTED", "SUPPORTS"]: # ans mapped to y/n in init above but kept here in case want to change back
                     starts, ends= [ans_offset], [ans_offset]
                 elif item["answers"][0] in ["no", "REFUTES", "NOT_SUPPORTED"]:
@@ -491,23 +495,20 @@ class Stage2Dataset(Dataset):
                             ends.append(e)
                     if len(starts) == 0:  # answer not in para
                         starts, ends = [ans_offset + 2], [ans_offset + 2]     # was CE ignore_index = -1 now [unused0] aka insuff evidence=unanswerable
-            else:  #neg or partial
+            else:  # neg -> not all pos sents present -> insuff evidence to answer
                 starts, ends= [ans_offset + 2], [ans_offset + 2] # was [-1] now [unused0] aka insuff evidence=unanswerable
                         
             item["starts"] = torch.LongTensor(starts)
             item["ends"] = torch.LongTensor(ends)
 
         else:   # eval sample 
-            item["full"] = torch.LongTensor([1 if build_to_hop >= item['num_hops'] else 0])
-            item["act_hops"] = torch.LongTensor([build_to_hop])
+            item["full"] = torch.LongTensor([1 if build_to_hop >= item['num_hops'] else 0]) # ignored in stage 2, just for format compatability with stage1
+            item["act_hops"] = torch.LongTensor([build_to_hop])                             # ignored in stage 2, just for format compatability with stage1
             item["doc_tokens"] = context_ann["doc_tokens"]
             item["tok_to_orig_index"] = context_ann["tok_to_orig_index"]
-            if rerank_para != -1 and build_to_hop < item['num_hops']: # update labels if pos but partial sample
-                item = copy.deepcopy(item) # need to override answer
-                item['answers'] = ['[unused0]']
         
-        # negs can have (partial) pos sents. if none, sp_gold_single = [] (note stage 1 neg label is [[]] )
-        item['sp_gold_single'] = item["context_processed"]["passage"]["pos_sent_idxs"]        
+        # negs can have (partial) pos sents. if no pos sents, sp_gold_single = [] (note stage 1 neg label is [[]] )
+        item['sp_gold_single'] = item["context_processed"]["passage"]["pos_sent_idxs"]
 
         # filter sentence offsets exceeding max sequence length
         sent_labels, sent_offsets = [], []
@@ -520,13 +521,11 @@ class Stage2Dataset(Dataset):
 
         item["sent_offsets"] = torch.LongTensor(sent_offsets)
         item["sent_labels"] = torch.LongTensor(sent_labels)
-        if rerank_para == -1 or build_to_hop < item['num_hops']:  # if neg or partial
+        if rerank_para == -1 or item['sp_gold_single'] == []:  # if neg or "was supposed to be pos but sent annot errors mean no pos sents"
             item["label"] = torch.LongTensor([0])  # sents not fully evidential
-        else:
+        else:  # pos
             item["label"] = torch.LongTensor([1]) # sents are fully evidential
         return item
-
-
 
 
 class AlternateSampler(Sampler):
