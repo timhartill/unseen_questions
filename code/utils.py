@@ -837,9 +837,10 @@ def encode_title_sents(text, title, sentence_spans, selected_sentences, title_se
             continue
         start, end = sentence_spans[sent_idx]
         sent = text[start:end].strip()
-        if sent[-1] not in ['.','?','!']:
-            sent += '.'
-        newtext.append(newtitle + sent)
+        if len(sent) > 0:
+            if sent[-1] not in ['.','?','!']:
+                sent += '.'
+            newtext.append(newtitle + sent)
     return newtext
 
 
