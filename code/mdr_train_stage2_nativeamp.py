@@ -124,7 +124,7 @@ def main():
     collate_fc = partial(stage1_collate, pad_id=tokenizer.pad_token_id)  #TODO change collate name -> reader_collate
 
     # turned off num_workers for eval after too many open files error
-    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True)  #, num_workers=args.num_workers)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True, num_workers=args.num_workers_dev)
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
     #TJH batch = next(iter(eval_dataloader))
 
@@ -313,17 +313,26 @@ def predict(args, model, eval_dataloader, device, logger,
             id2result[qid] = golds                    #.append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
 
         # answer prediction
-        span_scores = outs[0][:, :, None] + outs[1][:, None]  # [bs, maxseqleninbatch, maxseqleninbatch]
+        span_scores = outs[0][:, :, None] + outs[1][:, None]  # [bs, maxseqleninbatch, maxseqleninbatch] start_score+end_score
         max_seq_len = span_scores.size(1)
-        span_mask = np.tril(np.triu(np.ones((max_seq_len, max_seq_len)), 0), args.max_ans_len)          # [maxseqleninbatch, maxseqleninbatch]
-        span_mask = span_scores.data.new(max_seq_len, max_seq_len).copy_(torch.from_numpy(span_mask))   # [maxseqleninbatch, maxseqleninbatch]
-        span_scores_masked = span_scores.float().masked_fill((1 - span_mask[None].expand_as(span_scores)).bool(), -1e10).type_as(span_scores)  # [bs, maxseqleninbatch, maxseqleninbatch]
-        start_position = span_scores_masked.max(dim=2)[0].max(dim=1)[1]  # [bs]
+        span_mask = np.tril(np.triu(np.ones((max_seq_len, max_seq_len)), 0), args.max_ans_len)          # [maxseqleninbatch, maxseqleninbatch] everything before possible start and after possible start + max ans len masked 
+        span_mask = span_scores.data.new(max_seq_len, max_seq_len).copy_(torch.from_numpy(span_mask))   # np->torch [maxseqleninbatch, maxseqleninbatch]
+        span_scores_masked = span_scores.float().masked_fill((1 - span_mask[None].expand_as(span_scores)).bool(), -1e10).type_as(span_scores)  # [bs, maxseqleninbatch, maxseqleninbatch] with everything before start or after start + max ans len masked 
+        start_position = span_scores_masked.max(dim=2)[0].max(dim=1)[1]  # [bs] .max returns values in [0], indices in [1]
         end_position = span_scores_masked.max(dim=2)[1].gather(1, start_position.unsqueeze(1)).squeeze(1) # [bs]
         answer_scores = span_scores_masked.max(dim=2)[0].max(dim=1)[0].tolist() # [bs]
         para_offset = batch['para_offsets']  # [bs]
         start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))  #para masking adjusted to start after base question so can predict span in query sents
         end_position_ = list(np.array(end_position.tolist()) - np.array(para_offset)) 
+
+        # TODO use this: 
+        insuff_scores = [] # [bs]  obtain score of [unused0]/insuff evidence token similar to IRRR - can now look at answer_score - insuff_scores 
+        ans_delta = []
+        start_logits = outs[0]  # [bs, maxseqleninbatch]
+        end_logits = outs[1]    # [bs, maxseqleninbatch]
+        for idx, offset in enumerate(para_offset):
+            insuff_scores.append( float( start_logits[idx, offset+3] + end_logits[idx, offset+3] ) )    # +1=Y, +2=N, +3=[unused0]/insuff
+            ans_delta.append(answer_scores[idx] - insuff_scores[-1])
 
         for idx, qid in enumerate(batch_qids):
             rank_score = scores[idx]
@@ -419,7 +428,7 @@ def predict(args, model, eval_dataloader, device, logger,
     ems, f1s, sp_ems, sp_f1s, sp_precs, sp_recalls, joint_ems, joint_f1s, para_acc = [], [], [], [], [], [], [], [], []
     for qid, res in id2result.items():
         index = res['index']
-        pos = index % 2 == 0
+        pos = res['para_label'] == 1  #was index % 2 == 0 in stage 1
         sample = eval_dataloader.dataset.data[index]
         ans_res = id2answer[qid]
         ans_res['pred_sp'] = ans_res['pred_sp_dict'][best_thresh]  # select the sp pred from best thresh found

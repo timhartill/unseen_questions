@@ -99,8 +99,7 @@ class Stage1Model(nn.Module):
             marginal_probs = torch.sum(torch.exp(log_prob), dim=1)
             m_prob = [marginal_probs[idx] for idx in marginal_probs.nonzero()]
             if len(m_prob) == 0:
-                span_loss = self.loss_fct(start_logits, start_logits.new_zeros(
-                    start_logits.size(0)).long()-1).sum()
+                span_loss = self.loss_fct(start_logits, start_logits.new_zeros(start_logits.size(0)).long()-1).sum()
             else:
                 span_loss = - torch.log(torch.cat(m_prob)).sum()
             

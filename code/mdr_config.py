@@ -13,7 +13,7 @@ def common_args():
     parser.add_argument("--train_file", type=str,
                         default="../data/nq-with-neg-train.txt")
     parser.add_argument("--predict_file", type=str, default="../data/nq-with-neg-dev.txt")
-    parser.add_argument("--num_workers", default=10, type=int)
+    parser.add_argument("--num_workers", default=10, type=int, help="number of training dataloader processes. 0 means run on main thread.")
     parser.add_argument("--do_train", default=False, action='store_true', help="Whether to run training.")
     parser.add_argument("--do_predict", default=False, action='store_true', help="Whether to run eval on the dev set.")
     parser.add_argument("--do_test", default=False, action="store_true", help="for final test submission")
@@ -70,6 +70,7 @@ def common_args():
     parser.add_argument("--random_multi_seq", action="store_true", help="If training type multi para sequencing, randomize para seq in each step.")   
     parser.add_argument("--sent_score_force_zero", action="store_true", help="Stage 1 reader training : Zero sentence scores where sent or para label is zero.")    
     parser.add_argument("--sp_percent_thresh", type=float, default=0.55, help="maximum mean fraction of sentences in para for a given sp score threshold to take in order for that thresh to be selected.")
+    parser.add_argument("--num_workers_dev", default=0, type=int, help="number of dev dataloader processes. 0 means run on main thread.")
 
 
     return parser

@@ -124,7 +124,7 @@ def main():
     collate_fc = partial(stage1_collate, pad_id=tokenizer.pad_token_id)
 
     # turned off num_workers for eval after too many open files error
-    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True)  #, num_workers=args.num_workers)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True, num_workers=args.num_workers_dev)  #, num_workers=args.num_workers)
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
     #TJH batch = next(iter(eval_dataloader))
 
