@@ -17,7 +17,7 @@ python mdr_train_stage1_nativeamp.py \
     --max_q_len 70 \
     --output_dir /large_data/thar011/out/mdr/logs \
     --sp_percent_thresh 0.55 \
-    --num_workers_dev 0 \
+    --num_workers_dev 10 \
     --save_prediction stage1_dev_predictions.jsonl
 
 

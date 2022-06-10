@@ -233,7 +233,7 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
             "orig_to_tok_index": orig_to_tok_index,       # [whole word idx -> subword idx]
             "tok_to_orig_index": tok_to_orig_index,       # [ subword token idx -> whole word token idx]
             "all_doc_tokens": all_doc_tokens,             # [ sub word tokens ]
-            "context": context,                           # full context string including 'sentences' part of query
+            "context": context,                           # full context string ie everything after question
             "sent_starts": sent_starts,                   # [sentence start idx -> subword token idx]
             "sent_labels": s_labels,                      # [multihot sentence labels]
             "passage": {'pos_sent_idxs': pos_sent_idxs},  # dict for stage1 format compatability: was the pos or neg para {'title':.. 'text':..., pos/neg specific keys}
@@ -584,7 +584,7 @@ class MhopSampler(Sampler):
         return iter(sample_indice)
 
 
-def stage1_collate(samples, pad_id=0):
+def stage_collate(samples, pad_id=0):
     if len(samples) == 0:
         return {}
     
@@ -625,5 +625,7 @@ def stage1_collate(samples, pad_id=0):
         batched["wp_tokens"] = [s["wp_tokens"] for s in samples]
         batched["full"] = [s["full"] for s in samples]
         batched["act_hops"] = [s["act_hops"] for s in samples]
+        batched["question"] = [s["question"] for s in samples]
+        batched["context"] = [s["context_processed"]["context"] for s in samples]
 
     return batched

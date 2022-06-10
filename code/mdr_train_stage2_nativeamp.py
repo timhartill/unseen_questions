@@ -28,17 +28,16 @@ args.output_dir = '/large_data/thar011/out/mdr/logs'
 args.gradient_accumulation_steps = 1
 args.use_adam=True
 args.sp_weight = 1.0
-args.sent_score_force_zero = False
+args.sent_score_force_zero = True
 args.debug = True
-args.sp_percent_thresh = 0.55
+args.sp_percent_thresh = 1.0
+args.num_workers_dev = 10
 
 # for eval only:
 args.do_train=False
 args.do_predict=True
 
-#05/27/2022 14:12:47 - INFO - __main__ - Step 18000 Train loss 1.90 SP_EM 85.46 on epoch=3
-#05/27/2022 14:12:47 - INFO - __main__ - Saving model with best SP_EM 85.33 -> SP_EM 85.46 on epoch=3
-args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage1_test3_hpqa_hover_fever_nosentforcezero_fullevalmetrics-05-26-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
+args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage2_test0_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-06-08-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best_BatStep 207999 GlobStep26000 Trainloss2.99 SP_EM64.00 epoch5 para_acc0.8416.pt'
 
 args.save_prediction = 'stage2_dev_predictions_TEST.jsonl'
 """
@@ -56,6 +55,8 @@ from functools import partial
 
 import numpy as np
 import torch
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter  # tensorboard --logdir=runs
@@ -64,7 +65,7 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer,
                           get_linear_schedule_with_warmup)
 
 from mdr_config import train_args
-from reader.reader_dataset import Stage2Dataset, stage1_collate, AlternateSampler
+from reader.reader_dataset import Stage2Dataset, stage_collate, AlternateSampler
 from reader.reader_model import Stage1Model
 
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
@@ -121,10 +122,11 @@ def main():
     
     model = Stage1Model(bert_config, args)  #TODO need separate stage2 model?
     eval_dataset = Stage2Dataset(args, tokenizer, args.predict_file, train=False)
-    collate_fc = partial(stage1_collate, pad_id=tokenizer.pad_token_id)  #TODO change collate name -> reader_collate
+    collate_fc = partial(stage_collate, pad_id=tokenizer.pad_token_id)  
 
     # turned off num_workers for eval after too many open files error
-    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True, num_workers=args.num_workers_dev)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, 
+                                 pin_memory=True, num_workers=args.num_workers_dev)
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
     #TJH batch = next(iter(eval_dataloader))
 
@@ -163,7 +165,8 @@ def main():
         model.train() #TJH model_nv.train()
         train_dataset = Stage2Dataset(args, tokenizer, args.train_file, train=True)
         train_sampler = AlternateSampler(train_dataset)
-        train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size, pin_memory=True, collate_fn=collate_fc, num_workers=args.num_workers, sampler=train_sampler)
+        train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size, pin_memory=True, 
+                                      collate_fn=collate_fc, num_workers=args.num_workers, sampler=train_sampler)
         #train_dataloader = DataLoader(train_dataset, pin_memory=True, collate_fn=collate_fc, num_workers=0, batch_sampler=torch.utils.data.BatchSampler(train_sampler, batch_size=args.train_batch_size, drop_last=False))
 
         t_total = len(train_dataloader) // args.gradient_accumulation_steps * args.num_train_epochs
@@ -226,26 +229,26 @@ def main():
                     if args.eval_period != -1 and global_step % args.eval_period == 0:
                         logger.info(f"Starting predict on Batch Step {batch_step}  Global Step {global_step}  Epoch {epoch} ..")
                         metrics = predict(args, model, eval_dataloader, device, logger)
-                        main_metric = metrics["sp_em"]  
-                        logger.info("Bat Step %d Glob Step %d Train loss %.2f SP_EM %.2f on epoch=%d" % (batch_step, global_step, train_loss_meter.avg, main_metric*100, epoch))
+                        main_metric = metrics["para_acc"]  
+                        logger.info("Bat Step %d Glob Step %d Train loss %.2f para_acc %.2f on epoch=%d" % (batch_step, global_step, train_loss_meter.avg, main_metric*100, epoch))
 
                         if best_main_metric < main_metric:
-                            logger.info("Saving model with best SP_EM %.2f -> SP_EM %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
+                            logger.info("Saving model with best para_acc %.2f -> para_acc %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
                             torch.save(model.state_dict(), os.path.join(args.output_dir, "checkpoint_best.pt"))
                             model = model.to(device)
                             best_main_metric = main_metric
 
             logger.info(f"End of Epoch {epoch}: Starting predict on Batch Step {batch_step}  Global Step {global_step}  Epoch {epoch} ..")
             metrics = predict(args, model, eval_dataloader, device, logger)
-            main_metric = metrics["sp_em"] # originally 'em'
-            logger.info("Bat Step %d Glob Step %d Train loss %.2f SP_EM %.2f on epoch=%d" % (batch_step, global_step, train_loss_meter.avg, main_metric*100, epoch))
+            main_metric = metrics["para_acc"] # originally 'em'
+            logger.info("Bat Step %d Glob Step %d Train loss %.2f para_acc %.2f on epoch=%d" % (batch_step, global_step, train_loss_meter.avg, main_metric*100, epoch))
             for k, v in metrics.items():
                 tb_logger.add_scalar(k, v*100, epoch)
             logger.info(f'Saving checkpoint_last.pt end the end of epoch {epoch}')
             torch.save(model.state_dict(), os.path.join(args.output_dir, "checkpoint_last.pt"))
 
             if best_main_metric < main_metric:
-                logger.info("Saving model with best SP_EM %.2f -> SP_EM %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
+                logger.info("Saving model with best para_acc %.2f -> para_acc %.2f on epoch=%d" % (best_main_metric*100, main_metric*100, epoch))
                 torch.save(model.state_dict(), os.path.join(args.output_dir, "checkpoint_best.pt"))
                 best_main_metric = main_metric
 
@@ -260,7 +263,8 @@ def main():
 
 
 def predict(args, model, eval_dataloader, device, logger, 
-            sp_thresh=[0.003125, 0.00625, 0.0125, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7],
+            sp_thresh=[0.00001, 0.0001, 0.001, 0.003125, 0.00625, 0.0125, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7],
+            ev_thresh=[0.003125, 0.00625, 0.0125, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.475, 0.4875, 0.5, 0.5125, 0.525, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
             use_fixed_thresh=True):
     """      model returns {
             'start_logits': start_logits,   # [bs, seq_len]
@@ -273,22 +277,23 @@ def predict(args, model, eval_dataloader, device, logger,
                                  'net_inputs', 'index', 'doc_tokens', 'tok_to_orig_index', 'wp_tokens', 'full'])
         batch['net_inputs'].keys(): dict_keys(['input_ids', 'attention_mask', 'paragraph_mask', 'label', 
                                                'sent_offsets', 'sent_labels', 'token_type_ids'])
-        
+        sp_thresh and ev_thresh must contain 0.5 or error..
         Calculates the sp threshold as the highest sp_recall returning less than sp_percent_thresh of the sentences in the para
     """
-    sp_percent_thresh = args.sp_percent_thresh # default 0.55 percentage of sentences to reduce to
+    sp_percent_thresh = args.sp_percent_thresh # default 1.0 in stage 2:  percentage of sentences to reduce to
     model.eval()
     id2result = collections.defaultdict(list)  #  inputs / golds
     id2answer = collections.defaultdict(list)   # corresponding predictions
     for batch in tqdm(eval_dataloader):
         #TJH batch = next(iter(eval_dataloader))
-        # batch_to_feed = batch["net_inputs"] 
+        # batch_to_feed = batch["net_inputs"]
+        #batch = copy.deepcopy(batch_orig)
         batch_to_feed = move_to_cuda(batch["net_inputs"])
         batch_qids = batch["qids"]
         batch_labels = batch["net_inputs"]["label"].view(-1).tolist() # list [bs] = 1/0
         batch_sp_labels = batch['net_inputs']['sent_labels'].tolist()
         batch_sp_offsets = batch['net_inputs']['sent_offsets'].tolist()
-        with torch.no_grad():
+        with torch.inference_mode():
             outputs = model(batch_to_feed)  # dict_keys(['start_logits', 'end_logits', 'rank_score', 'sp_score'])
             scores = outputs["rank_score"]
             scores = scores.sigmoid().view(-1).tolist()  # added .sigmoid()  list [bs] = 0.46923
@@ -309,7 +314,8 @@ def predict(args, model, eval_dataloader, device, logger,
             golds = {'para_label': label, 'sp_labels': sp_labels, 
                      'full': int(batch['full'][idx]), 'index': batch['index'][idx], 
                      'gold_answer': batch['gold_answer'][idx], 'sp_gold': batch['sp_gold'][idx],
-                     'act_hops': int(batch['act_hops'][idx]), 'sp_num': sp_num}
+                     'act_hops': int(batch['act_hops'][idx]), 'sp_num': sp_num, 
+                     'question': batch['question'][idx], 'context': batch['context'][idx]}
             id2result[qid] = golds                    #.append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
 
         # answer prediction
@@ -325,26 +331,19 @@ def predict(args, model, eval_dataloader, device, logger,
         start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))  #para masking adjusted to start after base question so can predict span in query sents
         end_position_ = list(np.array(end_position.tolist()) - np.array(para_offset)) 
 
-        # TODO use this: 
-        insuff_scores = [] # [bs]  obtain score of [unused0]/insuff evidence token similar to IRRR - can now look at answer_score - insuff_scores 
+        insuff_scores = [] # [bs]  obtain score of [unused0]/insuff evidence token - can now look at magnitude of answer_score - insuff_scores or just magnitude of insuff_score 
         ans_delta = []
         start_logits = outs[0]  # [bs, maxseqleninbatch]
         end_logits = outs[1]    # [bs, maxseqleninbatch]
         for idx, offset in enumerate(para_offset):
-            insuff_scores.append( float( start_logits[idx, offset+3] + end_logits[idx, offset+3] ) )    # +1=Y, +2=N, +3=[unused0]/insuff
+            insuff_scores.append( float( start_logits[idx, offset+3] + end_logits[idx, offset+3] ) )    # offset+1=Y, +2=N, +3=[unused0]/insuff
             ans_delta.append(answer_scores[idx] - insuff_scores[-1])
 
         for idx, qid in enumerate(batch_qids):
-            rank_score = scores[idx]
-            if rank_score >= 0.5:
-                para_pred = 1
-            else:
-                para_pred = 0
-                
+            # get the predicted answer string                  
             start = start_position_[idx]
             end = end_position_[idx]
             span_score = answer_scores[idx]
-            
             tok_to_orig_index = batch['tok_to_orig_index'][idx]
             doc_tokens = batch['doc_tokens'][idx]
             wp_tokens = batch['wp_tokens'][idx]
@@ -360,30 +359,63 @@ def predict(args, model, eval_dataloader, device, logger,
             orig_text = " ".join(orig_tokens)
             pred_str = get_final_text(tok_text, orig_text, do_lower_case=True, verbose_logging=False)
 
-            # get the sp sentences [ [title1, 0], [title1, 2], ..]
+            # get the context full evidentiality accuracy at different ev score thresholds
+            rank_score = scores[idx]
+            para_pred_dict = {}
+            for thresh in ev_thresh:
+                if rank_score >= thresh:
+                    para_pred = 1
+                else:
+                    para_pred = 0
+                para_pred_dict[thresh] = para_pred
+
+            # get the positive sp sentences at difft sp score thresholds {thresh: [ sentidx1, sentidx4, ..]}
             sp_score = batch_sp_scores[idx].tolist()
-            #passage =  batch["passages"][idx][0]
-            #sent_offset = batch['net_inputs']['sent_offsets'][idx].tolist()
             pred_sp_dict = {}
             for thresh in sp_thresh:
                 pred_sp = []
                 for sent_idx, sent_score in enumerate(sp_score):
-                    if sent_score >= thresh and sent_idx < id2result[qid]['sp_num']:  # sp_scores past max sent offset already forced to zero above
+                    if sent_score >= thresh and sent_idx < id2result[qid]['sp_num']:  # sp_scores past max sent offset already forced to zero above so probably extraneous
                         pred_sp.append(sent_idx)
                 pred_sp_dict[thresh] = pred_sp
 
             id2answer[qid] = {
-                "rank_score": rank_score,       # para evidentiality score
-                "para_pred": para_pred,         # 0/1 decision on whether para is evidential
-                "pred_str": pred_str.strip(),   # predicted answer span string
-                "span_score": span_score,       # answer confidence score 
-                "pred_sp_dict": pred_sp_dict,   # {threshold val: predicted sentences [ [title1, 0], [title1, 2], ..] }
-                "pred_sp_scores": sp_score      # evidentiality score of each sentence marker
+                "rank_score": rank_score,               # context evidentiality score
+                "para_pred_dict": para_pred_dict,       # 0/1 decision on whether context is fully evidential  {thresh: 1/0}
+                "pred_str": pred_str.strip(),           # predicted answer span string
+                "span_score": span_score,               # answer "confidence" score 
+                "insuff_score": insuff_scores[idx],     # insuff/[unused0] "confidence" score
+                "pred_sp_dict": pred_sp_dict,           # {threshold val: predicted sentences [ sentidx1, sentidx4, ..] }
+                "pred_sp_scores": sp_score              # evidentiality score of each sentence marker
             }
 
-    
-    #Calc best sp threshold, copy corresponding pred_sp at thresh -> pred sp  
-    num_results = len(id2result)
+
+    num_results = len(id2result) 
+    #calc best ev threshold, copy corresponding pred -> para_pred
+    ev_metrics = {}
+    for thresh in ev_thresh:
+        ev_acc = 0.0
+        for qid, res in id2result.items():
+            ans_res = id2answer[qid]
+            ev_acc += int(ans_res['para_pred_dict'][thresh] == res['para_label'])  # context evidentiality eval (accuracy)
+        ev_acc /= num_results
+        ev_metrics[thresh] = ev_acc
+        logger.info(f"context evidence threshold: {thresh} acc: {ev_acc}")
+
+    best_ev_thresh = -1.0
+    best_ev_acc = -1.0
+    for thresh in ev_thresh:
+        if ev_metrics[thresh] > best_ev_acc:  # take lowest thresh with same acc
+            best_ev_thresh = thresh
+            best_ev_acc = ev_metrics[thresh]
+    logger.info(f"Determined best context evidence score thresh as {best_ev_thresh} yielding mean para_acc of {best_ev_acc}.")
+    if use_fixed_thresh:  #during training use fixed threshold 0.5 and determine best ckpt based on para_acc
+        best_ev_thresh = 0.5
+        best_ev_acc = ev_metrics[best_ev_thresh]
+        logger.info(f"Using fixed context evidence threshold: {best_ev_thresh} with para_acc: {best_ev_acc}")
+
+        
+    #Calc best sp threshold, copy corresponding pred_sp at thresh -> pred sp
     sp_metrics = {}
     for thresh in sp_thresh:
         metrics = {'sp_em': 0.0, 'sp_f1': 0.0, 'sp_prec': 0.0, 'sp_recall': 0.0, 'sp_percent': 0.0}
@@ -404,7 +436,6 @@ def predict(args, model, eval_dataloader, device, logger,
         sp_metrics[thresh] = copy.deepcopy(metrics)
         logger.info(f"sp threshold: {thresh} metrics: {metrics}")
 
-
     best_thresh = -1.0
     best_sp_recall = -1.0
     for thresh in sp_thresh:
@@ -419,20 +450,21 @@ def predict(args, model, eval_dataloader, device, logger,
         best_sp_recall = sp_metrics[best_thresh]['sp_recall']
 
     logger.info(f"Determined best sentence score thresh as {best_thresh} yielding mean sp_recall of {best_sp_recall} and selecting mean {sp_metrics[best_thresh]['sp_percent']} of sentences.")        
-    if use_fixed_thresh:  #during training use fixed threshold 0.5 and determine best ckpt base on sp_em
+    if use_fixed_thresh:  #during training use fixed threshold 0.5 and determine best ckpt base on para_acc
         best_thresh = 0.5
         best_sp_recall = sp_metrics[best_thresh]['sp_recall']
-        logger.info(f"Using fixed threshold: {best_thresh} with sp_recall: {best_sp_recall}")
+        logger.info(f"Using fixed sp threshold: {best_thresh} with sp_recall: {best_sp_recall}")
     
     out_list = []
     ems, f1s, sp_ems, sp_f1s, sp_precs, sp_recalls, joint_ems, joint_f1s, para_acc = [], [], [], [], [], [], [], [], []
     for qid, res in id2result.items():
         index = res['index']
         pos = res['para_label'] == 1  #was index % 2 == 0 in stage 1
-        sample = eval_dataloader.dataset.data[index]
+        sample = eval_dataloader.dataset.data[index]  # retrieve some extra info for output file
         ans_res = id2answer[qid]
-        ans_res['pred_sp'] = ans_res['pred_sp_dict'][best_thresh]  # select the sp pred from best thresh found
-        para_acc.append(int(ans_res['para_pred'] == res['para_label']))  # para evidentiality eval (accuracy)
+        ans_res['pred_sp'] = ans_res['pred_sp_dict'][best_thresh]  # select the sp pred from best sp thresh found
+        ans_res['para_pred'] = ans_res['para_pred_dict'][best_ev_thresh]  # select the ev pred from best ev thresh found
+        para_acc.append(int(ans_res['para_pred'] == res['para_label']))  # context evidentiality eval (accuracy)
         # answer eval
         ems.append(exact_match_score(ans_res['pred_str'], res['gold_answer'][0])) # not using multi-answer versions of exact match, f1
         f1, prec, recall = f1_score(ans_res['pred_str'], res['gold_answer'][0])
@@ -458,18 +490,23 @@ def predict(args, model, eval_dataloader, device, logger,
         joint_f1s.append(joint_f1)
         
         out_sample = {}
-        out_sample['question'] = sample['question'] 
-        out_sample['context'] = sample['context_processed']['context']  # question + context = full untokenised input not incorprating truncation of q or c
+        out_sample['question'] = res['question'] 
+        out_sample['context'] = res['context']  # question + context = full untokenised input not incorporating truncation of q or c
         out_sample['ans'] = res["gold_answer"]
         out_sample['ans_pred'] = ans_res['pred_str']
         out_sample['ans_pred_score'] = ans_res['span_score']
+        out_sample['ans_insuff_score'] = ans_res['insuff_score']
         out_sample['sp'] = res['sp_gold']
         out_sample['sp_pred'] = ans_res['pred_sp']
         out_sample['sp_labels'] = res['sp_labels']
         out_sample['sp_scores'] = ans_res['pred_sp_scores']
+        out_sample['sp_thresh'] = best_thresh
+        out_sample['sp_pred_dict'] = ans_res['pred_sp_dict']
         out_sample['para_gold'] = res['para_label']
         out_sample['para_pred'] = ans_res['para_pred']
         out_sample['para_score'] = ans_res['rank_score']
+        out_sample['para_thresh'] = best_ev_thresh
+        out_sample['para_pred_dict'] = ans_res['para_pred_dict']
         out_sample['src'] = sample['src']
         out_sample['pos'] = pos
         out_sample['full'] = res['full']
@@ -498,12 +535,14 @@ def predict(args, model, eval_dataloader, device, logger,
     logger.info(f"Metrics over total eval set. n={len(ems)}")
     logger.info(f'answer em: {best_em}')
     logger.info(f'answer f1: {best_f1}')
+    logger.info(f'At sp threshold {best_thresh}:')
     logger.info(f'sp em: {best_sp_em}')
     logger.info(f'sp f1: {best_sp_f1}')
     logger.info(f'sp prec: {best_sp_prec}')
     logger.info(f'sp recall: {best_sp_recall}')
     logger.info(f'joint em: {best_joint_em}')
     logger.info(f'joint f1: {best_joint_f1}')
+    logger.info(f'At ev threshold {best_ev_thresh}:')
     logger.info(f'para acc: {best_para_acc}')
     
     create_grouped_metrics(logger, out_list, group_key='src')

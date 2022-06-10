@@ -56,6 +56,8 @@ from functools import partial
 
 import numpy as np
 import torch
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter  # tensorboard --logdir=runs
@@ -64,7 +66,7 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer,
                           get_linear_schedule_with_warmup)
 
 from mdr_config import train_args
-from reader.reader_dataset import Stage1Dataset, stage1_collate, AlternateSampler
+from reader.reader_dataset import Stage1Dataset, stage_collate, AlternateSampler
 from reader.reader_model import Stage1Model
 
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
@@ -121,10 +123,11 @@ def main():
     
     model = Stage1Model(bert_config, args)
     eval_dataset = Stage1Dataset(args, tokenizer, args.predict_file, train=False)
-    collate_fc = partial(stage1_collate, pad_id=tokenizer.pad_token_id)
+    collate_fc = partial(stage_collate, pad_id=tokenizer.pad_token_id)
 
     # turned off num_workers for eval after too many open files error
-    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, pin_memory=True, num_workers=args.num_workers_dev)  #, num_workers=args.num_workers)
+    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, 
+                                 pin_memory=True, num_workers=args.num_workers_dev)  #, num_workers=args.num_workers)
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
     #TJH batch = next(iter(eval_dataloader))
 
