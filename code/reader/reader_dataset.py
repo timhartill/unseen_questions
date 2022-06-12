@@ -307,8 +307,9 @@ class Stage1Dataset(Dataset):
         #ans_offset = torch.where(input_ids[0] == tokenizer.sep_token_id)[0][0].item()+1
         ans_offset = torch.where(input_ids[0] == self.tokenizer.sep_token_id)[0][0].item()+1  # tok after 1st [SEP] = yes = start of non extractive answer options
         if ans_offset >= 509: #non extractive ans options + eval para truncated due to very long query
-            ans_offset = -1  
-                   
+            ans_offset = -1
+        item['insuff_offset'] = torch.LongTensor([ans_offset+2])   # idx of insuff token  if no insuff token = 1
+
         if self.train:
             #if neg sample: point to [unused0]/insufficient evidence
             #if full pos sample: point to yes/no/ans span
@@ -437,7 +438,7 @@ class Stage2Dataset(Dataset):
         para_offset = len(q_toks) + 1 #  cls 
         item["wp_tokens"] = context_ann["all_doc_tokens"]  # [subword tokens]
         #assert item["wp_tokens"][0] == "yes" and item["wp_tokens"][1] == "no"
-        item["para_offset"] = para_offset  # 1st tok after basic question ie start of sentences component of query
+        item["para_offset"] = para_offset  # 1st tok after basic question ie start of sentences component of query in stage 1 or start of context in stage 2
         max_toks_for_doc = self.max_seq_len - para_offset - 1
         if len(item["wp_tokens"]) > max_toks_for_doc:
             item["wp_tokens"] = item["wp_tokens"][:max_toks_for_doc]
@@ -454,7 +455,8 @@ class Stage2Dataset(Dataset):
         ans_offset = torch.where(input_ids[0] == self.tokenizer.sep_token_id)[0][0].item()+1  # tok after 1st [SEP] = yes = start of non extractive answer options
         if ans_offset >= 509: #non extractive ans options + eval para truncated due to very long query
             ans_offset = -1  
-                   
+        item['insuff_offset'] = torch.LongTensor([ans_offset+2])   # idx of insuff token  if no insuff token = 1      
+
         if self.train:
             #if neg sample: point to [unused0]/insufficient evidence
             #if full pos sample: point to yes/no/ans span
@@ -594,7 +596,8 @@ def stage_collate(samples, pad_id=0):
         'paragraph_mask': collate_tokens([s['paragraph_mask'] for s in samples], 0),
         'label': collate_tokens([s["label"] for s in samples], -1),
         "sent_offsets": collate_tokens([s["sent_offsets"] for s in samples], 0),
-        "sent_labels": collate_tokens([s['sent_labels'] for s in samples], 0)  
+        "sent_labels": collate_tokens([s['sent_labels'] for s in samples], 0),
+        "insuff_offset": collate_tokens([s['insuff_offset'] for s in samples], 1)  # make padding val same as no insuff tok value ie 1
         }
 
     # training labels

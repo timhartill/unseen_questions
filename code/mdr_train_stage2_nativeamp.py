@@ -301,6 +301,7 @@ def predict(args, model, eval_dataloader, device, logger,
             sp_scores = sp_scores.float().masked_fill(batch_to_feed["sent_offsets"].eq(0), float("-inf")).type_as(sp_scores)  #mask scores past end of # sents in sample
             batch_sp_scores = sp_scores.sigmoid()  # [bs, max#sentsinbatch]  [0.678, 0.5531, 0.0, 0.0, ...]
             outs = [outputs["start_logits"], outputs["end_logits"]]  # [ [bs, maxseqleninbatch], [bs, maxseqleninbatch] ]
+            ev_scores = outputs["ev_logits"]
 
         for idx, (qid, label, sp_labels) in enumerate(zip(batch_qids, batch_labels, batch_sp_labels)):
             # full: 1 = query+para = full path (to neg or pos), 0 = partial path
@@ -331,12 +332,13 @@ def predict(args, model, eval_dataloader, device, logger,
         start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))  #para masking adjusted to start after base question so can predict span in query sents
         end_position_ = list(np.array(end_position.tolist()) - np.array(para_offset)) 
 
+        insuff_offset = batch['net_inputs']['insuff_offset'].tolist()  # [bs]
         insuff_scores = [] # [bs]  obtain score of [unused0]/insuff evidence token - can now look at magnitude of answer_score - insuff_scores or just magnitude of insuff_score 
         ans_delta = []
         start_logits = outs[0]  # [bs, maxseqleninbatch]
         end_logits = outs[1]    # [bs, maxseqleninbatch]
-        for idx, offset in enumerate(para_offset):
-            insuff_scores.append( float( start_logits[idx, offset+3] + end_logits[idx, offset+3] ) )    # offset+1=Y, +2=N, +3=[unused0]/insuff
+        for idx, offset in enumerate(insuff_offset):
+            insuff_scores.append( float( start_logits[idx, offset] + end_logits[idx, offset] ) )    # offset-2=Y, -1=N, +0=[unused0]/insuff
             ans_delta.append(answer_scores[idx] - insuff_scores[-1])
 
         for idx, qid in enumerate(batch_qids):
@@ -368,6 +370,10 @@ def predict(args, model, eval_dataloader, device, logger,
                 else:
                     para_pred = 0
                 para_pred_dict[thresh] = para_pred
+                
+            ev_score = ev_scores[idx]
+            ev_pred = int(ev_score.argmax())
+            ev_score = ev_score.tolist()
 
             # get the positive sp sentences at difft sp score thresholds {thresh: [ sentidx1, sentidx4, ..]}
             sp_score = batch_sp_scores[idx].tolist()
@@ -386,7 +392,9 @@ def predict(args, model, eval_dataloader, device, logger,
                 "span_score": span_score,               # answer "confidence" score 
                 "insuff_score": insuff_scores[idx],     # insuff/[unused0] "confidence" score
                 "pred_sp_dict": pred_sp_dict,           # {threshold val: predicted sentences [ sentidx1, sentidx4, ..] }
-                "pred_sp_scores": sp_score              # evidentiality score of each sentence marker
+                "pred_sp_scores": sp_score,             # evidentiality score of each sentence marker
+                "ev_pred": ev_pred,                     # 0/1 decision on fully evidential using evidence combiner head
+                "ev_scores": ev_scores                   # the raw ev logits [no-score, yes-score]
             }
 
 
@@ -456,7 +464,7 @@ def predict(args, model, eval_dataloader, device, logger,
         logger.info(f"Using fixed sp threshold: {best_thresh} with sp_recall: {best_sp_recall}")
     
     out_list = []
-    ems, f1s, sp_ems, sp_f1s, sp_precs, sp_recalls, joint_ems, joint_f1s, para_acc = [], [], [], [], [], [], [], [], []
+    ems, f1s, sp_ems, sp_f1s, sp_precs, sp_recalls, joint_ems, joint_f1s, para_acc, ev_acc = [], [], [], [], [], [], [], [], [], []
     for qid, res in id2result.items():
         index = res['index']
         pos = res['para_label'] == 1  #was index % 2 == 0 in stage 1
@@ -465,6 +473,7 @@ def predict(args, model, eval_dataloader, device, logger,
         ans_res['pred_sp'] = ans_res['pred_sp_dict'][best_thresh]  # select the sp pred from best sp thresh found
         ans_res['para_pred'] = ans_res['para_pred_dict'][best_ev_thresh]  # select the ev pred from best ev thresh found
         para_acc.append(int(ans_res['para_pred'] == res['para_label']))  # context evidentiality eval (accuracy)
+        ev_acc.append(int(ans_res['ev_pred'] == res['para_label']))  # context evidentiality eval (accuracy) using evidence combiner head
         # answer eval
         ems.append(exact_match_score(ans_res['pred_str'], res['gold_answer'][0])) # not using multi-answer versions of exact match, f1
         f1, prec, recall = f1_score(ans_res['pred_str'], res['gold_answer'][0])
@@ -507,6 +516,8 @@ def predict(args, model, eval_dataloader, device, logger,
         out_sample['para_score'] = ans_res['rank_score']
         out_sample['para_thresh'] = best_ev_thresh
         out_sample['para_pred_dict'] = ans_res['para_pred_dict']
+        out_sample['ev_pred'] = ans_res['ev_pred']
+        out_sample['ev_scores'] = ans_res['ev_scores']
         out_sample['src'] = sample['src']
         out_sample['pos'] = pos
         out_sample['full'] = res['full']
@@ -518,6 +529,7 @@ def predict(args, model, eval_dataloader, device, logger,
         out_sample['joint_em'] = joint_em
         out_sample['joint_f1'] = joint_f1
         out_sample['para_acc'] = para_acc[-1]
+        out_sample['ev_acc'] = ev_acc[-1]
         
         out_list.append(out_sample)
 
@@ -530,6 +542,7 @@ def predict(args, model, eval_dataloader, device, logger,
     best_f1 = np.mean(f1s)
     best_em = np.mean(ems)
     best_para_acc = np.mean(para_acc)
+    best_ev_acc = np.mean(ev_acc)
 
     logger.info("------------------------------------------------")
     logger.info(f"Metrics over total eval set. n={len(ems)}")
@@ -544,6 +557,7 @@ def predict(args, model, eval_dataloader, device, logger,
     logger.info(f'joint f1: {best_joint_f1}')
     logger.info(f'At ev threshold {best_ev_thresh}:')
     logger.info(f'para acc: {best_para_acc}')
+    logger.info(f'ev combiner acc: {best_ev_acc}')
     
     create_grouped_metrics(logger, out_list, group_key='src')
     create_grouped_metrics(logger, out_list, group_key='pos')
@@ -556,11 +570,13 @@ def predict(args, model, eval_dataloader, device, logger,
 
     model.train()
     return {"em": best_em, "f1": best_f1, "joint_em": best_joint_em, "joint_f1": best_joint_f1, 
-            "sp_em": best_sp_em, "sp_f1": best_sp_f1, "sp_prec": best_sp_prec, "sp_recall": best_sp_recall, "para_acc": best_para_acc}
+            "sp_em": best_sp_em, "sp_f1": best_sp_f1, "sp_prec": best_sp_prec, "sp_recall": best_sp_recall, 
+            "para_acc": best_para_acc, "ev_acc": best_ev_acc}
 
 
 def create_grouped_metrics(logger, sample_list, group_key='src',
-                           metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc']):
+                           metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 
+                                          'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc', 'ev_acc']):
     """ output metrics by group
     """
     grouped_metrics = {}

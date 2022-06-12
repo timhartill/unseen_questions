@@ -28,6 +28,7 @@ python mdr_train_stage2_nativeamp.py \
     --num_train_epochs 7 \
     --sent_score_force_zero \
     --sp_percent_thresh 1.0 \
+    --num_workers_dev 10 \
     --debug \
     --warmup-ratio 0.1
 
