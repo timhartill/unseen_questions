@@ -101,7 +101,7 @@ class Stage1Model(nn.Module):
         sent_marker_rep = torch.gather(sequence_output, 1, gather_index)  # [bs, max#sentsinbatch, hs] gather along seq_len of [bs, seq_len, hs]
         sp_score = self.sp(sent_marker_rep).squeeze(2)  # [bs, #sents, 1] -> [bs, #sents]
         
-        insuff_hs = torch.cat([sequence_output[i, idx].unsqueeze(0) for i, idx in enumerate(batch["insuff_offset"])], dim=0)
+        insuff_hs = torch.cat([sequence_output[i, idx].unsqueeze(0) for i, idx in enumerate(batch["insuff_offset"].squeeze(1))], dim=0)
         
         ev_logits = self.ev_combiner(sequence_output[:,0], insuff_hs, sent_marker_rep)  # [bs,2]
 
@@ -110,7 +110,7 @@ class Stage1Model(nn.Module):
             rank_target = batch["label"]
             rank_loss = F.binary_cross_entropy_with_logits(rank_score, rank_target.float(), reduction="sum")
             
-            ev_loss = self.ev_loss_fct(ev_logits , rank_target)
+            ev_loss = self.ev_loss_fct(ev_logits , rank_target.squeeze(1))
 
             #batch["sent_labels"] = [bs, max#sentsinbatch]
             sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")  # [bs, max#sentsinbatch]
