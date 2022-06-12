@@ -394,7 +394,7 @@ def predict(args, model, eval_dataloader, device, logger,
                 "pred_sp_dict": pred_sp_dict,           # {threshold val: predicted sentences [ sentidx1, sentidx4, ..] }
                 "pred_sp_scores": sp_score,             # evidentiality score of each sentence marker
                 "ev_pred": ev_pred,                     # 0/1 decision on fully evidential using evidence combiner head
-                "ev_scores": ev_scores                   # the raw ev logits [no-score, yes-score]
+                "ev_scores": ev_score                   # the raw ev logits [no-score, yes-score]
             }
 
 
