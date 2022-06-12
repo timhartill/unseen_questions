@@ -8,7 +8,7 @@ cd ../code
 
 python mdr_train_stage2_nativeamp.py \
     --do_train \
-    --prefix stage2_test0_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics \
+    --prefix stage2_test1_hpqa_hover_fever_new_sentMASKforcezerospweight1_addevcombinerhead \
     --predict_batch_size 100 \
     --model_name google/electra-large-discriminator \
     --train_batch_size 12 \

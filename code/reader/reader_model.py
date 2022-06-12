@@ -32,7 +32,6 @@ class EvidenceCombiner(nn.Module):
         self.dropout = nn.Dropout(dropout_prob)
         
     def forward(self, cls_hs, insuff_hs, sent_hs):
-        
         sent_mean_hs = sent_hs.mean(dim=1)      # [bs, hs] Note where batch["sent_offsets"] = 0 eg from padding will have gathered cls 
         hidden_states = torch.cat([cls_hs, insuff_hs, sent_mean_hs], dim=1)    # [bs, hs * 3]
         out = F.gelu(self.dense1(hidden_states))
@@ -75,7 +74,7 @@ class Stage1Model(nn.Module):
 
         self.sp = nn.Linear(config.hidden_size, 1)
         
-        self.ev_combiner = EvidenceCombiner()
+        self.ev_combiner = EvidenceCombiner(config)
         
         self.loss_fct = CrossEntropyLoss(ignore_index=-1, reduction="none")
         self.ev_loss_fct = CrossEntropyLoss(ignore_index=-1, reduction="sum")
@@ -102,7 +101,9 @@ class Stage1Model(nn.Module):
         sent_marker_rep = torch.gather(sequence_output, 1, gather_index)  # [bs, max#sentsinbatch, hs] gather along seq_len of [bs, seq_len, hs]
         sp_score = self.sp(sent_marker_rep).squeeze(2)  # [bs, #sents, 1] -> [bs, #sents]
         
-        ev_logits = self.ev_combiner(sequence_output[:,0], sequence_output[:, batch["insuff_offset"]], sent_marker_rep)  # [bs,2]
+        insuff_hs = torch.cat([sequence_output[i, idx].unsqueeze(0) for i, idx in enumerate(batch["insuff_offset"])], dim=0)
+        
+        ev_logits = self.ev_combiner(sequence_output[:,0], insuff_hs, sent_marker_rep)  # [bs,2]
 
         if self.training:
 
