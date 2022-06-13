@@ -115,7 +115,7 @@ class Stage1Model(nn.Module):
             #batch["sent_labels"] = [bs, max#sentsinbatch]
             sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")  # [bs, max#sentsinbatch]
             if self.sent_score_force_zero:
-                sent_mask = (batch["sent_offsets"] != 0).type(torch.int64)  #[bs, max#sentsinbatch] padding = 0, rela sent offset = 1
+                sent_mask = (batch["sent_offsets"] != 0).type(torch.int64)  #[bs, max#sentsinbatch] padding = 0, actual sent offset = 1
                 sp_loss = (sp_loss * sent_mask)  
                 #sp_loss = (sp_loss * batch["sent_offsets"]) * batch["label"]  # batch["sent_offsets"] padded with zeros so effectively zeros the loss for padding...
             sp_loss = sp_loss.sum()
@@ -136,7 +136,7 @@ class Stage1Model(nn.Module):
             
             loss = ev_loss + rank_loss + span_loss + sp_loss * self.sp_weight
             if self.debug and self.debug_count > 0:
-                print(f"LOSSES: rank_loss:{rank_loss}  span_loss:{span_loss}  sp_loss_before_weight:{sp_loss}  sp_weight:{self.sp_weight}")
+                print(f"LOSSES: ev_loss:{ev_loss} rank_loss:{rank_loss}  span_loss:{span_loss}  sp_loss_before_weight:{sp_loss}  sp_weight:{self.sp_weight}")
                 self.debug_count -= 1
             return loss.unsqueeze(0)
 
@@ -144,6 +144,6 @@ class Stage1Model(nn.Module):
             'start_logits': start_logits,   # [bs, seq_len]
             'end_logits': end_logits,       # [bs, seq_len]
             'rank_score': rank_score,       # [bs,1] is para evidential 0<->1
-            'ev_logits': ev_logits,         # [bs, 2] 0=not evidential/1=evidential para/context evidential considering cls, insuff and sent marker hidden states
+            'ev_logits': ev_logits,         # [bs, 2] logit 0=not evidential/logit 1=evidential para/context evidential considering cls, insuff and sent marker hidden states
             "sp_score": sp_score            # [bs, num_sentences] is sentence evidential [0,1,0,0..]
             }
