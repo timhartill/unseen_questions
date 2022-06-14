@@ -32,6 +32,7 @@ args.sent_score_force_zero = True
 args.debug = True
 args.sp_percent_thresh = 1.0
 args.num_workers_dev = 10
+args.ev_combiner = False
 
 # for eval only:
 args.do_train=False
@@ -301,7 +302,8 @@ def predict(args, model, eval_dataloader, device, logger,
             sp_scores = sp_scores.float().masked_fill(batch_to_feed["sent_offsets"].eq(0), float("-inf")).type_as(sp_scores)  #mask scores past end of # sents in sample
             batch_sp_scores = sp_scores.sigmoid()  # [bs, max#sentsinbatch]  [0.678, 0.5531, 0.0, 0.0, ...]
             outs = [outputs["start_logits"], outputs["end_logits"]]  # [ [bs, maxseqleninbatch], [bs, maxseqleninbatch] ]
-            ev_scores = outputs["ev_logits"]
+            if args.ev_combiner:
+                ev_scores = outputs["ev_logits"]
 
         for idx, (qid, label, sp_labels) in enumerate(zip(batch_qids, batch_labels, batch_sp_labels)):
             # full: 1 = query+para = full path (to neg or pos), 0 = partial path
@@ -371,9 +373,13 @@ def predict(args, model, eval_dataloader, device, logger,
                     para_pred = 0
                 para_pred_dict[thresh] = para_pred
                 
-            ev_score = ev_scores[idx]
-            ev_pred = int(ev_score.argmax())
-            ev_score = ev_score.tolist()
+            if args.ev_combiner:
+                ev_score = ev_scores[idx]
+                ev_pred = int(ev_score.argmax())
+                ev_score = ev_score.tolist()
+            else:
+                ev_score = [0.0, 0.0]
+                ev_pred = -1                
 
             # get the positive sp sentences at difft sp score thresholds {thresh: [ sentidx1, sentidx4, ..]}
             sp_score = batch_sp_scores[idx].tolist()
@@ -542,7 +548,10 @@ def predict(args, model, eval_dataloader, device, logger,
     best_f1 = np.mean(f1s)
     best_em = np.mean(ems)
     best_para_acc = np.mean(para_acc)
-    best_ev_acc = np.mean(ev_acc)
+    if args.ev_combiner:
+        best_ev_acc = np.mean(ev_acc)
+    else:
+        best_ev_acc = -1.0
 
     logger.info("------------------------------------------------")
     logger.info(f"Metrics over total eval set. n={len(ems)}")
@@ -557,7 +566,8 @@ def predict(args, model, eval_dataloader, device, logger,
     logger.info(f'joint f1: {best_joint_f1}')
     logger.info(f'At ev threshold {best_ev_thresh}:')
     logger.info(f'para acc: {best_para_acc}')
-    logger.info(f'ev combiner acc: {best_ev_acc}')
+    if args.ev_combiner:
+        logger.info(f'ev combiner acc: {best_ev_acc}')
     
     create_grouped_metrics(logger, out_list, group_key='src')
     create_grouped_metrics(logger, out_list, group_key='pos')
@@ -576,7 +586,7 @@ def predict(args, model, eval_dataloader, device, logger,
 
 def create_grouped_metrics(logger, sample_list, group_key='src',
                            metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 
-                                          'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc', 'ev_acc']):
+                                          'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc']):
     """ output metrics by group
     """
     grouped_metrics = {}

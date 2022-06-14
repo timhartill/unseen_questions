@@ -112,7 +112,8 @@ dict_keys(['question', 'context',
 
 import utils
 import numpy as np
-
+import copy
+import torch
 
 infile = '/large_data/thar011/out/mdr/logs/stage2_test2_hpqa_hover_fever_new_sentMASKforcezerospweight1_addevcombinerhead-06-12-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/stage2_dev_predictions Bat Step 95999 Glob Step 12000 Train loss 4.36 para_acc 83.27 epoch2.jsonl'
 
@@ -146,7 +147,86 @@ def create_grouped_metrics(sample_list, group_key='src',
     return  
 
 
+def add_combo_metrics(samples, ans_diff_thresh=5.0, para_pos_conf_thresh = 0.87):
+    """ Add different para_acc calcs, see if any are better
+    """
+    for sample in samples:
+        sample['ans_diff_score'] = sample['ans_pred_score'] - sample['ans_insuff_score']
+        if sample['para_pred'] == 1:
+            if sample['ans_pred'] != '[unused0]':
+                sample['calc_para_pred'] = 1  
+            elif sample['para_score'] < para_pos_conf_thresh:  # not highly confident in para score
+                sample['calc_para_pred'] = 0
+            else:
+                sample['calc_para_pred'] = 1
+
+        else: # cls pred 0
+            if sample['ans_pred'] == '[unused0]':
+                sample['calc_para_pred'] = 0
+            elif sample['ans_diff_score'] > ans_diff_thresh:  # highly confident in non-insuff answer
+                sample['calc_para_pred'] = 1
+            else:
+                sample['calc_para_pred'] = 0   # not confident in non-insuff answer, go with para_pred
+        sample['calc_para_acc'] = int(sample['calc_para_pred'] == sample['para_gold'])
+    return
+
+
+def filter_metrics(samples, key, val=['hover', 'fever']):
+    out_samples = []
+    for sample in samples:
+        if sample[key] in val:
+            out_samples.append(copy.deepcopy(sample))
+    return out_samples
+
+
+def add_combo_key(samples, keys=['src', 'ans'], newkeyname='src_ans'):
+    for sample in samples:
+        newkeyval = '_'.join([str(sample[k]) for k in keys])
+        sample[newkeyname] = newkeyval
+    return 
+
+def filter_fever(samples):
+    """ where multiple gold sents there are issues with "and" vs "or" in fever labelling..
+    """
+    out_samples = []
+    for sample in samples:
+        if sample['src'] == 'hover' or sample['para_gold'] == 1 or (sample['para_gold'] == 0 and sum(sample['sp_labels']) == 0):
+            out_samples.append(copy.deepcopy(sample))
+    return out_samples
+        
+
+fever_hover_only = filter_metrics(samples, key='src', val=['hover', 'fever'])  
+add_combo_key(fever_hover_only, keys=['src', 'ans'], newkeyname='src_ans')
+create_grouped_metrics(fever_hover_only, group_key='src_ans', metric_keys = ['answer_em', 'sp_em', 'sp_recall', 
+                                                                      'para_acc', 'ev_acc', 
+                                                                      'ans_pred_score', 'ans_insuff_score',
+                                                                      'para_score'])  
+add_combo_key(fever_hover_only, keys=['src', 'ans', 'ans_pred'], newkeyname='src_ans_predans')
+create_grouped_metrics(fever_hover_only, group_key='src_ans_predans', metric_keys = ['answer_em', 'sp_em', 'sp_recall', 
+                                                                      'para_acc', 'ev_acc', 
+                                                                      'ans_pred_score', 'ans_insuff_score',
+                                                                      'para_score'])
+
+fever_hover_singlesent = filter_fever(fever_hover_only)
+create_grouped_metrics(fever_hover_singlesent, group_key='src_ans', metric_keys = ['answer_em', 'sp_em', 'sp_recall', 
+                                                                      'para_acc', 'ev_acc', 
+                                                                      'ans_pred_score', 'ans_insuff_score',
+                                                                      'para_score'])
+
+
 create_grouped_metrics(samples, group_key='src')
+#create_grouped_metrics(samples, group_key='para_pred', metric_keys = ['answer_em', 'sp_em', 'sp_recall', 
+#                                                                      'para_acc', 'ev_acc', 
+#                                                                      'ans_pred_score', 'ans_insuff_score',
+#                                                                      'para_score'])
+
+add_combo_metrics(samples, ans_diff_thresh=1.0, para_pos_conf_thresh = 1.0) #\
+create_grouped_metrics(samples, group_key='calc_para_pred', metric_keys = ['answer_em', 'sp_em', 'sp_recall', 
+                                                                      'para_acc', 'ev_acc', 'calc_para_acc',
+                                                                      'ans_pred_score', 'ans_insuff_score',
+                                                                      'para_score'])
+
+
 
 
 

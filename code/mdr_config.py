@@ -71,7 +71,7 @@ def common_args():
     parser.add_argument("--sent_score_force_zero", action="store_true", help="Stage 1 reader training : Zero sentence scores where sent or para label is zero.")    
     parser.add_argument("--sp_percent_thresh", type=float, default=0.55, help="maximum mean fraction of sentences in para for a given sp score threshold to take in order for that thresh to be selected.")
     parser.add_argument("--num_workers_dev", default=0, type=int, help="number of dev dataloader processes. 0 means run on main thread.")
-
+    parser.add_argument("--ev_combiner", action="store_true", help="reader training : Add evidence combining head to model and return extra ev_score key.")    
 
     return parser
 

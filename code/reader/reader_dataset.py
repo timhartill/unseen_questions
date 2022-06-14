@@ -200,7 +200,10 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
             random.shuffle(curr_pos_idxs)
         else:
             divisor = 2
-        firstnegidx = num_pos_initial // divisor
+        if sample['src'] != 'fever':
+            firstnegidx = num_pos_initial // divisor
+        else:
+            firstnegidx = 0  # fever sent evidentiality is "or" not "and" so set all neg sample sents to neg_sents since partially replacing pos sents doesnt work wrt label
         neg_idx = -1
         for i in range(firstnegidx, num_pos_initial):
             neg_idx += 1

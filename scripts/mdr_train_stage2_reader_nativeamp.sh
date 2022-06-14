@@ -8,7 +8,7 @@ cd ../code
 
 python mdr_train_stage2_nativeamp.py \
     --do_train \
-    --prefix stage2_test2_hpqa_hover_fever_new_sentMASKforcezerospweight1_addevcombinerhead \
+    --prefix stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix \
     --predict_batch_size 100 \
     --model_name google/electra-large-discriminator \
     --train_batch_size 12 \
@@ -29,7 +29,6 @@ python mdr_train_stage2_nativeamp.py \
     --sent_score_force_zero \
     --sp_percent_thresh 1.0 \
     --num_workers_dev 10 \
-    --debug \
     --warmup-ratio 0.1
 
 

@@ -64,6 +64,7 @@ class Stage1Model(nn.Module):
         self.debug = args.debug
         self.debug_count = 3
         self.sent_score_force_zero = args.sent_score_force_zero
+        self.ev_combiner = args.ev_combiner
         self.encoder = AutoModel.from_pretrained(args.model_name)
 
         if "electra" in args.model_name:
@@ -73,11 +74,13 @@ class Stage1Model(nn.Module):
         self.rank = nn.Linear(config.hidden_size, 1) # noan
 
         self.sp = nn.Linear(config.hidden_size, 1)
-        
-        self.ev_combiner = EvidenceCombiner(config)
+
+        if self.ev_combiner:        
+            self.ev_combiner_head = EvidenceCombiner(config)
         
         self.loss_fct = CrossEntropyLoss(ignore_index=-1, reduction="none")
-        self.ev_loss_fct = CrossEntropyLoss(ignore_index=-1, reduction="sum")
+        if self.ev_combiner:
+            self.ev_loss_fct = CrossEntropyLoss(ignore_index=-1, reduction="sum")
 
     def forward(self, batch):
 
@@ -103,14 +106,16 @@ class Stage1Model(nn.Module):
         
         insuff_hs = torch.cat([sequence_output[i, idx].unsqueeze(0) for i, idx in enumerate(batch["insuff_offset"].squeeze(1))], dim=0)
         
-        ev_logits = self.ev_combiner(sequence_output[:,0], insuff_hs, sent_marker_rep)  # [bs,2]
+        if self.ev_combiner:
+            ev_logits = self.ev_combiner_head(sequence_output[:,0], insuff_hs, sent_marker_rep)  # [bs,2]
 
         if self.training:
 
             rank_target = batch["label"]
             rank_loss = F.binary_cross_entropy_with_logits(rank_score, rank_target.float(), reduction="sum")
             
-            ev_loss = self.ev_loss_fct(ev_logits , rank_target.squeeze(1))
+            if self.ev_combiner:
+                ev_loss = self.ev_loss_fct(ev_logits , rank_target.squeeze(1))
 
             #batch["sent_labels"] = [bs, max#sentsinbatch]
             sp_loss = F.binary_cross_entropy_with_logits(sp_score, batch["sent_labels"].float(), reduction="none")  # [bs, max#sentsinbatch]
@@ -133,17 +138,28 @@ class Stage1Model(nn.Module):
                 span_loss = self.loss_fct(start_logits, start_logits.new_zeros(start_logits.size(0)).long()-1).sum()
             else:
                 span_loss = - torch.log(torch.cat(m_prob)).sum()
-            
-            loss = ev_loss + rank_loss + span_loss + sp_loss * self.sp_weight
+            if self.ev_combiner:
+                loss = ev_loss + rank_loss + span_loss + sp_loss * self.sp_weight
+            else:
+                loss = rank_loss + span_loss + sp_loss * self.sp_weight
+                
             if self.debug and self.debug_count > 0:
-                print(f"LOSSES: ev_loss:{ev_loss} rank_loss:{rank_loss}  span_loss:{span_loss}  sp_loss_before_weight:{sp_loss}  sp_weight:{self.sp_weight}")
+                print(f"LOSSES: rank_loss:{rank_loss}  span_loss:{span_loss}  sp_loss_before_weight:{sp_loss}  sp_weight:{self.sp_weight}")
                 self.debug_count -= 1
             return loss.unsqueeze(0)
-
-        return {
-            'start_logits': start_logits,   # [bs, seq_len]
-            'end_logits': end_logits,       # [bs, seq_len]
-            'rank_score': rank_score,       # [bs,1] is para evidential 0<->1
-            'ev_logits': ev_logits,         # [bs, 2] logit 0=not evidential/logit 1=evidential para/context evidential considering cls, insuff and sent marker hidden states
-            "sp_score": sp_score            # [bs, num_sentences] is sentence evidential [0,1,0,0..]
-            }
+        
+        if self.ev_combiner:
+            return {
+                'start_logits': start_logits,   # [bs, seq_len]
+                'end_logits': end_logits,       # [bs, seq_len]
+                'rank_score': rank_score,       # [bs,1] is para evidential 0<->1
+                'ev_logits': ev_logits,         # [bs, 2] logit 0=not evidential/logit 1=evidential para/context evidential considering cls, insuff and sent marker hidden states
+                "sp_score": sp_score            # [bs, num_sentences] is sentence evidential [0,1,0,0..]
+                }
+        else:
+            return {
+                'start_logits': start_logits,   # [bs, seq_len]
+                'end_logits': end_logits,       # [bs, seq_len]
+                'rank_score': rank_score,       # [bs,1] is para evidential 0<->1
+                "sp_score": sp_score            # [bs, num_sentences] is sentence evidential [0,1,0,0..]
+                }
