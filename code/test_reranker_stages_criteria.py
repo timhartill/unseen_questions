@@ -113,9 +113,10 @@ dict_keys(['question', 'context',
 import utils
 import numpy as np
 import copy
-import torch
 
 infile = '/large_data/thar011/out/mdr/logs/stage2_test2_hpqa_hover_fever_new_sentMASKforcezerospweight1_addevcombinerhead-06-12-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/stage2_dev_predictions Bat Step 95999 Glob Step 12000 Train loss 4.36 para_acc 83.27 epoch2.jsonl'
+infile = '/large_data/thar011/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/stage2_dev_predictions.jsonl'
+
 
 samples = utils.load_jsonl(infile)
 

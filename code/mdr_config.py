@@ -10,25 +10,23 @@ def common_args():
     parser = argparse.ArgumentParser()
 
     # task
-    parser.add_argument("--train_file", type=str,
-                        default="../data/nq-with-neg-train.txt")
+    parser.add_argument("--train_file", type=str, default="../data/nq-with-neg-train.txt")
     parser.add_argument("--predict_file", type=str, default="../data/nq-with-neg-dev.txt")
-    parser.add_argument("--num_workers", default=10, type=int, help="number of training dataloader processes. 0 means run on main thread.")
+    parser.add_argument("--num_workers", default=10, type=int, help="number of dataloader processes. 0 means run on main thread.")
     parser.add_argument("--do_train", default=False, action='store_true', help="Whether to run training.")
     parser.add_argument("--do_predict", default=False, action='store_true', help="Whether to run eval on the dev set.")
     parser.add_argument("--do_test", default=False, action="store_true", help="for final test submission")
 
     # model
-    parser.add_argument("--model_name", default="bert-base-uncased", type=str)
-    parser.add_argument("--init_checkpoint", type=str,
-                        help="Initial checkpoint (usually from a pre-trained BERT model).",
-                        default="")
+    parser.add_argument("--model_name", default="roberta-base", type=str)
+    parser.add_argument("--init_checkpoint", type=str, help="Initial checkpoint to load weights from.", default="")
     parser.add_argument("--max_c_len", default=512, type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. Sequences "
                              "longer than this will be truncated, and sequences shorter than this will be padded.")
-    parser.add_argument("--max_q_len", default=50, type=int,
+    parser.add_argument("--max_q_len", default=70, type=int,
                         help="The maximum number of tokens for the question. Questions longer than this will "
                              "be truncated to this length.")
+    parser.add_argument("--max_q_sp_len", default=50, type=int)
     parser.add_argument("--max_ans_len", default=35, type=int)
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--fp16_opt_level', type=str, default='O1',
@@ -38,7 +36,6 @@ def common_args():
                         help="Whether not to use CUDA when available")
     parser.add_argument("--local_rank", type=int, default=-1,
                         help="local_rank for distributed training on gpus")
-    parser.add_argument("--max_q_sp_len", default=50, type=int)
     parser.add_argument("--sent-level", action="store_true")
     parser.add_argument("--rnn-retriever", action="store_true")
     parser.add_argument("--predict_batch_size", default=512,
@@ -72,6 +69,7 @@ def common_args():
     parser.add_argument("--sp_percent_thresh", type=float, default=0.55, help="maximum mean fraction of sentences in para for a given sp score threshold to take in order for that thresh to be selected.")
     parser.add_argument("--num_workers_dev", default=0, type=int, help="number of dev dataloader processes. 0 means run on main thread.")
     parser.add_argument("--ev_combiner", action="store_true", help="reader training : Add evidence combining head to model and return extra ev_score key.")    
+    parser.add_argument('--stop-drop', type=float, default=0.0, help="Dropout on stop head.")
 
     return parser
 
@@ -84,7 +82,7 @@ def train_args():
                         help="Weight decay if we apply some.")
     parser.add_argument("--temperature", default=1, type=float)
     parser.add_argument("--output_dir", default="./logs", type=str,
-                        help="The output directory where the model checkpoints will be written.")
+                        help="The output directory where the model checkpoints, logs etc will be written.")
     parser.add_argument("--train_batch_size", default=128,
                         type=int, help="Total batch size for training.")
     parser.add_argument("--learning_rate", default=1e-5,
@@ -103,7 +101,6 @@ def train_args():
                         help="Number of updates steps to accumualte before performing a backward/update pass.")
     parser.add_argument('--eval-period', type=int, default=2500)
     parser.add_argument("--max_grad_norm", default=2.0, type=float, help="Max gradient norm.")
-    parser.add_argument("--stop-drop", default=0.0, type=float)
     parser.add_argument("--use-adam", action="store_true", help="use adam or adamW")
     parser.add_argument("--warmup-ratio", default=0, type=float, help="Linear warmup over warmup_steps.")
     parser.add_argument("--reduction", default="none", type=str,
@@ -121,3 +118,26 @@ def encode_args():
     parser.add_argument('--is_query_embed', action="store_true")
     args = parser.parse_args()
     return args
+
+
+def eval_args():
+    parser = common_args()
+    parser.add_argument('--index_path', type=str, default=None, help="index.npy file containing para embeddings [num_paras, emb_dim]")
+    parser.add_argument('--corpus_dict', type=str, default=None, help="id2doc.json file containing dict with key id -> title+txt")
+    parser.add_argument('--topk', type=int, default=2, help="topk paths/para sequences to return. Must be <= beam-size^num_steps")
+    parser.add_argument('--beam_size', type=int, default=5, help="Number of beams each step (number of nearest neighbours to append each step.).")
+    parser.add_argument('--gpu_faiss', action="store_true", help="Put Faiss index on visible gpu(s).")
+    parser.add_argument('--gpu_model', action="store_true", help="Put q encoder on gpu 0 of the visible gpu(s).")
+    parser.add_argument('--save_index', action="store_true",help="Save index if hnsw option chosen")
+    parser.add_argument('--only_eval_ans', action="store_true")
+    parser.add_argument('--hnsw', action="store_true", help="Non-exhaustive but fast and relatively accurate. Suitable for FAISS use on cpu.")
+    parser.add_argument('--strict', action="store_true")  #TJH Added - load ckpt in 'strict' mode
+    parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
+    parser.add_argument("--eval_stop", action="store_true", help="Evaluate stop prediction accuracy in addition to evaluating para retrieval.")   
+    return parser.parse_args()
+
+
+    
+
+
+

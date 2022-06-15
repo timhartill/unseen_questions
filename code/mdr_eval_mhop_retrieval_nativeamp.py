@@ -7,7 +7,7 @@
 Evaluating trained retrieval model.
 
 Usage:
-python eval_mhop_retrieval.py ${EVAL_DATA} ${CORPUS_VECTOR_PATH} ${CORPUS_DICT} ${MODEL_CHECKPOINT} \
+python eval_mhop_retrieval.py ${predict_file} ${CORPUS_VECTOR_PATH} ${CORPUS_DICT} ${MODEL_CHECKPOINT} \
      --batch-size 50 \
      --beam-size-1 20 \
      --beam-size-2 5 \
@@ -31,7 +31,7 @@ python scripts/eval/eval_mhop_retrieval.py \
 
 
 args.model_name='roberta-base'
-args.model_path = 'models/q_encoder.pt'
+args.init_checkpoint = 'models/q_encoder.pt'
 """
 import argparse
 import collections
@@ -47,6 +47,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from transformers import AutoConfig, AutoTokenizer
+
+from mdr_config import eval_args
 
 from mdr.retrieval.models.mhop_retriever import RobertaRetriever, RobertaRetriever_var
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
@@ -76,41 +78,13 @@ def convert_hnsw_query(query_vectors):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--eval_data', type=str, default=None, help="File containing the evaluation samples.")
-    parser.add_argument('--index_path', type=str, default=None, help="index.npy file containing para embeddings [num_paras, emb_dim]")
-    parser.add_argument('--corpus_dict', type=str, default=None, help="id2doc.json file containing dict with key id -> title+txt")
-    parser.add_argument('--model_path', type=str, default=None, help="Model checkpoint file to load.")
-    parser.add_argument('--topk', type=int, default=2, help="topk paths/para sequences to return. Must be <= beam-size^num_steps")
-    parser.add_argument('--num_workers', type=int, default=10)
-    parser.add_argument('--max_q_len', type=int, default=70)
-    parser.add_argument('--max_c_len', type=int, default=300)
-    parser.add_argument('--max_q_sp_len', type=int, default=350)
-    parser.add_argument('--batch_size', type=int, default=100)
-    parser.add_argument('--beam_size', type=int, default=5, help="Number of beams each step (number of nearest neighbours to append each step.).")
-    parser.add_argument('--model_name', type=str, default='roberta-base')
-    parser.add_argument('--gpu_faiss', action="store_true", help="Put Faiss index on visible gpu(s).")
-    parser.add_argument('--gpu_model', action="store_true", help="Put q encoder on gpu 0 of the visible gpu(s).")
-    parser.add_argument('--fp16', action='store_true')
-    parser.add_argument('--save_index', action="store_true",help="Save index if hnsw option chosen")
-    parser.add_argument('--only_eval_ans', action="store_true")
-#    parser.add_argument('--shared_encoder', action="store_true")
-    parser.add_argument("--output_dir", type=str, default="", help="Dir to save retrieved para augmented eval samples and eval_log to.")
-#    parser.add_argument("--stop_drop", default=0, type=float)
-    parser.add_argument('--hnsw', action="store_true", help="Non-exhaustive but fast and relatively accurate. Suitable for FAISS use on cpu.")
-    parser.add_argument('--strict', action="store_true")  #TJH Added - load ckpt in 'strict' mode
-    parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
-    parser.add_argument("--use_var_versions", action="store_true", help="Use the generic variable step '..._var' versions.")
-    parser.add_argument("--eval_stop", action="store_true", help="Evaluate stop prediction accuracy in addition to evaluating para retrieval.")
-    parser.add_argument('--stop-drop', type=float, default=0.0, help="Dropout on stop head. Included for compatibility with training model")
-    parser.add_argument("--max_hops", type=int, default=2, help="Maximum number of hops in eval samples.")
-    
-    args = parser.parse_args()
+
+    args = eval_args()
 
 #args.gpu_model=True
 #args.use_var_versions=True
-#args.eval_data='/home/thar011/data/mdr/hotpot/hotpot_qas_val.json'
-#args.batch_size=10
+#args.predict_file='/home/thar011/data/mdr/hotpot/hotpot_qas_val.json'
+#args.predict_batch_size=10
 #args.fp16=True
 #args.gpu_faiss=True
     os.makedirs(args.output_dir, exist_ok=True)
@@ -125,7 +99,7 @@ if __name__ == '__main__':
     print(args)
     
     logger.info("Loading data...")
-    ds_items = [json.loads(_) for _ in open(args.eval_data).readlines()]
+    ds_items = [json.loads(_) for _ in open(args.predict_file).readlines()]
 #{"question": "Were Scott Derrickson and Ed Wood of the same nationality?", "_id": "5a8b57f25542995d1e6f1371", "answer": ["yes"], "sp": ["Scott Derrickson", "Ed Wood"], "type": "comparison"}
 #{"question": "What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?", "_id": "5a8c7595554299585d9e36b6", "answer": ["Chief of Protocol"], "sp": ["Kiss and Tell (1945 film)", "Shirley Temple"], "type": "bridge"}
 
@@ -143,7 +117,7 @@ if __name__ == '__main__':
         model = RobertaRetriever_var(bert_config, args)
     else:    
         model = RobertaRetriever(bert_config, args)
-    model = load_saved(model, args.model_path, exact=args.exact, strict=args.strict) #TJH added  strict=args.strict
+    model = load_saved(model, args.init_checkpoint, exact=args.exact, strict=args.strict) #TJH added  strict=args.strict
     simple_tokenizer = SimpleTokenizer()
 
     n_gpu = torch.cuda.device_count()
@@ -162,14 +136,11 @@ if __name__ == '__main__':
                 res.setTempMemory(tempmem)
             gpu_resources.append(res)
         
-    #from apex import amp
-    #model = amp.initialize(model, opt_level='O1')
     model.eval()
 
     logger.info("Loading index...")
     d = 768
     
-    index_path = os.path.join(os.path.split(args.index_path)[0], "index_hnsw.index")
 #    xb = np.load(args.index_path).astype('float32')
     
 #    d = 64                           # dimension
@@ -182,6 +153,7 @@ if __name__ == '__main__':
 #    xq[:, 0] += np.arange(nq) / 1000.
 
     if args.hnsw:
+        index_path = os.path.join(os.path.split(args.index_path)[0], "index_hnsw.index")
         if os.path.exists(index_path):
             logger.info(f"Reading HNSW index from {index_path} ...")
             index = faiss.read_index(index_path)
@@ -196,7 +168,7 @@ if __name__ == '__main__':
             for i, vector in enumerate(xb):
                 norms = (vector ** 2).sum()
                 phi = max(phi, norms)
-            logger.info('HNSWF DotProduct -> L2 space phi={}'.format(phi))
+            logger.info(f'HNSWF DotProduct -> L2 space phi={phi}')
 
             #data = xb
             buffer_size = 20000000  #1000000000  #50000
@@ -234,7 +206,7 @@ if __name__ == '__main__':
         index = faiss.IndexFlatIP(d)
         index.add(xb)
         if args.gpu_faiss:
-            logger.info("Moving index to {n_gpu} GPU(s) ...")
+            logger.info(f"Moving index to {n_gpu} GPU(s) ...")
             if n_gpu == 1:
                 res = faiss.StandardGpuResources()
                 index = faiss.index_cpu_to_gpu(res, 0, index) #TJH was 6 which would take 7 gpus but fails if < 7 available.
@@ -249,7 +221,7 @@ if __name__ == '__main__':
 
 
     
-    logger.info("Loading corpus...")
+    logger.info(f"Loading corpus mapped to dense index from {args.corpus_dict}...")
     id2doc = json.load(open(args.corpus_dict))
     evidence_key = 'title'
     if isinstance(id2doc["0"], list):
@@ -269,11 +241,11 @@ if __name__ == '__main__':
     retrieval_outputs = []
     firsterr = True
     
-    for b_start in tqdm(range(0, len(questions), args.batch_size)):
+    for b_start in tqdm(range(0, len(questions), args.predict_batch_size)):
         with torch.no_grad():
             # TJH test b_start=0
-            batch_q = questions[b_start:b_start + args.batch_size]
-            batch_ann = ds_items[b_start:b_start + args.batch_size]
+            batch_q = questions[b_start:b_start + args.predict_batch_size]
+            batch_ann = ds_items[b_start:b_start + args.predict_batch_size]
             bsize = len(batch_q)
             #TJH for ['a','b','c'] get: {'input_ids': [[0, 102, 2, 1, 1, 1, 1, 1], [0, 428, 2, 1, 1, 1, 1, 1], [0, 438, 2, 1, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0], [1, 1, 1, 0, 0, 0, 0, 0]]}
             batch_q_encodes = encode_text(tokenizer, batch_q, text_pair=None, max_input_length=args.max_q_len, truncation=True, padding='max_length', return_tensors="pt")
@@ -325,8 +297,8 @@ if __name__ == '__main__':
                 
                 q_sp_embeds_list = []
                 stop_01_list = []
-                for h_start in range(0, len(query_pairs), args.batch_size): 
-                    curr_query_pairs = query_pairs[h_start:h_start + args.batch_size]
+                for h_start in range(0, len(query_pairs), args.predict_batch_size): 
+                    curr_query_pairs = query_pairs[h_start:h_start + args.predict_batch_size]
                     #TJH given query_pairs = [('a','a'), ('a','b'), ('a','c'), ('b','a'),('b','b'),('b','c')] where a = 102, b = 428, c = 438
                     #    the following encodes to {'input_ids': [[0, 102, 2, 2, 102, 2, 1, 1, 1, 1], [0, 102, 2, 2, 428, 2, 1, 1, 1, 1], [0, 102, 2, 2, 438, 2, 1, 1, 1, 1], [0, 428, 2, 2, 102, 2, 1, 1, 1, 1], [0, 428, 2, 2, 428, 2, 1, 1, 1, 1], [0, 428, 2, 2, 438, 2, 1, 1, 1, 1]], 'attention_mask': [[1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]]}
                     batch_q_sp_encodes = encode_text(tokenizer, curr_query_pairs, text_pair=None, max_input_length=args.max_q_sp_len, truncation=True, padding='max_length', return_tensors="pt")

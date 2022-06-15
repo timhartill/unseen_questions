@@ -35,8 +35,8 @@ python mdr_eval_mhop_retrieval_nativeamp.py \
     --eval_data /home/thar011/data/baleen_downloads/hover/hover_qas_val.jsonl \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/hover_sent_annots_test1-05-01_bs24_no_momentum_cenone_ckpt_best/index.npy \
     --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hover_sent_annots_test1-05-01_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
-    --model_path /large_data/thar011/out/mdr/logs/hover_sent_annots_test1-05-01-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
-    --batch_size 100 \
+    --init_checkpoint /large_data/thar011/out/mdr/logs/hover_sent_annots_test1-05-01-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+    --predict_batch_size 100 \
     --beam_size 4 \
     --topk 4 \
     --model_name roberta-base \
