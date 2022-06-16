@@ -38,14 +38,13 @@ def common_args():
                         help="local_rank for distributed training on gpus")
     parser.add_argument("--sent-level", action="store_true")
     parser.add_argument("--rnn-retriever", action="store_true")
-    parser.add_argument("--predict_batch_size", default=512,
-                        type=int, help="Total batch size for predictions.")
+    parser.add_argument("--predict_batch_size", default=512, type=int, help="Total batch size for predictions.")
     parser.add_argument("--shared-encoder", action="store_true")
     parser.add_argument("--save_prediction", default="", type=str)
 
     # multi vector scheme
-    parser.add_argument("--multi-vector", type=int, default=1)
-    parser.add_argument("--scheme", type=str, help="how to get the multivector, layerwise or tokenwise", default="none")
+    #parser.add_argument("--multi-vector", type=int, default=1)
+    #parser.add_argument("--scheme", type=str, help="how to get the multivector, layerwise or tokenwise", default="none")
 
     # momentum
     parser.add_argument("--momentum", action="store_true", help="If true, perform momentum training.")
@@ -55,7 +54,7 @@ def common_args():
 
 
     # NQ multihop trial
-    parser.add_argument("--nq-multi", action="store_true", help="train the NQ retrieval model to recover from error cases")
+    #parser.add_argument("--nq-multi", action="store_true", help="train the NQ retrieval model to recover from error cases")
     
     #TJH Added
     parser.add_argument("--use_var_versions", action="store_true", help="Use the generic variable step '..._var' versions.")
@@ -71,6 +70,7 @@ def common_args():
     parser.add_argument("--ev_combiner", action="store_true", help="reader training : Add evidence combining head to model and return extra ev_score key.")    
     parser.add_argument('--stop-drop', type=float, default=0.0, help="Dropout on stop head.")
     parser.add_argument("--eval_stop", action="store_true", help="Retriever: Add stop head and/or evaluate stop prediction accuracy in addition to evaluating para retrieval.")   
+    parser.add_argument("--output_dir", default="./logs", type=str, help="The output directory where the model checkpoints, logs etc will be written.")
 
     return parser
 
@@ -82,8 +82,6 @@ def train_args():
     parser.add_argument("--weight_decay", default=0.0, type=float,
                         help="Weight decay if we apply some.")
     parser.add_argument("--temperature", default=1, type=float)
-    parser.add_argument("--output_dir", default="./logs", type=str,
-                        help="The output directory where the model checkpoints, logs etc will be written.")
     parser.add_argument("--train_batch_size", default=128,
                         type=int, help="Total batch size for training.")
     parser.add_argument("--learning_rate", default=1e-5,

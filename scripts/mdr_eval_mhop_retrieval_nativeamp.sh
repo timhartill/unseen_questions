@@ -32,13 +32,13 @@
 cd ../code
 
 python mdr_eval_mhop_retrieval_nativeamp.py \
-    --predict_file /home/thar011/data/baleen_downloads/hover/hover_qas_val.jsonl \
-    --index_path /large_data/thar011/out/mdr/encoded_corpora/hover_sent_annots_test1-05-01_bs24_no_momentum_cenone_ckpt_best/index.npy \
-    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hover_sent_annots_test1-05-01_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
-    --init_checkpoint /large_data/thar011/out/mdr/logs/hover_sent_annots_test1-05-01-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+    --predict_file /home/thar011/data/DPR/bqa_nq_tqa_qas_val.jsonl \
+    --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/index.npy \
+    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
+    --init_checkpoint /large_data/thar011/out/mdr/logs/hpqa_sent_annots_test1-04-18-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
     --predict_batch_size 100 \
-    --beam_size 4 \
-    --topk 4 \
+    --beam_size 1 \
+    --topk 1 \
     --model_name roberta-base \
     --gpu_model \
     --hnsw \
@@ -47,9 +47,9 @@ python mdr_eval_mhop_retrieval_nativeamp.py \
     --max_q_len 70 \
     --max_q_sp_len 400 \
     --use_var_versions \
-    --max_hops 4 \
+    --max_hops 2 \
     --fp16 \
-    --output_dir /large_data/thar011/out/mdr/logs/hover_sent_annots_test1-05-01-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/test2_eval_beam4_topk4_ckpt_best_hnsw_evalfile_hover_randparaorder
+    --output_dir /large_data/thar011/out/mdr/logs/hpqa_sent_annots_test1-04-18-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/test1_eval_beam1_topk1_ckpt_best_hnsw_evalfile_bqa_nq_tqa_qas_val
 
 
 
