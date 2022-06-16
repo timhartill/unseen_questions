@@ -225,10 +225,10 @@ if __name__ == '__main__':
     id2doc = json.load(open(args.corpus_dict))
     evidence_key = 'title'
     if isinstance(id2doc["0"], list):
-        if len(id2doc["0"]) == 2 or not str(id2doc["0"][2]).replace('_', '').isnumeric():
-            id2doc = {k: {"title":v[0], "text": v[1]} for k, v in id2doc.items()}
+        if len(id2doc["0"]) == 3 or not str(id2doc["0"][2]).replace('_', '').isnumeric():
+            id2doc = {k: {"title":v[0], "text": v[1], "sentence_spans":v[2]} for k, v in id2doc.items()}
         else:
-            id2doc = {k: {"title":v[0], "text": v[1], "para_id": v[2]} for k, v in id2doc.items()}
+            id2doc = {k: {"title":v[0], "text": v[1], "sentence_spans":v[2], "para_id": v[3]} for k, v in id2doc.items()}
             evidence_key = 'para_id'
     logger.info(f"Evidence key field: {evidence_key}")        
     # title2text = {v[0]:v[1] for v in id2doc.values()}

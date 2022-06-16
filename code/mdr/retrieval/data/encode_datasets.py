@@ -26,14 +26,7 @@ from text_processing import normalize_unicode, convert_brc
 
 class EmDataset(Dataset):
 
-    def __init__(self,
-                 tokenizer,
-                 data_path,
-                 max_q_len,
-                 max_c_len,
-                 is_query_embed,
-                 save_path
-                 ):
+    def __init__(self, tokenizer, data_path, max_q_len, max_c_len, is_query_embed, save_path):
         super().__init__()
         self.is_query_embed = is_query_embed
         self.tokenizer = tokenizer
@@ -77,7 +70,7 @@ class EmDataset(Dataset):
             id2doc = {}
             if self.data_format == 'abstracts':
                 for idx, doc in enumerate(self.data):
-                    id2doc[idx] = (unescape(doc["title"]), doc["text"])  #TJH removed, doc.get("intro", False)) Also unescaping title 
+                    id2doc[idx] = (unescape(doc["title"]), doc["text"], doc["sentence_spans"])  #TJH added sentence spans removed, doc.get("intro", False)) Also unescaping title 
             else:
                 new_data = []
                 idx = 0
@@ -85,7 +78,7 @@ class EmDataset(Dataset):
                     for para_idx, para in enumerate(doc['paras']):
                         newid = doc['id'] + '_' + str(para_idx)
                         title_unescaped = unescape(doc["title"]) # use unescaped title
-                        id2doc[idx] = (title_unescaped, para["text"], newid)  # idx is numeric here but when saved to json it's a str..
+                        id2doc[idx] = (title_unescaped, para["text"], doc["sentence_spans"], newid)  # idx is numeric here but when saved to json it's a str..
                         new_data.append( {"title": title_unescaped, "text": para["text"]} )  #don't need para_id for __getitem__()
                         idx += 1
                 self.data = new_data
