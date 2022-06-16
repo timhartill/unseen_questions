@@ -115,7 +115,7 @@ if __name__ == '__main__':
     
     if args.use_var_versions:
         model = RobertaRetriever_var(bert_config, args)
-    else:    
+    else:
         model = RobertaRetriever(bert_config, args)
     model = load_saved(model, args.init_checkpoint, exact=args.exact, strict=args.strict) #TJH added  strict=args.strict
     simple_tokenizer = SimpleTokenizer()
@@ -411,14 +411,6 @@ if __name__ == '__main__':
                     paths.append(curr_path)  # append [retrieved para corpus idxs] for each k
                     path_titles.append(curr_path_para_ids)  # append [ title or docid_paraidx ] for each k
                     stop_preds.append (curr_stop_preds)  # Appending stop pred for each k
-#                    hop_1_id = I[idx, path_ids[0]]   # path_ids[0]=idx of top ranked hop 1 neighbour
-#                    hop_2_id = I_[idx, path_ids[0], path_ids[1]]  # path_ids[1]=idx of top ranked hop 2 neighbour
-#                    retrieved_titles.append(id2doc[str(hop_1_id)]["title"])
-#                    retrieved_titles.append(id2doc[str(hop_2_id)]["title"])
-
-#                    paths.append([str(hop_1_id), str(hop_2_id)])
-#                    path_titles.append([id2doc[str(hop_1_id)]["title"], id2doc[str(hop_2_id)]["title"]])
-#                    hop1_titles.append(id2doc[str(hop_1_id)]["title"])
                 
                 if args.only_eval_ans:
                     gold_answers = batch_ann[idx]["answer"]
@@ -541,7 +533,8 @@ if __name__ == '__main__':
         logger.info(f'\tAvg 1-Recall: {np.mean( return_filtered_list([m["recall_1"] for m in metrics]) )}')
         logger.info(f'\tPath Recall: {np.mean( return_filtered_list([m["path_covered"] for m in metrics]) )}')
         logger.info(f'\tAns Recall: {np.mean([m["ans_recall"] for m in metrics])}')
-        logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in metrics])}')
+        if args.eval_stop:
+            logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in metrics])}')
         for t in type2items.keys():
             logger.info(f"{t} Questions num: {len(type2items[t])}")
             logger.info(f'\tAvg PR: {np.mean( return_filtered_list([m["p_recall"] for m in type2items[t]]) )}')
@@ -549,20 +542,10 @@ if __name__ == '__main__':
             logger.info(f'\tAvg 1-Recall: {np.mean( return_filtered_list([m["recall_1"] for m in type2items[t]]) )}')
             logger.info(f'\tPath Recall: {np.mean( return_filtered_list([m["path_covered"] for m in type2items[t]]) )}')
             logger.info(f'\tAns Recall: {np.mean([m["ans_recall"] for m in type2items[t]])}')
-            logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in type2items[t]])}')
+            if args.eval_stop:
+                logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in type2items[t]])}')
 
-#        logger.info(f'\tAvg PR: {np.mean([m["p_recall"] for m in metrics])}')
-#        logger.info(f'\tAvg P-EM: {np.mean([m["p_em"] for m in metrics])}')
-#        logger.info(f'\tAvg 1-Recall: {np.mean([m["recall_1"] for m in metrics])}')
-#        logger.info(f'\tPath Recall: {np.mean([m["path_covered"] for m in metrics])}')
-#        logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in metrics])}')
-#        for t in type2items.keys():
-#            logger.info(f"{t} Questions num: {len(type2items[t])}")
-#            logger.info(f'\tAvg PR: {np.mean([m["p_recall"] for m in type2items[t]])}')
-#            logger.info(f'\tAvg P-EM: {np.mean([m["p_em"] for m in type2items[t]])}')
-#            logger.info(f'\tAvg 1-Recall: {np.mean([m["recall_1"] for m in type2items[t]])}')
-#            logger.info(f'\tPath Recall: {np.mean([m["path_covered"] for m in type2items[t]])}')
-#            logger.info(f'\tStop Acc: {np.mean([m["stop_acc"] for m in type2items[t]])}')
+
 
 
 

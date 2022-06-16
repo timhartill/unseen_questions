@@ -48,7 +48,6 @@ python mdr_train_mhop_nativeamp.py \
     --use_var_versions \
     --reduction none \
     --retrieve_loss_multiplier 1.0 \
-    --stop-drop 0.0 \
     --max_hops 4 \
     --num_negs 2 \
     --query_use_sentences \

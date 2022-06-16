@@ -26,11 +26,12 @@ python mdr_train_mhop_nativeamp.py \
     --use_var_versions \
     --output_dir /large_data/thar011/out/mdr/logs \
     --momentum \
-    --reduction sum \
+    --reduction none \
     --retrieve_loss_multiplier 1.0 \
-    --stop-drop 0.0 \
     --max_hops 2 \
     --num_negs 2 \
+    --query_use_sentences \
+    --query_add_titles \
     --debug \
     --k 76800 \
     --m 0.999 \

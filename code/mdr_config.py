@@ -70,6 +70,7 @@ def common_args():
     parser.add_argument("--num_workers_dev", default=0, type=int, help="number of dev dataloader processes. 0 means run on main thread.")
     parser.add_argument("--ev_combiner", action="store_true", help="reader training : Add evidence combining head to model and return extra ev_score key.")    
     parser.add_argument('--stop-drop', type=float, default=0.0, help="Dropout on stop head.")
+    parser.add_argument("--eval_stop", action="store_true", help="Retriever: Add stop head and/or evaluate stop prediction accuracy in addition to evaluating para retrieval.")   
 
     return parser
 
@@ -133,7 +134,6 @@ def eval_args():
     parser.add_argument('--hnsw', action="store_true", help="Non-exhaustive but fast and relatively accurate. Suitable for FAISS use on cpu.")
     parser.add_argument('--strict', action="store_true")  #TJH Added - load ckpt in 'strict' mode
     parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
-    parser.add_argument("--eval_stop", action="store_true", help="Evaluate stop prediction accuracy in addition to evaluating para retrieval.")   
     return parser.parse_args()
 
 

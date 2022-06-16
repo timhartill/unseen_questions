@@ -183,7 +183,7 @@ def mhop_collate_var(samples, pad_id=0):
     """ Collate variable step version: 
         e.g. samples[i]['q']: [ [tensor[1,2,3], tensor[1,2], tensor[1,2]], .. ] -> [ tensor[[1,2,3], [1,2,0], [1,2,0]], .. ]
 
-    NOTE:pad_id was not used in original mhop_collate - should be but _mask should still use 0...        
+    NOTE:pad_id was not used in original mhop_collate - should be but _mask should still use 0...
     """
     if len(samples) == 0:
         return {}

@@ -18,8 +18,10 @@ class RobertaRetriever_var(nn.Module):
         self.encoder = AutoModel.from_pretrained(args.model_name)
         self.project = nn.Sequential(nn.Linear(config.hidden_size, config.hidden_size), nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps))
 
-        self.stop = nn.Linear(config.hidden_size, 2)  #TJH 2 outputs because encoding "stop yes" and "stop no" using CE in loss, not BCE..
-        self.stop_drop = nn.Dropout(args.stop_drop)
+        self.eval_stop = args.eval_stop
+        if args.eval_stop:
+            self.stop = nn.Linear(config.hidden_size, 2)  #encoding "stop yes" and "stop no" using CE in loss
+            self.stop_drop = nn.Dropout(args.stop_drop)
 
 
     def encode_seq(self, input_ids, mask):
@@ -47,7 +49,7 @@ class RobertaRetriever_var(nn.Module):
         stop_encoded = []
         q_encoded = []
         for i, (q_input_ids, q_mask) in enumerate(zip(batch['q_input_ids'], batch['q_mask'])):
-            if i == 0: # no need to encode stop for q only
+            if i == 0 or not self.eval_stop: # no need to encode stop for q only
                 q_encoded.append(self.encode_seq(q_input_ids, q_mask))
             else:    
                 vector, stop_logits = self.encode_seq_stop(q_input_ids, q_mask)
@@ -62,7 +64,10 @@ class RobertaRetriever_var(nn.Module):
         for n_input_ids, n_mask in zip(batch['neg_input_ids'], batch['neg_mask']):
             n_encoded.append(self.encode_seq(n_input_ids, n_mask))
 
-        vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded, 'stop_logits': stop_encoded, 'act_hops': batch['act_hops']} # each except act_hops a list of tensors [bs, hidden_size]
+        if self.eval_stop:
+            vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded, 'stop_logits': stop_encoded, 'act_hops': batch['act_hops']} # each except act_hops a list of tensors [bs, hidden_size]
+        else:    
+            vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded, 'act_hops': batch['act_hops']} # each except act_hops a list of tensors [bs, hidden_size]
         return vectors
 
     def encode_q(self, input_ids, q_mask, q_type_ids=None, include_stop=False):
@@ -75,11 +80,9 @@ class RobertaRetriever_var(nn.Module):
 
 class RobertaMomentumRetriever_var(nn.Module):
 
-    def __init__(self,
-                 config,
-                 args
-                 ):
+    def __init__(self, config, args):
         super().__init__()
+        self.eval_stop = args.eval_stop
 
         self.encoder_q = RobertaRetriever_var(config, args)
         self.encoder_k = RobertaRetriever_var(config, args)
@@ -138,14 +141,12 @@ class RobertaMomentumRetriever_var(nn.Module):
         stop_encoded = []
         q_encoded = []
         for i, q_input_ids, q_mask in enumerate(zip(batch['q_input_ids'], batch['q_mask'])):
-            if i == 0: # no need to encode stop for q only
+            if i == 0 or not self.eval_stop: # no need to encode stop for q only
                 q_encoded.append(self.encoder_q.encode_seq(q_input_ids, q_mask))
             else:    
                  vector, stop_logits = self.encoder_q.encode_seq_stop(q_input_ids, q_mask)
                  q_encoded.append( vector )
                  stop_encoded.append( stop_logits )
-#            q_encoded.append(self.encoder_q.encode_seq(q_input_ids, q_mask))
-#            stop_encoded.append(self.encoder_q.encode_stop(q_input_ids, q_mask))
 
         if self.training:
             with torch.no_grad():
@@ -166,7 +167,10 @@ class RobertaMomentumRetriever_var(nn.Module):
             for n_input_ids, n_mask in zip(batch['neg_input_ids'], batch['neg_mask']):
                 n_encoded.append(self.encoder_k.encode_seq(n_input_ids, n_mask))
         
-        vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded, 'stop_logits': stop_encoded, 'act_hops': batch['act_hops']} # each except act_hops a list of tensors [bs, hidden_size]
+        if self.eval_stop:
+            vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded, 'stop_logits': stop_encoded, 'act_hops': batch['act_hops']} # each except act_hops a list of tensors [bs, hidden_size]
+        else:    
+            vectors = {'q': q_encoded, 'c': c_encoded, 'neg': n_encoded, 'act_hops': batch['act_hops']} # each except act_hops a list of tensors [bs, hidden_size]
         return vectors
 
 

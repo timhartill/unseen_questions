@@ -57,19 +57,20 @@ import glob
 from urllib.parse import unquote  #convert percent encoding eg %28%20%29 -> ( )   quote does opposite
 from html import unescape
 import copy
+from text_processing import create_sentence_spans
 
 
 ####### MDR:
 import utils #Duplicate "utils" with AISO so must run MDR and AISO portions separately from different working directories
 
-OUTDIR = '/data/thar011/gitrepos/compgen_mdr/data/hpqa_raw_tim'
+OUTDIR = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/'
 
 
-mdr_hpqa = utils.loadas_json('/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json') # 5233329
+mdr_hpqa = utils.loadas_json('/large_data/thar011/out/mdr/encoded_corpora/hotpot/wiki_id2doc_from_mdr_with_sent_splits.json') # 5233329
 
-mdr_out = [{'title': v['title'], 'text': v['text']} for v in mdr_hpqa.values() if v['text'].strip() != ''] # 5233235 strips blanks
+mdr_out = [{'title': v['title'], 'text': v['text'], 'sentence_spans': create_sentence_spans(v['sents'])} for v in mdr_hpqa.values() if v['text'].strip() != ''] # 5233235 strips blanks
 
-utils.saveas_jsonl(mdr_out, os.path.join(OUTDIR, 'hpqa_abstracts_tim.jsonl'))
+utils.saveas_jsonl(mdr_out, os.path.join(OUTDIR, 'hpqa_abstracts_with_sent_spans.jsonl'))
 
 
 #test

@@ -28,8 +28,9 @@ def mhop_loss_var(model, batch, args):
     dev = outputs['q'][0].device
     act_hops = outputs['act_hops'].squeeze(-1)   # [bs] Actual # steps per sample
     max_hops = len(outputs['c'])  # outputs["c"] should be padded to max_hops with neg paras in samples with act_hops < max_hops steps
-    
-    stop_logits = torch.cat([s.unsqueeze(1) for s in outputs['stop_logits']], dim=1) # [bs, max_hops-1, 2]  q_only not included
+
+    if args.eval_stop:
+        stop_logits = torch.cat([s.unsqueeze(1) for s in outputs['stop_logits']], dim=1) # [bs, max_hops-1, 2]  q_only not included
     
     all_ctx = torch.cat([c for c in outputs['c']], dim=0) # [bs * max_hops, hs]
     neg_ctx = torch.cat([neg.unsqueeze(1) for neg in outputs['neg']], dim=1) # [bs, #negs, hs]
@@ -84,18 +85,18 @@ def mhop_loss_var(model, batch, args):
         outstr+=f"#####nans after mom: scores_all_hops:{scores_all_hops.isnan().any()} {scores_all_hops.dtype} shape:{scores_all_hops.shape}"
 
 
-    # learn to flag stop after act_hops eg if q+sp1 and act_hops = 2 then stop but if act_hops = 3 then don't stop
-    stop_ce = CrossEntropyLoss(ignore_index=-100, reduction=args.reduction if args.reduction != 'none' else 'mean')
-    hop_target_idxs = torch.zeros(bs, max_hops-1, dtype=torch.int64).to(dev)
-    for i in range(max_hops-1):
-        for j in range(bs):
-            if i > act_hops[j]-1:
-                hop_target_idxs[j, i] = -100
-            elif i == act_hops[j]-1:
-                hop_target_idxs[j, i] = 1 # train stop_logits[:,:,1] to be "yes stop now" and stop_logits[:,:,0] to be "keep going"
-    stop_loss = stop_ce(stop_logits.transpose(1,2), hop_target_idxs) # [bs, max_hops-1] if reduction was 'none' from ce([bs, classes=2, max_hops], [bs, target class idx={0/1}])
-    if args.debug:
-        outstr+=f"nans stop_loss:{stop_loss.isnan().any()} {stop_loss.dtype} {stop_loss.shape} VALUE:{stop_loss}" 
+    if args.eval_stop:  # learn to flag stop after act_hops eg if q+sp1 and act_hops = 2 then stop but if act_hops = 3 then don't stop
+        stop_ce = CrossEntropyLoss(ignore_index=-100, reduction=args.reduction if args.reduction != 'none' else 'mean')
+        hop_target_idxs = torch.zeros(bs, max_hops-1, dtype=torch.int64).to(dev)
+        for i in range(max_hops-1):
+            for j in range(bs):
+                if i > act_hops[j]-1:
+                    hop_target_idxs[j, i] = -100
+                elif i == act_hops[j]-1:
+                    hop_target_idxs[j, i] = 1 # train stop_logits[:,:,1] to be "yes stop now" and stop_logits[:,:,0] to be "keep going"
+        stop_loss = stop_ce(stop_logits.transpose(1,2), hop_target_idxs) # [bs, max_hops-1] if reduction was 'none' from ce([bs, classes=2, max_hops], [bs, target class idx={0/1}])
+        if args.debug:
+            outstr+=f"nans stop_loss:{stop_loss.isnan().any()} {stop_loss.dtype} {stop_loss.shape} VALUE:{stop_loss}" 
     
     target_1_hop = torch.arange(bs).to(dev)
     all_targets_all_hops = torch.cat([target_1_hop.unsqueeze(1) + (i*bs) for i in range(max_hops) ], dim=1) # [bs, max_hops] Target "next para" idx.
@@ -119,13 +120,17 @@ def mhop_loss_var(model, batch, args):
             outstr+=f"nans final_loss_nonzero:{final_loss_nonzero.isnan().any()} {final_loss_nonzero.dtype} VALUE:{final_loss_nonzero}"
             #if final_loss_nonzero.isnan().any():
             #    print(retrieve_loss)
-        return stop_loss + args.retrieve_loss_multiplier*final_loss_nonzero, outstr  #tensor(finalnum)
+        if args.eval_stop:
+            return stop_loss + args.retrieve_loss_multiplier*final_loss_nonzero, outstr  #tensor(finalnum)
+        return args.retrieve_loss_multiplier*final_loss_nonzero, outstr  #tensor(finalnum)
     else:
         ce = CrossEntropyLoss(ignore_index=-100, reduction=args.reduction) #"sum"
         retrieve_loss = ce(scores_all_hops.transpose(1,2), all_targets_all_hops)  # tensor(finalnum)
         if args.debug:
             outstr+=f"nans retrieve_loss:{retrieve_loss.isnan().any()} {retrieve_loss.dtype} {retrieve_loss.shape} VALUE:{retrieve_loss}"
-        return stop_loss + args.retrieve_loss_multiplier*retrieve_loss, outstr
+        if args.eval_stop:
+            return stop_loss + args.retrieve_loss_multiplier*retrieve_loss, outstr            
+        return args.retrieve_loss_multiplier*retrieve_loss, outstr
         
     
 
@@ -136,7 +141,8 @@ def mhop_eval_var(outputs, args):
     act_hops = outputs['act_hops'].squeeze(-1)   # [bs] Actual # steps per sample
     max_hops = len(outputs['c'])  # outputs["c"] should be padded to max_hops with neg paras in samples with act_hops < max_hops steps
 
-    stop_logits = torch.cat([s.unsqueeze(1) for s in outputs['stop_logits']], dim=1) # [bs, max_hops, 2]
+    if args.eval_stop:
+        stop_logits = torch.cat([s.unsqueeze(1) for s in outputs['stop_logits']], dim=1) # [bs, max_hops, 2]
     
     all_ctx = torch.cat([c for c in outputs['c']], dim=0) # [bs * max_hops, hs]
     neg_ctx = torch.cat([neg.unsqueeze(1) for neg in outputs['neg']], dim=1) # [bs, #negs, hs]
@@ -163,28 +169,28 @@ def mhop_eval_var(outputs, args):
     neg_scores_all = torch.bmm(all_q_reshaped, neg_ctx.transpose(1,2))  # [bs, #qs, hs] bmm [bs, hs, #negs] = [bs, #qs, #negs]
     scores_all_hops = torch.cat([scores_all_hops, neg_scores_all], dim=2) # [bs, #qs, bs*#c] cat [bs, #qs, #negs] = [bs, #qs, bs*#c + #negs]
 
-    # stop on hop accuracy
-    stop_pred = stop_logits.argmax(dim=2)  # [bs, max_hops-1]
-    hop_target_idxs = torch.zeros(bs, max_hops-1, dtype=torch.int64).to(dev)
-    for i in range(max_hops-1):
-        for j in range(bs):
-            if i == act_hops[j]-1:
-                hop_target_idxs[j, i] = 1
-
-    stop_acc = (stop_pred == hop_target_idxs).float().cpu().numpy()  # [bs, max_hops-1] with 1.0 / 0.0 in cells
-    for i in range(max_hops-1):
-        for j in range(bs):
-            if i > act_hops[j]-1:
-                stop_acc[j, i] = 0.0  # ignore acc where current hop is greater than actual # of hops in this sample
-    correct_counts = stop_acc.sum(axis=1)  # [bs]
-    act_hops_denom = np.array([ah.item() if ah < max_hops else max_hops-1 for ah in act_hops]) # [bs] if sample has max_hops hops dont add 1 since we don't process the final q+sp1+...+spmax_hops    
-    accuracies_per_sample = correct_counts / act_hops_denom # [bs] accuracy by sample - could be used to determine accuracy by sample type eg all 1 hop samples
-    accuracies_per_hop = {}  # accuracies by hop # like rrs
-    for i in range(max_hops-1):
-        accuracies_per_hop[i+2] = []
-        for j in range(bs):
-            if i <= act_hops[j]-1:
-                accuracies_per_hop[i+2].append( int(stop_acc[j, i]) ) # Nb: accuracy of all eg 1 hop stop preds not the accuracy of only samples from a 1 hop dataset
+    if args.eval_stop: # stop on hop accuracy
+        stop_pred = stop_logits.argmax(dim=2)  # [bs, max_hops-1]
+        hop_target_idxs = torch.zeros(bs, max_hops-1, dtype=torch.int64).to(dev)
+        for i in range(max_hops-1):
+            for j in range(bs):
+                if i == act_hops[j]-1:
+                    hop_target_idxs[j, i] = 1
+    
+        stop_acc = (stop_pred == hop_target_idxs).float().cpu().numpy()  # [bs, max_hops-1] with 1.0 / 0.0 in cells
+        for i in range(max_hops-1):
+            for j in range(bs):
+                if i > act_hops[j]-1:
+                    stop_acc[j, i] = 0.0  # ignore acc where current hop is greater than actual # of hops in this sample
+        correct_counts = stop_acc.sum(axis=1)  # [bs]
+        act_hops_denom = np.array([ah.item() if ah < max_hops else max_hops-1 for ah in act_hops]) # [bs] if sample has max_hops hops dont add 1 since we don't process the final q+sp1+...+spmax_hops    
+        accuracies_per_sample = correct_counts / act_hops_denom # [bs] accuracy by sample - could be used to determine accuracy by sample type eg all 1 hop samples
+        accuracies_per_hop = {}  # accuracies by hop # like rrs
+        for i in range(max_hops-1):
+            accuracies_per_hop[i+2] = []
+            for j in range(bs):
+                if i <= act_hops[j]-1:
+                    accuracies_per_hop[i+2].append( int(stop_acc[j, i]) ) # Nb: accuracy of all eg 1 hop stop preds not the accuracy of only samples from a 1 hop dataset
     
     target_1_hop = torch.arange(bs).to(dev)
     all_targets_all_hops = torch.cat([target_1_hop.unsqueeze(1) + (i*bs) for i in range(max_hops) ], dim=1) # [bs, max_hops] Target "next para" idx.
@@ -198,8 +204,10 @@ def mhop_eval_var(outputs, args):
             if curr_hop+1 <= act_hops[t % bs]: # ignore ranking where curr_hop is greater than the actual # of hops in this sample
                 #print(f"hop: {curr_hop+1}: {t}: {idx2ranked[t].item() + 1}")    #Matches hop1/hop2 below..
                 rrs[curr_hop+1].append( 1 / (idx2ranked[t].item() + 1) )
-
-    return rrs, accuracies_per_hop, accuracies_per_sample.tolist()
+    
+    if args.eval_stop:
+        return rrs, accuracies_per_hop, accuracies_per_sample.tolist()
+    return rrs
 
 
 
