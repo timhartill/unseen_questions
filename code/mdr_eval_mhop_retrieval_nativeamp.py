@@ -403,14 +403,15 @@ if __name__ == '__main__':
                         curr_path_para_ids.append( unescape(id2doc[str(hop_n_id)][evidence_key]) )
                         if i == 0:
                             hop1_titles.append( unescape(id2doc[str(hop_n_id)][evidence_key]) ) # append 1st hop predicted para for each k
-                        if i > 0:  # no stop pred for q_only so start at i=1
+                        if i > 0 and args.eval_stop:  # no stop pred for q_only so start at i=1
                             np_coords_stop.append( path_id )
                             hop_n_stop_pred = stop_on_hop_list[i-1][ tuple(np_coords_stop) ]
                             curr_stop_preds.append( hop_n_stop_pred )
                             
                     paths.append(curr_path)  # append [retrieved para corpus idxs] for each k
                     path_titles.append(curr_path_para_ids)  # append [ title or docid_paraidx ] for each k
-                    stop_preds.append (curr_stop_preds)  # Appending stop pred for each k
+                    if args.eval_stop:
+                        stop_preds.append (curr_stop_preds)  # Appending stop pred for each k
                 
                 if args.only_eval_ans:
                     gold_answers = batch_ann[idx]["answer"]
