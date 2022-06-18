@@ -29,10 +29,14 @@
 # model_path, output_dir to location of the ckpt dir that mdr_encode_datasets was run on. Note for momentum can pick either checkpoint_q_best.pt or checkpoint_k_best.pt as they are identical..
 
 
+# predict_file: /home/thar011/data/DPR/bqa_nq_tqa_qas_val.jsonl \  #use with bqa wiki dump ie gold sp = wiki doc id _ para idx
+# /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val.json  # use with hpqa abstracts ie gold sp = title
+
+
 cd ../code
 
 python mdr_eval_mhop_retrieval_nativeamp.py \
-    --predict_file /home/thar011/data/DPR/bqa_nq_tqa_qas_val.jsonl \
+    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val.json \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/index.npy \
     --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
     --init_checkpoint /large_data/thar011/out/mdr/logs/hpqa_sent_annots_test1-04-18-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
@@ -49,7 +53,7 @@ python mdr_eval_mhop_retrieval_nativeamp.py \
     --use_var_versions \
     --max_hops 2 \
     --fp16 \
-    --output_dir /large_data/thar011/out/mdr/logs/hpqa_sent_annots_test1-04-18-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/test1_eval_beam1_topk1_ckpt_best_hnsw_evalfile_bqa_nq_tqa_qas_val
+    --output_dir /large_data/thar011/out/mdr/logs/hpqa_sent_annots_test1-04-18-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/test2_eval_beam1_topk1_ckpt_best_hnsw_evalfile_hotpot_qas_val
 
 
 

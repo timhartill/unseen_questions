@@ -282,7 +282,6 @@ if __name__ == '__main__':
                 for b_idx in range(curr_size):
                     for n, doc_id in enumerate(curr_I[b_idx]):  # For each neighbour returned for current question
                         doc = id2doc[str(doc_id)]["text"].strip()  # TJH update for extra sentence prediction model...
-                        #doc = str(n)+'_'+str(doc_id)  
                         if "roberta" in  args.model_name and doc.strip() == "":
                             doc = id2doc[str(doc_id)]["title"]
                             curr_D[b_idx][n] = float("-inf")
