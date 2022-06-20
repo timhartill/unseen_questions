@@ -67,7 +67,7 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer,
 
 from mdr_config import train_args
 from reader.reader_dataset import Stage1Dataset, stage_collate, AlternateSampler
-from reader.reader_model import Stage1Model
+from reader.reader_model import StageModel
 
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
 from mdr_basic_tokenizer_and_utils import get_final_text
@@ -121,7 +121,7 @@ def main():
     if args.do_train and args.max_c_len > bert_config.max_position_embeddings:
         raise ValueError( "Cannot use sequence length %d because the model was only trained up to sequence length %d" % (args.max_c_len, bert_config.max_position_embeddings))
     
-    model = Stage1Model(bert_config, args)
+    model = StageModel(bert_config, args)
     eval_dataset = Stage1Dataset(args, tokenizer, args.predict_file, train=False)
     collate_fc = partial(stage_collate, pad_id=tokenizer.pad_token_id)
 

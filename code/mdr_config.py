@@ -123,8 +123,9 @@ def eval_args():
     parser = common_args()
     parser.add_argument('--index_path', type=str, default=None, help="index.npy file containing para embeddings [num_paras, emb_dim]")
     parser.add_argument('--corpus_dict', type=str, default=None, help="id2doc.json file containing dict with key id -> title+txt")
-    parser.add_argument('--topk', type=int, default=2, help="topk paths/para sequences to return. Must be <= beam-size^num_steps")
-    parser.add_argument('--beam_size', type=int, default=5, help="Number of beams each step (number of nearest neighbours to append each step.).")
+    parser.add_argument('--topk', type=int, default=2, help="Retrievel eval: topk paths/para sequences to return. Must be <= beam-size^num_steps. Iterator: max num of sents returned from stage 1")
+    parser.add_argument('--topk_stage2', type=int, default=5, help="Iterator: max num of sents returned from stage 2")    
+    parser.add_argument('--beam_size', type=int, default=5, help="Number of beams each step (number of nearest neighbours to return each retrieval step.).")
     parser.add_argument('--gpu_faiss', action="store_true", help="Put Faiss index on visible gpu(s).")
     parser.add_argument('--gpu_model', action="store_true", help="Put q encoder on gpu 0 of the visible gpu(s).")
     parser.add_argument('--save_index', action="store_true",help="Save index if hnsw option chosen")
@@ -132,6 +133,11 @@ def eval_args():
     parser.add_argument('--hnsw', action="store_true", help="Non-exhaustive but fast and relatively accurate. Suitable for FAISS use on cpu.")
     parser.add_argument('--strict', action="store_true")  #TJH Added - load ckpt in 'strict' mode
     parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
+    parser.add_argument("--model_name_stage1", default='google/electra-large-discriminator', type=str, help="stage 1 rereranker model name")
+    parser.add_argument("--init_checkpoint_stage1", default='', type=str, help="stage 1 rereranker model checkpoint")
+    parser.add_argument("--model_name_stage2", default='google/electra-large-discriminator', type=str, help="stage 2 rereranker model name")
+    parser.add_argument("--init_checkpoint_stage2", default='', type=str, help="stage 2 rereranker model checkpoint")
+    
     return parser.parse_args()
 
 

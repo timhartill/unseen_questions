@@ -801,7 +801,7 @@ def encode_text(tokenizer, text, text_pair=None, max_input_length=512,
 def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences=None, 
                        use_sentences=False, prepend_title=False, title_sep = ':'):
     """ Encode the para portion of the query as either just the paragraph or as selected sentences from the paragraph 
-    prepended by the title eg: "title | sentence 1. sentence 4."
+    prepended by the title eg: "title |  sentence 1. sentence 4."
     sentence_spans = [ [s1startidx, s1endidx], [s2startidx, s2endidx], ...]
     selected sentences = [sentenceidx1, sentenceidx2, ...]
     In retriever title_sep =':', in reader it is ' |'
@@ -842,6 +842,28 @@ def encode_title_sents(text, title, sentence_spans, selected_sentences, title_se
                 sent += '.'
             newtext.append(newtitle + sent)
     return newtext
+
+
+def aggregate_sents(sent_list, score_thresh = -1000000, title_sep = ':'):
+    """ Aggregate sentences with same title
+    sent_list format: [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:..}, ..]
+    returns eg 'title_a:  Sent 1. Sent 3. title_b:  Sent 2. title_c:  Sent c1.'
+    """
+    title_dict = {}
+    for s in sent_list:
+        sent = s['sentence'].strip()
+        if s['score'] > score_thresh and len(sent) > 0:
+            if title_dict.get(s['title']) is None:
+                title_dict[s['title']] = ''
+            if sent[-1] not in ['.','?','!']:
+                sent += '.'
+            title_dict[s['title']] += ' ' + sent
+    final = ''
+    for t in title_dict:
+        final += ' ' + t.strip() + title_sep + ' ' + title_dict[t]
+    return final.strip()        
+        
+        
 
 
 def context_toks_to_ids(context, tokenizer, sent_marker='[unused1]', 

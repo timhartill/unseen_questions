@@ -55,7 +55,7 @@ class BertPooler(nn.Module):
         return pooled_output
 
 
-class Stage1Model(nn.Module):
+class StageModel(nn.Module):
 
     def __init__(self, config, args):
         super().__init__()
