@@ -71,6 +71,7 @@ def common_args():
     parser.add_argument('--stop-drop', type=float, default=0.0, help="Dropout on stop head.")
     parser.add_argument("--eval_stop", action="store_true", help="Retriever: Add stop head and/or evaluate stop prediction accuracy in addition to evaluating para retrieval.")   
     parser.add_argument("--output_dir", default="./logs", type=str, help="The output directory where the model checkpoints, logs etc will be written.")
+    parser.add_argument("--sp-weight", default=1.0, type=float, help="weight of the sentence relevance prediction loss")
 
     return parser
 
@@ -106,7 +107,6 @@ def train_args():
                         help="type of reduction to apply in cross-entropy loss - 'sum', 'mean' or 'none' gives sum over mean per hop.")
     parser.add_argument("--retrieve_loss_multiplier", default=1.0, type=float,
                         help="Retrieve loss multiplier. Final loss will be stop_loss + retrieve_loss_multiplier*retrieve_loss")
-    parser.add_argument("--sp-weight", default=0, type=float, help="weight of the sentence relevance prediction loss")
 
     return parser.parse_args()
 
@@ -133,9 +133,8 @@ def eval_args():
     parser.add_argument('--hnsw', action="store_true", help="Non-exhaustive but fast and relatively accurate. Suitable for FAISS use on cpu.")
     parser.add_argument('--strict', action="store_true")  #TJH Added - load ckpt in 'strict' mode
     parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
-    parser.add_argument("--model_name_stage1", default='google/electra-large-discriminator', type=str, help="stage 1 rereranker model name")
+    parser.add_argument("--model_name_stage", default='google/electra-large-discriminator', type=str, help="stage 1 rereranker model name")
     parser.add_argument("--init_checkpoint_stage1", default='', type=str, help="stage 1 rereranker model checkpoint")
-    parser.add_argument("--model_name_stage2", default='google/electra-large-discriminator', type=str, help="stage 2 rereranker model name")
     parser.add_argument("--init_checkpoint_stage2", default='', type=str, help="stage 2 rereranker model checkpoint")
     
     return parser.parse_args()

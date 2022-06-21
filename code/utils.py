@@ -844,10 +844,11 @@ def encode_title_sents(text, title, sentence_spans, selected_sentences, title_se
     return newtext
 
 
-def aggregate_sents(sent_list, score_thresh = -1000000, title_sep = ':'):
+def aggregate_sents(sent_list, score_thresh = -1000000, title_sep = ':', para_sep = ''):
     """ Aggregate sentences with same title
     sent_list format: [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:..}, ..]
-    returns eg 'title_a:  Sent 1. Sent 3. title_b:  Sent 2. title_c:  Sent c1.'
+    returns eg 'title_a:  Sent 1. Sent 3. title_b:  Sent 2. title_c:  Sent c1.' 
+           or '[unused2] title_a |  Sent 1. Sent 3. [unused2] title_b |  Sent 2. [unused2] title_c |  Sent c1.'
     """
     title_dict = {}
     for s in sent_list:
@@ -860,7 +861,10 @@ def aggregate_sents(sent_list, score_thresh = -1000000, title_sep = ':'):
             title_dict[s['title']] += ' ' + sent
     final = ''
     for t in title_dict:
-        final += ' ' + t.strip() + title_sep + ' ' + title_dict[t]
+        if para_sep == '':
+            final += ' ' + t.strip() + title_sep + ' ' + title_dict[t]
+        else:
+            final += ' ' + para_sep.strip() + ' ' + t.strip() + title_sep + ' ' + title_dict[t]
     return final.strip()        
         
         

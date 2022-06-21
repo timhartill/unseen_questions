@@ -14,6 +14,9 @@ args.index_path = '/large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_
 args.corpus_dict = '/large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/id2doc.json'
 args.model_name = 'roberta-base'
 args.init_checkpoint = '/large_data/thar011/out/mdr/logs/hpqa_sent_annots_test1-04-18-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt'
+args.model_name_stage = 'google/electra-large-discriminator'
+args.init_checkpoint_stage1 = '/large_data/thar011/out/mdr/logs/stage1_test5_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-05-29-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
+args.init_checkpoint_stage2 = '/large_data/thar011/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
 args.gpu_model=True
 args.gpu_faiss=True
 args.hnsw = True
@@ -23,7 +26,9 @@ args.topk_stage2 = 5    # max num sents to return from stage 2
 args.max_hops = 2       # max num hops
 args.fp16=True
 args.max_q_len = 70
-args.max_q_sp_len = 400  # retriever max input len
+args.max_q_sp_len = 400  # retriever max input seq len
+args.max_c_len = 512     # stage models max input seq length
+args.sp_weight = 1.0
 
 """
 
@@ -48,13 +53,14 @@ from mdr_config import eval_args
 from mdr.retrieval.models.mhop_retriever import RobertaRetriever_var
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
 
-from reader.reader_model import Stage1Model
+from reader.reader_model import StageModel
 
 
-from utils import encode_text, load_saved, move_to_cuda, return_filtered_list, aggregate_sents
+from utils import encode_text, load_saved, move_to_cuda, return_filtered_list, aggregate_sents, context_toks_to_ids, collate_tokens
+from text_processing import get_sentence_list 
 
 ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']
-
+NON_EXTRACTIVE_OPTIONS = ' [SEP] yes no [unused0] [SEP] '
 
 
 def get_gpu_resources_faiss(n_gpu, gpu_start=0, gpu_end=-1, tempmem=0):
@@ -190,16 +196,16 @@ class DenseSearcher():
         return m_input
     
     def search(self, sample):
-        """ retrieve top beam_size paras
+        """ retrieve beam_size nearest paras and put them in 'dense_retrieved' key
         """
         s2_idxs = set([s['idx'] for s in sample['s2']])  # dont retrieve id2doc keys that are already in s2 output
-        dense_query = self.encode_input(sample)  # #create mdr query
+        dense_query = self.encode_input(sample)  # create retriever query
         if self.args.gpu_model:
             batch_q_sp_encodes = move_to_cuda(dict(dense_query))
 
         with torch.cuda.amp.autocast(enabled=self.args.fp16):
             q_sp_embeds = self.model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
-                                              batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)            
+                                              batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)        
         q_sp_embeds = q_sp_embeds.cpu().contiguous().detach().numpy()  # [1, hs]
         if self.args.hnsw:
             q_sp_embeds = convert_hnsw_query(q_sp_embeds)
@@ -218,17 +224,17 @@ class DenseSearcher():
         
 
 
-class stage1_reranker():
+class Stage1Searcher():
     """ Stage 1 reranker model
     """    
     def __init__(self, args, logger): 
         self.args = args
         self.logger = logger
 
-        logger.info(f"Loading trained stage 1 reranker model  {args.model_name_stage1}...")
-        self.bert_config = AutoConfig.from_pretrained(args.model_name_stage1)
-        self.tokenizer = AutoTokenizer.from_pretrained(args.model_name_stage1, use_fast=True, additional_special_tokens=ADDITIONAL_SPECIAL_TOKENS)
-        self.model = Stage1Model(self.bert_config, args)
+        logger.info(f"Loading trained stage 1 reranker model  {args.model_name_stage}...")
+        self.bert_config = AutoConfig.from_pretrained(args.model_name_stage)
+        self.tokenizer = AutoTokenizer.from_pretrained(args.model_name_stage, use_fast=True, additional_special_tokens=ADDITIONAL_SPECIAL_TOKENS)
+        self.model = StageModel(self.bert_config, args)
         self.model = load_saved(self.model, args.init_checkpoint_stage1, exact=args.exact, strict=args.strict) #TJH added  strict=args.strict
         if args.gpu_model:
             device0 = torch.device(type='cuda', index=0)
@@ -239,7 +245,55 @@ class stage1_reranker():
     def encode_input(self, sample):
         """ Encode a question, optional title | sents and retrieved paras for stage 1 reranker
         """
-
+        q_toks = self.tokenizer.tokenize(sample['question'])[:self.args.max_q_len]
+        para_offset = len(q_toks) + 1 #  cls
+        q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
+        max_toks_for_doc = self.args.max_c_len - para_offset - 1
+        q_sents = aggregate_sents(sample['s2'], title_sep = ' |', para_sep='[unused2]')  # aggregate sents for same title
+        item_list = []  # [len(sample['dense_retrieved'])] of data used for deriving answer span
+        model_inputs = {'input_ids':[], 'token_type_ids':[], 'attention_mask':[], 'paragraph_mask':[], 'sent_offsets':[]}
+        for para in sample['dense_retrieved']:
+            title, sentence_spans = para["title"].strip(), para["sentence_spans"]
+            sents = get_sentence_list(para["text"], sentence_spans)
+            pre_sents = []
+            for idx, sent in enumerate(sents):
+                pre_sents.append("[unused1] " + sent.strip())
+            context = title + " " + " ".join(pre_sents)
+            context = q_sents + NON_EXTRACTIVE_OPTIONS + context  # ELECTRA tokenises yes, no to single tokens
+            (doc_tokens, char_to_word_offset, orig_to_tok_index, tok_to_orig_index, 
+             all_doc_tokens, sent_starts) = context_toks_to_ids(context, self.tokenizer, sent_marker='[unused1]', special_toks=["[SEP]", "[unused0]", "[unused1]"])
+            if len(all_doc_tokens) > max_toks_for_doc:
+                all_doc_tokens = all_doc_tokens[:max_toks_for_doc]
+            input_ids = torch.tensor([q_ids + self.tokenizer.convert_tokens_to_ids(all_doc_tokens) + [self.tokenizer.sep_token_id]],
+                                     dtype=torch.int64)
+            attention_mask = torch.tensor([[1] * input_ids.shape[1]], dtype=torch.int64)
+            token_type_ids = torch.tensor([[0] * para_offset + [1] * (input_ids.shape[1]-para_offset)], dtype=torch.int64)
+            paragraph_mask = torch.zeros(input_ids.size()).view(-1)
+            paragraph_mask[para_offset:-1] = 1  #set sentences part of query + para toks -> 1
+            model_inputs["input_ids"].append(input_ids)
+            model_inputs["token_type_ids"].append(token_type_ids)
+            model_inputs["attention_mask"].append(attention_mask)
+            model_inputs['paragraph_mask'].append(paragraph_mask)
+            #NOTE if query very long then 1st [SEP] will be the EOS token at pos 511 & ans_offset will be at 512 over max seq len...
+            #ans_offset = torch.where(input_ids[0] == tokenizer.sep_token_id)[0][0].item()+1
+            ans_offset = torch.where(input_ids[0] == self.tokenizer.sep_token_id)[0][0].item()+1  # tok after 1st [SEP] = yes = start of non extractive answer options
+            if ans_offset >= 509: #non extractive ans options + eval para truncated due to very long query
+                ans_offset = -1  # idx of insuff token  if insuff token != 1
+            sent_offsets = []
+            for idx, s in enumerate(sent_starts):
+                if s >= len(all_doc_tokens): #if wp_tokens truncated, sent labels could be invalid
+                    break
+                sent_offsets.append(s + para_offset)
+                assert input_ids.view(-1)[s+para_offset] == 2  #self.tokenizer.convert_tokens_to_ids("[unused1]")    
+            model_inputs["sent_offsets"].append( torch.LongTensor(sent_offsets) )
+            item_list.append( {"wp_tokens": all_doc_tokens, "doc_tokens": doc_tokens, 
+                               "tok_to_orig_index": tok_to_orig_index, 'insuff_offset': ans_offset+2} )
+        model_inputs["input_ids"] = collate_tokens(model_inputs["input_ids"], self.tokenizer.pad_token_id)  # [beam_size, max inp seq len]
+        model_inputs["token_type_ids"] = collate_tokens(model_inputs["token_type_ids"], 0)                  # [beam_size, max inp seq len]
+        model_inputs["attention_mask"] = collate_tokens(model_inputs["attention_mask"], 0)                  # [beam_size, max inp seq len]
+        model_inputs["paragraph_mask"] = collate_tokens(model_inputs["paragraph_mask"], 0)                  # [beam_size, max inp seq len]
+        model_inputs["sent_offsets"] = collate_tokens(model_inputs["sent_offsets"], 0)                      # [beam_size, max # sents]
+        return model_inputs, item_list, para_offset  #TODO run collate_tokens on model_inputs to pad..
 
 
 
@@ -279,6 +333,10 @@ if __name__ == '__main__':
                 sample["question"] = sample["question"][:-1]
             if sample.get('src') is None:
                 sample['src'] = 'hotpotqa'  # superfluous but consistent. The iterator only depends on having a 'question' key and adds the other keys.
+            if sample['answer'][0] in ["SUPPORTED", "SUPPORTS"]: #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
+                sample['answer'][0] = 'yes'
+            elif sample['answer'][0] in ["REFUTES", "NOT_SUPPORTED"]:
+                sample['answer'][0] = 'no'
             # this hop:    
             sample['dense_retrieved'] = []   # [id2doc idx1, id2doc idx2, ...]  paras retrieved this hop q + each para = s1 query
             sample['s1'] = []   # [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:..}, ..]  selected sentences from s1 = best sents from topk paras this hop
@@ -289,14 +347,17 @@ if __name__ == '__main__':
             sample['s2_hist'] = []
 
     dense_searcher = DenseSearcher(args, logger)
+    
+    stage1_searcher = Stage1Searcher(args, logger)
 
     for i, sample in enumerate(samples):
         for hop in range(0, args.max_hops):
             #create mdr query 
             #dense_query = dense_searcher.encode_input(sample)
             # topkparas = dense search
-            dense_searcher.search(sample)
+            dense_searcher.search(sample)  # retrieve args.beam_size nearest paras and put them in sample['dense_retrieved'] key
             #TODO create stage 1 query
+            model_inputs, item_list, para_offset = stage1_searcher.encode_input(sample)
             #TODO topks1sents = process topkparas through stage1 model
             #TODO create stage 2 query
             #TODO topks2sents, finished = stage2 model(stage2query)

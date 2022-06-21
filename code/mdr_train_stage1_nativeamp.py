@@ -28,7 +28,7 @@ args.output_dir = '/large_data/thar011/out/mdr/logs'
 args.gradient_accumulation_steps = 1
 args.use_adam=True
 args.sp_weight = 1.0
-args.sent_score_force_zero = False
+args.sent_score_force_zero = True
 args.debug = True
 args.sp_percent_thresh = 0.55
 

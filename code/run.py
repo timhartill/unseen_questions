@@ -238,7 +238,7 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                 stop_training=True
                 break
             if args.gradient_accumulation_steps > 1:   
-                loss = loss / args.gradient_accumulation_steps    
+                loss = loss / args.gradient_accumulation_steps
             train_losses.append(loss.detach().cpu())
             loss.backward()
 

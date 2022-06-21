@@ -59,19 +59,22 @@ class StageModel(nn.Module):
 
     def __init__(self, config, args):
         super().__init__()
-        self.model_name = args.model_name
+        if args.__dict__.get('model_name_stage') is not None:
+            self.model_name = args.model_name_stage
+        else:    
+            self.model_name = args.model_name
         self.sp_weight = args.sp_weight
         self.debug = args.debug
         self.debug_count = 3
         self.sent_score_force_zero = args.sent_score_force_zero
         self.ev_combiner = args.ev_combiner
-        self.encoder = AutoModel.from_pretrained(args.model_name)
+        self.encoder = AutoModel.from_pretrained(self.model_name)
 
-        if "electra" in args.model_name:
+        if "electra" in self.model_name:
             self.pooler = BertPooler(config)
 
         self.qa_outputs = nn.Linear(config.hidden_size, 2)
-        self.rank = nn.Linear(config.hidden_size, 1) # noan
+        self.rank = nn.Linear(config.hidden_size, 1) 
 
         self.sp = nn.Linear(config.hidden_size, 1)
 
@@ -104,9 +107,9 @@ class StageModel(nn.Module):
         sent_marker_rep = torch.gather(sequence_output, 1, gather_index)  # [bs, max#sentsinbatch, hs] gather along seq_len of [bs, seq_len, hs]
         sp_score = self.sp(sent_marker_rep).squeeze(2)  # [bs, #sents, 1] -> [bs, #sents]
         
-        insuff_hs = torch.cat([sequence_output[i, idx].unsqueeze(0) for i, idx in enumerate(batch["insuff_offset"].squeeze(1))], dim=0)
         
         if self.ev_combiner:
+            insuff_hs = torch.cat([sequence_output[i, idx].unsqueeze(0) for i, idx in enumerate(batch["insuff_offset"].squeeze(1))], dim=0)
             ev_logits = self.ev_combiner_head(sequence_output[:,0], insuff_hs, sent_marker_rep)  # [bs,2]
 
         if self.training:
