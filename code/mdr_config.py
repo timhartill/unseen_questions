@@ -131,11 +131,13 @@ def eval_args():
     parser.add_argument('--save_index', action="store_true",help="Save index if hnsw option chosen")
     parser.add_argument('--only_eval_ans', action="store_true")
     parser.add_argument('--hnsw', action="store_true", help="Non-exhaustive but fast and relatively accurate. Suitable for FAISS use on cpu.")
-    parser.add_argument('--strict', action="store_true")  #TJH Added - load ckpt in 'strict' mode
-    parser.add_argument('--exact', action="store_true")  #TJH Added - filter ckpt in 'exact' mode
+    parser.add_argument('--strict', action="store_true", help="load ckpt in 'strict' mode")  
+    parser.add_argument('--exact', action="store_true", help="filter ckpt in 'exact' mode")  
     parser.add_argument("--model_name_stage", default='google/electra-large-discriminator', type=str, help="stage 1 rereranker model name")
     parser.add_argument("--init_checkpoint_stage1", default='', type=str, help="stage 1 rereranker model checkpoint")
     parser.add_argument("--init_checkpoint_stage2", default='', type=str, help="stage 2 rereranker model checkpoint")
+    parser.add_argument('--s1_use_para_score', action="store_true", help="Stage 1: Use para score + sent score (vs sent score only) in selecting topk sentences.")
+    
     
     return parser.parse_args()
 

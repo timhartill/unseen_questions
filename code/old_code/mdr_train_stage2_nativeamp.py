@@ -321,9 +321,47 @@ def predict(args, model, eval_dataloader, device, logger,
                      'question': batch['question'][idx], 'context': batch['context'][idx]}
             id2result[qid] = golds                    #.append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
 
-        span_answerer = SpanAnswerer(batch, outs, batch['para_offsets'], batch['net_inputs']['insuff_offset'].tolist(), args.max_ans_len)
+        # answer prediction
+        span_scores = outs[0][:, :, None] + outs[1][:, None]  # [bs, maxseqleninbatch, maxseqleninbatch] start_score+end_score
+        max_seq_len = span_scores.size(1)
+        span_mask = np.tril(np.triu(np.ones((max_seq_len, max_seq_len)), 0), args.max_ans_len)          # [maxseqleninbatch, maxseqleninbatch] everything before possible start and after possible start + max ans len masked 
+        span_mask = span_scores.data.new(max_seq_len, max_seq_len).copy_(torch.from_numpy(span_mask))   # np->torch [maxseqleninbatch, maxseqleninbatch]
+        span_scores_masked = span_scores.float().masked_fill((1 - span_mask[None].expand_as(span_scores)).bool(), -1e10).type_as(span_scores)  # [bs, maxseqleninbatch, maxseqleninbatch] with everything before start or after start + max ans len masked 
+        start_position = span_scores_masked.max(dim=2)[0].max(dim=1)[1]  # [bs] .max returns values in [0], indices in [1]
+        end_position = span_scores_masked.max(dim=2)[1].gather(1, start_position.unsqueeze(1)).squeeze(1) # [bs]
+        answer_scores = span_scores_masked.max(dim=2)[0].max(dim=1)[0].tolist() # [bs]
+        para_offset = batch['para_offsets']  # [bs]
+        start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))  #para masking adjusted to start after base question so can predict span in query sents
+        end_position_ = list(np.array(end_position.tolist()) - np.array(para_offset)) 
+
+        insuff_offset = batch['net_inputs']['insuff_offset'].tolist()  # [bs]
+        insuff_scores = [] # [bs]  obtain score of [unused0]/insuff evidence token - can now look at magnitude of answer_score - insuff_scores or just magnitude of insuff_score 
+        ans_delta = []
+        start_logits = outs[0]  # [bs, maxseqleninbatch]
+        end_logits = outs[1]    # [bs, maxseqleninbatch]
+        for idx, offset in enumerate(insuff_offset):
+            insuff_scores.append( float( start_logits[idx, offset] + end_logits[idx, offset] ) )    # offset-2=Y, -1=N, +0=[unused0]/insuff
+            ans_delta.append(answer_scores[idx] - insuff_scores[-1])
 
         for idx, qid in enumerate(batch_qids):
+            # get the predicted answer string                  
+            start = start_position_[idx]
+            end = end_position_[idx]
+            span_score = answer_scores[idx]
+            tok_to_orig_index = batch['tok_to_orig_index'][idx]
+            doc_tokens = batch['doc_tokens'][idx]
+            wp_tokens = batch['wp_tokens'][idx]
+            orig_doc_start = tok_to_orig_index[start]
+            orig_doc_end = tok_to_orig_index[end]
+            orig_tokens = doc_tokens[orig_doc_start:(orig_doc_end + 1)]
+            tok_tokens = wp_tokens[start:end+1]
+            tok_text = " ".join(tok_tokens)
+            tok_text = tok_text.replace(" ##", "")
+            tok_text = tok_text.replace("##", "")
+            tok_text = tok_text.strip()
+            tok_text = " ".join(tok_text.split())
+            orig_text = " ".join(orig_tokens)
+            pred_str = get_final_text(tok_text, orig_text, do_lower_case=True, verbose_logging=False)
 
             # get the context full evidentiality accuracy at different ev score thresholds
             rank_score = scores[idx]
@@ -356,9 +394,9 @@ def predict(args, model, eval_dataloader, device, logger,
             id2answer[qid] = {
                 "rank_score": rank_score,               # context evidentiality score
                 "para_pred_dict": para_pred_dict,       # 0/1 decision on whether context is fully evidential  {thresh: 1/0}
-                "pred_str": span_answerer.pred_strs[idx],             # predicted answer span string
-                "span_score": span_answerer.span_scores[idx],         # answer "confidence" score 
-                "insuff_score": span_answerer.insuff_scores[idx],     # insuff/[unused0] "confidence" score
+                "pred_str": pred_str.strip(),           # predicted answer span string
+                "span_score": span_score,               # answer "confidence" score 
+                "insuff_score": insuff_scores[idx],     # insuff/[unused0] "confidence" score
                 "pred_sp_dict": pred_sp_dict,           # {threshold val: predicted sentences [ sentidx1, sentidx4, ..] }
                 "pred_sp_scores": sp_score,             # evidentiality score of each sentence marker
                 "ev_pred": ev_pred,                     # 0/1 decision on fully evidential using evidence combiner head

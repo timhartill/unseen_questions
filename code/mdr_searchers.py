@@ -21,14 +21,17 @@ args.gpu_model=True
 args.gpu_faiss=True
 args.hnsw = True
 args.beam_size = 4      # num paras to return from retriever each hop
-args.topk = 9           # max num sents to return from stage 1
+args.topk = 9           # max num sents to return from stage 1 ie prior s2 sents + selected s1 sents <= 9
 args.topk_stage2 = 5    # max num sents to return from stage 2
+args.s1_use_para_score = True  # use para_score + sent score to determine topk sents from stage 1
 args.max_hops = 2       # max num hops
-args.fp16=True
+args.fp16=False
 args.max_q_len = 70
 args.max_q_sp_len = 400  # retriever max input seq len
 args.max_c_len = 512     # stage models max input seq length
+args.max_ans_len = 35
 args.sp_weight = 1.0
+args.predict_batch_size = 26  # batch size for stage models, set small so can fit all models on 1 gpu
 
 """
 
@@ -53,8 +56,7 @@ from mdr_config import eval_args
 from mdr.retrieval.models.mhop_retriever import RobertaRetriever_var
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
 
-from reader.reader_model import StageModel
-
+from reader.reader_model import StageModel, SpanAnswerer
 
 from utils import encode_text, load_saved, move_to_cuda, return_filtered_list, aggregate_sents, context_toks_to_ids, collate_tokens
 from text_processing import get_sentence_list 
@@ -198,28 +200,29 @@ class DenseSearcher():
     def search(self, sample):
         """ retrieve beam_size nearest paras and put them in 'dense_retrieved' key
         """
-        s2_idxs = set([s['idx'] for s in sample['s2']])  # dont retrieve id2doc keys that are already in s2 output
-        dense_query = self.encode_input(sample)  # create retriever query
-        if self.args.gpu_model:
-            batch_q_sp_encodes = move_to_cuda(dict(dense_query))
-
-        with torch.cuda.amp.autocast(enabled=self.args.fp16):
-            q_sp_embeds = self.model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
-                                              batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)        
-        q_sp_embeds = q_sp_embeds.cpu().contiguous().detach().numpy()  # [1, hs]
-        if self.args.hnsw:
-            q_sp_embeds = convert_hnsw_query(q_sp_embeds)
-        D, I = self.index.search(q_sp_embeds, self.args.beam_size)  # D,I = [1, #beams]
-        if self.args.hnsw:
-            D = -D  #HNSW smaller is better
-        if sample['dense_retrieved'] != []:
-            sample['dense_retrieved_hist'].append(sample['dense_retrieved'])
-        sample['dense_retrieved'] = []
-        for i, idx in enumerate(I[0]):
-            if idx not in s2_idxs:
-                sample['dense_retrieved'].append( self.id2doc[str(idx)] ) 
-                sample['dense_retrieved'][-1]['idx'] = idx
-                sample['dense_retrieved'][-1]['score'] = float(D[0, i])
+        with torch.inference_mode():        
+            s2_idxs = set([s['idx'] for s in sample['s2']])  # dont retrieve id2doc keys that are already in s2 output
+            dense_query = self.encode_input(sample)  # create retriever query
+            if self.args.gpu_model:
+                batch_q_sp_encodes = move_to_cuda(dict(dense_query))
+    
+            with torch.cuda.amp.autocast(enabled=self.args.fp16):
+                q_sp_embeds = self.model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
+                                                  batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)        
+            q_sp_embeds = q_sp_embeds.cpu().contiguous().detach().numpy()  # [1, hs]
+            if self.args.hnsw:
+                q_sp_embeds = convert_hnsw_query(q_sp_embeds)
+            D, I = self.index.search(q_sp_embeds, self.args.beam_size)  # D,I = [1, #beams]
+            if self.args.hnsw:
+                D = -D  #HNSW smaller is better
+            if sample['dense_retrieved'] != []:
+                sample['dense_retrieved_hist'].append(sample['dense_retrieved'])
+            sample['dense_retrieved'] = []
+            for i, idx in enumerate(I[0]):
+                if idx not in s2_idxs:
+                    sample['dense_retrieved'].append( self.id2doc[str(idx)] ) 
+                    sample['dense_retrieved'][-1]['idx'] = idx
+                    sample['dense_retrieved'][-1]['score'] = float(D[0, i])
         return
         
 
@@ -243,7 +246,10 @@ class Stage1Searcher():
         return
 
     def encode_input(self, sample):
-        """ Encode a question, optional title | sents and retrieved paras for stage 1 reranker
+        """ Encode a question, possible title | sents and retrieved paras for stage 1 reranker
+        Return:
+            model_inputs: dict_keys(['input_ids', 'token_type_ids', 'attention_mask', 'paragraph_mask', 'sent_offsets'])
+            item_list: list of dict_keys(['wp_tokens', 'doc_tokens', 'tok_to_orig_index', 'insuff_offset'])
         """
         q_toks = self.tokenizer.tokenize(sample['question'])[:self.args.max_q_len]
         para_offset = len(q_toks) + 1 #  cls
@@ -296,6 +302,60 @@ class Stage1Searcher():
         return model_inputs, item_list, para_offset  #TODO run collate_tokens on model_inputs to pad..
 
 
+    def search(self, sample):
+        """ select topk sentences + each para evidentiality from the beam_size 'dense_retrieved' paras and put them in the 's1' key.
+        """
+        with torch.inference_mode():
+            model_inputs, item_list, para_offset = self.encode_input(sample)        
+            scores = []  # para rank score
+            sp_scores = [] # sent scores
+            start_logits_all = []
+            end_logits_all = []
+            for h_start in range(0, model_inputs['input_ids'].shape[0], self.args.predict_batch_size): 
+                batch_encodes = {'input_ids': model_inputs['input_ids'][h_start:h_start+self.args.predict_batch_size],
+                                 'token_type_ids': model_inputs['token_type_ids'][h_start:h_start+self.args.predict_batch_size],
+                                 'attention_mask': model_inputs['attention_mask'][h_start:h_start+self.args.predict_batch_size],
+                                 'paragraph_mask': model_inputs['paragraph_mask'][h_start:h_start+self.args.predict_batch_size],
+                                 'sent_offsets': model_inputs['sent_offsets'][h_start:h_start+self.args.predict_batch_size] }
+                if self.args.gpu_model:
+                    batch_encodes = move_to_cuda(dict(batch_encodes))
+                with torch.cuda.amp.autocast(enabled=self.args.fp16):
+                    outputs = self.model(batch_encodes)  # dict_keys(['start_logits', 'end_logits', 'rank_score', 'sp_score'])
+                    scores_b = outputs["rank_score"]
+                    scores_b = scores_b.sigmoid().view(-1).tolist()  # added .sigmoid()  list [bs] = 0.46923
+                    sp_scores_b = outputs["sp_score"]    # [bs, max#sentsinbatch]
+                    sp_scores_b = sp_scores_b.float().masked_fill(batch_encodes["sent_offsets"].eq(0), float("-inf")).type_as(sp_scores_b)  #mask scores past end of # sents in sample
+                    sp_scores_b = sp_scores_b.sigmoid().tolist()  # [bs, max#sentsinbatch]  [0.678, 0.5531, 0.0, 0.0, ...]
+                    start_logits, end_logits = outputs["start_logits"], outputs["end_logits"]  # [ [bs, maxseqleninbatch], [bs, maxseqleninbatch] 
+                scores.extend(scores_b)
+                sp_scores.extend(sp_scores_b)
+                start_logits_all.append(start_logits)
+                end_logits_all.append(end_logits)
+            
+            outs = [torch.cat(start_logits_all, dim=0), torch.cat(end_logits_all, dim=0)]
+            span_answerer = SpanAnswerer(item_list, outs, para_offset, item_list, self.args.max_ans_len) # answer prediction
+            
+            out_list = []  # [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:.., 's1para_score':..}, ..]
+            for idx in range(len(item_list)):
+                para = sample['dense_retrieved'][idx]
+                rank_score = scores[idx]
+                # get the sp sentences [ [title1, 0], [title1, 2], ..]
+                for s_idx, sp_score in enumerate(sp_scores[idx]):
+                    if int(model_inputs['sent_offsets'][idx, s_idx]) == 0:  # 0 = padding = past # sents in this sample
+                        break
+                    s, e = para['sentence_spans'][s_idx]
+                    sent = para['text'][s:e].strip()
+                    out_list.append( {'title': para['title'], 'sentence': sent, 'score': sp_score, 's1para_score': rank_score,
+                                      'id2doc_key': para['idx'], 's_idx': s_idx}) 
+                    
+            #TODO from condense.py: f7=remove dup (pid, sid) preserving order ie prior s2 top ~5 + new s1 ordered ie will only take the top 4 or so from s1
+            return out_list
+                    
+            
+            
+            
+
+
 
 
 if __name__ == '__main__':
@@ -339,15 +399,14 @@ if __name__ == '__main__':
                 sample['answer'][0] = 'no'
             # this hop:    
             sample['dense_retrieved'] = []   # [id2doc idx1, id2doc idx2, ...]  paras retrieved this hop q + each para = s1 query
-            sample['s1'] = []   # [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:..}, ..]  selected sentences from s1 = best sents from topk paras this hop
-            sample['s2'] = []   # [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:..}, ..]  selected sentences from s2 = best sents to date
+            sample['s1'] = []   # [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s1 = best sents from topk paras this hop
+            sample['s2'] = []   # [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s2 = best sents to date
             # this hop item appended to hist:
             sample['dense_retrieved_hist'] = []
             sample['s1_hist'] = []
             sample['s2_hist'] = []
 
-    dense_searcher = DenseSearcher(args, logger)
-    
+    dense_searcher = DenseSearcher(args, logger)    
     stage1_searcher = Stage1Searcher(args, logger)
 
     for i, sample in enumerate(samples):

@@ -4,20 +4,24 @@
 
 Reranker / Sentence Extractor / Reader Model
 
-Used for both 1st stage para/sentence reranking and 2nd stage sentence reranking inspired by https://github.com/stanford-futuredata/Baleen
+Used for both 1st stage para/sentence reranking and 2nd stage sentence reranking 
 
-Adapted from https://github.com/facebookresearch/multihop_dense_retrieval
+Inspired by https://github.com/stanford-futuredata/Baleen
+Code adapted from https://github.com/facebookresearch/multihop_dense_retrieval
 
 
 @author Tim Hartill
 
 """
-
+import numpy as np
 from transformers import AutoModel
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 import torch
 import torch.nn.functional as F
+
+from mdr_basic_tokenizer_and_utils import get_final_text
+
 
 
 class EvidenceCombiner(nn.Module):
@@ -166,3 +170,65 @@ class StageModel(nn.Module):
                 'rank_score': rank_score,       # [bs,1] is para evidential 0<->1
                 "sp_score": sp_score            # [bs, num_sentences] is sentence evidential [0,1,0,0..]
                 }
+
+
+class SpanAnswerer():
+    def __init__(self, item_list, outs, para_offset, insuff_offset, max_ans_len=35):
+        if type(para_offset) == list:
+            para_offset = np.array(para_offset)
+        if type(insuff_offset[0]) == dict:
+            insuff_offset = [ins['insuff_offset'] for ins in insuff_offset]
+            
+        span_scores = outs[0][:, :, None] + outs[1][:, None]  # [bs, maxseqleninbatch, maxseqleninbatch] start_score+end_score
+        max_seq_len = span_scores.size(1)
+        span_mask = np.tril(np.triu(np.ones((max_seq_len, max_seq_len)), 0), max_ans_len)          # [maxseqleninbatch, maxseqleninbatch] everything before possible start and after possible start + max ans len masked 
+        span_mask = span_scores.data.new(max_seq_len, max_seq_len).copy_(torch.from_numpy(span_mask))   # np->torch [maxseqleninbatch, maxseqleninbatch]
+        span_scores_masked = span_scores.float().masked_fill((1 - span_mask[None].expand_as(span_scores)).bool(), -1e10).type_as(span_scores)  # [bs, maxseqleninbatch, maxseqleninbatch] with everything before start or after start + max ans len masked 
+        start_position = span_scores_masked.max(dim=2)[0].max(dim=1)[1]  # [bs] .max returns values in [0], indices in [1]
+        end_position = span_scores_masked.max(dim=2)[1].gather(1, start_position.unsqueeze(1)).squeeze(1) # [bs]
+        answer_scores = span_scores_masked.max(dim=2)[0].max(dim=1)[0].tolist() # [bs]
+        start_position_ = list(np.array(start_position.tolist()) - para_offset)  #para masking starts after base question so can predict span in query sents
+        end_position_ = list(np.array(end_position.tolist()) - para_offset) 
+
+        insuff_scores = [] # [bs]  obtain score of [unused0]/insuff evidence token - can now look at magnitude of answer_score - insuff_scores or just magnitude of insuff_score 
+        ans_delta = []
+        start_logits = outs[0]  # [bs, maxseqleninbatch]
+        end_logits = outs[1]    # [bs, maxseqleninbatch]
+        for idx, offset in enumerate(insuff_offset):
+            insuff_scores.append( float( start_logits[idx, offset] + end_logits[idx, offset] ) )    # offset-2=Y, -1=N, +0=[unused0]/insuff
+            ans_delta.append(answer_scores[idx] - insuff_scores[-1])
+    
+        self.span_scores = answer_scores
+        self.start_position_ = start_position_
+        self.end_position_ = end_position_
+        self.insuff_scores = insuff_scores
+        self.ans_delta = ans_delta
+        self.span_scores = []
+        self.pred_strs = []
+        
+        for idx in range(item_list):             # get the predicted answer strings
+            start = start_position_[idx]
+            end = end_position_[idx]
+            tok_to_orig_index = item_list['tok_to_orig_index'][idx]
+            doc_tokens = item_list['doc_tokens'][idx]
+            wp_tokens = item_list['wp_tokens'][idx]
+            orig_doc_start = tok_to_orig_index[start]
+            orig_doc_end = tok_to_orig_index[end]
+            orig_tokens = doc_tokens[orig_doc_start:(orig_doc_end + 1)]
+            tok_tokens = wp_tokens[start:end+1]
+            tok_text = " ".join(tok_tokens)
+            tok_text = tok_text.replace(" ##", "")
+            tok_text = tok_text.replace("##", "")
+            tok_text = tok_text.strip()
+            tok_text = " ".join(tok_text.split())
+            orig_text = " ".join(orig_tokens)
+            self.pred_strs.append( get_final_text(tok_text, orig_text, do_lower_case=True, verbose_logging=False).strip() )
+        return
+            
+    def get_answer(self, idx):
+        return self.pred_strs[idx]
+        
+
+
+
+

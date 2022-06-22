@@ -67,7 +67,7 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer,
 
 from mdr_config import train_args
 from reader.reader_dataset import Stage1Dataset, stage_collate, AlternateSampler
-from reader.reader_model import StageModel
+from reader.reader_model import StageModel, SpanAnswerer
 
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
 from mdr_basic_tokenizer_and_utils import get_final_text
@@ -291,7 +291,7 @@ def predict(args, model, eval_dataloader, device, logger,
         batch_labels = batch["net_inputs"]["label"].view(-1).tolist() # list [bs] = 1/0
         batch_sp_labels = batch['net_inputs']['sent_labels'].tolist()
         batch_sp_offsets = batch['net_inputs']['sent_offsets'].tolist()
-        with torch.no_grad():
+        with torch.inference_mode():
             outputs = model(batch_to_feed)  # dict_keys(['start_logits', 'end_logits', 'rank_score', 'sp_score'])
             scores = outputs["rank_score"]
             scores = scores.sigmoid().view(-1).tolist()  # added .sigmoid()  list [bs] = 0.46923
@@ -315,18 +315,7 @@ def predict(args, model, eval_dataloader, device, logger,
                      'act_hops': int(batch['act_hops'][idx]), 'sp_num': sp_num}
             id2result[qid] = golds                    #.append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
 
-        # answer prediction
-        span_scores = outs[0][:, :, None] + outs[1][:, None]  # [bs, maxseqleninbatch, maxseqleninbatch]
-        max_seq_len = span_scores.size(1)
-        span_mask = np.tril(np.triu(np.ones((max_seq_len, max_seq_len)), 0), args.max_ans_len)          # [maxseqleninbatch, maxseqleninbatch]
-        span_mask = span_scores.data.new(max_seq_len, max_seq_len).copy_(torch.from_numpy(span_mask))   # [maxseqleninbatch, maxseqleninbatch]
-        span_scores_masked = span_scores.float().masked_fill((1 - span_mask[None].expand_as(span_scores)).bool(), -1e10).type_as(span_scores)  # [bs, maxseqleninbatch, maxseqleninbatch]
-        start_position = span_scores_masked.max(dim=2)[0].max(dim=1)[1]  # [bs]
-        end_position = span_scores_masked.max(dim=2)[1].gather(1, start_position.unsqueeze(1)).squeeze(1) # [bs]
-        answer_scores = span_scores_masked.max(dim=2)[0].max(dim=1)[0].tolist() # [bs]
-        para_offset = batch['para_offsets']  # [bs]
-        start_position_ = list(np.array(start_position.tolist()) - np.array(para_offset))  #para masking adjusted to start after base question so can predict span in query sents
-        end_position_ = list(np.array(end_position.tolist()) - np.array(para_offset)) 
+        span_answerer = SpanAnswerer(batch, outs, batch['para_offsets'], batch['net_inputs']['insuff_offset'].tolist(), args.max_ans_len)
 
         for idx, qid in enumerate(batch_qids):
             rank_score = scores[idx]
@@ -335,25 +324,6 @@ def predict(args, model, eval_dataloader, device, logger,
             else:
                 para_pred = 0
                 
-            start = start_position_[idx]
-            end = end_position_[idx]
-            span_score = answer_scores[idx]
-            
-            tok_to_orig_index = batch['tok_to_orig_index'][idx]
-            doc_tokens = batch['doc_tokens'][idx]
-            wp_tokens = batch['wp_tokens'][idx]
-            orig_doc_start = tok_to_orig_index[start]
-            orig_doc_end = tok_to_orig_index[end]
-            orig_tokens = doc_tokens[orig_doc_start:(orig_doc_end + 1)]
-            tok_tokens = wp_tokens[start:end+1]
-            tok_text = " ".join(tok_tokens)
-            tok_text = tok_text.replace(" ##", "")
-            tok_text = tok_text.replace("##", "")
-            tok_text = tok_text.strip()
-            tok_text = " ".join(tok_text.split())
-            orig_text = " ".join(orig_tokens)
-            pred_str = get_final_text(tok_text, orig_text, do_lower_case=True, verbose_logging=False)
-
             # get the sp sentences [ [title1, 0], [title1, 2], ..]
             sp_score = batch_sp_scores[idx].tolist()
             passage =  batch["passages"][idx][0]
@@ -371,8 +341,8 @@ def predict(args, model, eval_dataloader, device, logger,
             id2answer[qid] = {
                 "rank_score": rank_score,       # para evidentiality score
                 "para_pred": para_pred,         # 0/1 decision on whether para is evidential
-                "pred_str": pred_str.strip(),   # predicted answer span string
-                "span_score": span_score,       # answer confidence score 
+                "pred_str": span_answerer.pred_strs[idx],           # predicted answer span string
+                "span_score": span_answerer.span_scores[idx],       # answer confidence score 
                 "pred_sp_dict": pred_sp_dict,   # {threshold val: predicted sentences [ [title1, 0], [title1, 2], ..] }
                 "pred_sp_scores": sp_score      # evidentiality score of each sentence marker
             }
