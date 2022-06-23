@@ -33,7 +33,6 @@ python scripts/eval/eval_mhop_retrieval.py \
 args.model_name='roberta-base'
 args.init_checkpoint = 'models/q_encoder.pt'
 """
-import argparse
 import collections
 import json
 import logging

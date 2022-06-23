@@ -173,14 +173,19 @@ class StageModel(nn.Module):
 
 
 class SpanAnswerer():
-    def __init__(self, item_list, outs, para_offset, insuff_offset, max_ans_len=35):
+    def __init__(self, batch_extras, outs, para_offset, insuff_offset, max_ans_len=35):
+        """ batch_extras: from iterator:{"wp_tokens": all_doc_tokens, "doc_tokens": doc_tokens, "tok_to_orig_index": tok_to_orig_index, 'insuff_offset': ans_offset+2}}
+                          from s1/s2 train/predict: as per iterator but with extra keys
+            outs is [tensor of start logits, tensor of end logits]
+            para_offset is a single int from iterator and a list of ints from s1/s2 train/predict.
+            insuff_offset is list of ints
+        """
         if type(para_offset) == list:
             para_offset = np.array(para_offset)
-        if type(insuff_offset[0]) == dict:
-            insuff_offset = [ins['insuff_offset'] for ins in insuff_offset]
             
         span_scores = outs[0][:, :, None] + outs[1][:, None]  # [bs, maxseqleninbatch, maxseqleninbatch] start_score+end_score
         max_seq_len = span_scores.size(1)
+        bs = span_scores.size(0)
         span_mask = np.tril(np.triu(np.ones((max_seq_len, max_seq_len)), 0), max_ans_len)          # [maxseqleninbatch, maxseqleninbatch] everything before possible start and after possible start + max ans len masked 
         span_mask = span_scores.data.new(max_seq_len, max_seq_len).copy_(torch.from_numpy(span_mask))   # np->torch [maxseqleninbatch, maxseqleninbatch]
         span_scores_masked = span_scores.float().masked_fill((1 - span_mask[None].expand_as(span_scores)).bool(), -1e10).type_as(span_scores)  # [bs, maxseqleninbatch, maxseqleninbatch] with everything before start or after start + max ans len masked 
@@ -203,15 +208,14 @@ class SpanAnswerer():
         self.end_position_ = end_position_
         self.insuff_scores = insuff_scores
         self.ans_delta = ans_delta
-        self.span_scores = []
-        self.pred_strs = []
         
-        for idx in range(item_list):             # get the predicted answer strings
+        self.pred_strs = []        
+        for idx in range(bs):             # get the predicted answer strings
             start = start_position_[idx]
             end = end_position_[idx]
-            tok_to_orig_index = item_list['tok_to_orig_index'][idx]
-            doc_tokens = item_list['doc_tokens'][idx]
-            wp_tokens = item_list['wp_tokens'][idx]
+            tok_to_orig_index = batch_extras['tok_to_orig_index'][idx]
+            doc_tokens = batch_extras['doc_tokens'][idx]
+            wp_tokens = batch_extras['wp_tokens'][idx]
             orig_doc_start = tok_to_orig_index[start]
             orig_doc_end = tok_to_orig_index[end]
             orig_tokens = doc_tokens[orig_doc_start:(orig_doc_end + 1)]

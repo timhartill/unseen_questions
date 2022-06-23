@@ -9,6 +9,7 @@ Created on Wed Jun 15 13:52:39 2022
 dense retrieval, stage 1 and stage 2 search classes 
 
 args.prefix = 'TESTITER'
+args.output_dir = '/large_data/thar011/out/mdr/logs'
 args.predict_file = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val.json'
 args.index_path = '/large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/index.npy'
 args.corpus_dict = '/large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/id2doc.json'
@@ -35,8 +36,6 @@ args.predict_batch_size = 26  # batch size for stage models, set small so can fi
 
 """
 
-import argparse
-import collections
 import json
 import logging
 import os
@@ -186,7 +185,7 @@ class DenseSearcher():
     def encode_input(self, sample):
         """ Encode a question (and title:sents for hops > 0) for dense encoder input
         sample['s2'] = output from stage 2 = currently selected sents: [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:..}, ..]
-        sample['s2'] = [{'title': 'Ed Wood', 'sentence': 'Edward Davis Wood Jr. (October 10, 1924\xa0– December 10, 1978) was an American filmmaker, actor, writer, producer, and director.', 'score':1.0, 'idx': 1787155}]
+        sample['s2'] = [{'title': 'Ed Wood', 'sentence': 'Edward Davis Wood Jr. (October 10, 1924\xa0– December 10, 1978) was an American filmmaker, actor, writer, producer, and director.', 'score': 1.0, 's1para_score':1.0,  'idx': 1787155, 's_idx': 0}]
         eg for sample['s2'] = [{'title':'title_a', 'sentence':'Sent 1', 'score':1.0},{'title':'title_b', 'sentence':'Sent 2', 'score':1.0},{'title':'title_a', 'sentence':' ', 'score':1.0}, {'title':'title_a', 'sentence':'Sent 3', 'score':1.0}, {'title':'title_c', 'sentence':'Sent c1', 'score':1.0}]        
         returns tokenised version of '<s>Were Scott Derrickson and Ed Wood of the same nationality</s></s>title_a:  Sent 1. Sent 3. title_b:  Sent 2. title_c:  Sent c1.</s>'
         """        
@@ -219,7 +218,7 @@ class DenseSearcher():
                 sample['dense_retrieved_hist'].append(sample['dense_retrieved'])
             sample['dense_retrieved'] = []
             for i, idx in enumerate(I[0]):
-                if idx not in s2_idxs:
+                if idx not in s2_idxs: # skip paras already selected by s2 model
                     sample['dense_retrieved'].append( self.id2doc[str(idx)] ) 
                     sample['dense_retrieved'][-1]['idx'] = idx
                     sample['dense_retrieved'][-1]['score'] = float(D[0, i])
@@ -248,15 +247,15 @@ class Stage1Searcher():
     def encode_input(self, sample):
         """ Encode a question, possible title | sents and retrieved paras for stage 1 reranker
         Return:
-            model_inputs: dict_keys(['input_ids', 'token_type_ids', 'attention_mask', 'paragraph_mask', 'sent_offsets'])
-            item_list: list of dict_keys(['wp_tokens', 'doc_tokens', 'tok_to_orig_index', 'insuff_offset'])
+            model_inputs: dict with keys(['input_ids', 'token_type_ids', 'attention_mask', 'paragraph_mask', 'sent_offsets'])
+            batch_extras: dict with keys(['wp_tokens', 'doc_tokens', 'tok_to_orig_index', 'insuff_offset'])
         """
         q_toks = self.tokenizer.tokenize(sample['question'])[:self.args.max_q_len]
         para_offset = len(q_toks) + 1 #  cls
         q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
         max_toks_for_doc = self.args.max_c_len - para_offset - 1
         q_sents = aggregate_sents(sample['s2'], title_sep = ' |', para_sep='[unused2]')  # aggregate sents for same title
-        item_list = []  # [len(sample['dense_retrieved'])] of data used for deriving answer span
+        batch_extras = {'wp_tokens':[], 'doc_tokens':[], 'tok_to_orig_index':[], 'insuff_offset':[]}  # each key [len(sample['dense_retrieved'])] of data used for deriving answer span
         model_inputs = {'input_ids':[], 'token_type_ids':[], 'attention_mask':[], 'paragraph_mask':[], 'sent_offsets':[]}
         for para in sample['dense_retrieved']:
             title, sentence_spans = para["title"].strip(), para["sentence_spans"]
@@ -276,10 +275,6 @@ class Stage1Searcher():
             token_type_ids = torch.tensor([[0] * para_offset + [1] * (input_ids.shape[1]-para_offset)], dtype=torch.int64)
             paragraph_mask = torch.zeros(input_ids.size()).view(-1)
             paragraph_mask[para_offset:-1] = 1  #set sentences part of query + para toks -> 1
-            model_inputs["input_ids"].append(input_ids)
-            model_inputs["token_type_ids"].append(token_type_ids)
-            model_inputs["attention_mask"].append(attention_mask)
-            model_inputs['paragraph_mask'].append(paragraph_mask)
             #NOTE if query very long then 1st [SEP] will be the EOS token at pos 511 & ans_offset will be at 512 over max seq len...
             #ans_offset = torch.where(input_ids[0] == tokenizer.sep_token_id)[0][0].item()+1
             ans_offset = torch.where(input_ids[0] == self.tokenizer.sep_token_id)[0][0].item()+1  # tok after 1st [SEP] = yes = start of non extractive answer options
@@ -290,23 +285,29 @@ class Stage1Searcher():
                 if s >= len(all_doc_tokens): #if wp_tokens truncated, sent labels could be invalid
                     break
                 sent_offsets.append(s + para_offset)
-                assert input_ids.view(-1)[s+para_offset] == 2  #self.tokenizer.convert_tokens_to_ids("[unused1]")    
+                assert input_ids.view(-1)[s+para_offset] == 2  #self.tokenizer.convert_tokens_to_ids("[unused1]")
+            model_inputs["input_ids"].append(input_ids)
+            model_inputs["token_type_ids"].append(token_type_ids)
+            model_inputs["attention_mask"].append(attention_mask)
+            model_inputs['paragraph_mask'].append(paragraph_mask)
             model_inputs["sent_offsets"].append( torch.LongTensor(sent_offsets) )
-            item_list.append( {"wp_tokens": all_doc_tokens, "doc_tokens": doc_tokens, 
-                               "tok_to_orig_index": tok_to_orig_index, 'insuff_offset': ans_offset+2} )
+            batch_extras["wp_tokens"].append(all_doc_tokens)
+            batch_extras["doc_tokens"].append(doc_tokens)
+            batch_extras["tok_to_orig_index"].append(tok_to_orig_index)
+            batch_extras["insuff_offset"].append(ans_offset+2)
         model_inputs["input_ids"] = collate_tokens(model_inputs["input_ids"], self.tokenizer.pad_token_id)  # [beam_size, max inp seq len]
         model_inputs["token_type_ids"] = collate_tokens(model_inputs["token_type_ids"], 0)                  # [beam_size, max inp seq len]
         model_inputs["attention_mask"] = collate_tokens(model_inputs["attention_mask"], 0)                  # [beam_size, max inp seq len]
         model_inputs["paragraph_mask"] = collate_tokens(model_inputs["paragraph_mask"], 0)                  # [beam_size, max inp seq len]
         model_inputs["sent_offsets"] = collate_tokens(model_inputs["sent_offsets"], 0)                      # [beam_size, max # sents]
-        return model_inputs, item_list, para_offset  #TODO run collate_tokens on model_inputs to pad..
+        return model_inputs, batch_extras, para_offset  #TODO run collate_tokens on model_inputs to pad..
 
 
     def search(self, sample):
         """ select topk sentences + each para evidentiality from the beam_size 'dense_retrieved' paras and put them in the 's1' key.
         """
         with torch.inference_mode():
-            model_inputs, item_list, para_offset = self.encode_input(sample)        
+            model_inputs, batch_extras, para_offset = self.encode_input(sample)        
             scores = []  # para rank score
             sp_scores = [] # sent scores
             start_logits_all = []
@@ -333,12 +334,17 @@ class Stage1Searcher():
                 end_logits_all.append(end_logits)
             
             outs = [torch.cat(start_logits_all, dim=0), torch.cat(end_logits_all, dim=0)]
-            span_answerer = SpanAnswerer(item_list, outs, para_offset, item_list, self.args.max_ans_len) # answer prediction
+            span_answerer = SpanAnswerer(batch_extras, outs, para_offset, batch_extras["insuff_offset"], self.args.max_ans_len) # answer prediction
             
-            out_list = []  # [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:.., 's1para_score':..}, ..]
-            for idx in range(len(item_list)):
-                para = sample['dense_retrieved'][idx]
+            out_list = []  # [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:.., 's1para_score':..}, ..]
+            for idx in range(len(scores)):
                 rank_score = scores[idx]
+                para = sample['dense_retrieved'][idx]
+                para['s1_ans_pred'] = span_answerer.pred_strs[idx]
+                para['s1_ans_pred_score'] = span_answerer.span_scores[idx]
+                para['s1_ans_insuff_score'] = span_answerer.insuff_scores[idx]
+                para['s1_ans_conf_delta'] = span_answerer.ans_delta[idx]
+                para['s1_para_score'] = rank_score
                 # get the sp sentences [ [title1, 0], [title1, 2], ..]
                 for s_idx, sp_score in enumerate(sp_scores[idx]):
                     if int(model_inputs['sent_offsets'][idx, s_idx]) == 0:  # 0 = padding = past # sents in this sample
@@ -346,14 +352,18 @@ class Stage1Searcher():
                     s, e = para['sentence_spans'][s_idx]
                     sent = para['text'][s:e].strip()
                     out_list.append( {'title': para['title'], 'sentence': sent, 'score': sp_score, 's1para_score': rank_score,
-                                      'id2doc_key': para['idx'], 's_idx': s_idx}) 
-                    
+                                      'idx': para['idx'], 's_idx': s_idx}) 
+
+            out_list.sort(key=lambda k: k['score']+k['s1para_score'] if self.args.s1_use_para_score else k['score'], reverse=True)
+            if sample['s1'] != []:
+                sample['s1_hist'].append(sample['s1'])                
+            sample['s1'] = (sample['s2'] + out_list)[:self.args.topk]
             #TODO from condense.py: f7=remove dup (pid, sid) preserving order ie prior s2 top ~5 + new s1 ordered ie will only take the top 4 or so from s1
             return out_list
-                    
-            
-            
-            
+
+
+
+
 
 
 
@@ -362,7 +372,8 @@ if __name__ == '__main__':
     args = eval_args()
     
     date_curr = date.today().strftime("%m-%d-%Y")
-    model_name = f"{args.prefix}-{date_curr}-iterator-fp16{args.fp16}-topkparas{args.beam_size}-topks1sents{args.topk}-topks2sents{args.topk_stage2}-maxhops{args.max_hops}"
+    model_name = f"{args.prefix}-{date_curr}-iterator-fp16{args.fp16}-topkparas{args.beam_size}-topks1sents{args.topk}-topks2sents{args.topk_stage2}-maxhops{args.max_hops}-s1_use_para_score{args.s1_use_para_score}"
+    args.output_dir = os.path.join(args.output_dir, model_name)
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -398,15 +409,15 @@ if __name__ == '__main__':
             elif sample['answer'][0] in ["REFUTES", "NOT_SUPPORTED"]:
                 sample['answer'][0] = 'no'
             # this hop:    
-            sample['dense_retrieved'] = []   # [id2doc idx1, id2doc idx2, ...]  paras retrieved this hop q + each para = s1 query
-            sample['s1'] = []   # [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s1 = best sents from topk paras this hop
-            sample['s2'] = []   # [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s2 = best sents to date
+            sample['dense_retrieved'] = []   # [id2doc idx1 para, id2doc idx2 para, ...]  paras retrieved this hop q + each para = s1 query
+            sample['s1'] = []   # [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s1 = best sents from topk paras this hop
+            sample['s2'] = []   # [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s2 = best sents to date
             # this hop item appended to hist:
             sample['dense_retrieved_hist'] = []
             sample['s1_hist'] = []
             sample['s2_hist'] = []
 
-    dense_searcher = DenseSearcher(args, logger)    
+    dense_searcher = DenseSearcher(args, logger)
     stage1_searcher = Stage1Searcher(args, logger)
 
     for i, sample in enumerate(samples):
@@ -415,9 +426,10 @@ if __name__ == '__main__':
             #dense_query = dense_searcher.encode_input(sample)
             # topkparas = dense search
             dense_searcher.search(sample)  # retrieve args.beam_size nearest paras and put them in sample['dense_retrieved'] key
-            #TODO create stage 1 query
-            model_inputs, item_list, para_offset = stage1_searcher.encode_input(sample)
+            #create stage 1 query
+            #model_inputs, item_list, para_offset = stage1_searcher.encode_input(sample)
             #TODO topks1sents = process topkparas through stage1 model
+            s1_list = stage1_searcher.search(sample)
             #TODO create stage 2 query
             #TODO topks2sents, finished = stage2 model(stage2query)
             #TODO if finished break
