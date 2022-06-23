@@ -312,7 +312,8 @@ def predict(args, model, eval_dataloader, device, logger,
             golds = {'para_label': label, 'sp_labels': sp_labels, 
                      'full': int(batch['full'][idx]), 'index': batch['index'][idx], 
                      'gold_answer': batch['gold_answer'][idx], 'sp_gold': batch['sp_gold'][idx],
-                     'act_hops': int(batch['act_hops'][idx]), 'sp_num': sp_num}
+                     'act_hops': int(batch['act_hops'][idx]), 'sp_num': sp_num, 
+                     'question': batch['question'][idx], 'context': batch['context'][idx]}
             id2result[qid] = golds                    #.append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
 
         span_answerer = SpanAnswerer(batch, outs, batch['para_offsets'], batch['net_inputs']['insuff_offset'].tolist(), args.max_ans_len)
@@ -420,8 +421,8 @@ def predict(args, model, eval_dataloader, device, logger,
         joint_f1s.append(joint_f1)
         
         out_sample = {}
-        out_sample['question'] = sample['question'] 
-        out_sample['context'] = sample['context_processed']['context']  # question + context = full untokenised input not incorprating truncation of q or c
+        out_sample['question'] = res['question'] 
+        out_sample['context'] = res['context']  # question + context = full untokenised input not incorprating truncation of q or c
         out_sample['ans'] = res["gold_answer"]
         out_sample['ans_pred'] = ans_res['pred_str']
         out_sample['ans_pred_score'] = ans_res['span_score']

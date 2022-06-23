@@ -7,7 +7,7 @@ cd ../code
 
 python mdr_train_stage1_nativeamp.py \
     --do_predict \
-    --prefix stage1_evalonly_test7_fromtest5_hpqa_hover_fever_fromnosentforcezero_spthreshtune \
+    --prefix TESTANSstage1_evalonly_test7_fromtest5_hpqa_hover_fever_fromnosentforcezero_spthreshtune \
     --predict_batch_size 100 \
     --model_name google/electra-large-discriminator \
     --predict_file /home/thar011/data/sentences/sent_dev.jsonl \
