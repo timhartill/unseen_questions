@@ -137,7 +137,7 @@ def eval_args():
     parser.add_argument("--init_checkpoint_stage1", default='', type=str, help="stage 1 rereranker model checkpoint")
     parser.add_argument("--init_checkpoint_stage2", default='', type=str, help="stage 2 rereranker model checkpoint")
     parser.add_argument('--s1_use_para_score', action="store_true", help="Stage 1: Use para score + sent score (vs sent score only) in selecting topk sentences.")
-    
+    parser.add_argument("--s2_sp_thresh", default=0.1, type=float, help="Min stage 2 sent score for selection.")    
     
     return parser.parse_args()
 

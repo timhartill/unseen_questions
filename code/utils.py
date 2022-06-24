@@ -801,7 +801,8 @@ def encode_text(tokenizer, text, text_pair=None, max_input_length=512,
 def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences=None, 
                        use_sentences=False, prepend_title=False, title_sep = ':'):
     """ Encode the para portion of the query as either just the paragraph or as selected sentences from the paragraph 
-    prepended by the title eg: "title |  sentence 1. sentence 4."
+    prepended by the title eg: "title |  sentence 1. sentence 4." or "title:  sentence 1. sentence 4." 
+    for training retriever + stage 1
     sentence_spans = [ [s1startidx, s1endidx], [s2startidx, s2endidx], ...]
     selected sentences = [sentenceidx1, sentenceidx2, ...]
     In retriever title_sep =':', in reader it is ' |'
@@ -827,8 +828,34 @@ def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences
     return newtext.strip()
 
 
+def aggregate_sents(sent_list, score_thresh = -1000000.0, title_sep = ':', para_sep = ''):
+    """ Aggregate sentences with same title to form sentences part of query 
+    for iterator retriever + stage 1
+    sent_list format: [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:..}, ..]  sent_list = s2 output
+    returns eg for retriever title_sep = ':', para_sep = '': 'title_a:  Sent 1. Sent 3. title_b:  Sent 2. title_c:  Sent c1.' 
+           or for stage1 title_sep = ' |', para_sep = '[unused2]': '[unused2] title_a |  Sent 1. Sent 3. [unused2] title_b |  Sent 2. [unused2] title_c |  Sent c1.'
+    """
+    title_dict = {}
+    for s in sent_list:
+        sent = s['sentence'].strip()
+        if s['score'] > score_thresh and len(sent) > 0:
+            if title_dict.get(s['title']) is None:
+                title_dict[s['title']] = ''
+            if sent[-1] not in ['.','?','!']:
+                sent += '.'
+            title_dict[s['title']] += ' ' + sent
+    final = ''
+    for t in title_dict:
+        if para_sep == '':
+            final += ' ' + unescape(t.strip() + title_sep) + ' ' + title_dict[t]
+        else:
+            final += ' ' + para_sep.strip() + ' ' + unescape(t.strip() + title_sep) + ' ' + title_dict[t]
+    return final.strip()
+
+
 def encode_title_sents(text, title, sentence_spans, selected_sentences, title_sep = ' |', sentence_sep = '[unused1]'):
-    """ encode para as eg: "[unused1] title | sentence 1. [unused1] title | sentence 4." 
+    """ encode para as eg: "[unused1] title1 | sentence 1. [unused1] title1 | sentence 4." 
+    for stage 2 in training
     """
     newtitle = sentence_sep.strip() + ' ' + unescape(title.strip()) + ' ' + title_sep.strip() + ' '
     newtext = []
@@ -844,30 +871,20 @@ def encode_title_sents(text, title, sentence_spans, selected_sentences, title_se
     return newtext
 
 
-def aggregate_sents(sent_list, score_thresh = -1000000, title_sep = ':', para_sep = ''):
-    """ Aggregate sentences with same title
-    sent_list format: [ {'title':.. , 'sentence':.., 'score':.., id2doc_key:.., sidx:..}, ..]
-    returns eg 'title_a:  Sent 1. Sent 3. title_b:  Sent 2. title_c:  Sent c1.' 
-           or '[unused2] title_a |  Sent 1. Sent 3. [unused2] title_b |  Sent 2. [unused2] title_c |  Sent c1.'
+def concat_title_sents(sent_list, title_sep = ' |', sentence_sep = '[unused1]'):
+    """ Concatenate title + sent with sentence markers for stage 2 input. sent_list = s1 output in iterator
+    for stage 2 in iterator
+    sent_list format: [ {'title': 'Ed Wood', 'sentence': 'Edward Davis Wood Jr. (October 10, 1924\xa0– December 10, 1978) was an American filmmaker, actor, writer, producer, and director.', 'score': 0.9989603757858276, 's1para_score': 0.9987308382987976, 'idx': 1787155, 's_idx': 0} ]
     """
-    title_dict = {}
-    for s in sent_list:
-        sent = s['sentence'].strip()
-        if s['score'] > score_thresh and len(sent) > 0:
-            if title_dict.get(s['title']) is None:
-                title_dict[s['title']] = ''
+    final = ''
+    for sent_dict in sent_list:
+        sent = sent_dict['sentence'].strip()
+        if len(sent) > 0:
             if sent[-1] not in ['.','?','!']:
                 sent += '.'
-            title_dict[s['title']] += ' ' + sent
-    final = ''
-    for t in title_dict:
-        if para_sep == '':
-            final += ' ' + t.strip() + title_sep + ' ' + title_dict[t]
-        else:
-            final += ' ' + para_sep.strip() + ' ' + t.strip() + title_sep + ' ' + title_dict[t]
+            newsent = sentence_sep.strip() + ' ' + unescape(sent_dict['title'].strip()) + ' ' + title_sep.strip() + ' ' + sent
+            final += ' ' + newsent
     return final.strip()        
-        
-        
 
 
 def context_toks_to_ids(context, tokenizer, sent_marker='[unused1]', 
