@@ -6,7 +6,7 @@ Created on Wed Jun 15 13:52:39 2022
 @author: tim hartill
 
 
-dense retrieval, stage 1 and stage 2 search classes 
+iterator over dense retrieval, stage 1 and stage 2 search classes 
 
 args.prefix = 'TESTITER'
 args.output_dir = '/large_data/thar011/out/mdr/logs'
@@ -42,11 +42,8 @@ args.stop_ansconfdelta_thresh = 5.0     # stop if s2_ans_conf_delta >= this thre
 import json
 import logging
 import os
-from os import path
-import time
 import copy
 from datetime import date
-from html import unescape  # To avoid ambiguity, unescape all titles
 
 import faiss
 import numpy as np
@@ -60,7 +57,8 @@ from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
 
 from reader.reader_model import StageModel, SpanAnswerer
 
-from utils import encode_text, load_saved, move_to_cuda, return_filtered_list, aggregate_sents, concat_title_sents, context_toks_to_ids, collate_tokens
+from utils import (encode_text, load_saved, move_to_cuda, return_filtered_list, saveas_jsonl,
+                   aggregate_sents, concat_title_sents, context_toks_to_ids, collate_tokens)
 from text_processing import get_sentence_list 
 
 ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']
@@ -223,7 +221,7 @@ class DenseSearcher():
             for i, idx in enumerate(I[0]):
                 if idx not in s2_idxs: # skip paras already selected by s2 model
                     sample['dense_retrieved'].append( copy.deepcopy(self.id2doc[str(idx)]) ) 
-                    sample['dense_retrieved'][-1]['idx'] = idx
+                    sample['dense_retrieved'][-1]['idx'] = int(idx)
                     sample['dense_retrieved'][-1]['score'] = float(D[0, i])
         return
         
@@ -362,7 +360,6 @@ class Stage1Searcher():
             sample['s1'] = (sample['s2'] + out_list)[:self.args.topk]
             #TODO from condense.py: f7=remove dup (pid, sid) preserving order ie prior s2 top ~5 + new s1 ordered ie will only take the top 4 or so from s1
             return 
-
 
 
 class Stage2Searcher():
@@ -515,7 +512,7 @@ if __name__ == '__main__':
     args = eval_args()
     
     date_curr = date.today().strftime("%m-%d-%Y")
-    model_name = f"{args.prefix}-{date_curr}-iterator-fp16{args.fp16}-topkparas{args.beam_size}-topks1sents{args.topk}-topks2sents{args.topk_stage2}-maxhops{args.max_hops}-s1_use_para_score{args.s1_use_para_score}"
+    model_name = f"{args.prefix}-{date_curr}-iterator-fp16{args.fp16}-topkparas{args.beam_size}-s1topksents{args.topk}-s1useparascore{args.s1_use_para_score}-s2topksents{args.topk_stage2}-s2minsentscore{args.s2_sp_thresh}-stopmaxhops{args.max_hops}-stopevthresh{args.stop_ev_thresh}-stopansconf{args.stop_ansconfdelta_thresh}"
     args.output_dir = os.path.join(args.output_dir, model_name)
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -582,7 +579,27 @@ if __name__ == '__main__':
             logger.info(f"Processed {i} of {len(samples)} samples.")
     logger.info("Finished processing all samples.")
 
+#    for s in samples:
+#        for d in s['dense_retrieved']:
+#            d['idx'] = int(d['idx'])
+#        for d in s['s1']:
+#            d['idx'] = int(d['idx'])
+#        for d in s['s2']:
+#            d['idx'] = int(d['idx'])
+    
+#        for dlist in s['dense_retrieved_hist']:
+#            for d in dlist:
+#                d['idx'] = int(d['idx'])
+#        for dlist in s['s1_hist']:
+#            for d in dlist:
+#                d['idx'] = int(d['idx'])
+#        for dlist in s['s2_hist']:
+#            for d in dlist:
+#                d['idx'] = int(d['idx'])
+    
 
+
+    saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_with_context.jsonl'))
 
 
 
