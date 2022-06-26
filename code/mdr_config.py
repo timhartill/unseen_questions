@@ -138,6 +138,8 @@ def eval_args():
     parser.add_argument("--init_checkpoint_stage2", default='', type=str, help="stage 2 rereranker model checkpoint")
     parser.add_argument('--s1_use_para_score', action="store_true", help="Stage 1: Use para score + sent score (vs sent score only) in selecting topk sentences.")
     parser.add_argument("--s2_sp_thresh", default=0.1, type=float, help="Min stage 2 sent score for selection.")    
+    parser.add_argument("--stop_ev_thresh", default=99.0, type=float, help="Stop iterating if s2ev_score >= this (s2ev_score between 0 & 1).")    
+    parser.add_argument("--stop_ansconfdelta_thresh", default=99999.0, type=float, help="Stop iterating if s2_ans_conf_delta >= this (Note: s2_ans_conf_delta not between 0 & 1. If 0.0 ans pred is insuff evidence).")
     
     return parser.parse_args()
 

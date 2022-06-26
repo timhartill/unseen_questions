@@ -32,8 +32,10 @@ args.max_q_sp_len = 400  # retriever max input seq len
 args.max_c_len = 512     # stage models max input seq length
 args.max_ans_len = 35
 args.sp_weight = 1.0
-args.predict_batch_size = 26  # batch size for stage 1 model, set small so can fit all models on 1 gpu
-args.s2_sp_thresh = 0.10  # s2 sent score min for selection as part of query in next iteration
+args.predict_batch_size = 26            # batch size for stage 1 model, set small so can fit all models on 1 gpu
+args.s2_sp_thresh = 0.10                # s2 sent score min for selection as part of query in next iteration
+args.stop_ev_thresh = 0.6               # stop if s2_ev_score >= this thresh. Set > 1.0 to ignore
+args.stop_ansconfdelta_thresh = 5.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. 
 
 """
 
@@ -466,15 +468,15 @@ class Stage2Searcher():
             outs = [torch.cat(start_logits_all, dim=0), torch.cat(end_logits_all, dim=0)]
             span_answerer = SpanAnswerer(batch_extras, outs, para_offset, batch_extras["insuff_offset"], self.args.max_ans_len) # answer prediction
             
-            if sample['s2_ev_score'] != -1.0:
-                sample['s2_pred_hist'].append( [sample['s2_ans_pred'], sample['s2_ans_pred_score'], sample['s2_ans_insuff_score'], sample['s2_ans_conf_delta'], sample['s2_ev_score']] )
+            if sample['s2ev_score'] != -1.0:
+                sample['s2_pred_hist'].append( [sample['s2_ans_pred'], sample['s2_ans_pred_score'], sample['s2_ans_insuff_score'], sample['s2_ans_conf_delta'], sample['s2ev_score']] )
             idx=0
             rank_score = scores[idx]
             sample['s2_ans_pred'] = span_answerer.pred_strs[idx]
             sample['s2_ans_pred_score'] = span_answerer.span_scores[idx]
             sample['s2_ans_insuff_score'] = span_answerer.insuff_scores[idx]
             sample['s2_ans_conf_delta'] = span_answerer.ans_delta[idx]
-            sample['s2_ev_score'] = rank_score
+            sample['s2ev_score'] = rank_score
 
             out_list = []  # [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:.., 's1para_score':..}, ..]
             # get the sp sentences [ [title1, 0], [title1, 2], ..]
@@ -494,6 +496,19 @@ class Stage2Searcher():
                 sample['s2_hist'].append(sample['s2'])
             sample['s2'] = out_list[:self.args.topk_stage2]
             return 
+
+
+def suff_evidence(args, hop, sample):
+    """ Determine whether to stop or continue iteration.
+    """
+    if sample['s2ev_score'] >= args.stop_ev_thresh:
+        sample['stop_reason'].append('evsuff')
+    if sample['s2_ans_conf_delta'] >= args.stop_ansconfdelta_thresh:
+        sample['stop_reason'].append('aconf')
+    if hop+1 >= args.max_hops:
+        sample['stop_reason'].append('max')
+    return True if len(sample['stop_reason']) > 0 else False
+    
 
 
 if __name__ == '__main__':
@@ -544,36 +559,29 @@ if __name__ == '__main__':
             sample['s2_ans_pred_score'] = -1.0
             sample['s2_ans_insuff_score'] = -1.0
             sample['s2_ans_conf_delta'] = -1.0
-            sample['s2_ev_score'] = -1.0
+            sample['s2ev_score'] = -1.0
+            sample['stop_reason'] = [] # list of stop reasons (can be more than one)
             # this hop item appended to hist:
             sample['dense_retrieved_hist'] = [] # retriever paras history
             sample['s1_hist'] = []  # stage 1 sents history
             sample['s2_hist'] = []  # stage 2 sents history
-            sample['s2_pred_hist'] = [] # stage 2 history of pred answers, rank scores etc
+            sample['s2_pred_hist'] = [] # stage 2 history of pred answers, rank scores etc: list of [sample['s2_ans_pred'], sample['s2_ans_pred_score'], sample['s2_ans_insuff_score'], sample['s2_ans_conf_delta'], sample['s2_ev_score']]
 
     dense_searcher = DenseSearcher(args, logger)
     stage1_searcher = Stage1Searcher(args, logger)
     stage2_searcher = Stage2Searcher(args, logger)
 
-
     for i, sample in enumerate(samples):
         for hop in range(0, args.max_hops):
-            #TODO restrict sample['s2'] based on score thresh
-            #create mdr query 
-            #dense_query = dense_searcher.encode_input(sample)
-            # topkparas = dense search
             dense_searcher.search(sample)  # retrieve args.beam_size nearest paras and put them in sample['dense_retrieved'] key
-            #create stage 1 query
-            #model_inputs, item_list, para_offset = stage1_searcher.encode_input(sample)
-            #topks1sents = process topkparas through stage1 model
             stage1_searcher.search(sample)
-            #create stage 2 query
-            #TODO topks2sents, finished = stage2 model(stage2query)
             stage2_searcher.search(sample)
-            #TODO if finished break
-            #TODO finished: ev_score insuff score, ans_delta...
+            if suff_evidence(args, hop, sample):
+                break
         if i % 500 == 0:
-            logger.info(f"Processed {i} samples.")
+            logger.info(f"Processed {i} of {len(samples)} samples.")
+    logger.info("Finished processing all samples.")
+
 
 
 
