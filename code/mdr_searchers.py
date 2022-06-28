@@ -37,6 +37,7 @@ args.s2_sp_thresh = 0.10                # s2 sent score min for selection as par
 args.stop_ev_thresh = 0.6               # stop if s2_ev_score >= this thresh. Set > 1.0 to ignore
 args.stop_ansconfdelta_thresh = 5.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. 
 
+
 """
 
 import json
@@ -585,29 +586,17 @@ if __name__ == '__main__':
             logger.info(f"Processed {i} of {len(samples)} samples.")
     logger.info("Finished processing all samples.")
 
-#    for s in samples:
-#        for d in s['dense_retrieved']:
-#            d['idx'] = int(d['idx'])
-#        for d in s['s1']:
-#            d['idx'] = int(d['idx'])
-#        for d in s['s2']:
-#            d['idx'] = int(d['idx'])
-    
-#        for dlist in s['dense_retrieved_hist']:
-#            for d in dlist:
-#                d['idx'] = int(d['idx'])
-#        for dlist in s['s1_hist']:
-#            for d in dlist:
-#                d['idx'] = int(d['idx'])
-#        for dlist in s['s2_hist']:
-#            for d in dlist:
-#                d['idx'] = int(d['idx'])
-    
-
-
+    logger.info(f"Saved full updated samples file to {os.path.join(args.output_dir, 'samples_with_context.jsonl')}")
     saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_with_context.jsonl'))
 
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-24-2022-iterator-fp16False-topkparas4-topks1sents9-topks2sents5-maxhops2-s1_use_para_scoreTrue/samples_with_context.jsonl')
 
     #TODO redo with hpqa qas_val_with_spfacts.jsonl
+    #TODO rerun with beam size 25 keeping topk sents 9 and s2topk sents 5 plus varying suff_evidence flags
+    #TODO eval on samples:
+        # para/psg/sp EM, para F1 : topk final para evidence field = sp
+        # para R@k : all sp titles in top k retrieved paras (irrespective of how many paras actually retrieved...look through dense hist and/or look through s1 hist)
+        # sentences em, sentences f1 on [ [evidencefieldA, possentidx1], [evidencefieldA, possentidx2], ... ]
+        # ans em, ans f1 - on s2 answer
+        # above per stop_reason  ['evsuff', 'aconf', 'max'] also by type
 
