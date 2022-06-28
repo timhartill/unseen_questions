@@ -43,7 +43,7 @@ BQA_TITLE_SAVE = '/home/thar011/data/beerqa/enwiki-20200801-titledict-compgen.js
 UPDATED_DEV = '/home/thar011/data/baleen_downloads/hover/hover_dev_with_neg_and_sent_annots.jsonl'
 UPDATED_TRAIN = '/home/thar011/data/baleen_downloads/hover/hover_train_with_neg_and_sent_annots.jsonl'
 
-QAS_VAL_FILE_OUT = '/home/thar011/data/baleen_downloads/hover/hover_qas_val.jsonl'
+QAS_VAL_FILE_OUT = '/home/thar011/data/baleen_downloads/hover/hover_qas_val_with_spfacts.jsonl'
 
 
 #hpqa_corpus = json.load(open(PROCESSED_CORPUS_DIR))             # 5233329
@@ -324,8 +324,14 @@ def save_to_val_file(dev, outfile):
     out = []
     for sample in dev:
         sps = [p['title'] for p in sample['pos_paras']]
+
+        sp_facts = []
+        for para in sample['pos_paras']:
+            for slabel in para['sentence_labels']:
+                sp_facts.append( [para['title'], slabel] )  
+        
         out_sample = {'question': sample['question'], '_id': sample['_id'], 'answer': sample['answers'], 
-                      'sp': sps, 'type': sample['type'], 'src': sample['src']}
+                      'sp': sps, 'sp_facts':sp_facts, 'type': sample['type'], 'src': sample['src']}
         out.append(out_sample)
     utils.saveas_jsonl(out, outfile)
     print('Finished save!')
@@ -333,7 +339,6 @@ def save_to_val_file(dev, outfile):
 
 save_to_val_file(hover_dev_out, QAS_VAL_FILE_OUT)
 
-#TODO Update mhop_dataset to accept nested hover para sequencing...
 
 
 

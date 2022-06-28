@@ -308,7 +308,7 @@ def predict(args, model, eval_dataloader, device, logger,
         for idx, (qid, label, sp_labels) in enumerate(zip(batch_qids, batch_labels, batch_sp_labels)):
             # full: 1 = query+para = full path (to neg or pos), 0 = partial path
             # index into eval_dataloader.dataset.data[idx] list
-            # sp_gold from sp_gold_single = [ [title1, 0], [title1, 2], ..] restricted to just the para
+            # sp_gold from sp_gold_single = [ possentidx1, possentidx2, ...] s2: [idxs of pos sents]  s1: [ [title, possentidx1] , ...]
             # act_hops = number of hops the query + next para cover eg 1=q_only->sp1, 2=q+sp1->sp2  if act_hops=orig num_hops then query + next para is fully evidential
             # sp_num = # sentences in this sample
             sp_num = len([o for o in batch_sp_offsets[idx] if o != 0])

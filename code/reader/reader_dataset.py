@@ -372,7 +372,7 @@ class Stage1Dataset(Dataset):
             sp_gold_single = []
             for sentence_label in item["context_processed"]["passage"]["sentence_labels"]:
                 if sentence_label < len(item["context_processed"]["passage"]["sentence_spans"]):
-                    sp_gold_single.append( [item["context_processed"]["passage"]["title"], sentence_label] )
+                    sp_gold_single.append( [item["context_processed"]["passage"]["title"], sentence_label] )  # [ [title, sidx1], [title, sidx2], ... ]
             if sp_gold_single == []:
                 sp_gold_single = [[]]
             item['sp_gold_single'] = sp_gold_single

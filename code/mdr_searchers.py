@@ -10,7 +10,7 @@ iterator over dense retrieval, stage 1 and stage 2 search classes
 
 args.prefix = 'TESTITER'
 args.output_dir = '/large_data/thar011/out/mdr/logs'
-args.predict_file = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val.json'
+args.predict_file = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl'
 args.index_path = '/large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/index.npy'
 args.corpus_dict = '/large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/id2doc.json'
 args.model_name = 'roberta-base'
@@ -44,6 +44,7 @@ import logging
 import os
 import copy
 from datetime import date
+from html import unescape  # corpus titles are all unescaped when saving but some 'sp' and 'sp_facts' titles may not be
 
 import faiss
 import numpy as np
@@ -480,7 +481,7 @@ class Stage2Searcher():
             for s_idx, sp_score in enumerate(sp_scores[idx]):
                 if int(model_inputs['sent_offsets'][idx, s_idx]) == 0:  # 0 = padding = past # sents in this sample
                     break
-                out = sample['s1'][s_idx]
+                out = sample['s1'][s_idx]  # add/update s2 keys in s1 list as well as s2...will also update s2 keys in s1_hist..
                 out['s2_score'] = sp_score
                 out['s2ev_score'] = rank_score
                 out_list.append( out ) 
@@ -548,6 +549,11 @@ if __name__ == '__main__':
                 sample['answer'][0] = 'yes'
             elif sample['answer'][0] in ["REFUTES", "NOT_SUPPORTED"]:
                 sample['answer'][0] = 'no'
+            if sample.get('sp') is not None:        # a few hpqa pos_para titles are escaped
+                sample['sp'] = [unescape(t) for t in sample['sp']]
+            if sample.get('sp_facts') is not None:  # a few hpqa pos_para titles are escaped
+                for s in sample['sp_facts']:
+                    s[0] = unescape(s[0])
             # this hop:    
             sample['dense_retrieved'] = []   # [id2doc idx1 para, id2doc idx2 para, ...]  paras retrieved this hop q + each para = s1 query
             sample['s1'] = []   # [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s1 = best sents from topk paras this hop
@@ -601,7 +607,7 @@ if __name__ == '__main__':
 
     saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_with_context.jsonl'))
 
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-24-2022-iterator-fp16False-topkparas4-topks1sents9-topks2sents5-maxhops2-s1_use_para_scoreTrue/samples_with_context.jsonl')
 
-
-
+    #TODO redo with hpqa qas_val_with_spfacts.jsonl
 

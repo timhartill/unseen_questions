@@ -466,7 +466,7 @@ if __name__ == '__main__':
 
                     if len(sp) > 0:  # if para-level annotationns exist ie not nq or tqa
                         p_recall, p_em = 0, 0
-                        sp_covered = [sp_title in retrieved_titles for sp_title in sp]  # [len(sp)]
+                        sp_covered = [sp_title in retrieved_titles for sp_title in sp]  # [len(sp)] ie is each gold title in retrieved title t/f
                         if np.sum(sp_covered) > 0:
                             p_recall = 1  # Any gold para is in k * max_hops retrieved titles
                         if np.sum(sp_covered) == len(sp_covered):  #works for variable # of hops

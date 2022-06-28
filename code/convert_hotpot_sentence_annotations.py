@@ -5,7 +5,9 @@ Created on Mon Apr 18 13:14:05 2022
 
 @author: tim hartill
 
-Read sentence-level annotations from original HPQA train/dev files and add to mdr-formatted HPQA train/dev files
+Read sentence-level annotations from original HPQA train/dev files and add to mdr-formatted HPQA train/dev files + qas_val file
+
+Also converts the MDR_PROCESSED_CORPUS file into our format hpqa abstracts file.
 
 Output format example:
 
@@ -37,18 +39,28 @@ HPQA_TRAIN = '/home/thar011/data/hpqa/hotpot_train_v1.1.json'
 
 MDR_DEV = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_dev_with_neg_v0.json'
 MDR_TRAIN = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_train_with_neg_v0.json'
-MDR_PROCESSED_CORPUS = '/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json'
+MDR_QAS_VAL = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val.json'
+MDR_PROCESSED_CORPUS = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/wiki_id2doc_from_mdr_with_sent_splits.json'  # was '/data/thar011/gitrepos/compgen_mdr/data/hotpot_index/wiki_id2doc.json'
 
 MDR_UPDATED_DEV = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_dev_with_neg_v0_sentannots.jsonl'
 MDR_UPDATED_TRAIN = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_train_with_neg_v0_sentannots.jsonl'
+MDR_UPDATED_QAS_VAL = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl'
+MDR_UPDATED_CORPUS = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_with_sent_spans.jsonl'
 
 
 hpqa_dev = json.load(open(HPQA_DEV))        # 7405 dict_keys(['_id', 'answer', 'question', 'supporting_facts', 'context', 'type', 'level']) 
-hpqa_train = json.load(open(HPQA_TRAIN))  # 90447 #'supporting_facts' = [ [title, sentence_idx], ..]
+hpqa_train = json.load(open(HPQA_TRAIN))    # 90447 #'supporting_facts' = [ [title, sentence_idx], ..]
 
-mdr_dev = utils.load_jsonl(MDR_DEV)        # 7405  dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id'])
+mdr_dev = utils.load_jsonl(MDR_DEV)         # 7405  dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id'])
+mdr_qas_val = utils.load_jsonl(MDR_QAS_VAL) # 7405  dict_keys(['question', '_id', 'answer', 'sp', 'type'])
 mdr_train = utils.load_jsonl(MDR_TRAIN)     # 90447
 mdr_corpus = json.load(open(MDR_PROCESSED_CORPUS)) # 5233329  MDR processed file has the sentence mappings, easier than doing raw processing on hpqa wiki dump..
+
+# create abstracts in our format:
+mdr_abstracts_out = [{'title': v['title'], 'text': v['text'], 
+                      'sentence_spans': create_sentence_spans(v['sents'])} for v in mdr_corpus.values() if v['text'].strip() != ''] # 5233235 strips blanks
+utils.saveas_jsonl(mdr_abstracts_out, MDR_UPDATED_CORPUS)
+del mdr_abstracts_out
 
 
 def build_title_dict(mdr_corpus):
@@ -105,6 +117,21 @@ def add_span_and_sent_annot(mdr_split, hpqa_split, sentence_spans):
     return
 
 
+def add_spfacts(mdr_qas_val, mdr_dev):
+    """ Add sp_facts key to qas_val of form: [ [title1, pos sent idx1], [title1, pos sent idx2], [title2, pos sent idx1], ... ]
+    Note: mdr_qas_val and mdr_dev files are in the same order...
+    """
+    for i, s in enumerate(mdr_dev):
+        sp_facts = []
+        for para in s['pos_paras']:
+            for slabel in para['sentence_labels']:
+                sp_facts.append( [para['title'], slabel] )  
+            mdr_qas_val[i]['sp_facts'] = sp_facts
+            if para['title'] not in mdr_qas_val[i]['sp']:  # check title escape/unescape matches - they all do
+                print(f"{i} Title mismatch: mdr_dev:{para['title']} mdr_qas_val:{mdr_qas_val[i]['sp']}")
+    return
+    
+
 def check_sentence_annots(split):
     """ check sentence annotations are all valid
     """
@@ -134,6 +161,10 @@ add_span_and_sent_annot(mdr_train, hpqa_train, hpqa_sentence_spans)
 
 utils.saveas_jsonl(mdr_dev, MDR_UPDATED_DEV)
 utils.saveas_jsonl(mdr_train, MDR_UPDATED_TRAIN)
+
+add_spfacts(mdr_qas_val, mdr_dev)
+utils.saveas_jsonl(mdr_qas_val, MDR_UPDATED_QAS_VAL)
+
 
 errlist = check_sentence_annots(mdr_dev) # sample:5059 pospara: 0 sent idx > # sentences! Error is in hpqa sentence annot
 errlist = check_sentence_annots(mdr_train)  #Errors all seem to be in the hpqa sentence annots

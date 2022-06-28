@@ -328,7 +328,6 @@ def predict(args, model, eval_dataloader, device, logger,
             # get the sp sentences [ [title1, 0], [title1, 2], ..]
             sp_score = batch_sp_scores[idx].tolist()
             passage =  batch["passages"][idx][0]
-            #sent_offset = batch['net_inputs']['sent_offsets'][idx].tolist()
             pred_sp_dict = {}
             for thresh in sp_thresh:
                 pred_sp = []
