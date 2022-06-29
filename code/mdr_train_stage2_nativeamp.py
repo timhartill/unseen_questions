@@ -559,7 +559,7 @@ def create_grouped_metrics(logger, sample_list, group_key='src',
             if grouped_metrics[sample[group_key]].get(key) is None:
                 grouped_metrics[sample[group_key]][key] = []
             grouped_metrics[sample[group_key]][key].append( sample[key] )
-    logger.info("------------------------------------------------")     
+    logger.info("------------------------------------------------")
     logger.info(f"Metrics grouped by: {group_key}")
     logger.info("------------------------------------------------")
     for group in grouped_metrics:

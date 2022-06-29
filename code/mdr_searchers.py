@@ -21,7 +21,7 @@ args.init_checkpoint_stage2 = '/large_data/thar011/out/mdr/logs/stage2_test3_hpq
 args.gpu_model=True
 args.gpu_faiss=True
 args.hnsw = True
-args.beam_size = 4      # num paras to return from retriever each hop
+args.beam_size = 25      # num paras to return from retriever each hop
 args.topk = 9           # max num sents to return from stage 1 ie prior s2 sents + selected s1 sents <= 9
 args.topk_stage2 = 5    # max num sents to return from stage 2
 args.s1_use_para_score = True  # use para_score + sent score to determine topk sents from stage 1
@@ -34,8 +34,8 @@ args.max_ans_len = 35
 args.sp_weight = 1.0
 args.predict_batch_size = 26            # batch size for stage 1 model, set small so can fit all models on 1 gpu
 args.s2_sp_thresh = 0.10                # s2 sent score min for selection as part of query in next iteration
-args.stop_ev_thresh = 0.6               # stop if s2_ev_score >= this thresh. Set > 1.0 to ignore
-args.stop_ansconfdelta_thresh = 5.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. 
+args.stop_ev_thresh = 0.91               # stop if s2_ev_score >= this thresh. Set > 1.0 to ignore. 0.6 = best per s2 train eval
+args.stop_ansconfdelta_thresh = 18.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. 5 seemed reasonable
 
 
 """
@@ -58,8 +58,9 @@ from mdr.retrieval.models.mhop_retriever import RobertaRetriever_var
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
 
 from reader.reader_model import StageModel, SpanAnswerer
+from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
 
-from utils import (encode_text, load_saved, move_to_cuda, return_filtered_list, saveas_jsonl,
+from utils import (encode_text, load_saved, move_to_cuda, return_filtered_list, saveas_jsonl, flatten,
                    aggregate_sents, concat_title_sents, context_toks_to_ids, collate_tokens)
 from text_processing import get_sentence_list 
 
@@ -222,7 +223,7 @@ class DenseSearcher():
             sample['dense_retrieved'] = []
             for i, idx in enumerate(I[0]):
                 if idx not in s2_idxs: # skip paras already selected by s2 model
-                    sample['dense_retrieved'].append( copy.deepcopy(self.id2doc[str(idx)]) ) 
+                    sample['dense_retrieved'].append( copy.deepcopy(self.id2doc[str(idx)]) )
                     sample['dense_retrieved'][-1]['idx'] = int(idx)
                     sample['dense_retrieved'][-1]['score'] = float(D[0, i])
         return
@@ -353,8 +354,12 @@ class Stage1Searcher():
                         break
                     s, e = para['sentence_spans'][s_idx]
                     sent = para['text'][s:e].strip()
-                    out_list.append( {'title': para['title'], 'sentence': sent, 'score': sp_score, 's1para_score': rank_score,
-                                      'idx': para['idx'], 's_idx': s_idx}) 
+                    if para.get('para_id') is None:  #hpqa abstracts
+                        out_list.append( {'title': para['title'], 'sentence': sent, 'score': sp_score, 's1para_score': rank_score,
+                                          'idx': para['idx'], 's_idx': s_idx}) 
+                    else: # full wiki
+                        out_list.append( {'title': para['title'], 'sentence': sent, 'score': sp_score, 's1para_score': rank_score,
+                                          'idx': para['idx'], 'para_id': para['para_id'], 's_idx': s_idx}) 
 
             out_list.sort(key=lambda k: k['score']+k['s1para_score'] if self.args.s1_use_para_score else k['score'], reverse=True)
             if sample['s1'] != []:
@@ -488,7 +493,7 @@ class Stage2Searcher():
                 out_list.append( out ) 
 
             out_list.sort(key=lambda k: k['s2_score'], reverse=True)
-            if len(out_list) > 2:
+            if len(out_list) > 2:  # take at least 2, filter out any below args.s2_sp_thresh later
                 minscore = min(self.args.s2_sp_thresh, out_list[1]['s2_score'] - 1e-10)
                 out_list = [o for o in out_list if o['s2_score'] > minscore]
             if sample['s2'] != []:
@@ -508,6 +513,77 @@ def suff_evidence(args, hop, sample):
         sample['stop_reason'].append('max')
     return True if len(sample['stop_reason']) > 0 else False
     
+
+def eval_samples(args, logger, samples):
+    """ Eval on samples
+        # para/psg/sp EM, para F1/prec/recall : topk final para evidence field = sp - can use for bqa/full wiki
+        # para R@k : all sp titles in top k retrieved paras (irrespective of how many paras actually retrieved...look through dense hist and/or look through s1 hist)
+        # sentences em, sentences f1/prec/recall on [ [evidencefieldA, possentidx1], [evidencefieldA, possentidx2], ... ] - hpqa corpus only
+        # ans em, ans f1 - on s2 answer
+        # joint em, f1
+        # above per stop_reason  ['evsuff', 'aconf', 'max'] also by type and act_hops = len(sp)
+    """
+    if samples[0]['dense_retrieved'][0].get('para_id'):
+        evidence_key = 'para_id'    # full wiki
+    else:
+        evidence_key = 'title'      # hpqa abstracts
+        
+    for sample in samples:
+        sample['ans_em'] = exact_match_score(sample['s2_ans_pred'], sample['answer'][0]) # not using multi-answer versions of exact match, f1
+        f1, prec, recall = f1_score(sample['s2_ans_pred'], sample['answer'][0])
+        sample['ans_f1'] = f1
+
+        joint_em, joint_f1 = -1.0, -1.0
+        if sample.get('sp_facts') is not None and sample['sp_facts'] != []:
+            metrics = {'sp_em': 0.0, 'sp_f1': 0.0, 'sp_prec': 0.0, 'sp_recall': 0.0}
+            sample['sp_facts_pred'] = [ [s['title'], s['s_idx']] for s in sample['s2'] if s['s2_score'] > args.s2_sp_thresh]
+            update_sp(metrics, sample['sp_facts_pred'], sample['sp_facts'])
+            joint_prec = prec * metrics['sp_prec']
+            joint_recall = recall * metrics['sp_recall']
+            if joint_prec + joint_recall > 0:
+                joint_f1 = 2 * joint_prec * joint_recall / (joint_prec + joint_recall)
+            else:
+                joint_f1 = 0.
+            joint_em = sample['ans_em'] * metrics['sp_em']
+        else:
+            metrics = {'sp_em': -1.0, 'sp_f1': -1.0, 'sp_prec': -1.0, 'sp_recall': -1.0}
+        sample['sp_facts_em'] = metrics['sp_em']  #NB in s1/s2 train eval the sp_ keys ie sentence metrics are calls sp_facts here since sp_ here is used for para level metrics
+        sample['sp_facts_f1'] = metrics['sp_f1']
+        sample['sp_facts_prec'] = metrics['sp_prec']
+        sample['sp_facts_recall'] = metrics['sp_recall']
+        sample['joint_em'] = joint_em
+        sample['joint_f1'] = joint_f1
+
+        p_em = -1 
+        p_r20 = -1
+        if sample.get('sp') is not None and sample['sp'] != []:
+            # R@20:
+            all_retrieved = sample['dense_retrieved'] + flatten(sample['dense_retrieved_hist'])
+            all_retrieved.sort(key=lambda k: k['s1_para_score'], reverse=True)
+            all_retrieved = all_retrieved[:20]
+            sample['sp_r20_ev'] = [r[evidence_key] for r in all_retrieved]
+            sp_covered = [sp_title in sample['sp_r20_ev'] for sp_title in sample['sp']]
+            if np.sum(sp_covered) == len(sp_covered):  #works for variable # of sp paras
+                p_r20 = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrieved para in gold paras
+            else:
+                p_r20 = 0
+            
+            #sp_em for MDR / psg-EM for Baleen:
+            p_em = 0
+            sample['sp_pred'] = list(set( [s[evidence_key] for s in sample['s2'] ] ))
+            sp_covered = [sp_title in sample['sp_pred'] for sp_title in sample['sp']]
+            if np.sum(sp_covered) == len(sp_covered):  #works for variable # of sp paras
+                p_em = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrived para in gold paras
+            else:
+                p_em = 0
+            metrics = {'sp_em': 0.0, 'sp_f1': 0.0, 'sp_prec': 0.0, 'sp_recall': 0.0}
+            update_sp(metrics, sample['sp_pred'], sample['sp'])
+        else:
+            metrics = {'sp_em': -1.0, 'sp_f1': -1.0, 'sp_prec': -1.0, 'sp_recall': -1.0}
+        sample['sp_r20'] = p_r20
+        sample['sp_covered_em'] = p_em  #sp_em for MDR / psg-EM for Baleen
+        sample.update(metrics)
+    return
 
 
 if __name__ == '__main__':
@@ -564,7 +640,7 @@ if __name__ == '__main__':
             sample['s2_ans_insuff_score'] = -1.0
             sample['s2_ans_conf_delta'] = -1.0
             sample['s2ev_score'] = -1.0
-            sample['stop_reason'] = [] # list of stop reasons (can be more than one)
+            sample['stop_reason'] = [] # list of stop reasons (can be more than one of ['evsuff', 'aconf', 'max'])
             # this hop item appended to hist:
             sample['dense_retrieved_hist'] = [] # retriever paras history
             sample['s1_hist'] = []  # stage 1 sents history
@@ -590,13 +666,10 @@ if __name__ == '__main__':
     saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_with_context.jsonl'))
 
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-24-2022-iterator-fp16False-topkparas4-topks1sents9-topks2sents5-maxhops2-s1_use_para_scoreTrue/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-28-2022-iterator-fp16False-topkparas25-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops2-stopevthresh0.91-stopansconf18.0/samples_with_context.jsonl')
 
-    #TODO redo with hpqa qas_val_with_spfacts.jsonl
-    #TODO rerun with beam size 25 keeping topk sents 9 and s2topk sents 5 plus varying suff_evidence flags
-    #TODO eval on samples:
-        # para/psg/sp EM, para F1 : topk final para evidence field = sp
-        # para R@k : all sp titles in top k retrieved paras (irrespective of how many paras actually retrieved...look through dense hist and/or look through s1 hist)
-        # sentences em, sentences f1 on [ [evidencefieldA, possentidx1], [evidencefieldA, possentidx2], ... ]
-        # ans em, ans f1 - on s2 answer
-        # above per stop_reason  ['evsuff', 'aconf', 'max'] also by type
+    eval_samples(args, logger, samples)
+    #TODO add output - all +
+    #TODO above per stop_reason  ['evsuff', 'aconf', 'max'] also by type and act_hops = len(sp)
+    
 
