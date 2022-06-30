@@ -8,6 +8,8 @@ Created on Wed Jun 15 13:52:39 2022
 
 iterator over dense retrieval, stage 1 and stage 2 search classes 
 
+args.fp16=False
+args.sp_weight = 1.0
 args.prefix = 'TESTITER'
 args.output_dir = '/large_data/thar011/out/mdr/logs'
 args.predict_file = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl'
@@ -21,19 +23,18 @@ args.init_checkpoint_stage2 = '/large_data/thar011/out/mdr/logs/stage2_test3_hpq
 args.gpu_model=True
 args.gpu_faiss=True
 args.hnsw = True
+args.save_index = True
 args.beam_size = 25      # num paras to return from retriever each hop
 args.topk = 9           # max num sents to return from stage 1 ie prior s2 sents + selected s1 sents <= 9
 args.topk_stage2 = 5    # max num sents to return from stage 2
 args.s1_use_para_score = True  # use para_score + sent score to determine topk sents from stage 1
-args.max_hops = 2       # max num hops
-args.fp16=False
 args.max_q_len = 70
-args.max_q_sp_len = 400  # retriever max input seq len
+args.max_q_sp_len = 512  # retriever max input seq len was 400
 args.max_c_len = 512     # stage models max input seq length
 args.max_ans_len = 35
-args.sp_weight = 1.0
 args.predict_batch_size = 26            # batch size for stage 1 model, set small so can fit all models on 1 gpu
 args.s2_sp_thresh = 0.10                # s2 sent score min for selection as part of query in next iteration
+args.max_hops = 2       # max num hops
 args.stop_ev_thresh = 0.91               # stop if s2_ev_score >= this thresh. Set > 1.0 to ignore. 0.6 = best per s2 train eval
 args.stop_ansconfdelta_thresh = 18.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. 5 seemed reasonable
 
@@ -60,7 +61,7 @@ from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
 from reader.reader_model import StageModel, SpanAnswerer
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
 
-from utils import (encode_text, load_saved, move_to_cuda, return_filtered_list, saveas_jsonl, flatten,
+from utils import (encode_text, load_saved, move_to_cuda, create_grouped_metrics, saveas_jsonl, flatten,
                    aggregate_sents, concat_title_sents, context_toks_to_ids, collate_tokens)
 from text_processing import get_sentence_list 
 
@@ -99,7 +100,7 @@ class DenseSearcher():
         logger.info(f"Loading trained dense retrieval encoder model  {args.model_name}...")
         self.bert_config = AutoConfig.from_pretrained(args.model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-        self.simple_tokenizer = SimpleTokenizer()  #TODO needed in eval?        
+        #self.simple_tokenizer = SimpleTokenizer()  #TODO needed in eval?        
         self.model = RobertaRetriever_var(self.bert_config, args)
         self.model = load_saved(self.model, args.init_checkpoint, exact=args.exact, strict=args.strict) #TJH added  strict=args.strict
         if args.gpu_model:
@@ -529,9 +530,9 @@ def eval_samples(args, logger, samples):
         evidence_key = 'title'      # hpqa abstracts
         
     for sample in samples:
-        sample['ans_em'] = exact_match_score(sample['s2_ans_pred'], sample['answer'][0]) # not using multi-answer versions of exact match, f1
+        sample['answer_em'] = exact_match_score(sample['s2_ans_pred'], sample['answer'][0]) # not using multi-answer versions of exact match, f1
         f1, prec, recall = f1_score(sample['s2_ans_pred'], sample['answer'][0])
-        sample['ans_f1'] = f1
+        sample['answer_f1'] = f1
 
         joint_em, joint_f1 = -1.0, -1.0
         if sample.get('sp_facts') is not None and sample['sp_facts'] != []:
@@ -544,7 +545,7 @@ def eval_samples(args, logger, samples):
                 joint_f1 = 2 * joint_prec * joint_recall / (joint_prec + joint_recall)
             else:
                 joint_f1 = 0.
-            joint_em = sample['ans_em'] * metrics['sp_em']
+            joint_em = sample['answer_em'] * metrics['sp_em']
         else:
             metrics = {'sp_em': -1.0, 'sp_f1': -1.0, 'sp_prec': -1.0, 'sp_recall': -1.0}
         sample['sp_facts_em'] = metrics['sp_em']  #NB in s1/s2 train eval the sp_ keys ie sentence metrics are calls sp_facts here since sp_ here is used for para level metrics
@@ -554,10 +555,12 @@ def eval_samples(args, logger, samples):
         sample['joint_em'] = joint_em
         sample['joint_f1'] = joint_f1
 
-        p_em = -1 
+        p_em = -1
         p_r20 = -1
+        act_hops = -1
         if sample.get('sp') is not None and sample['sp'] != []:
-            # R@20:
+            act_hops = len(sample['sp'])
+            # R@20: = all gold paras in top 20 retrieved paras
             all_retrieved = sample['dense_retrieved'] + flatten(sample['dense_retrieved_hist'])
             all_retrieved.sort(key=lambda k: k['s1_para_score'], reverse=True)
             all_retrieved = all_retrieved[:20]
@@ -580,10 +583,11 @@ def eval_samples(args, logger, samples):
             update_sp(metrics, sample['sp_pred'], sample['sp'])
         else:
             metrics = {'sp_em': -1.0, 'sp_f1': -1.0, 'sp_prec': -1.0, 'sp_recall': -1.0}
+        sample['act_hops'] = act_hops
         sample['sp_r20'] = p_r20
         sample['sp_covered_em'] = p_em  #sp_em for MDR / psg-EM for Baleen
         sample.update(metrics)
-    return
+    return 
 
 
 if __name__ == '__main__':
@@ -669,7 +673,14 @@ if __name__ == '__main__':
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-28-2022-iterator-fp16False-topkparas25-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops2-stopevthresh0.91-stopansconf18.0/samples_with_context.jsonl')
 
     eval_samples(args, logger, samples)
-    #TODO add output - all +
-    #TODO above per stop_reason  ['evsuff', 'aconf', 'max'] also by type and act_hops = len(sp)
+    
+    #create_grouped_metrics(logger, samples, group_key='ALL', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
+    create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
+    create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
+    create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
+    
+    logger.info('Finished!')
+    
+
     
 

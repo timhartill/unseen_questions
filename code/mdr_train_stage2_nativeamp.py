@@ -71,7 +71,7 @@ from reader.reader_model import StageModel, SpanAnswerer
 
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
 from mdr_basic_tokenizer_and_utils import get_final_text
-from utils import move_to_cuda, load_saved, AverageMeter, saveas_jsonl
+from utils import move_to_cuda, load_saved, AverageMeter, saveas_jsonl, create_grouped_metrics
 
 ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']
 
@@ -531,10 +531,10 @@ def predict(args, model, eval_dataloader, device, logger,
     if args.ev_combiner:
         logger.info(f'ev combiner acc: {best_ev_acc}')
     
-    create_grouped_metrics(logger, out_list, group_key='src')
-    create_grouped_metrics(logger, out_list, group_key='pos')
-    #create_grouped_metrics(logger, out_list, group_key='act_hops')
-    #create_grouped_metrics(logger, out_list, group_key='full')
+    create_grouped_metrics(logger, out_list, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc'])
+    create_grouped_metrics(logger, out_list, group_key='pos', metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc'])
+    #create_grouped_metrics(logger, out_list, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc'])
+    #create_grouped_metrics(logger, out_list, group_key='full', metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc'])
 
     
     if args.save_prediction != "":
@@ -546,32 +546,7 @@ def predict(args, model, eval_dataloader, device, logger,
             "para_acc": best_para_acc, "ev_acc": best_ev_acc}
 
 
-def create_grouped_metrics(logger, sample_list, group_key='src',
-                           metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 
-                                          'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc']):
-    """ output metrics by group
-    """
-    grouped_metrics = {}
-    for sample in sample_list:
-        if grouped_metrics.get(sample[group_key]) is None:
-            grouped_metrics[sample[group_key]] = {}
-        for key in metric_keys:
-            if grouped_metrics[sample[group_key]].get(key) is None:
-                grouped_metrics[sample[group_key]][key] = []
-            grouped_metrics[sample[group_key]][key].append( sample[key] )
-    logger.info("------------------------------------------------")
-    logger.info(f"Metrics grouped by: {group_key}")
-    logger.info("------------------------------------------------")
-    for group in grouped_metrics:
-        mgroup = grouped_metrics[group]
-        logger.info(f"{group_key}: {group}")
-        for key in metric_keys:
-            n = len(mgroup[key])
-            val = np.mean( mgroup[key] ) if n > 0 else -1
-            logger.info(f'{key}: {val}  n={n}')
-        logger.info("------------------------------------------------")
-    return  
-    
+  
     
 
 

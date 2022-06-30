@@ -298,6 +298,38 @@ def return_filtered_list(full_list, filter_key = -1, return_none=-1):
     return filtered
 
 
+def create_grouped_metrics(logger, sample_list, group_key='src',
+                           metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall']):
+    """ output mean metrics by group from a jsonl list
+    """
+    grouped_metrics = {}
+    for sample in sample_list:
+        if group_key.upper() == 'ALL':
+            group = 'ALL'
+        else:
+            group = str(sample[group_key])
+        
+        if grouped_metrics.get(group) is None:
+            grouped_metrics[group] = {}
+        for key in metric_keys:
+            if grouped_metrics[group].get(key) is None:
+                grouped_metrics[group][key] = []
+            if sample[key] != -1:
+                grouped_metrics[group][key].append( sample[key] )
+    logger.info("------------------------------------------------")     
+    logger.info(f"Metrics grouped by: {group_key}")
+    logger.info("------------------------------------------------")
+    for group in grouped_metrics:
+        mgroup = grouped_metrics[group]
+        logger.info(f"{group_key}: {group}")
+        for key in metric_keys:
+            n = len(mgroup[key])
+            val = np.mean( mgroup[key] ) if n > 0 else -1
+            logger.info(f'{key}: {val}  n={n}')
+        logger.info("------------------------------------------------")
+    return
+
+
 # from https://github.com/castorini/transformers-arithmetic/blob/main/main.py
 def convert_to_base(num: int, base: int, numerals="0123456789abcdefghijklmnopqrstuvwxyz") -> str:
     """ convert base 10 integer into another base """

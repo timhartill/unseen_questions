@@ -72,6 +72,7 @@ def common_args():
     parser.add_argument("--eval_stop", action="store_true", help="Retriever: Add stop head and/or evaluate stop prediction accuracy in addition to evaluating para retrieval.")   
     parser.add_argument("--output_dir", default="./logs", type=str, help="The output directory where the model checkpoints, logs etc will be written.")
     parser.add_argument("--sp-weight", default=1.0, type=float, help="weight of the sentence relevance prediction loss")
+    parser.add_argument('--prefix', type=str, default="eval")
 
     return parser
 
@@ -79,7 +80,6 @@ def common_args():
 def train_args():
     parser = common_args()
     # optimization
-    parser.add_argument('--prefix', type=str, default="eval")
     parser.add_argument("--weight_decay", default=0.0, type=float,
                         help="Weight decay if we apply some.")
     parser.add_argument("--temperature", default=1, type=float)
