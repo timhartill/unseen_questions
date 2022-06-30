@@ -37,9 +37,9 @@
 
 cd ../code
 
-python mdr_eval_mhop_retrieval_nativeamp.py \
+python mdr_searchers.py \
     --prefix ITER_hpqaabst_hpqaeval_test0 \
-    --output_dir /large_data/thar011/out/mdr/logs
+    --output_dir /large_data/thar011/out/mdr/logs \
     --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/index.npy \
     --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
