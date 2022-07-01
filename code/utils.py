@@ -832,29 +832,29 @@ def encode_text(tokenizer, text, text_pair=None, max_input_length=512,
 
 def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences=None, 
                        use_sentences=False, prepend_title=False, title_sep = ':'):
-    """ Encode the para portion of the query as either just the paragraph or as selected sentences from the paragraph 
-    prepended by the title eg: "title |  sentence 1. sentence 4." or "title:  sentence 1. sentence 4." 
+    """ Encode the para portion of the query as either the paragraph text or as selected sentences from the paragraph 
+    optionally prepended by the title eg: "title |  sentence 1. sentence 4." or "title:  sentence 1. sentence 4." 
     for training retriever + stage 1
     sentence_spans = [ [s1startidx, s1endidx], [s2startidx, s2endidx], ...]
     selected sentences = [sentenceidx1, sentenceidx2, ...]
     In retriever title_sep =':', in reader it is ' |'
     """
     if not use_sentences or len(selected_sentences)==0:
-        txt = text.strip()
-        if txt[-1] not in ['.', '?', '!']:
-            txt += '.'            
-        return txt
-    newtext = ''
-    for sent_idx in selected_sentences:
-        if sent_idx < 0 or sent_idx >= len(sentence_spans): #hpqa, fever have a few annotation errors where sent_idx > num sentences
-            continue
-        start, end = sentence_spans[sent_idx]
-        sent = text[start:end].strip()
-        if sent[-1] not in ['.','?','!']:
-            sent += '.'
-        newtext = newtext + ' ' + sent
-    if newtext.strip() == '':  # If no sents found due to annotation errors, use potentially truncated para
-        newtext = text[:600].strip() + '...'
+        newtext = ' ' + text[:600].strip()
+        if newtext[-1] not in ['.', '?', '!']:
+            newtext += '.'     
+    else:
+        newtext = ''
+        for sent_idx in selected_sentences:
+            if sent_idx < 0 or sent_idx >= len(sentence_spans): #hpqa, fever have a few annotation errors where sent_idx > num sentences
+                continue
+            start, end = sentence_spans[sent_idx]
+            sent = text[start:end].strip()
+            if sent[-1] not in ['.','?','!']:
+                sent += '.'
+            newtext = newtext + ' ' + sent
+        if newtext.strip() == '':  # If no sents found due to annotation errors, use potentially truncated para
+            newtext = text[:600].strip() + '...'
     if prepend_title:
         newtext = unescape(title.strip() + title_sep) + ' ' + newtext
     return newtext.strip()
@@ -906,6 +906,7 @@ def encode_title_sents(text, title, sentence_spans, selected_sentences, title_se
 def concat_title_sents(sent_list, title_sep = ' |', sentence_sep = '[unused1]'):
     """ Concatenate title + sent with sentence markers for stage 2 input. sent_list = s1 output in iterator
     for stage 2 in iterator
+    eg: "[unused1] title1 | sentence 1. [unused1] title2 | sentence 4."
     sent_list format: [ {'title': 'Ed Wood', 'sentence': 'Edward Davis Wood Jr. (October 10, 1924\xa0– December 10, 1978) was an American filmmaker, actor, writer, producer, and director.', 'score': 0.9989603757858276, 's1para_score': 0.9987308382987976, 'idx': 1787155, 's_idx': 0} ]
     """
     final = ''

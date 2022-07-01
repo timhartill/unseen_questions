@@ -67,10 +67,14 @@ class MhopDataset_var(Dataset):
         self.use_sentences = args.query_use_sentences
         self.prepend_query = args.query_add_titles
         self.random_multi_seq = args.random_multi_seq
-        print(f"Using sentences in query: {self.use_sentences}")
+        print(f"Using sentences in query instead of full para: {self.use_sentences}")
         if self.use_sentences:
-            print(f"Prepending sentences in query with title: {self.prepend_query}")
-        print(f"Random para order for 'multi' type sequencing: {self.random_multi_seq}")    
+            self.prepend_query = True
+            print(f"Always prepending sentences in query with title irrespective of --query_add_titles: {self.prepend_query}")
+        else:
+            print(f"Prepending para text in query with title: {self.prepend_query}")
+            
+        print(f"Random para order for 'multi' type sequencing: {self.random_multi_seq}")
         print(f"Loading data from {data_path}")
         self.data = [json.loads(line) for line in open(data_path).readlines()]
         if train: 
@@ -155,9 +159,11 @@ class MhopDataset_var(Dataset):
         query_paras = ''
         for i in range(self.max_hops-1):  #if 3 paras: encode: q+sp1, q+sp1+sp2 but not q+sp1+sp2+sp3. Note: queries with neg paras are ignored in loss calc..
             if not self.use_sentences or i > num_hops-1:  # No sentence annots for neg paras
-                if para_list[i]['text'][-1] not in ['.', '?', '!']:  # Force full stop at end since nq and tqa paras are chunked and might end mid sentence.
-                    para_list[i]['text'] += '.'
-                query_paras += ' ' + para_list[i]['text']  
+ #               if para_list[i]['text'][-1] not in ['.', '?', '!']:  # Force full stop at end since nq and tqa paras are chunked and might end mid sentence.
+ #                   para_list[i]['text'] += '.'
+ #               query_paras += ' ' + para_list[i]['text']  
+                query_paras += ' ' + encode_query_paras(para_list[i]['text'], para_list[i]['title'], 
+                                                        use_sentences=False, prepend_title=self.prepend_query, title_sep=':') 
             else:  # encode sentence or title:sentence rather than full para text
                 query_paras += ' ' + encode_query_paras(para_list[i]['text'], para_list[i]['title'],
                                                         para_list[i]['sentence_spans'], para_list[i]['sentence_labels'],

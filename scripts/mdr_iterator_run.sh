@@ -33,12 +33,15 @@
 # max_hops: max number of retrieve->s1->s2 iterations on each sample
 # stop_ev_thresh: stop iterating if s2_ev_score >= this thresh. Set > 1.0 to ignore. 0.6 = best per s2 train eval but set higher to make stopping because of this conservative
 # stop_ansconfdelta_thresh = 18.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. Set high to make stopping because of this very rare
+# query_use_sentences = True      # Retriever only: If true use title: sents form in query otherwise use full para text (note s1 query always uses title | sents form)
+# query_add_titles = True         # Retriever only: Prepend query paras with para title (only if using paras, if using sents always prepending title regardless)
+                                  # Note only add this if retriever was trained with titles prepended - FALSE for hpqa abstracts since many paras begin with a paraphrase of the title
 
 
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_hpqaabst_hpqaeval_test0 \
+    --prefix ITER_hpqaabst_hpqaeval_test3_beam150_maxh3 \
     --output_dir /large_data/thar011/out/mdr/logs \
     --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/index.npy \
@@ -51,11 +54,12 @@ python mdr_searchers.py \
     --gpu_model \
     --hnsw \
     --save_index \
-    --beam_size 100 \
+    --query_use_sentences \
+    --beam_size 150 \
     --topk 9 \
     --topk_stage2 5 \
     --s1_use_para_score \
-    --max_hops 2 \
+    --max_hops 3 \
     --max_q_len 70 \
     --max_q_sp_len 512 \
     --max_c_len 512 \
@@ -64,7 +68,6 @@ python mdr_searchers.py \
     --s2_sp_thresh 0.10 \
     --stop_ev_thresh 0.91 \
     --stop_ansconfdelta_thresh 18.0
-
 
 
 

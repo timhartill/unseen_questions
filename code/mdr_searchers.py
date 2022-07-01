@@ -37,7 +37,8 @@ args.s2_sp_thresh = 0.10                # s2 sent score min for selection as par
 args.max_hops = 2       # max num hops
 args.stop_ev_thresh = 0.91               # stop if s2_ev_score >= this thresh. Set > 1.0 to ignore. 0.6 = best per s2 train eval
 args.stop_ansconfdelta_thresh = 18.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. 5 seemed reasonable
-
+args.query_use_sentences = True          # if true use title: sents form for para in retriever query otherwise use full para text in query optionally prepended by title (retriever only: s1 always uses title | sents form)
+args.query_add_titles = True             # prepend retriever query paras with para title (only if using paras, if using sents always prepending title regardless)
 
 """
 
@@ -62,7 +63,7 @@ from reader.reader_model import StageModel, SpanAnswerer
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
 
 from utils import (encode_text, load_saved, move_to_cuda, create_grouped_metrics, saveas_jsonl, flatten,
-                   aggregate_sents, concat_title_sents, context_toks_to_ids, collate_tokens)
+                   aggregate_sents, encode_query_paras, concat_title_sents, context_toks_to_ids, collate_tokens)
 from text_processing import get_sentence_list 
 
 ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']
@@ -193,10 +194,21 @@ class DenseSearcher():
         sample['s2'] = [{'title': 'Ed Wood', 'sentence': 'Edward Davis Wood Jr. (October 10, 1924\xa0– December 10, 1978) was an American filmmaker, actor, writer, producer, and director.', 'score': 1.0, 's1para_score':1.0,  'idx': 1787155, 's_idx': 0}]
         eg for sample['s2'] = [{'title':'title_a', 'sentence':'Sent 1', 'score':1.0},{'title':'title_b', 'sentence':'Sent 2', 'score':1.0},{'title':'title_a', 'sentence':' ', 'score':1.0}, {'title':'title_a', 'sentence':'Sent 3', 'score':1.0}, {'title':'title_c', 'sentence':'Sent c1', 'score':1.0}]        
         returns tokenised version of '<s>Were Scott Derrickson and Ed Wood of the same nationality</s></s>title_a:  Sent 1. Sent 3. title_b:  Sent 2. title_c:  Sent c1.</s>'
-        """        
-        q_sents = aggregate_sents(sample['s2'], title_sep = ':')  # aggregate sents for same title
-        if len(q_sents) == 0:
-            q_sents = None
+        """
+        if self.args.args.query_use_sentences:
+            q_sents = aggregate_sents(sample['s2'], title_sep = ':')  # aggregate sents for each title always prepending title
+            if len(q_sents) == 0:
+                q_sents = None
+        else:
+            q_sents = ''
+            corpus_idxs = []
+            for sent in sample['s2']:
+                if sent['idx'] not in corpus_idxs:
+                    corpus_idxs.append(sent['idx'])
+                    para = self.id2doc[ str(sent['idx']) ]
+                    q_sents += ' ' + encode_query_paras(para['text'], para['title'], 
+                                                        use_sentences=False, prepend_title=self.args.query_add_titles, title_sep=':')
+        
         m_input = encode_text(self.tokenizer, sample['question'], text_pair=q_sents, max_input_length=self.args.max_q_sp_len, 
                               truncation=True, padding=False, return_tensors="pt") 
         return m_input
@@ -258,7 +270,7 @@ class Stage1Searcher():
         para_offset = len(q_toks) + 1 #  cls
         q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
         max_toks_for_doc = self.args.max_c_len - para_offset - 1
-        q_sents = aggregate_sents(sample['s2'], title_sep = ' |', para_sep='[unused2]')  # aggregate sents for same title
+        q_sents = aggregate_sents(sample['s2'], title_sep = ' |', para_sep='[unused2]')  # aggregate sents for each title
         batch_extras = {'wp_tokens':[], 'doc_tokens':[], 'tok_to_orig_index':[], 'insuff_offset':[]}  # each key [len(sample['dense_retrieved'])] of data used for deriving answer span
         model_inputs = {'input_ids':[], 'token_type_ids':[], 'attention_mask':[], 'paragraph_mask':[], 'sent_offsets':[]}
         for para in sample['dense_retrieved']:
@@ -491,7 +503,7 @@ class Stage2Searcher():
                 out = sample['s1'][s_idx]  # add/update s2 keys in s1 list as well as s2...will also update s2 keys in s1_hist..
                 out['s2_score'] = sp_score
                 out['s2ev_score'] = rank_score
-                out_list.append( out ) 
+                out_list.append( out )
 
             out_list.sort(key=lambda k: k['s2_score'], reverse=True)
             if len(out_list) > 2:  # take at least 2, filter out any below args.s2_sp_thresh later
