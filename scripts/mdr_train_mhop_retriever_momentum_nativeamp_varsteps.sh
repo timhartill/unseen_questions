@@ -32,6 +32,7 @@ python mdr_train_mhop_nativeamp.py \
     --num_negs 2 \
     --query_use_sentences \
     --query_add_titles \
+    --random_multi_seq \
     --debug \
     --k 76800 \
     --m 0.999 \

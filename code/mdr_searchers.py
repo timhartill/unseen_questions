@@ -195,7 +195,7 @@ class DenseSearcher():
         eg for sample['s2'] = [{'title':'title_a', 'sentence':'Sent 1', 'score':1.0},{'title':'title_b', 'sentence':'Sent 2', 'score':1.0},{'title':'title_a', 'sentence':' ', 'score':1.0}, {'title':'title_a', 'sentence':'Sent 3', 'score':1.0}, {'title':'title_c', 'sentence':'Sent c1', 'score':1.0}]        
         returns tokenised version of '<s>Were Scott Derrickson and Ed Wood of the same nationality</s></s>title_a:  Sent 1. Sent 3. title_b:  Sent 2. title_c:  Sent c1.</s>'
         """
-        if self.args.args.query_use_sentences:
+        if self.args.query_use_sentences:
             q_sents = aggregate_sents(sample['s2'], title_sep = ':')  # aggregate sents for each title always prepending title
             if len(q_sents) == 0:
                 q_sents = None
@@ -606,7 +606,7 @@ if __name__ == '__main__':
     args = eval_args()
     
     date_curr = date.today().strftime("%m-%d-%Y")
-    model_name = f"{args.prefix}-{date_curr}-iterator-fp16{args.fp16}-topkparas{args.beam_size}-s1topksents{args.topk}-s1useparascore{args.s1_use_para_score}-s2topksents{args.topk_stage2}-s2minsentscore{args.s2_sp_thresh}-stopmaxhops{args.max_hops}-stopevthresh{args.stop_ev_thresh}-stopansconf{args.stop_ansconfdelta_thresh}"
+    model_name = f"{args.prefix}-{date_curr}-iterator-fp16{args.fp16}-topkparas{args.beam_size}-s1topksents{args.topk}-s1useparascore{args.s1_use_para_score}-s2topksents{args.topk_stage2}-s2minsentscore{args.s2_sp_thresh}-stopmaxhops{args.max_hops}-stopevthresh{args.stop_ev_thresh}-stopansconf{args.stop_ansconfdelta_thresh}-retusesents{args.query_use_sentences}-rettitles{args.query_add_titles}"
     args.output_dir = os.path.join(args.output_dir, model_name)
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -683,6 +683,11 @@ if __name__ == '__main__':
 
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-24-2022-iterator-fp16False-topkparas4-topks1sents9-topks2sents5-maxhops2-s1_use_para_scoreTrue/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-28-2022-iterator-fp16False-topkparas25-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops2-stopevthresh0.91-stopansconf18.0/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test4_beam100_maxh4-07-01-2022-iterator-fp16False-topkparas100-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops4-stopevthresh0.91-stopansconf18.0-retusesentsTrue-rettitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test3_beam150_maxh3-07-01-2022-iterator-fp16False-topkparas150-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops3-stopevthresh0.91-stopansconf18.0/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test5_beam100_maxh2_paras-07-02-2022-iterator-fp16False-topkparas100-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops2-stopevthresh0.91-stopansconf18.0-retusesentsFalse-rettitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test6_beam100_maxh2_paras_momentum-07-02-2022-iterator-fp16False-topkparas100-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops2-stopevthresh0.91-stopansconf18.0-retusesentsFalse-rettitlesFalse/samples_with_context.jsonl')
+
 
     eval_samples(args, logger, samples)
     
@@ -690,6 +695,7 @@ if __name__ == '__main__':
     create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
     create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
     create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
+    create_grouped_metrics(logger, samples, group_key='type', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
     
     logger.info('Finished!')
     

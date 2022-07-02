@@ -25,6 +25,7 @@
 #bqa ~134k training samples vs ~90k hpqa. On 1 gpu bs24 est 1hr 15mins per epoch vs ~45mins per epoch.  
 
 #     --query_add_titles \
+# --random_multi_seq \  #TJH added below even though not part of hover_sent_annots_test2_norand run to avoid forgetting to put it back later (randomises para ordering in each step)
 
 cd ../code
 
@@ -52,6 +53,7 @@ python mdr_train_mhop_nativeamp.py \
     --num_negs 2 \
     --query_use_sentences \
     --query_add_titles \
+    --random_multi_seq \
     --output_dir /large_data/thar011/out/mdr/logs \
     --num_train_epochs 50 \
     --warmup-ratio 0.1

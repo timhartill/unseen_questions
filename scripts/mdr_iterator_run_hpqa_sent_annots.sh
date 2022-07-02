@@ -41,7 +41,7 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_hpqaabst_hpqaeval_test3_beam150_maxh3 \
+    --prefix ITER_hpqaabst_hpqaeval_test4_beam100_maxh4 \
     --output_dir /large_data/thar011/out/mdr/logs \
     --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/index.npy \
@@ -55,11 +55,11 @@ python mdr_searchers.py \
     --hnsw \
     --save_index \
     --query_use_sentences \
-    --beam_size 150 \
+    --beam_size 100 \
     --topk 9 \
     --topk_stage2 5 \
     --s1_use_para_score \
-    --max_hops 3 \
+    --max_hops 4 \
     --max_q_len 70 \
     --max_q_sp_len 512 \
     --max_c_len 512 \
