@@ -183,6 +183,10 @@ class DenseSearcher():
             else:
                 self.id2doc = {k: {"title":v[0], "text": v[1], "sentence_spans":v[2], "para_id": v[3]} for k, v in id2doc.items()}
                 self.evidence_key = 'para_id'
+        else:
+            if id2doc["0"].get("para_id") is not None:
+                self.evidence_key = 'para_id'
+            self.id2doc = id2doc
         logger.info(f"Evidence key field: {self.evidence_key}")
         # title2text = {v[0]:v[1] for v in id2doc.values()}
         logger.info(f"Corpus size {len(self.id2doc)}")
@@ -316,7 +320,7 @@ class Stage1Searcher():
         model_inputs["attention_mask"] = collate_tokens(model_inputs["attention_mask"], 0)                  # [beam_size, max inp seq len]
         model_inputs["paragraph_mask"] = collate_tokens(model_inputs["paragraph_mask"], 0)                  # [beam_size, max inp seq len]
         model_inputs["sent_offsets"] = collate_tokens(model_inputs["sent_offsets"], 0)                      # [beam_size, max # sents]
-        return model_inputs, batch_extras, para_offset  #TODO run collate_tokens on model_inputs to pad..
+        return model_inputs, batch_extras, para_offset  
 
 
     def search(self, sample):
@@ -376,7 +380,7 @@ class Stage1Searcher():
 
             out_list.sort(key=lambda k: k['score']+k['s1para_score'] if self.args.s1_use_para_score else k['score'], reverse=True)
             if sample['s1'] != []:
-                sample['s1_hist'].append(sample['s1'])                
+                sample['s1_hist'].append( copy.deepcopy(sample['s1']) )
             sample['s1'] = (sample['s2'] + out_list)[:self.args.topk]
             #TODO from condense.py: f7=remove dup (pid, sid) preserving order ie prior s2 top ~5 + new s1 ordered ie will only take the top 4 or so from s1
             return 
@@ -500,7 +504,7 @@ class Stage2Searcher():
             for s_idx, sp_score in enumerate(sp_scores[idx]):
                 if int(model_inputs['sent_offsets'][idx, s_idx]) == 0:  # 0 = padding = past # sents in this sample
                     break
-                out = sample['s1'][s_idx]  # add/update s2 keys in s1 list as well as s2...will also update s2 keys in s1_hist..
+                out = sample['s1'][s_idx]  # add/update s2 keys in s1 list as well as s2
                 out['s2_score'] = sp_score
                 out['s2ev_score'] = rank_score
                 out_list.append( out )
@@ -510,7 +514,7 @@ class Stage2Searcher():
                 minscore = min(self.args.s2_sp_thresh, out_list[1]['s2_score'] - 1e-10)
                 out_list = [o for o in out_list if o['s2_score'] > minscore]
             if sample['s2'] != []:
-                sample['s2_hist'].append(sample['s2'])
+                sample['s2_hist'].append( copy.deepcopy(sample['s2']) )
             sample['s2'] = out_list[:self.args.topk_stage2]
             return 
 
@@ -525,6 +529,31 @@ def suff_evidence(args, hop, sample):
     if hop+1 >= args.max_hops:
         sample['stop_reason'].append('max')
     return True if len(sample['stop_reason']) > 0 else False
+    
+
+def get_best_hop(sample):
+    """ for s2 append the final hop to the historical hops and choose the best one based on highest s2ev_score
+    If run to max_hops (eg ev score thresh higher than max ev score encountered) it's possible for an intermediate hop
+    to actually be the best one.
+    sample['s2_pred_hist']: list of [sample['s2_ans_pred'], sample['s2_ans_pred_score'], sample['s2_ans_insuff_score'], sample['s2_ans_conf_delta'], sample['s2_ev_score']]
+    """
+    sample['s2_hist_all'] = copy.deepcopy( sample['s2_hist'] )
+    sample['s2_hist_all'].append( sample['s2'] )  # current s2 is final hop
+    sample['s2_pred_hist_all'] = copy.deepcopy( sample['s2_pred_hist'] )
+    sample['s2_pred_hist_all'].append( [ sample['s2_ans_pred'], sample['s2_ans_pred_score'], sample['s2_ans_insuff_score'], sample['s2_ans_conf_delta'], sample['s2ev_score'] ] )
+    best_score = -1.0
+    best_hop = -1
+    for i, pred_hist in enumerate(sample['s2_pred_hist_all']):
+        if pred_hist[4] > best_score:
+            best_score = pred_hist[4]
+            best_hop = i
+            sample['s2_best'] = sample['s2_hist_all'][best_hop]
+            for s in sample['s2_best']:
+                s['s2ev_score'] = best_score  # early bug had s2_hist ev scores all set to the latest one
+            sample['s2_best_preds'] = {'s2_ans_pred': pred_hist[0], 's2_ans_pred_score':pred_hist[1], 
+                                       's2_ans_insuff_score': pred_hist[2], 's2_ans_conf_delta': pred_hist[3],
+                                       's2ev_score': pred_hist[4], 's2_best_hop': best_hop}
+    return   
     
 
 def eval_samples(args, logger, samples):
@@ -542,14 +571,15 @@ def eval_samples(args, logger, samples):
         evidence_key = 'title'      # hpqa abstracts
         
     for sample in samples:
-        sample['answer_em'] = exact_match_score(sample['s2_ans_pred'], sample['answer'][0]) # not using multi-answer versions of exact match, f1
-        f1, prec, recall = f1_score(sample['s2_ans_pred'], sample['answer'][0])
+        get_best_hop(sample)
+        sample['answer_em'] = exact_match_score(sample['s2_best_preds']['s2_ans_pred'], sample['answer'][0]) # not using multi-answer versions of exact match, f1
+        f1, prec, recall = f1_score(sample['s2_best_preds']['s2_ans_pred'], sample['answer'][0])
         sample['answer_f1'] = f1
 
-        joint_em, joint_f1 = -1.0, -1.0
+        joint_em, joint_f1, sf_em = -1.0, -1.0, -1.0
         if sample.get('sp_facts') is not None and sample['sp_facts'] != []:
             metrics = {'sp_em': 0.0, 'sp_f1': 0.0, 'sp_prec': 0.0, 'sp_recall': 0.0}
-            sample['sp_facts_pred'] = [ [s['title'], s['s_idx']] for s in sample['s2'] if s['s2_score'] > args.s2_sp_thresh]
+            sample['sp_facts_pred'] = [ [s['title'], s['s_idx']] for s in sample['s2_best'] ] #if s['s2_score'] > args.s2_sp_thresh]
             update_sp(metrics, sample['sp_facts_pred'], sample['sp_facts'])
             joint_prec = prec * metrics['sp_prec']
             joint_recall = recall * metrics['sp_recall']
@@ -558,8 +588,15 @@ def eval_samples(args, logger, samples):
             else:
                 joint_f1 = 0.
             joint_em = sample['answer_em'] * metrics['sp_em']
+            
+            sp_facts_covered = [sp_fact in sample['sp_facts_pred'] for sp_fact in sample['sp_facts']]
+            if np.sum(sp_facts_covered) == len(sp_facts_covered):  #works for variable # of sp facts
+                sf_em = 1      #if all gold facts in s2_best facts
+            else:
+                sf_em = 0
         else:
             metrics = {'sp_em': -1.0, 'sp_f1': -1.0, 'sp_prec': -1.0, 'sp_recall': -1.0}
+        sample['sp_facts_covered_em'] = sf_em
         sample['sp_facts_em'] = metrics['sp_em']  #NB in s1/s2 train eval the sp_ keys ie sentence metrics are calls sp_facts here since sp_ here is used for para level metrics
         sample['sp_facts_f1'] = metrics['sp_f1']
         sample['sp_facts_prec'] = metrics['sp_prec']
@@ -567,9 +604,7 @@ def eval_samples(args, logger, samples):
         sample['joint_em'] = joint_em
         sample['joint_f1'] = joint_f1
 
-        p_em = -1
-        p_r20 = -1
-        act_hops = -1
+        act_hops, p_em, p_r20, p_r4 = -1, -1, -1, -1
         if sample.get('sp') is not None and sample['sp'] != []:
             act_hops = len(sample['sp'])
             # R@20: = all gold paras in top 20 retrieved paras
@@ -583,9 +618,15 @@ def eval_samples(args, logger, samples):
             else:
                 p_r20 = 0
             
-            #sp_em for MDR / psg-EM for Baleen:
+            sp_covered = [sp_title in sample['sp_r20_ev'][:4] for sp_title in sample['sp']]
+            if np.sum(sp_covered) == len(sp_covered):  #works for variable # of sp paras
+                p_r4 = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrieved para in gold paras
+            else:
+                p_r4 = 0
+            
+            #sp_covered_em = sp_em for MDR / psg-EM for Baleen:
             p_em = 0
-            sample['sp_pred'] = list(set( [s[evidence_key] for s in sample['s2'] ] ))
+            sample['sp_pred'] = list(set( [s[evidence_key] for s in sample['s2_best'] ] ))
             sp_covered = [sp_title in sample['sp_pred'] for sp_title in sample['sp']]
             if np.sum(sp_covered) == len(sp_covered):  #works for variable # of sp paras
                 p_em = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrived para in gold paras
@@ -597,6 +638,7 @@ def eval_samples(args, logger, samples):
             metrics = {'sp_em': -1.0, 'sp_f1': -1.0, 'sp_prec': -1.0, 'sp_recall': -1.0}
         sample['act_hops'] = act_hops
         sample['sp_r20'] = p_r20
+        sample['sp_r4'] = p_r4
         sample['sp_covered_em'] = p_em  #sp_em for MDR / psg-EM for Baleen
         sample.update(metrics)
     return 
@@ -687,15 +729,16 @@ if __name__ == '__main__':
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test3_beam150_maxh3-07-01-2022-iterator-fp16False-topkparas150-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops3-stopevthresh0.91-stopansconf18.0/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test5_beam100_maxh2_paras-07-02-2022-iterator-fp16False-topkparas100-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops2-stopevthresh0.91-stopansconf18.0-retusesentsFalse-rettitlesFalse/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test6_beam100_maxh2_paras_momentum-07-02-2022-iterator-fp16False-topkparas100-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops2-stopevthresh0.91-stopansconf18.0-retusesentsFalse-rettitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test7_beam100_maxh4_paras_momentum-07-02-2022-iterator-fp16False-topkparas100-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops4-stopevthresh0.91-stopansconf18.0-retusesentsFalse-rettitlesFalse/samples_with_context.jsonl')
 
 
     eval_samples(args, logger, samples)
     
-    #create_grouped_metrics(logger, samples, group_key='ALL', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
-    create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
-    create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
-    create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
-    create_grouped_metrics(logger, samples, group_key='type', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r20'])
+    #create_grouped_metrics(logger, samples, group_key='ALL', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r4', 'sp_r20'])
+    create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em','sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r4', 'sp_r20'])
+    create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r4', 'sp_r20'])
+    create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r4', 'sp_r20'])
+    create_grouped_metrics(logger, samples, group_key='type', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_r4', 'sp_r20'])
     
     logger.info('Finished!')
     

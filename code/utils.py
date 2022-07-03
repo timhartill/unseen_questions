@@ -299,10 +299,22 @@ def return_filtered_list(full_list, filter_key = -1, return_none=-1):
 
 
 def create_grouped_metrics(logger, sample_list, group_key='src',
-                           metric_keys = ['answer_em', 'answer_f1', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall']):
+                           metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall']):
     """ output mean metrics by group from a jsonl list
     """
     grouped_metrics = {}
+    present_metric_keys = []
+    missing_metric_keys = []
+    for key in metric_keys:
+        if key in sample_list[0].keys():
+            present_metric_keys.append(key)
+        else:
+            missing_metric_keys.append(key)
+    if missing_metric_keys != []:
+        metric_keys = present_metric_keys
+        logger.info("------------------------------------------------")     
+        logger.info(f"Samples dont have: {missing_metric_keys}. Skipping these.")
+    
     for sample in sample_list:
         if group_key.upper() == 'ALL':
             group = 'ALL'

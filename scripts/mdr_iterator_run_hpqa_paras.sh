@@ -58,7 +58,7 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_hpqaabst_hpqaeval_test8_beam100_maxh2_paras_mdr_orig_bs150 \
+    --prefix ITER_hpqaabst_hpqaeval_test9_beam150_maxh4_paras_mdr_orig_bs150 \
     --output_dir /large_data/thar011/out/mdr/logs \
     --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
@@ -71,7 +71,7 @@ python mdr_searchers.py \
     --gpu_model \
     --hnsw \
     --save_index \
-    --beam_size 100 \
+    --beam_size 150 \
     --topk 9 \
     --topk_stage2 5 \
     --s1_use_para_score \
