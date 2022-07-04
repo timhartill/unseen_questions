@@ -55,10 +55,15 @@
 #    --model_name roberta-base \
 #    --init_checkpoint /large_data/thar011/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
 
+#    --s1_use_para_score \
+#     --stop_ev_thresh 0.91 \
+#    --stop_ansconfdelta_thresh 18.0
+#     --hnsw \
+
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_hpqaabst_hpqaeval_test9_beam150_maxh4_paras_mdr_orig_bs150 \
+    --prefix ITER_hpqaabst_hpqaeval_test12_beam150_maxh4_gpufaiss_paras_mdr_orig_bs150 \
     --output_dir /large_data/thar011/out/mdr/logs \
     --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
@@ -69,7 +74,7 @@ python mdr_searchers.py \
     --init_checkpoint_stage1 /large_data/thar011/out/mdr/logs/stage1_test5_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-05-29-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --init_checkpoint_stage2 /large_data/thar011/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --gpu_model \
-    --hnsw \
+    --gpu_faiss \
     --save_index \
     --beam_size 150 \
     --topk 9 \
