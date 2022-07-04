@@ -630,7 +630,7 @@ def eval_samples(args, logger, samples):
             else:
                 p_ract = 0
             
-            s2bestsorted = sorted(sample['s2_best'] , key=lambda k: k['s1para_score'], reverse=True)
+            s2bestsorted = sorted(sample['s2_best'] , key=lambda k: k['s1para_score']+k['s2_score'], reverse=True)
             sp_sorted_unique = unique_preserve_order([s[evidence_key] for s in s2bestsorted])[:act_hops]
             sp_covered = [sp_title in sp_sorted_unique for sp_title in sample['sp']]
             if np.sum(sp_covered) == len(sp_covered):  #works for variable # of sp paras
