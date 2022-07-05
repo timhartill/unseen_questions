@@ -22,14 +22,16 @@
 # beam_size: # paras to retrieve each hop
 # topk: max # sents to return from stage 1 ie prior s2 sents + selected s1 sents <= 9
 # topk_stage2: max num sents to return from stage 2
-# s1_use_para_score: if set add s1 para rank score to each sent score before selecting topk sentences
+# s1_use_para_score: Stage 1: if set add s1 para rank score to each s1 sent score before selecting topk s1 sentences
+# s2_use_para_score: Stage 2: if set add s1 para rank score to each s2 sent score before selecting topk_stage2 s2 sentences
 # fp16: use fp16 on all models if set
 # max_q_len: max len of question excluding sents added to query by iterator
 # max_q_sp_len: retriever max input seq length 
 # max_c_len: stage models max input seq length
 # max_ans_len: stage models max answer seq length
 # predict_batch_size: batch size for stage 1 model, set small so can fit all models on 1 gpu
-# s2_sp_thresh: s2 sent score min for selection (unless < 2 sents over this score in which case will take both)
+# s2_sp_thresh: s2 sent score min for selection (unless < s2_min_take sents over this score in which case will take all)
+# s2_min_take: Min number of sentences to select from stage 2
 # max_hops: max number of retrieve->s1->s2 iterations on each sample
 # stop_ev_thresh: stop iterating if s2_ev_score >= this thresh. Set > 1.0 to ignore. 0.6 = best per s2 train eval but set higher to make stopping because of this conservative
 # stop_ansconfdelta_thresh = 18.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. Set high to make stopping because of this very rare
@@ -63,7 +65,7 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_hpqaabst_hpqaeval_test12_beam150_maxh4_gpufaiss_paras_mdr_orig_bs150 \
+    --prefix ITER_hpqaabst_hpqaeval_test13_beam150_maxh4_gpufaiss_m1_paras_mdr_orig_bs150 \
     --output_dir /large_data/thar011/out/mdr/logs \
     --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
@@ -80,6 +82,7 @@ python mdr_searchers.py \
     --topk 9 \
     --topk_stage2 5 \
     --s1_use_para_score \
+    --s2_use_para_score \
     --max_hops 4 \
     --max_q_len 70 \
     --max_q_sp_len 512 \
@@ -87,6 +90,7 @@ python mdr_searchers.py \
     --max_ans_len 35 \
     --predict_batch_size 26 \
     --s2_sp_thresh 0.10 \
+    --s2_min_take 1 \
     --stop_ev_thresh 0.91 \
     --stop_ansconfdelta_thresh 18.0
 
