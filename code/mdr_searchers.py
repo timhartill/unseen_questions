@@ -39,8 +39,9 @@ args.s2_min_take = 2                    # Min number of sentences to select from
 args.max_hops = 2                       # max num hops
 args.stop_ev_thresh = 0.91               # stop if s2_ev_score >= this thresh. Set > 1.0 to ignore. 0.6 = best per s2 train eval
 args.stop_ansconfdelta_thresh = 18.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. 5 seemed reasonable
-args.query_use_sentences = True          # if true use title: sents form for para in retriever query otherwise use full para text in query optionally prepended by title (retriever only: s1 always uses title | sents form)
-args.query_add_titles = True             # prepend retriever query paras with para title (only if using paras, if using sents always prepending title regardless)
+args.stop_lowerev = False                # Stop iterating if current hop s2ev_score < last hop s2ev_score. 
+args.query_use_sentences = False          # if true use title: sents form for para in retriever query otherwise use full para text in query optionally prepended by title (retriever only: s1 always uses title | sents form)
+args.query_add_titles = False             # prepend retriever query paras with para title (only if using paras, if using sents always prepending title regardless)
 
 """
 
@@ -223,7 +224,7 @@ class DenseSearcher():
         """ retrieve beam_size nearest paras and put them in 'dense_retrieved' key
         """
         with torch.inference_mode():        
-            s2_idxs = set([s['idx'] for s in sample['s2']])  # dont retrieve id2doc keys that are already in s2 output
+            s2_idxs = set([s['idx'] for s in sample['s2']])  # skip id2doc keys that are already in s2 output
             dense_query = self.encode_input(sample)  # create retriever query
             if self.args.gpu_model:
                 batch_q_sp_encodes = move_to_cuda(dict(dense_query))
@@ -533,6 +534,8 @@ def suff_evidence(args, hop, sample):
         sample['stop_reason'].append('aconf')
     if hop+1 >= args.max_hops:
         sample['stop_reason'].append('max')
+    if args.stop_lowerev and len(sample['s2_pred_hist']) > 0 and sample['s2_pred_hist'][-1][4] >= sample['s2ev_score']:
+        sample['stop_reason'].append('evlower')
     return True if len(sample['stop_reason']) > 0 else False
     
 
@@ -555,6 +558,8 @@ def get_best_hop(sample):
         if pred_hist[4] > best_score:
             best_score = pred_hist[4]
             best_hop = i
+            sample['best_hop'] = best_hop + 1
+            sample['total_hops'] = len(sample['s2_hist_all'])
             sample['s2_best'] = sample['s2_hist_all'][best_hop]
             for s in sample['s2_best']:
                 s['s2ev_score'] = best_score  # early bug had s2_hist ev scores all set to the latest one so copy the true s2_evscore back from pred_hist
@@ -580,9 +585,8 @@ def eval_samples(args, logger, samples):
         
     for sample in samples:
         get_best_hop(sample)
-        s2bestsorted = sorted(sample['s2_best'] , key=lambda k: k['s2_score']+k['s1para_score'] if args.s2_use_para_score else k['s2_score'], reverse=True)
-        sp_sorted_unique = unique_preserve_order([s[evidence_key] for s in s2bestsorted])
-        
+        s2bestsorted = sorted(sample['s2_best'] , key=lambda k: k['s1para_score']+k['s2_score'] if args.s2_use_para_score else k['s2_score'], reverse=True)
+        sp_sorted_unique = unique_preserve_order([s[evidence_key] for s in s2bestsorted])        
         sample['answer_em'] = exact_match_score(sample['s2_best_preds']['s2_ans_pred'], sample['answer'][0]) # not using multi-answer versions of exact match, f1
         f1, prec, recall = f1_score(sample['s2_best_preds']['s2_ans_pred'], sample['answer'][0])
         sample['answer_f1'] = f1
@@ -766,6 +770,8 @@ if __name__ == '__main__':
     create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em','sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
     create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
     create_grouped_metrics(logger, samples, group_key='type', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
+    create_grouped_metrics(logger, samples, group_key='best_hop', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'total_hops'])
+    create_grouped_metrics(logger, samples, group_key='total_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'best_hop'])
     create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
     
     logger.info('Finished!')

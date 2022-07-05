@@ -142,6 +142,7 @@ def eval_args():
     parser.add_argument('--s2_min_take', type=int, default=2, help="Min number of sentences to select from stage 2")
     parser.add_argument("--stop_ev_thresh", default=99.0, type=float, help="Stop iterating if s2ev_score >= this (s2ev_score between 0 & 1).")
     parser.add_argument("--stop_ansconfdelta_thresh", default=99999.0, type=float, help="Stop iterating if s2_ans_conf_delta >= this (Note: s2_ans_conf_delta not between 0 & 1. If 0.0 ans pred is insuff evidence).")
+    parser.add_argument("--stop_lowerev", action="store_true", help="Stop iterating if current hop s2ev_score < last hop s2ev_score.")
     
     return parser.parse_args()
 

@@ -35,6 +35,7 @@
 # max_hops: max number of retrieve->s1->s2 iterations on each sample
 # stop_ev_thresh: stop iterating if s2_ev_score >= this thresh. Set > 1.0 to ignore. 0.6 = best per s2 train eval but set higher to make stopping because of this conservative
 # stop_ansconfdelta_thresh = 18.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. Set high to make stopping because of this very rare
+# args.stop_lowerev = False           # Stop iterating if current hop s2ev_score < last hop s2ev_score. 
 # query_use_sentences = True      # Retriever only: If true use title: sents form in query otherwise use full para text (note s1 query always uses title | sents form)
 # query_add_titles = True         # Retriever only: Prepend query paras with para title (only if using paras, if using sents always prepending title regardless)
                                   # Note only add this if retriever was trained with titles prepended - FALSE for hpqa abstracts since many paras begin with a paraphrase of the title
