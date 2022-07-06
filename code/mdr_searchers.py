@@ -515,7 +515,7 @@ class Stage2Searcher():
             out_list.sort(key=lambda k: k['s2_score']+k['s1para_score'] if self.args.s2_use_para_score else k['s2_score'], reverse=True)
 
             if sample['s2_full'] != []:
-                sample['s2_hist'].append( copy.deepcopy(sample['s2_full']) )
+                sample['s2_hist'].append( copy.deepcopy(sample['s2_full']) )  #TODO in eval, filter out sents < minscore if want to match 's2' history.. 
             sample['s2_full'] = copy.deepcopy(out_list)
             
             if len(out_list) > self.args.s2_min_take:  # take at least min_take, filter out any below args.s2_sp_thresh later if desired
@@ -587,6 +587,7 @@ def eval_samples(args, logger, samples):
         get_best_hop(sample)
         s2bestsorted = sorted(sample['s2_best'] , key=lambda k: k['s1para_score']+k['s2_score'] if args.s2_use_para_score else k['s2_score'], reverse=True)
         sp_sorted_unique = unique_preserve_order([s[evidence_key] for s in s2bestsorted])        
+
         sample['answer_em'] = exact_match_score(sample['s2_best_preds']['s2_ans_pred'], sample['answer'][0]) # not using multi-answer versions of exact match, f1
         f1, prec, recall = f1_score(sample['s2_best_preds']['s2_ans_pred'], sample['answer'][0])
         sample['answer_f1'] = f1
@@ -722,7 +723,7 @@ if __name__ == '__main__':
             sample['dense_retrieved'] = []   # [id2doc idx1 para, id2doc idx2 para, ...]  paras retrieved this hop q + each para = s1 query
             sample['s1'] = []   # [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s1 = best sents from topk paras this hop
             sample['s2'] = []   # [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s2 = best sents to date filtered to s2topk and min score and min take
-            sample['s2_all'] = []   # [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s2 = best sents to date - full unfiltered s2
+            sample['s2_full'] = []   # [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s2 = best sents to date - full unfiltered s2
             sample['s2_ans_pred'] = ''
             sample['s2_ans_pred_score'] = -1.0
             sample['s2_ans_insuff_score'] = -1.0
@@ -763,6 +764,8 @@ if __name__ == '__main__':
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test8_beam100_maxh2_paras_mdr_orig_bs150-07-03-2022-iterator-fp16False-topkparas100-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops4-stopevthresh0.91-stopansconf18.0-retusesentsFalse-rettitlesFalse/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test9_beam150_maxh4_paras_mdr_orig_bs150-07-03-2022-iterator-fp16False-topkparas150-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops4-stopevthresh0.91-stopansconf18.0-retusesentsFalse-rettitlesFalse/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test12_beam150_maxh4_gpufaiss_paras_mdr_orig_bs150-07-04-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh0.91-stansconf18.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test11_beam150_maxh4_allmax_paras_mdr_orig_bs150-07-04-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test13_beam150_maxh4_gpufaiss_m1_paras_mdr_orig_bs150-07-05-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh0.91-stansconf18.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
 
     eval_samples(args, logger, samples)
     

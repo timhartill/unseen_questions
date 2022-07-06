@@ -62,11 +62,12 @@
 #     --stop_ev_thresh 0.91 \
 #    --stop_ansconfdelta_thresh 18.0
 #     --hnsw \
+#     --stop_lowerev \
 
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_hpqaabst_hpqaeval_test13_beam150_maxh4_gpufaiss_m1_paras_mdr_orig_bs150 \
+    --prefix ITER_hpqaabst_hpqaeval_test15_beam150_maxh4_gpufaiss_lwrev_paras_mdr_orig_bs150 \
     --output_dir /large_data/thar011/out/mdr/logs \
     --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
@@ -91,9 +92,10 @@ python mdr_searchers.py \
     --max_ans_len 35 \
     --predict_batch_size 26 \
     --s2_sp_thresh 0.10 \
-    --s2_min_take 1 \
-    --stop_ev_thresh 0.91 \
-    --stop_ansconfdelta_thresh 18.0
+    --s2_min_take 2 \
+    --stop_lowerev \
+    --stop_ev_thresh 1.01 \
+    --stop_ansconfdelta_thresh 99999.0
 
 
 

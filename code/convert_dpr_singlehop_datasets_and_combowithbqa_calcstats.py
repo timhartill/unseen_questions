@@ -5,10 +5,16 @@ Created on Mon Apr 11 17:11:34 2022
 
 @author: tim hartill
 
-Convert DPR versions of single hop datasets to "MDR" format to faciliate adding to training to bolster SQUAD-open retrieval performance
+Convert DPR versions of single hop datasets (NQ and TQA, we leave TREC and WebQuestions following analysis) to "MDR" format to faciliate adding to training to bolster SQUAD-open retrieval performance
 
 First download copies of the relevant files using the links found in https://github.com/facebookresearch/DPR/blob/main/dpr/data/download_data.py
 Then extract to their json form.
+
+ALSO:
+
+Combines beerqa (bqa) (with/without squad) + nq + tqa in different combos 
+Calculates stats on # distinct paras used per dataset etc..
+
 
 """
 

@@ -10,20 +10,29 @@ Convert Musique (ans) into uqa formatted datasets
 Notes:
 1.  Converting musique "ans" versions only, not "full" versions (which contain unanswerable questions where one+ of the decomp steps is unanswerable since no supporting para given)
     musique_ans_v0.1_dev.jsonl is constructed to not have answer overlap with musique_ans_v0.1_train.jsonl
-    Therefore we treat musique_ans_v0.1_dev.jsonl as an OOD eval only dataset but we create a training dataset from the decomps + paras
-    and construct a separate in-domain dev split from musique_ans_v0.1_train.jsonl
-    NB: Confusingly below we  use the term "full" to mean all the musique "ans" train split samples vs just those with unique answers
+    Therefore we treat musique_ans_v0.1_dev.jsonl as an OOD eval only dataset ("musique_mu_dev_.." 2417 samples) but we create a training dataset from the decomps + paras
+    and construct a separate in-domain dev split from musique_ans_v0.1_train.jsonl (382 samples)
+    NB: Confusingly below we  use the term "full" to mean all the musique "ans" train split samples (19938-382=19556 train samples) 
+    vs just those with unique answers (2057 train samples, 382 dev samples)
 2. label format with decomp steps: "<s> the answer ## decomp step 1? decomp ans ## decomp step 2? decomp ans ## decomp step 3? decomp ans </s>"
 3. This version, in contrast to (deprecated) convert_musique.py creates a train set of musique samples with unique answers (plus "full" versions)
-   and a new dev set which has unique answers within dev and with an answer+last decomp that's not in train.
+   and a new dev set which has unique answers within dev and with an answer+last decomp that's not in train. (2057 train samples, 382 dev samples)
    This is because Musique contains a lot of very similar questions with the same answer and the same final decomp step
-   which makes it easy for a model to learn a probabalistic bias.
+   which might make it possible for a model to learn a probabalistic bias.
 4. Added output of "explanations" versions which are formed by removing the '>>', format_sentencing both sub q and sub ans and randomly shuffling the (pairs) of sentences.
     od_ans: q \\n \t ans
     od_expl: Add explanation: q \\n \t explanation
     expl_ans: q \\n explanation \t ans
 5. Added output of self-supervised facts dataset in "dev in train" form..
+
+
+Initially developed against Musique v0.1. 
+Subsequently v1.0 was released which includes the test set but train/dev are identical to v0.1.
+
+Multiple paras in 'paragraphs' have same title & probably from same doc eg "Green" in mu_dev[0].
+
 """
+
 import os
 import copy
 import random
@@ -45,19 +54,29 @@ MU_DEV_FILE = 'musique_ans_v0.1_dev.jsonl'
 #MUFULL_TRAIN_FILE = 'musique_full_v0.1_train.jsonl'
 #mufull_train = load_jsonl(os.path.join(MU_DIR_IN, MUFULL_TRAIN_FILE))
 
-mu_train = load_jsonl(os.path.join(MU_DIR_IN, MU_TRAIN_FILE))
+mu_train = load_jsonl(os.path.join(MU_DIR_IN, MU_TRAIN_FILE))  #dict_keys(['id', 'paragraphs', 'question', 'question_decomposition', 'answer', 'answer_aliases', 'answerable'])
 mu_dev = load_jsonl(os.path.join(MU_DIR_IN, MU_DEV_FILE))
 
 def calc_unique_answers(mu_data):
-    """ See how many unique answers there are """
+    """ See how many unique answers there are
+    + unique paras ...
+    """
     all_answers = []
     all_answers_last_decomp = []
+    all_titles = set()
+    all_title_idxs = set()
     for mu_sample in mu_data:
         all_answers.append(mu_sample['answer'].lower().strip())
         all_answers_last_decomp.append(mu_sample['answer'].lower().strip() + mu_sample['question_decomposition'][-1]['question'].lower().strip())
+        for para in mu_sample['paragraphs']:
+            if para['is_supporting']:
+                all_titles.add(para['title'].lower())
+                all_title_idxs.add( (para['title'].lower(), para['paragraph_text'].lower()) )
+        
     unique_answers = set(all_answers)
     unique_ans_last_decomp = set(all_answers_last_decomp)
     print(f"Total count: {len(all_answers)}  Unique answers: {len(unique_answers)}  Unique ans+Last decomp: {len(unique_ans_last_decomp)}")
+    print(f"#Unique titles:{len(all_titles)}  #Unique paras:{len(all_title_idxs)}")
     ans_counts = Counter(all_answers)
     print(f'Top 20 Most common answers: {ans_counts.most_common(20)}')
     print(f'20 Least common answers: {ans_counts.most_common()[::-1][:20]}')    
