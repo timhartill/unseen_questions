@@ -24,11 +24,15 @@ args.gpu_model=True
 args.gpu_faiss=True
 args.hnsw = True
 args.save_index = True
-args.beam_size = 25      # num paras to return from retriever each hop
+args.beam_size = 25     # num paras to return from retriever each hop
 args.topk = 9           # max num sents to return from stage 1 ie prior s2 sents + selected s1 sents <= 9
 args.topk_stage2 = 5    # max num sents to return from stage 2
 args.s1_use_para_score = True  # Stage 1: use s1 para_score + s1 sent score (vs s1 sent score only) to determine topk sents from stage 1
+args.s1_para_sent_ratio = 0.5  # Stage 1 iter select: Ratio for formula s1_para_sent_ratio*s1 para score + (1-s1_para_sent_ratio)*s1 sent score (vs s1 sent score only) in selecting topk sentences.
+args.s1_para_sent_ratio_final = -1.0  #Stage 1 final select: Ratio for formula s1_para_sent_ratio_final*s1 para score + (1-s1_para_sent_ratio_final)*max(s1 sent score) (vs s1 sent score only) in selecting final R@20 topk sentences.
 args.s2_use_para_score = True  # Stage 2: Use s1 para score + s2 sent score (vs s2 sent score only) in selecting topk s2 sentences.
+args.s2_para_sent_ratio = 0.5        # Stage 2 iter select: Ratio for formula s2_para_sent_ratio*s1 para score + (1-s2_para_sent_ratio)*s2 sent score (vs s2 sent score only) in selecting topk sentences while iterating.
+args.s2_para_sent_ratio_final = -1.0  # Stage 2 final select: Ratio for formula s2_para_sent_ratio*s1 para score + (1-s2_para_sent_ratio)*s2 sent score (vs s2 sent score only) in selecting final topk sentences.
 args.max_q_len = 70
 args.max_q_sp_len = 512  # retriever max input seq len was 400
 args.max_c_len = 512     # stage models max input seq length
@@ -368,20 +372,24 @@ class Stage1Searcher():
                 para['s1_ans_insuff_score'] = span_answerer.insuff_scores[idx]
                 para['s1_ans_conf_delta'] = span_answerer.ans_delta[idx]
                 para['s1_para_score'] = rank_score
+                best_s1sent_score = -1.0
                 # get the sp sentences [ [title1, 0], [title1, 2], ..]
                 for s_idx, sp_score in enumerate(sp_scores[idx]):
                     if int(model_inputs['sent_offsets'][idx, s_idx]) == 0:  # 0 = padding = past # sents in this sample
                         break
                     s, e = para['sentence_spans'][s_idx]
                     sent = para['text'][s:e].strip()
+                    if sp_score > best_s1sent_score:
+                        best_s1sent_score = sp_score
                     if para.get('para_id') is None:  #hpqa abstracts
                         out_list.append( {'title': para['title'], 'sentence': sent, 'score': sp_score, 's1para_score': rank_score,
                                           'idx': para['idx'], 's_idx': s_idx}) 
                     else: # full wiki
                         out_list.append( {'title': para['title'], 'sentence': sent, 'score': sp_score, 's1para_score': rank_score,
                                           'idx': para['idx'], 'para_id': para['para_id'], 's_idx': s_idx}) 
+                para['s1_sent_score_max'] = best_s1sent_score
 
-            out_list.sort(key=lambda k: k['score']+k['s1para_score'] if self.args.s1_use_para_score else k['score'], reverse=True)
+            out_list.sort(key=lambda k: self.args.s1_para_sent_ratio*k['s1para_score']+(1-self.args.s1_para_sent_ratio)*k['score'] if self.args.s1_use_para_score else k['score'], reverse=True)
             if sample['s1'] != []:
                 sample['s1_hist'].append( copy.deepcopy(sample['s1']) )
             sample['s1'] = (sample['s2'] + out_list)[:self.args.topk]
@@ -512,10 +520,10 @@ class Stage2Searcher():
                 out['s2ev_score'] = rank_score
                 out_list.append( out )
 
-            out_list.sort(key=lambda k: k['s2_score']+k['s1para_score'] if self.args.s2_use_para_score else k['s2_score'], reverse=True)
+            out_list.sort(key=lambda k: self.args.s2_para_sent_ratio*k['s1para_score']+(1-self.args.s2_para_sent_ratio)*k['s2_score'] if self.args.s2_use_para_score else k['s2_score'], reverse=True)
 
             if sample['s2_full'] != []:
-                sample['s2_hist'].append( copy.deepcopy(sample['s2_full']) )  #TODO in eval, filter out sents < minscore if want to match 's2' history.. 
+                sample['s2_hist'].append( copy.deepcopy(sample['s2_full']) )  # in eval, filter out sents < minscore if want to match 's2' history.. 
             sample['s2_full'] = copy.deepcopy(out_list)
             
             if len(out_list) > self.args.s2_min_take:  # take at least min_take, filter out any below args.s2_sp_thresh later if desired
@@ -582,11 +590,115 @@ def eval_samples(args, logger, samples):
         evidence_key = 'para_id'    # full wiki
     else:
         evidence_key = 'title'      # hpqa abstracts
-        
+
     for sample in samples:
-        get_best_hop(sample)
-        s2bestsorted = sorted(sample['s2_best'] , key=lambda k: k['s1para_score']+k['s2_score'] if args.s2_use_para_score else k['s2_score'], reverse=True)
-        sp_sorted_unique = unique_preserve_order([s[evidence_key] for s in s2bestsorted])        
+        get_best_hop(sample)  # obtain best data from best hop by s2_ev_score
+
+    # calc best args.s1_para_sent_ratio_final and args.s2_para_sent_ratio_final
+    if (args.s1_use_para_score or args.s2_use_para_score) and (args.s1_para_sent_ratio_final == -1.0 or args.s2_para_sent_ratio_final == -1.0):
+        para_to_sent_ratios = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        best_s2_ratio_sp_facts_em = -1.0
+        best_s2_sp_facts_em = -1.0
+        best_s2_ratio_sp_em = -1.0
+        best_s2_sp_em = -1.0
+        best_ratio_r20 = -1.0
+        best_r20 = -1.0
+        best_ratio_ract = -1.0
+        best_ract = -1.0
+        if samples[0]['dense_retrieved'][-1].get('s1_sent_score_max') is None:  #older version of iterator didn't add 's1_sent_score_max' key in dense_retrieved[_hist] so add it from s1 + s1_hist
+            logger.info("Detected older version of samples, adding 's1_sent_score_max' key where possible...")
+            for sample in samples:
+                s1_dict = {}
+                for s1_sent in sample['s1']:
+                    if s1_dict.get( s1_sent['idx'] ) is None:
+                        s1_dict[s1_sent['idx']] = -1.0
+                    if s1_sent['score'] > s1_dict[ s1_sent['idx'] ]:
+                        s1_dict[s1_sent['idx']] = s1_sent['score']
+                for dr in sample['dense_retrieved']:
+                    dr['s1_sent_score_max'] = s1_dict.get( dr['idx'], 0.0 )
+                for h, s1 in enumerate(sample['s1_hist']):
+                    s1_dict = {}
+                    for s1_sent in s1:
+                        if s1_dict.get( s1_sent['idx'] ) is None:
+                            s1_dict[s1_sent['idx']] = -1.0
+                        if s1_sent['score'] > s1_dict[ s1_sent['idx'] ]:
+                            s1_dict[s1_sent['idx']] = s1_sent['score']
+                    for dr in sample['dense_retrieved_hist'][h]:
+                        dr['s1_sent_score_max'] = s1_dict.get( dr['idx'], 0.0 )                
+        
+        logger.info("Calculating best s1/s2 para score to sentence score ratios...")                        
+        for ps_ratio in para_to_sent_ratios:
+            sp_facts_ems = []
+            sp_ems = []
+            r20_ems = []
+            ract_ems = []
+            for sample in samples:
+                s2bestsorted = sorted(sample['s2_best'] , key=lambda k: ps_ratio*k['s1para_score']+(1-ps_ratio)*k['s2_score'] if args.s2_use_para_score else k['s2_score'], reverse=True)
+                sp_sorted_unique = unique_preserve_order([s[evidence_key] for s in s2bestsorted])
+                if sample.get('sp_facts') is not None and sample['sp_facts'] != []:
+                    act_sents = len(sample['sp_facts'])
+                    sp_facts_pred = [ [s[evidence_key], s['s_idx']] for s in s2bestsorted ][:act_sents]
+                    sp_facts_covered = [sp_fact in sp_facts_pred for sp_fact in sample['sp_facts']]
+                    sp_facts_ems.append( int(np.sum(sp_facts_covered) == len(sp_facts_covered)) ) #works for variable # of sp facts
+                if sample.get('sp') is not None and sample['sp'] != []:
+                    act_hops = len(sample['sp'])
+                    sp_pred = sp_sorted_unique[:act_hops]
+                    sp_covered = [sp_title in sp_pred for sp_title in sample['sp']]
+                    sp_ems.append( int(np.sum(sp_covered) == len(sp_covered)) )
+                    all_retrieved = sample['dense_retrieved'] + flatten(sample['dense_retrieved_hist'])
+                    all_retrieved.sort(key=lambda k: ps_ratio*k['s1_para_score']+(1-ps_ratio)*k.get('s1_sent_score_max', 0.0), reverse=True)
+                    all_retrieved = all_retrieved[:30]
+                    sp_r20_ev = unique_preserve_order([r[evidence_key] for r in all_retrieved])
+                    sp_covered = [sp_title in sp_r20_ev[:20] for sp_title in sample['sp']]
+                    r20_ems.append( int( np.sum(sp_covered) == len(sp_covered) ) ) 
+                    sp_covered = [sp_title in sp_r20_ev[:act_hops] for sp_title in sample['sp']]
+                    ract_ems.append( int( np.sum(sp_covered) == len(sp_covered) ) )
+                    
+            if len(sp_facts_ems) > 0:
+                mean_sp_facts = np.mean(sp_facts_ems)
+                if mean_sp_facts > best_s2_sp_facts_em:
+                    best_s2_ratio_sp_facts_em = ps_ratio
+                    best_s2_sp_facts_em = mean_sp_facts
+            if len(sp_ems) > 0:
+                mean_sp = np.mean(sp_ems)
+                if mean_sp > best_s2_sp_em:
+                    best_s2_ratio_sp_em = ps_ratio
+                    best_s2_sp_em = mean_sp
+            if len(r20_ems) > 0:
+                mean_r20 = np.mean(r20_ems)
+                if mean_r20 > best_r20:
+                    best_ratio_r20 = ps_ratio
+                    best_r20 = mean_r20
+            if len(ract_ems) > 0:
+                mean_ract = np.mean(ract_ems)
+                if mean_ract > best_ract:
+                    best_ratio_ract = ps_ratio
+                    best_ract = mean_ract
+                    
+        logger.info(f"Best s2_para_sent_ratio_final by sp_facts_em: {best_s2_ratio_sp_facts_em}  sp_facts_em:{best_s2_sp_facts_em} [info only]")
+        logger.info(f"Best s2_para_sent_ratio_final by sp_em: {best_s2_ratio_sp_em}  sp_em:{best_s2_sp_em}")
+        logger.info(f"Best s1_para_sent_ratio_final by r@20: {best_ratio_r20}  r@20:{best_r20}")
+        logger.info(f"Best s1_para_sent_ratio_final by r@acthops: {best_ratio_ract}  r@acthops:{best_ract} [info only]")
+        if args.s2_use_para_score and args.s2_para_sent_ratio_final == -1.0:
+            if best_s2_ratio_sp_em != -1.0:
+                logger.info(f"Setting s2_para_sent_ratio_final to {best_s2_ratio_sp_em}")
+                args.s2_para_sent_ratio_final = best_s2_ratio_sp_em
+            else:
+                logger.info(f"New s2_para_sent_ratio_final not found. Setting to {args.s2_para_sent_ratio}")
+                args.s2_para_sent_ratio_final = args.args.s2_para_sent_ratio
+        if args.s1_use_para_score and args.s1_para_sent_ratio_final == -1.0:
+            if best_ratio_r20 != -1.0:
+                logger.info(f"Setting s1_para_sent_ratio_final to {best_ratio_r20}")
+                args.s1_para_sent_ratio_final = best_ratio_r20
+            else:
+                logger.info(f"New s1_para_sent_ratio_final not found. Setting to {args.s1_para_sent_ratio}")
+                args.s1_para_sent_ratio_final = args.args.s1_para_sent_ratio
+
+    logger.info(f"Eval using s1_para_sent_ratio_final: {args.s1_para_sent_ratio_final} and s2_para_sent_ratio_final: {args.s2_para_sent_ratio_final}")
+    for sample in samples: # calc final numbers on best hop using best s1_para_sent_ratio_final and s2_para_sent_ratio_final
+        #get_best_hop(sample)
+        s2bestsorted = sorted(sample['s2_best'] , key=lambda k: args.s2_para_sent_ratio_final*k['s1para_score']+(1-args.s2_para_sent_ratio_final)*k['s2_score'] if args.s2_use_para_score else k['s2_score'], reverse=True)
+        sp_sorted_unique = unique_preserve_order([s[evidence_key] for s in s2bestsorted])
 
         sample['answer_em'] = exact_match_score(sample['s2_best_preds']['s2_ans_pred'], sample['answer'][0]) # not using multi-answer versions of exact match, f1
         f1, prec, recall = f1_score(sample['s2_best_preds']['s2_ans_pred'], sample['answer'][0])
@@ -608,10 +720,7 @@ def eval_samples(args, logger, samples):
             
             sp_facts_all = [ [s[evidence_key], s['s_idx']] for s in s2bestsorted ]
             sp_facts_covered = [sp_fact in sp_facts_all for sp_fact in sample['sp_facts']]
-            if np.sum(sp_facts_covered) == len(sp_facts_covered):  #works for variable # of sp facts
-                sf_em = 1      #if all gold facts in s2_best facts
-            else:
-                sf_em = 0
+            sf_em = int(np.sum(sp_facts_covered) == len(sp_facts_covered))  #works for variable # of sp facts
         else:
             metrics = {'sp_em': -1.0, 'sp_f1': -1.0, 'sp_prec': -1.0, 'sp_recall': -1.0}
         sample['sp_facts_covered_em'] = sf_em   # all gold facts in s2_full
@@ -627,41 +736,25 @@ def eval_samples(args, logger, samples):
             act_hops = len(sample['sp'])
             # R@20: = all gold paras in top 20 retrieved paras
             all_retrieved = sample['dense_retrieved'] + flatten(sample['dense_retrieved_hist'])
-            all_retrieved.sort(key=lambda k: k['s1_para_score'], reverse=True)
-            all_retrieved = all_retrieved[:20]
-            sample['sp_r20_ev'] = [r[evidence_key] for r in all_retrieved]
-            sp_covered = [sp_title in sample['sp_r20_ev'] for sp_title in sample['sp']]
-            if np.sum(sp_covered) == len(sp_covered):  #works for variable # of sp paras
-                p_r20 = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrieved para in gold paras
-            else:
-                p_r20 = 0            
+            all_retrieved.sort(key=lambda k: args.s1_para_sent_ratio_final*k['s1_para_score']+(1-args.s1_para_sent_ratio_final)*k.get('s1_sent_score_max', 0.0), reverse=True)
+            all_retrieved = all_retrieved[:100]
+            sample['sp_r20_ev'] = unique_preserve_order([r[evidence_key] for r in all_retrieved])  # occasionally there are duplicates in top 20..
+            sp_covered = [sp_title in sample['sp_r20_ev'][:20] for sp_title in sample['sp']]
+            p_r20 = int( np.sum(sp_covered) == len(sp_covered) )  #works for variable # of sp paras
             sp_covered = [sp_title in sample['sp_r20_ev'][:4] for sp_title in sample['sp']]
-            if np.sum(sp_covered) == len(sp_covered):  #works for variable # of sp paras
-                p_r4 = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrieved para in gold paras
-            else:
-                p_r4 = 0
+            p_r4 = int( np.sum(sp_covered) == len(sp_covered) )  #works for variable # of sp paras
             sp_covered = [sp_title in sample['sp_r20_ev'][:act_hops] for sp_title in sample['sp']]
-            if np.sum(sp_covered) == len(sp_covered):  #works for variable # of sp paras
-                p_ract = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrieved para in gold paras
-            else:
-                p_ract = 0
+            p_ract = int( np.sum(sp_covered) == len(sp_covered) )  #works for variable # of sp paras
             
             sample['sp_pred'] = sp_sorted_unique[:act_hops]
             sp_covered = [sp_title in sample['sp_pred'] for sp_title in sample['sp']]
-            if np.sum(sp_covered) == len(sp_covered):  #works for variable # of sp paras
-                p_em_act = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrived para in gold paras
-            else:
-                p_em_act = 0
+            p_em_act = int( np.sum(sp_covered) == len(sp_covered) )  #redundant with sp_em, kept for prior compatibility
             metrics = {'sp_em': 0.0, 'sp_f1': 0.0, 'sp_prec': 0.0, 'sp_recall': 0.0}
             update_sp(metrics, sample['sp_pred'], sample['sp'])
             
-            p_em = 0
             sp_all = list(set( [s[evidence_key] for s in sample['s2_best'] ] ))
             sp_covered = [sp_title in sp_all for sp_title in sample['sp']]
-            if np.sum(sp_covered) == len(sp_covered):  #works for variable # of sp paras
-                p_em = 1      #if len(sp)=2 both retrieved para in gold paras, if len(sp)=1, single retrived para in gold paras
-            else:
-                p_em = 0
+            p_em = int( np.sum(sp_covered) == len(sp_covered) )  #works for variable # of sp paras
         else:
             metrics = {'sp_em': -1.0, 'sp_f1': -1.0, 'sp_prec': -1.0, 'sp_recall': -1.0}
         sample['act_hops'] = act_hops
@@ -766,6 +859,9 @@ if __name__ == '__main__':
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test12_beam150_maxh4_gpufaiss_paras_mdr_orig_bs150-07-04-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh0.91-stansconf18.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test11_beam150_maxh4_allmax_paras_mdr_orig_bs150-07-04-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test13_beam150_maxh4_gpufaiss_m1_paras_mdr_orig_bs150-07-05-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh0.91-stansconf18.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test14_beam150_maxh4_gpufaiss_s2pscr_paras_mdr_orig_bs150-07-06-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh0.91-stansconf18.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test15_beam150_maxh4_gpufaiss_lwrev_paras_mdr_orig_bs150-07-06-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+
 
     eval_samples(args, logger, samples)
     
@@ -773,9 +869,9 @@ if __name__ == '__main__':
     create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em','sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
     create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
     create_grouped_metrics(logger, samples, group_key='type', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
-    create_grouped_metrics(logger, samples, group_key='best_hop', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'total_hops'])
-    create_grouped_metrics(logger, samples, group_key='total_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'best_hop'])
-    create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
+#    create_grouped_metrics(logger, samples, group_key='best_hop', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'total_hops'])
+#    create_grouped_metrics(logger, samples, group_key='total_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'best_hop'])
+#    create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
     
     logger.info('Finished!')
     
