@@ -68,7 +68,11 @@ def main():
 
     if not args.predict_file:
         raise ValueError(
-            "If `do_predict` is True, then `predict_file` must be specified.")
+            "`predict_file` must be specified.")
+
+    if args.update_id2doc_only:
+        logger.info(f"--update_id2doc_only flag set so corpus id2doc.json file will be updated in {args.embed_save_path} but not embeddings in index.npy.")
+
 
     bert_config = AutoConfig.from_pretrained(args.model_name)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
@@ -82,6 +86,10 @@ def main():
 
     eval_dataset = EmDataset(tokenizer, args.predict_file, args.max_q_len, args.max_c_len, args.is_query_embed, args.embed_save_path)
     eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=em_collate, pin_memory=True, num_workers=args.num_workers)
+    
+    if args.update_id2doc_only:
+        logger.info(f"--update_id2doc_only flag set so corpus id2doc.json file updated in {args.embed_save_path} but not embeddings in index.npy. Exiting.")
+        return
 
     assert args.init_checkpoint != ""
     model = load_saved(model, args.init_checkpoint, exact=False)

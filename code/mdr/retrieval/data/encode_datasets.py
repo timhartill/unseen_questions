@@ -66,7 +66,7 @@ class EmDataset(Dataset):
                 if self.data[0].get('paras') is not None:
                     self.data_format = 'paras'
                 
-            print(f"load {len(self.data)} documents with '{self.data_format}' format...")
+            print(f"Loaded {len(self.data)} documents with '{self.data_format}' format...")
             id2doc = {}
             if self.data_format == 'abstracts':
                 for idx, doc in enumerate(self.data):
@@ -78,7 +78,7 @@ class EmDataset(Dataset):
                     for para_idx, para in enumerate(doc['paras']):
                         newid = doc['id'] + '_' + str(para_idx)
                         title_unescaped = unescape(doc["title"]) # use unescaped title
-                        id2doc[idx] = (title_unescaped, para["text"], doc["sentence_spans"], newid)  # idx is numeric here but when saved to json it's a str..
+                        id2doc[idx] = (title_unescaped, para["text"], para["sentence_spans"], newid)  # idx is numeric here but when saved to json it's a str..
                         new_data.append( {"title": title_unescaped, "text": para["text"]} )  #don't need para_id for __getitem__()
                         idx += 1
                 self.data = new_data

@@ -45,7 +45,7 @@
 # query_add_titles = True         # Retriever only: Prepend query paras with para title (only if using paras, if using sents always prepending title regardless)
                                   # Note only add this if retriever was trained with titles prepended - FALSE for hpqa abstracts since many paras begin with a paraphrase of the title
 
-# encoded corpus: hpqa_varinitialtest2_03_36_be24_no_momentum  1gpu +varsteps no momentum using para query encoding
+# encoded corpus: hpqa_varinitialtest2_03_66_be24_no_momentum  1gpu +varsteps no momentum using para query encoding
 #    --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_varinitialtest2_03-26_bs24_no_momentum/index.npy \
 #    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hpqa_varinitialtest2_03-26_bs24_no_momentum/id2doc.json \
 #    --model_name roberta-base \
@@ -63,29 +63,41 @@
 #    --model_name roberta-base \
 #    --init_checkpoint /large_data/thar011/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
 
+# encoded corpus: full wikipedia (bqa dump) mencoder trained on bqa minus squad +nq +tqa
+#    --index_path /large_data/thar011/out/mdr/encoded_corpora/bqa_nosquad_nq_tqa_test3-04-14_bs24_no_momentum_cenone_ckpt_best/index.npy \
+#    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/bqa_nosquad_nq_tqa_test3-04-14_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
+#    --model_name roberta-base \
+#    --init_checkpoint /large_data/thar011/out/mdr/logs/bqa_nosquad_nq_tqa_test3-04-14-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+
+
+
 #    --s1_use_para_score \
 #     --stop_ev_thresh 0.91 \
 #    --stop_ansconfdelta_thresh 18.0
 #     --hnsw \
 #     --stop_lowerev \
+# /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
+# /home/thar011/data/baleen_downloads/hover/hover_qas_val_with_spfacts.jsonl \
+# /home/thar011/data/strategyqa/strategyqa_aristotle_qas_val_with_spfacts.jsonl \
+
 
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_hpqaabst_hpqaeval_test19_beam400_maxh2_gpufaiss_paras_mdr_orig_bs150 \
+    --prefix ITER_wiki_aristoeval_test25_beam150_maxh4_bqanosquadnqtqabs24 \
     --output_dir /large_data/thar011/out/mdr/logs \
-    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
-    --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
-    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+    --predict_file /home/thar011/data/strategyqa/strategyqa_aristotle_qas_val_with_spfacts.jsonl \
+    --index_path /large_data/thar011/out/mdr/encoded_corpora/bqa_nosquad_nq_tqa_test3-04-14_bs24_no_momentum_cenone_ckpt_best/index.npy \
+    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/bqa_nosquad_nq_tqa_test3-04-14_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
     --model_name roberta-base \
-    --init_checkpoint /large_data/thar011/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
+    --init_checkpoint /large_data/thar011/out/mdr/logs/bqa_nosquad_nq_tqa_test3-04-14-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
     --model_name_stage google/electra-large-discriminator \
     --init_checkpoint_stage1 /large_data/thar011/out/mdr/logs/stage1_test5_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-05-29-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --init_checkpoint_stage2 /large_data/thar011/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --gpu_model \
-    --gpu_faiss \
+    --hnsw \
     --save_index \
-    --beam_size 400 \
+    --beam_size 150 \
     --topk 9 \
     --topk_stage2 5 \
     --s1_use_para_score \
@@ -94,7 +106,7 @@ python mdr_searchers.py \
     --s2_use_para_score \
     --s2_para_sent_ratio 0.5 \
     --s2_para_sent_ratio_final -1.0 \
-    --max_hops 2 \
+    --max_hops 4 \
     --max_q_len 70 \
     --max_q_sp_len 512 \
     --max_c_len 512 \

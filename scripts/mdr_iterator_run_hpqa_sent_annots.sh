@@ -38,12 +38,31 @@
                                   # Note only add this if retriever was trained with titles prepended - FALSE for hpqa abstracts since many paras begin with a paraphrase of the title
 
 
+# hpqa mdr orig ckpt"
+#    --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/index.npy \
+#    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
+#    --model_name roberta-base \
+#    --init_checkpoint /large_data/thar011/out/mdr/logs/hpqa_sent_annots_test1-04-18-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+
+#hover 1gpu bs24 query= sent encoding:
+#    --index_path /large_data/thar011/out/mdr/encoded_corpora/hover_sent_annots_test1-05-01_bs24_no_momentum_cenone_ckpt_best/index.npy \
+#    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hover_sent_annots_test1-05-01_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
+#    --model_name roberta-base \
+#    --init_checkpoint /large_data/thar011/out/mdr/logs/hover_sent_annots_test1-05-01-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+
+
+
+#    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
+#    --predict_file /home/thar011/data/baleen_downloads/hover/hover_qas_val_with_spfacts.jsonl \
+
+
+
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_hpqaabst_hpqaeval_test4_beam100_maxh4 \
+    --prefix ITER_hpqaabst_hovereval_test22_beam25_maxh4_hpqabs24trained \
     --output_dir /large_data/thar011/out/mdr/logs \
-    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
+    --predict_file /home/thar011/data/baleen_downloads/hover/hover_qas_val_with_spfacts.jsonl \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/index.npy \
     --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/id2doc.json \
     --model_name roberta-base \
@@ -52,13 +71,18 @@ python mdr_searchers.py \
     --init_checkpoint_stage1 /large_data/thar011/out/mdr/logs/stage1_test5_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-05-29-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --init_checkpoint_stage2 /large_data/thar011/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --gpu_model \
-    --hnsw \
+    --gpu_faiss \
     --save_index \
     --query_use_sentences \
-    --beam_size 100 \
+    --beam_size 25 \
     --topk 9 \
     --topk_stage2 5 \
     --s1_use_para_score \
+    --s1_para_sent_ratio 0.5 \
+    --s1_para_sent_ratio_final -1.0 \
+    --s2_use_para_score \
+    --s2_para_sent_ratio 0.5 \
+    --s2_para_sent_ratio_final -1.0 \
     --max_hops 4 \
     --max_q_len 70 \
     --max_q_sp_len 512 \
@@ -66,8 +90,9 @@ python mdr_searchers.py \
     --max_ans_len 35 \
     --predict_batch_size 26 \
     --s2_sp_thresh 0.10 \
-    --stop_ev_thresh 0.91 \
-    --stop_ansconfdelta_thresh 18.0
+    --s2_min_take 2 \
+    --stop_ev_thresh 1.01 \
+    --stop_ansconfdelta_thresh 99999.0
 
 
 

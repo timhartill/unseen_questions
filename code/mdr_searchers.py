@@ -105,10 +105,10 @@ class DenseSearcher():
         self.args = args
         self.logger = logger
 
-        logger.info(f"Loading trained dense retrieval encoder model  {args.model_name}...")
+        logger.info(f"Loading trained dense retrieval encoder model {args.model_name} from {args.init_checkpoint}...")
         self.bert_config = AutoConfig.from_pretrained(args.model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-        #self.simple_tokenizer = SimpleTokenizer()  #TODO needed in eval?        
+        #self.simple_tokenizer = SimpleTokenizer()  #TODO needed in eval?
         self.model = RobertaRetriever_var(self.bert_config, args)
         self.model = load_saved(self.model, args.init_checkpoint, exact=args.exact, strict=args.strict) #TJH added  strict=args.strict
         if args.gpu_model:
@@ -260,7 +260,7 @@ class Stage1Searcher():
         self.args = args
         self.logger = logger
 
-        logger.info(f"Loading trained stage 1 reranker model  {args.model_name_stage}...")
+        logger.info(f"Loading trained stage 1 reranker model {args.model_name_stage} from {args.init_checkpoint_stage1}...")
         self.bert_config = AutoConfig.from_pretrained(args.model_name_stage)
         self.tokenizer = AutoTokenizer.from_pretrained(args.model_name_stage, use_fast=True, additional_special_tokens=ADDITIONAL_SPECIAL_TOKENS)
         self.model = StageModel(self.bert_config, args)
@@ -406,7 +406,7 @@ class Stage2Searcher():
         self.args = args
         self.logger = logger
 
-        logger.info(f"Loading trained stage 2 reranker model  {args.model_name_stage}...")
+        logger.info(f"Loading trained stage 2 reranker model {args.model_name_stage} from {args.init_checkpoint_stage2}...")
         self.bert_config = AutoConfig.from_pretrained(args.model_name_stage)
         self.tokenizer = AutoTokenizer.from_pretrained(args.model_name_stage, use_fast=True, additional_special_tokens=ADDITIONAL_SPECIAL_TOKENS)
         self.model = StageModel(self.bert_config, args)
@@ -630,7 +630,7 @@ def eval_samples(args, logger, samples):
                     for dr in sample['dense_retrieved_hist'][h]:
                         dr['s1_sent_score_max'] = s1_dict.get( dr['idx'], 0.0 )
         
-        logger.info("Calculating best s1 and s2 para score to sentence score ratios...")                        
+        logger.info("Calculating best s1 and s2 para score to sentence score ratios (if gold paras present)...")                        
         for ps_ratio in para_to_sent_ratios:
             sp_facts_ems = []
             sp_ems = []
@@ -694,14 +694,14 @@ def eval_samples(args, logger, samples):
                 args.s2_para_sent_ratio_final = best_s2_ratio_sp_em
             else:
                 logger.info(f"New s2_para_sent_ratio_final not found. Setting to {args.s2_para_sent_ratio}")
-                args.s2_para_sent_ratio_final = args.args.s2_para_sent_ratio
+                args.s2_para_sent_ratio_final = args.s2_para_sent_ratio
         if args.s1_use_para_score and args.s1_para_sent_ratio_final == -1.0:
             if best_ratio_r20 != -1.0:
                 logger.info(f"Setting s1_para_sent_ratio_final to {best_ratio_r20}")
                 args.s1_para_sent_ratio_final = best_ratio_r20
             else:
                 logger.info(f"New s1_para_sent_ratio_final not found. Setting to {args.s1_para_sent_ratio}")
-                args.s1_para_sent_ratio_final = args.args.s1_para_sent_ratio
+                args.s1_para_sent_ratio_final = args.s1_para_sent_ratio
 
     logger.info(f"Eval using s1_para_sent_ratio_final: {args.s1_para_sent_ratio_final} and s2_para_sent_ratio_final: {args.s2_para_sent_ratio_final}")
     for sample in samples: # calc final numbers on best hop using best s1_para_sent_ratio_final and s2_para_sent_ratio_final
@@ -876,7 +876,16 @@ if __name__ == '__main__':
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test14_beam150_maxh4_gpufaiss_s2pscr_paras_mdr_orig_bs150-07-06-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh0.91-stansconf18.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test15_beam150_maxh4_gpufaiss_lwrev_paras_mdr_orig_bs150-07-06-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test16_beam150_maxh4_gpufaiss_s1psr_paras_mdr_orig_bs150-07-07-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh0.91-stansconf18.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test17_beam150_maxh4_gpufaiss_s2.4_paras_mdr_orig_bs150-07-07-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh0.91-stansconf18.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test18_beam200_maxh4_gpufaiss_paras_mdr_orig_bs150-07-08-2022-ITER-16False-tkparas200-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hpqaeval_test19_beam400_maxh2_gpufaiss_paras_mdr_orig_bs150-07-08-2022-ITER-16False-tkparas400-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops2-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
 
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hovereval_test20_beam25_maxh4_gpufaiss_paras_mdr_orig_bs150-07-10-2022-ITER-16False-tkparas25-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hovereval_test21_beam25_maxh4_hovertrained-07-10-2022-ITER-16False-tkparas25-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsTrue-rtitlesFalse/samples_with_context.jsonl')
+
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_aristoeval_test24_beam200_maxh4_orig8gpu_bs150-07-12-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+
+    #samples = utils.load_jsonl('')
 
     eval_samples(args, logger, samples)
     
@@ -884,9 +893,9 @@ if __name__ == '__main__':
     create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em','sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
     create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
     create_grouped_metrics(logger, samples, group_key='type', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
-#    create_grouped_metrics(logger, samples, group_key='best_hop', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'total_hops'])
-#    create_grouped_metrics(logger, samples, group_key='total_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'best_hop'])
-#    create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
+    create_grouped_metrics(logger, samples, group_key='total_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'best_hop'])
+    create_grouped_metrics(logger, samples, group_key='best_hop', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'total_hops'])
+    create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
     
     logger.info('Finished!')
     

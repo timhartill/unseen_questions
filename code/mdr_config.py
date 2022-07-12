@@ -98,7 +98,7 @@ def train_args():
     parser.add_argument('--seed', type=int, default=3,
                         help="random seed for initialization")
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
-                        help="Number of updates steps to accumualte before performing a backward/update pass.")
+                        help="Number of updates steps to accumulate before performing a backward/update pass.")
     parser.add_argument('--eval-period', type=int, default=2500)
     parser.add_argument("--max_grad_norm", default=2.0, type=float, help="Max gradient norm.")
     parser.add_argument("--use-adam", action="store_true", help="use adam or adamW")
@@ -115,6 +115,8 @@ def encode_args():
     parser = common_args()
     parser.add_argument('--embed_save_path', type=str, default="", help="Directory to save into. Will be created if doesnt exist.")
     parser.add_argument('--is_query_embed', action="store_true")
+    parser.add_argument('--update_id2doc_only', action="store_true")
+
     args = parser.parse_args()
     return args
 
