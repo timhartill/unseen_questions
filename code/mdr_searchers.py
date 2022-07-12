@@ -185,7 +185,7 @@ class DenseSearcher():
         id2doc = json.load(open(args.corpus_dict))
         self.evidence_key = 'title'
         if isinstance(id2doc["0"], list):
-            if len(id2doc["0"]) == 3 or not str(id2doc["0"][2]).replace('_', '').isnumeric():
+            if len(id2doc["0"]) == 3 or not str(id2doc["0"][3]).replace('_', '').isnumeric():
                 self.id2doc = {k: {"title":v[0], "text": v[1], "sentence_spans":v[2]} for k, v in id2doc.items()}
             else:
                 self.id2doc = {k: {"title":v[0], "text": v[1], "sentence_spans":v[2], "para_id": v[3]} for k, v in id2doc.items()}
@@ -884,6 +884,9 @@ if __name__ == '__main__':
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_hovereval_test21_beam25_maxh4_hovertrained-07-10-2022-ITER-16False-tkparas25-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsTrue-rtitlesFalse/samples_with_context.jsonl')
 
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_hpqaabst_aristoeval_test24_beam200_maxh4_orig8gpu_bs150-07-12-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_wiki_aristoeval_test25_beam150_maxh4_bqanosquadnqtqabs24-07-12-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_wiki_aristoeval_test26_beam400_maxh4_bqanosquadnqtqabs24-07-12-2022-ITER-16False-tkparas400-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
+
 
     #samples = utils.load_jsonl('')
 

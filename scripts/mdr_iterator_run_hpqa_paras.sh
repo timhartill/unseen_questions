@@ -84,7 +84,7 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_wiki_aristoeval_test25_beam150_maxh4_bqanosquadnqtqabs24 \
+    --prefix ITER_wiki_aristoeval_test26_beam400_maxh4_bqanosquadnqtqabs24 \
     --output_dir /large_data/thar011/out/mdr/logs \
     --predict_file /home/thar011/data/strategyqa/strategyqa_aristotle_qas_val_with_spfacts.jsonl \
     --index_path /large_data/thar011/out/mdr/encoded_corpora/bqa_nosquad_nq_tqa_test3-04-14_bs24_no_momentum_cenone_ckpt_best/index.npy \
@@ -97,7 +97,7 @@ python mdr_searchers.py \
     --gpu_model \
     --hnsw \
     --save_index \
-    --beam_size 150 \
+    --beam_size 400 \
     --topk 9 \
     --topk_stage2 5 \
     --s1_use_para_score \
