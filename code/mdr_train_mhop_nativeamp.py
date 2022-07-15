@@ -297,7 +297,7 @@ def predict(args, model, eval_dataloader, device, logger):
                     acc_per_hop_all[hop] += accuracies_per_hop[hop] # eg. 2=q+sp1 {2: [0, 1, 1, 1, 0], 3: [0, 1, 1], 4: [0, 1]}
                 acc_per_sample_all += accuracies_per_sample
             else:
-                eval_results, accuracies_per_hop, accuracies_per_sample = eval_func(outputs, args)  # eg 1=q_only, 2=q+2p1 rrs={1: [1.0, 0.125, 0.2], 2: [0.125, 0.5], 3: []}
+                eval_results = eval_func(outputs, args)  # eg 1=q_only, 2=q+2p1 rrs={1: [1.0, 0.125, 0.2], 2: [0.125, 0.5], 3: []}
                 
             for hop in eval_results:
                 if rrs_all.get(hop) is None:

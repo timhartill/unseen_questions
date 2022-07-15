@@ -13,13 +13,19 @@
 
 # set --update_id2doc_only to only update the id2doc file eg to add sentence span info without encoding para embeddings.
 
-# encode hpqa using hpqa-trained query as title:sents model 
+# encode hpqa abstracts using hpqa-trained model which used query title:sents enc: 
 #    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_with_sent_spans.jsonl \
 #    --init_checkpoint /large_data/thar011/out/mdr/logs/hpqa_sent_annots_test1-04-18-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
 #    --embed_save_path /large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best \
 
 
-# encode full wikipedia:
+# encode hpqa abstracts using hpqa+hover trained model which used query para enc:
+#    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_with_sent_spans.jsonl \
+#    --init_checkpoint /large_data/thar011/out/mdr/logs/hover_hpqa_paras_test3-07-12-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+#    --embed_save_path /large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_paras_test3-07-12-2022-nomom \
+
+
+# encode full wikipedia using bqa_nosquad+nq+tqa traine dmodel which used query para enc:
 #    --predict_file /home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl \
 #    --init_checkpoint /large_data/thar011/out/mdr/logs/bqa_nosquad_nq_tqa_test3-04-14-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
 #    --embed_save_path /large_data/thar011/out/mdr/encoded_corpora/bqa_nosquad_nq_tqa_test3-04-14_bs24_no_momentum_cenone_ckpt_best \
@@ -33,13 +39,12 @@ python mdr_encode_corpus_nativeamp.py \
     --do_predict \
     --predict_batch_size 500 \
     --model_name roberta-base \
-    --predict_file /home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl \
-    --init_checkpoint /large_data/thar011/out/mdr/logs/bqa_nosquad_nq_tqa_test3-04-14-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
-    --embed_save_path /large_data/thar011/out/mdr/encoded_corpora/bqa_nosquad_nq_tqa_test3-04-14_bs24_no_momentum_cenone_ckpt_best \
+    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_with_sent_spans.jsonl \
+    --init_checkpoint /large_data/thar011/out/mdr/logs/hover_hpqa_paras_test3-07-12-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+    --embed_save_path /large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_paras_test3-07-12-2022-nomom \
     --use_var_versions \
     --fp16 \
     --max_c_len 300 \
-    --update_id2doc_only \
     --num_workers 10
 
 

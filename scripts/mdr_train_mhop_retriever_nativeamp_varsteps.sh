@@ -20,30 +20,34 @@
 #bqa no squad nq tqa train /home/thar011/data/DPR/bqa_nosquad_nq_tqa_train_v1.0_with_neg_v0.jsonl
 #bqa no squad nq tqa predict /home/thar011/data/DPR/bqa_nosquad_nq_tqa_dev_v1.0_with_neg_v0.jsonl
 #hover train /home/thar011/data/baleen_downloads/hover/hover_train_with_neg_and_sent_annots.jsonl
-#hover 
+#hover dev   /home/thar011/data/baleen_downloads/hover/hover_dev_with_neg_and_sent_annots.jsonl
+# hpqa+hover train /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_train_with_neg_v0_sentannots.jsonl
+# hpqa+hover dev /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_dev_with_neg_v0_sentannots.jsonl
 
 #bqa ~134k training samples vs ~90k hpqa. On 1 gpu bs24 est 1hr 15mins per epoch vs ~45mins per epoch.  
 
 #     --query_add_titles \
-# --random_multi_seq \  #TJH added below even though not part of hover_sent_annots_test2_norand run to avoid forgetting to put it back later (randomises para ordering in each step)
+# --random_multi_seq \  # (randomises para ordering in each step)
+#    --query_use_sentences \
+#    --query_add_titles \
 
 cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix hover_sent_annots_test2_norand \
+    --prefix hover_hpqa_paras_test3 \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \
     --learning_rate 2e-5 \
     --fp16 \
-    --train_file /home/thar011/data/baleen_downloads/hover/hover_train_with_neg_and_sent_annots.jsonl \
-    --predict_file /home/thar011/data/baleen_downloads/hover/hover_dev_with_neg_and_sent_annots.jsonl \
+    --train_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_train_with_neg_v0_sentannots.jsonl \
+    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_dev_with_neg_v0_sentannots.jsonl \
     --seed 16 \
     --eval-period -1 \
     --max_c_len 300 \
     --max_q_len 70 \
-    --max_q_sp_len 400 \
+    --max_q_sp_len 512 \
     --shared-encoder \
     --gradient_accumulation_steps 1 \
     --use_var_versions \
@@ -51,8 +55,6 @@ python mdr_train_mhop_nativeamp.py \
     --retrieve_loss_multiplier 1.0 \
     --max_hops 4 \
     --num_negs 2 \
-    --query_use_sentences \
-    --query_add_titles \
     --random_multi_seq \
     --output_dir /large_data/thar011/out/mdr/logs \
     --num_train_epochs 50 \

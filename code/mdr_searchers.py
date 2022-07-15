@@ -743,10 +743,27 @@ def eval_samples(args, logger, samples):
         sample['joint_em'] = joint_em
         sample['joint_f1'] = joint_f1
 
-        act_hops, p_em, p_r20, p_r4, p_ract, p_em_act = -1, -1, -1, -1, -1, -1
+        act_hops, p_em, p_r20_rdist, p_r20, p_r4, p_ract, p_em_act = -1, -1, -1, -1, -1, -1, -1
         if sample.get('sp') is not None and sample['sp'] != []:
             act_hops = len(sample['sp'])
-            # R@20: = all gold paras in top 20 retrieved paras
+            
+            # R@20_rdist = all gold_paras in top 10 retrieved paras from each hop ordered by retriever distance
+            ret_by_hop = sample['dense_retrieved_hist'] + [sample['dense_retrieved']]
+            #ret_by_hop = ret_by_hop[:sample['best_hop']]
+            take_per_hop = 10 #// sample['best_hop']
+            #if 20 % sample['best_hop'] > 0:  # best_hop = 3
+            #    take_per_hop += 1
+            top_retrieved = []
+            for ret in ret_by_hop:
+                ret.sort(key=lambda k: args.s1_para_sent_ratio_final*k['s1_para_score'] + 
+                                             (1-args.s1_para_sent_ratio_final)*k.get('s1_sent_score_max', 0.0), 
+                         reverse=True)
+                top_retrieved.extend(ret[:take_per_hop])
+            top_retrieved = unique_preserve_order([r[evidence_key] for r in top_retrieved])
+            sp_covered = [sp_title in top_retrieved[:20] for sp_title in sample['sp']]
+            p_r20_rdist = int( np.sum(sp_covered) == len(sp_covered) )
+
+            # R@20: = all gold paras in top 20 retrieved paras from all retrieved paras
             all_retrieved = sample['dense_retrieved'] + flatten(sample['dense_retrieved_hist'])
             all_retrieved.sort(key=lambda k: args.s1_para_sent_ratio_final*k['s1_para_score'] + 
                                              (1-args.s1_para_sent_ratio_final)*k.get('s1_sent_score_max', 0.0), 
@@ -772,6 +789,7 @@ def eval_samples(args, logger, samples):
         else:
             metrics = {'sp_em': -1.0, 'sp_f1': -1.0, 'sp_prec': -1.0, 'sp_recall': -1.0}
         sample['act_hops'] = act_hops
+        sample['sp_r20_rdist'] = p_r20_rdist
         sample['sp_r20'] = p_r20
         sample['sp_r4'] = p_r4
         sample['sp_ract'] = p_ract
@@ -892,13 +910,13 @@ if __name__ == '__main__':
 
     eval_samples(args, logger, samples)
     
-    #create_grouped_metrics(logger, samples, group_key='ALL', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
-    create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em','sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
-    create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
-    create_grouped_metrics(logger, samples, group_key='type', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
-    create_grouped_metrics(logger, samples, group_key='total_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'best_hop'])
-    create_grouped_metrics(logger, samples, group_key='best_hop', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'total_hops'])
-    create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20'])
+    #create_grouped_metrics(logger, samples, group_key='ALL', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
+    create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em','sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
+    create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
+    create_grouped_metrics(logger, samples, group_key='type', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
+    create_grouped_metrics(logger, samples, group_key='total_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist', 'best_hop'])
+    create_grouped_metrics(logger, samples, group_key='best_hop', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist', 'total_hops'])
+    create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
     
     logger.info('Finished!')
     

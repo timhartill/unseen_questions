@@ -208,8 +208,8 @@ def save_train_dev_file(split, outdir, src='nq', filetype='train'):
                 
 
 random.seed(42)        
-out_dev_nq, out_qasval_nq = save_train_dev_file(nq_dev, OUTDIR_NQTQA, src='nq', filetype='dev')       
-out_train_nq, _ = save_train_dev_file(nq_train_adv, OUTDIR_NQTQA, src='nq', filetype='train')   
+out_dev_nq, out_qasval_nq = save_train_dev_file(nq_dev, OUTDIR_NQTQA, src='nq', filetype='dev')
+out_train_nq, _ = save_train_dev_file(nq_train_adv, OUTDIR_NQTQA, src='nq', filetype='train')
     
 out_dev_tqa, out_qasval_tqa = save_train_dev_file(tqa_dev, OUTDIR_NQTQA, src='tqa', filetype='dev')       
 out_train_tqa, _ = save_train_dev_file(tqa_train, OUTDIR_NQTQA, src='tqa', filetype='train')       
