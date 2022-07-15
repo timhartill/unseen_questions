@@ -405,8 +405,18 @@ def get_retriever_datasets():
         type = 'multi'
         bridge is of form [[paratitle0], [paratitle1], ..] ie must find para0 from q before finding para1 from q+para0 etc
     """
-    #TODO what to do about non-uniqe (neg or pos) para titles? 560 samples like this! MAKE unique with title(2) - pos only. negs can duplicate ok
-    #TODO get more negative paras? Just use theirs...
+    #non-unique (neg or pos) para titles? 560 pos samples like this! MAKE unique with title(2) - pos only. negs can duplicate ok
+
+    # any way to order paras other than sequentially?
+    #  YES: 779 samples in train where there is no #1 in question_decomp[1]. checked and both 1&2 reachable from question
+    #       400 samples in train where no #x in question_decomp[2] (but there is in 1) - 
+    # RULE: any decomp w/o a #x is reachable from the question so can be in bridge[0] list
+    #       then add others sequentially ie forall decomps:  if #x in it append to bridge, else append to bridge[0]
+    # There are NO 3 hop samples where the last hop doesnt have a #2 and no 4 hop without last hop having a #3 in it
+    # SO only need to code RULE
+
+    #TODO add 'answer' -> 'answers' and output that
+    #TODO get more negative paras? Just use theirs?...
     
     
     
