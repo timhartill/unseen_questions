@@ -40,8 +40,9 @@ import os
 import copy
 import random
 import numpy as np
+from html import unescape
 from collections import Counter
-from utils import load_jsonl, create_uqa_example, format_decomp_ans, load_model, string_to_ids
+from utils import load_jsonl, saveas_jsonl, create_uqa_example, format_decomp_ans, load_model, string_to_ids
 from text_processing import white_space_fix, replace_chars, format_sentence
 
 Q_PREFIX = 'Add Explanation: '
@@ -193,7 +194,7 @@ def process_musique(mu_data, make_all_dev=True):
             decomp_step['question_subst'] = subst_decomp
             para_idx = decomp_step['paragraph_support_idx']
             if para_idx is not None:
-                title = replace_chars(mu_sample['paragraphs'][para_idx]['title'].strip())
+                title = replace_chars(unescape(mu_sample['paragraphs'][para_idx]['title'].strip()))
                 text = replace_chars(white_space_fix(mu_sample['paragraphs'][para_idx]['paragraph_text'].strip()))
                 if text[-1] not in ['.', '?', '!']:
                     text += '.'
@@ -398,7 +399,7 @@ def get_qa_datasets(mu_data, train_splits = ['train']):
     return mu_qa_dict
 
 
-def get_retriever_datasets():
+def get_retriever_datasets(mu_data, train_splits = ['train','unassigned']):
     """ Output training datasets of the form: 
         [ dict_keys(['question', 'answers', 'src', 'type', '_id', 'bridge', 'num_hops', 'pos_paras', 'neg_paras']) ]
         
@@ -417,7 +418,48 @@ def get_retriever_datasets():
 
     #TODO add 'answer' -> 'answers' and output that
     #TODO get more negative paras? Just use theirs?...
-    
+    ds_template = {'train':[], 'dev':[]}
+    for i, mu_sample in enumerate(mu_data):
+        key =  mu_sample['split']
+        if key in train_splits:
+            key = 'train'
+        if key in ['dev','train']:
+            neg_paras = []
+            for para in mu_sample['paragraphs']:
+                if not para['is_supporting']:
+                    text = replace_chars(white_space_fix(para['paragraph_text'].strip()))
+                    if text[-1] not in ['.', '?', '!']:
+                        text += '.'
+                    neg_paras.append( {'title': replace_chars(unescape(para['title'].strip())),
+                                       'text': text, 'src':'mu', 'mu_idx': para['idx']} )
+
+            curr_pos_titles = set()
+            pos_paras = []
+            bridge = [[]]
+            for decomp in mu_sample['question_decomposition']:
+                title = decomp['title']
+                if title in curr_pos_titles:
+                    title += '(' + str(decomp['paragraph_support_idx']) + ')' #make title unique in pos_paras
+                else:
+                    curr_pos_titles.add(title)
+                pos_paras.append( {'title':title, 
+                                   'text': decomp['text'], 'mu_idx': decomp['paragraph_support_idx']} )
+                if decomp['question'].find('#') == -1:  # para should be reachable from question since no dependency
+                    bridge[0].append(title)
+                else:                                   # intermediate dependency from question so treat as bridge type
+                    bridge.append( [title] )
+            if bridge[0] == []:
+                bridge.pop(0)
+
+            answers = [mu_sample['answer'].strip()] + mu_sample['answer_aliases']
+
+            ds_template[key].append( {'question': mu_sample['question'].strip(), 'answers': answers,
+                                      'src': 'mu', 'type': 'multi', '_id': mu_sample['id'],
+                                      'pos_paras': pos_paras, 'neg_paras': neg_paras, 'bridge': bridge} )
+        if i % 1000 == 0:
+            print(f'Processed: {i}')
+    print(f"Train count: {len(ds_template['train'])}  Dev count:{len(ds_template['dev'])}")
+    return ds_template['train'], ds_template['dev']
     
     
     
@@ -448,6 +490,12 @@ mudev_paras, mudev_titles = get_paras(mu_dev)
 common_paras = train_paras.intersection(mudev_paras)
 print(f"Number of mu dev paras in train: {len(common_paras)}")  # 0 whether or not include unassigned yay!
 
+# Dense Retriever Training Set
+train_list, dev_list = get_retriever_datasets(mu_train) # Train count: 19556  Dev count:382
+outfile = os.path.join(MU_DIR_IN, 'musique_ans_v1.0_train_retriever_full_with_negs_v0.jsonl')
+saveas_jsonl(train_list, outfile)
+outfile = os.path.join(MU_DIR_IN, 'musique_ans_v1.0_dev_retriever_with_negs_v0.jsonl')
+saveas_jsonl(dev_list, outfile)
 
 
 
