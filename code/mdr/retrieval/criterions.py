@@ -129,7 +129,7 @@ def mhop_loss_var(model, batch, args):
         if args.debug:
             outstr+=f"nans retrieve_loss:{retrieve_loss.isnan().any()} {retrieve_loss.dtype} {retrieve_loss.shape} VALUE:{retrieve_loss}"
         if args.eval_stop:
-            return stop_loss + args.retrieve_loss_multiplier*retrieve_loss, outstr            
+            return stop_loss + args.retrieve_loss_multiplier*retrieve_loss, outstr
         return args.retrieve_loss_multiplier*retrieve_loss, outstr
         
     

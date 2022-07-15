@@ -10,10 +10,12 @@ Convert Musique (ans) into uqa formatted datasets
 Notes:
 1.  Converting musique "ans" versions only, not "full" versions (which contain unanswerable questions where one+ of the decomp steps is unanswerable since no supporting para given)
     musique_ans_v0.1_dev.jsonl is constructed to not have answer overlap with musique_ans_v0.1_train.jsonl
-    Therefore we treat musique_ans_v0.1_dev.jsonl as an OOD eval only dataset ("musique_mu_dev_.." 2417 samples) but we create a training dataset from the decomps + paras
+    Therefore we treat musique_ans_v0.1_dev.jsonl as an OOD eval only dataset ("musique_mu_dev_.." 2417 samples) 
+    but we create a training dataset from the decomps + paras
     and construct a separate in-domain dev split from musique_ans_v0.1_train.jsonl (382 samples)
-    NB: Confusingly below we  use the term "full" to mean all the musique "ans" train split samples (19938-382=19556 train samples) 
-    vs just those with unique answers (2057 train samples, 382 dev samples)
+    NB: Confusingly we use the term "full" to mean all the musique "ans" train split samples 
+        ie (19938-382=19556 train samples) and output these into uqa directories starting with 'musique_full_' 
+        vs just those with unique answers (2057 train samples, 382 dev samples) which are output into dirs starting with 'musique_'
 2. label format with decomp steps: "<s> the answer ## decomp step 1? decomp ans ## decomp step 2? decomp ans ## decomp step 3? decomp ans </s>"
 3. This version, in contrast to (deprecated) convert_musique.py creates a train set of musique samples with unique answers (plus "full" versions)
    and a new dev set which has unique answers within dev and with an answer+last decomp that's not in train. (2057 train samples, 382 dev samples)
@@ -29,7 +31,8 @@ Notes:
 Initially developed against Musique v0.1. 
 Subsequently v1.0 was released which includes the test set but train/dev are identical to v0.1.
 
-Multiple paras in 'paragraphs' have same title & probably from same doc eg "Green" in mu_dev[0].
+- Multiple paras in 'paragraphs' have same title & probably from same doc eg "Green" in mu_dev[0].
+- 'answer_aliases' key contains [alternative answers] whereas 'answer' contains a string. 
 
 """
 
@@ -46,9 +49,9 @@ selfsupervisedkey = '_selfsvised'
 
 UQA_DIR = '/data/thar011/data/unifiedqa/'
 
-MU_DIR_IN = '/home/thar011/data/musique/musique_v0.1/'
-MU_TRAIN_FILE = 'musique_ans_v0.1_train.jsonl'
-MU_DEV_FILE = 'musique_ans_v0.1_dev.jsonl'
+MU_DIR_IN = '/home/thar011/data/musique/musique_v1.0/data/'  # v0.1:'/home/thar011/data/musique/musique_v0.1/'
+MU_TRAIN_FILE = 'musique_ans_v1.0_train.jsonl'
+MU_DEV_FILE = 'musique_ans_v1.0_dev.jsonl'
 
 
 #MUFULL_TRAIN_FILE = 'musique_full_v0.1_train.jsonl'
@@ -148,22 +151,26 @@ def retrieve_paras(mu_sample):
 
 def process_musique(mu_data, make_all_dev=True):
     """ Retrieve, format and create new keys for outputting all the datasets, namely:
-    decomp learning:
-    musique_decomp_train: decomp q \\n para \t decomp ans                   train=decomps from mu train; dev=decomps from new dev (setting where qa dataset train can see it's facts but dev can't)
-    musique_decomp_new_dev_in_train: decomp q \\n para \t decomp ans        train=decomps from mu train + decomps from new dev; dev=decomps from new dev (setting where qa dataset is allowed to have seen train & dev facts)
-    musique_mu_dev_decomp: decomp q \\n para \t decomp ans                  train=decomps from musique dev; dev=same (dev is just to check how well decomps are learned)
-    musique_decomp_all_dev_in_train decomp q \\n para \t decomp ans         train=decomps from mu train + decomps from new dev + decomps from musique dev; dev=decomps from musique dev
+    from input: dict_keys(['id', 'paragraphs', 'question', 'question_decomposition', 'answer', 'answer_aliases', 'answerable'])
+    adds keys to output:
+        dict_keys(['id', 'paragraphs', 'question', 'question_decomposition', 'answer', 'answer_aliases', 'answerable', 
+                   'split', 'context_paras', 'decomp_ans_str', 'decomp_context', 'explanation', 'ans_status'])
+    'split',            : 'train' = unique ans (& full) train split  'unassigned'= full train split only  'dev'=new dev split (or orig dev musique_mu_)
+    'context_paras',    : string concatenation of pos paras with minor preprocessing
+    'decomp_ans_str',   : string of form "overall answer ## subq1? ans1. ## subq2? ans2. ## ..."
+    'decomp_context',   : string of form "sub1. ans1. subq2. ans2. subq3?" ie no final answer
+    'explanation',      : str of form "subq1. ans1. subq2. ans2. ..."
+    'ans_status'        : 'first'=1st row with unique answer or 'not_first'
     
-    qa learning:
-    musique_qa: q \\n \t ans                                                train=mu train, dev=new dev from mu train
-    musique_qa_paras: q \\n paras \t ans                                    train=mu train, dev=new dev from mu train
-    musique_qa_decomp_ans: q \\n \t ans ## decomps+ans ## ..                train=mu train, dev=new dev from mu train
-    musique_qa_paras_decomp_ans: q \\n paras \t ans  ## decomps+ans ## ..   train=mu train, dev=new dev from mu train
-    musique_mu_dev_qa: q \\n \t ans                                                dev only = musique dev
-    musique_mu_dev_qa_paras: q \\n paras \t ans                                    dev only = musique dev
-    musique_mu_dev_qa_decomp_ans: q \\n \t ans ## decomps+ans ## ..                dev only = musique dev
-    musique_mu_dev_qa_paras_decomp_ans: q \\n paras \t ans  ## decomps+ans ## ..   dev only = musique dev
-
+    
+    'question_decomposition' key input: list of dict_keys(['id', 'question', 'answer', 'paragraph_support_idx'])
+    adds keys to get: dict_keys(['id', 'question', 'answer', 'paragraph_support_idx', 'question_subst', 'context_para', 'title', 'text'])
+    eg: 
+        {'id': 8966, 'question': '#1 was a president of what country?', 'answer': 'U.S.', 'paragraph_support_idx': 5,
+         'question_subst': 'Nixon was a president of what country?',
+         'context_para': "(Josip Broz Tito) Yugoslavia had a liberal travel policy permitting foreigners to freely travel through the country and its citizens to travel worldwide, whereas it was limited by most Communist countries. A number[quantify] of Yugoslav citizens worked throughout Western Europe. Tito met many world leaders during his rule, such as Soviet rulers Joseph Stalin, Nikita Khrushchev and Leonid Brezhnev; Egypt's Gamal Abdel Nasser, Indian politicians Jawaharlal Nehru and Indira Gandhi; British Prime Ministers Winston Churchill, James Callaghan and Margaret Thatcher; U.S. Presidents Dwight D. Eisenhower, John F. Kennedy, Richard Nixon, Gerald Ford and Jimmy Carter; other political leaders, dignitaries and heads of state that Tito met at least once in his lifetime included Che Guevara, Fidel Castro, Yasser Arafat, Willy Brandt, Helmut Schmidt, Georges Pompidou, Queen Elizabeth II, Hua Guofeng, Kim Il Sung, Sukarno, Sheikh Mujibur Rahman, Suharto, Idi Amin, Haile Selassie, Kenneth Kaunda, Gaddafi, Erich Honecker, Nicolae Ceaușescu, János Kádár and Urho Kekkonen. He also met numerous celebrities.",
+         'title': Josip Broz Tito,
+         'text': "Yugoslavia had a liberal travel policy permitting foreigners to freely travel through the country and its citizens to travel worldwide, whereas it was limited by most Communist countries. A number[quantify] of Yugoslav citizens worked throughout Western Europe. Tito met many world leaders during his rule, such as Soviet rulers Joseph Stalin, Nikita Khrushchev and Leonid Brezhnev; Egypt's Gamal Abdel Nasser, Indian politicians Jawaharlal Nehru and Indira Gandhi; British Prime Ministers Winston Churchill, James Callaghan and Margaret Thatcher; U.S. Presidents Dwight D. Eisenhower, John F. Kennedy, Richard Nixon, Gerald Ford and Jimmy Carter; other political leaders, dignitaries and heads of state that Tito met at least once in his lifetime included Che Guevara, Fidel Castro, Yasser Arafat, Willy Brandt, Helmut Schmidt, Georges Pompidou, Queen Elizabeth II, Hua Guofeng, Kim Il Sung, Sukarno, Sheikh Mujibur Rahman, Suharto, Idi Amin, Haile Selassie, Kenneth Kaunda, Gaddafi, Erich Honecker, Nicolae Ceaușescu, János Kádár and Urho Kekkonen. He also met numerous celebrities."}        
     """
     unique_ans = {}
     decomp_len_counts_train = {}
@@ -186,13 +193,18 @@ def process_musique(mu_data, make_all_dev=True):
             decomp_step['question_subst'] = subst_decomp
             para_idx = decomp_step['paragraph_support_idx']
             if para_idx is not None:
-                decomp_para = '(' + replace_chars(mu_sample['paragraphs'][para_idx]['title'].strip()) + ') '
-                decomp_para += replace_chars(mu_sample['paragraphs'][para_idx]['paragraph_text'].strip())
-                if decomp_para[-1] not in ['.', '?', '!']:
-                    decomp_para += '.'
+                title = replace_chars(mu_sample['paragraphs'][para_idx]['title'].strip())
+                text = replace_chars(white_space_fix(mu_sample['paragraphs'][para_idx]['paragraph_text'].strip()))
+                if text[-1] not in ['.', '?', '!']:
+                    text += '.'
+                decomp_para = '(' + title + ') ' + text
             else:
+                title = ''
+                text = ''
                 decomp_para = ''
             decomp_step['context_para'] = decomp_para
+            decomp_step['title'] = title
+            decomp_step['text'] = text
         
         mu_sample['decomp_ans_str'] = answer + decomp_ans_str
         dc_len = len(decomp_ans_str)
@@ -313,7 +325,7 @@ def get_facts_datasets(mu_data, train_splits = ['train'], dataset_format = 'qa')
             if dataset_format == 'qa':
                 sample = create_uqa_example(decomp_step['question_subst'], decomp_step['context_para'], decomp_step['answer'].strip() )
             else:
-                sample = create_uqa_example(decomp_step['context_para'], ' ', None, append_q_char='.')    
+                sample = create_uqa_example(decomp_step['context_para'], ' ', None, append_q_char='.')
             if mu_sample['split'] == 'dev':
                 dev_list.append(sample)
             elif mu_sample['split'] in train_splits:
@@ -386,6 +398,19 @@ def get_qa_datasets(mu_data, train_splits = ['train']):
     return mu_qa_dict
 
 
+def get_retriever_datasets():
+    """ Output training datasets of the form: 
+        [ dict_keys(['question', 'answers', 'src', 'type', '_id', 'bridge', 'num_hops', 'pos_paras', 'neg_paras']) ]
+        
+        type = 'multi'
+        bridge is of form [[paratitle0], [paratitle1], ..] ie must find para0 from q before finding para1 from q+para0 etc
+    """
+    #TODO what to do about non-uniqe (neg or pos) para titles? 560 samples like this! MAKE unique with title(2) - pos only. negs can duplicate ok
+    #TODO get more negative paras? Just use theirs...
+    
+    
+    
+    
 
 # Create new dev set & preprocess data into convenient format..
 # order by number of decomp steps so when creating train set with unique answers we tend to pick the longest instead of discarding 
@@ -414,6 +439,9 @@ common_paras = train_paras.intersection(mudev_paras)
 print(f"Number of mu dev paras in train: {len(common_paras)}")  # 0 whether or not include unassigned yay!
 
 
+
+
+### BELOW IS UNMODIFIED FROM 2021 experiments  ######
 
 # Create and output mu_train decomp fact datasets
 train_list, dev_list = get_facts_datasets(mu_train)

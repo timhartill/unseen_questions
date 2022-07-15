@@ -23,6 +23,9 @@
 #hover dev   /home/thar011/data/baleen_downloads/hover/hover_dev_with_neg_and_sent_annots.jsonl
 # hpqa+hover train /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_train_with_neg_v0_sentannots.jsonl
 # hpqa+hover dev /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_dev_with_neg_v0_sentannots.jsonl
+# hpqa+hover_nq train  /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_train_with_neg_v0.jsonl
+# hpqa+hover_nq dev  /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_dev_with_neg_v0.jsonl
+
 
 #bqa ~134k training samples vs ~90k hpqa. On 1 gpu bs24 est 1hr 15mins per epoch vs ~45mins per epoch.  
 
@@ -35,14 +38,14 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix hover_hpqa_paras_test3 \
+    --prefix hover_hpqa_nq_paras_test4 \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \
     --learning_rate 2e-5 \
     --fp16 \
-    --train_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_train_with_neg_v0_sentannots.jsonl \
-    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_dev_with_neg_v0_sentannots.jsonl \
+    --train_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_train_with_neg_v0.jsonl \
+    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_dev_with_neg_v0.jsonl \
     --seed 16 \
     --eval-period -1 \
     --max_c_len 300 \

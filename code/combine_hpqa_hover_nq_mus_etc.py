@@ -11,7 +11,7 @@ Notes
 - hpqa comparison samples have no 'bridge' key
 - hpqa samples have no 'src' key
 - nq examples have 'id' key instead of '_id'
-- nq examples pos_paras have no sentence_labels or sentence_spans so can only use retriever query 'para' encoding 
+- nq & musique examples pos_paras have no sentence_labels or sentence_spans so can only use retriever query 'para' encoding 
 - The mhop_dataset_var get_item process handles these differences where needed so not standardized here
 
 """

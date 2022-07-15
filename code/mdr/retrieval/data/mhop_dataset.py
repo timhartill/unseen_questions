@@ -105,7 +105,7 @@ class MhopDataset_var(Dataset):
                 if self.random_multi_seq and self.train:
                     random.shuffle(step_paras_list)  
                 for p in step_paras_list:
-                    para_list += [sample["pos_paras"][pidx] for pidx in para_idxs[p]]  # > 1 pidx if para is repeated in pos_paras with difft sentence labels. This would only occur with FEVER 
+                    para_list += [sample["pos_paras"][pidx] for pidx in para_idxs[p]]  # > 1 pidx if para is repeated in pos_paras with difft sentence labels. eg could occur with FEVER 
         elif sample["type"] == "comparison":
             #num_hops = 2 # this sample actual number of hops
             random.shuffle(sample["pos_paras"])
