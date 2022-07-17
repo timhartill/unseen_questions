@@ -37,6 +37,12 @@ hpqa_train = utils.load_jsonl('/large_data/thar011/out/mdr/encoded_corpora/hotpo
 nq_dev = utils.load_jsonl('/home/thar011/data/DPR/nq_dev_v1.0_with_neg_v0.jsonl')
 nq_train = utils.load_jsonl('/home/thar011/data/DPR/nq_train_v1.0_with_neg_v0.jsonl')
 
+# dict_keys(['question', 'answers', 'src', 'type', '_id', 'pos_paras', 'neg_paras', 'bridge'])
+mu_dev = utils.load_jsonl('/home/thar011/data/musique/musique_v1.0/data/musique_ans_v1.0_dev_retriever_new_with_hl_negs_v0.jsonl')
+mu_train = utils.load_jsonl('/home/thar011/data/musique/musique_v1.0/data/musique_ans_v1.0_train_retriever_full_with_hl_negs_v0.jsonl')
+
+
+
 
 hpqa_hover_dev = hover_dev + hpqa_dev
 hpqa_hover_train = hover_train + hpqa_train
@@ -50,6 +56,16 @@ hpqa_hover_nq_train = hpqa_hover_train + nq_train
 utils.saveas_jsonl(hpqa_hover_nq_dev, '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_dev_with_neg_v0.jsonl')
 utils.saveas_jsonl(hpqa_hover_nq_train, '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_train_with_neg_v0.jsonl')
 
+hpqa_hover_nq_mu_dev = hpqa_hover_nq_dev + mu_dev
+hpqa_hover_nq_mu_train = hpqa_hover_nq_train + mu_train
 
+utils.saveas_jsonl(hpqa_hover_nq_mu_dev, '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_dev_with_neg_v0.jsonl')
+utils.saveas_jsonl(hpqa_hover_nq_mu_train, '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_train_with_neg_v0.jsonl')
+
+hpqa_hover_mu_dev = hpqa_hover_dev + mu_dev
+hpqa_hover_mu_train = hpqa_hover_train + mu_train
+
+utils.saveas_jsonl(hpqa_hover_mu_dev, '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_mu_dev_with_neg_v0.jsonl')
+utils.saveas_jsonl(hpqa_hover_mu_train, '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_mu_train_with_neg_v0.jsonl')
 
 

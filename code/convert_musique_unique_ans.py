@@ -39,9 +39,11 @@ Subsequently v1.0 was released which includes the test set but train/dev are ide
 import os
 import copy
 import random
+import copy
 import numpy as np
 from html import unescape
 from collections import Counter
+import utils
 from utils import load_jsonl, saveas_jsonl, create_uqa_example, format_decomp_ans, load_model, string_to_ids
 from text_processing import white_space_fix, replace_chars, format_sentence
 
@@ -53,6 +55,9 @@ UQA_DIR = '/data/thar011/data/unifiedqa/'
 MU_DIR_IN = '/home/thar011/data/musique/musique_v1.0/data/'  # v0.1:'/home/thar011/data/musique/musique_v0.1/'
 MU_TRAIN_FILE = 'musique_ans_v1.0_train.jsonl'
 MU_DEV_FILE = 'musique_ans_v1.0_dev.jsonl'
+
+BQA_CORPUS = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl'
+
 
 
 #MUFULL_TRAIN_FILE = 'musique_full_v0.1_train.jsonl'
@@ -496,6 +501,29 @@ outfile = os.path.join(MU_DIR_IN, 'musique_ans_v1.0_train_retriever_full_with_ne
 saveas_jsonl(train_list, outfile)
 outfile = os.path.join(MU_DIR_IN, 'musique_ans_v1.0_dev_retriever_with_negs_v0.jsonl')
 saveas_jsonl(dev_list, outfile)
+
+# Add hyperlinked negative paras where title match in corpus found  WARNING: TAKES ~30 mins to load
+docs = load_jsonl(BQA_CORPUS)
+titledict, dupdict = utils.build_title_idx(docs) # better to rebuild titledict as docs idxs changed after removal of docs with no paras.. 
+
+random.seed(42)
+utils.add_neg_paras(docs, titledict, dev_list, neg_key='neg_paras_hl', top_up_with_rand=False) # Status counts: total:382 {'ok': 376, 'nf': 2, 'sf': 4}
+utils.add_neg_paras(docs, titledict, train_list, neg_key='neg_paras_hl', top_up_with_rand=False) # Status counts: total:19556 {'ok': 18936, 'nf': 60, 'sf': 560}
+
+# combine new negs with old negs
+for s in dev_list:
+    s['neg_paras'].extend(copy.deepcopy(s['neg_paras_hl']))
+    del s['neg_paras_hl']
+for s in train_list:
+    s['neg_paras'].extend(copy.deepcopy(s['neg_paras_hl']))
+    del s['neg_paras_hl']
+    
+
+outfile = os.path.join(MU_DIR_IN, 'musique_ans_v1.0_train_retriever_full_with_hl_negs_v0.jsonl')
+saveas_jsonl(train_list, outfile)
+outfile = os.path.join(MU_DIR_IN, 'musique_ans_v1.0_dev_retriever_new_with_hl_negs_v0.jsonl')
+saveas_jsonl(dev_list, outfile)
+
 
 
 

@@ -1095,8 +1095,9 @@ def get_para_docidxs(para_list, titledict):
     return para_doc_ids
 
 
-def add_neg_paras_single(docs, titledict, s):
+def add_neg_paras_single(docs, titledict, s, top_up_with_rand=True):
     """ Create negative paras for a sample using hyperlinks
+    top_up_with_rand = true: if < 10 hyperlinked negs found, top up with random negs till 10 found
     """
     pos_doc_idxs = get_para_docidxs(s['pos_paras'], titledict)
     neg_idxs = set()
@@ -1118,21 +1119,23 @@ def add_neg_paras_single(docs, titledict, s):
         status = 'nf'
     elif len(final_negs) < 10:
         status = 'sf'
-    while len(final_negs) < 10:
-        rand_idx = random.randint(0, len(docs)-1)
-        if rand_idx not in neg_idxs and rand_idx not in pos_doc_set:
-            n = docs[rand_idx]['paras'][0]
-            title = unescape(docs[rand_idx]['title'])
-            final_negs.append({'title': title, 'text': n['text'], 'src':'rd'})
+    if top_up_with_rand:
+        while len(final_negs) < 10:
+            rand_idx = random.randint(0, len(docs)-1)
+            if rand_idx not in neg_idxs and rand_idx not in pos_doc_set:
+                n = docs[rand_idx]['paras'][0]
+                title = unescape(docs[rand_idx]['title'])
+                final_negs.append({'title': title, 'text': n['text'], 'src':'rd'})
     return final_negs, status
 
 
-def add_neg_paras(docs, titledict, split):
+def add_neg_paras(docs, titledict, split, neg_key='neg_paras', top_up_with_rand=True):
     """ Add adversarial negatives by taking hyperlinked docs to the pos paras that are not any of the pos paras
+    top_up_with_rand = true: if < 10 hyperlinked negs found, top up with random negs till 10 found
     """
     status_counts = {'ok':0, 'nf':0, 'sf':0}
     for i,s in enumerate(split):
-        s['neg_paras'], status = add_neg_paras_single(docs, titledict, s)
+        s[neg_key], status = add_neg_paras_single(docs, titledict, s, top_up_with_rand)
         status_counts[status] += 1
         if i % 5000 == 0:
             print(f'Processed: {i}')

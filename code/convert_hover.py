@@ -268,7 +268,6 @@ hover_train_out = create_samples(hover_train, baleen_dict, pid_to_title, hover_s
 
 # Add negative paras
 docs = utils.load_jsonl(BQA_CORPUS)
-#titledict = json.load(open(BQA_TITLE_SAVE))
 titledict, dupdict = utils.build_title_idx(docs) # better to rebuild titledict as docs idxs changed after removal of docs with no paras.. 
 
 
