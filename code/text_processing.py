@@ -626,6 +626,7 @@ def normalize_num(instr, norm=''):
 # Adapted from BERT/wordpiece version split_digits from https://github.com/ag1988/injecting_numeracy/blob/master/pre_training/gen_bert/create_examples_n_features.py:
 def split_digits_special(wps, special='Ġ'): #-> List[str]:
     """
+    NOTE: SUPERCEDED in favor of simply adding digits as special tokens into tokenizer - see utils.load_model
     Further split numeric tokens accommodating arbitrary special char 
     For t5 special='▁'  (not underscore)
     For bart/roberta special='Ġ'

@@ -84,13 +84,13 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_hpqaabst_hovereval_test27_beam25_maxh4_hpqahoverbs24 \
+    --prefix ITER_hpqaabst_hovereval_test29_beam25_maxh4_hpqahovnqmubs24 \
     --output_dir /large_data/thar011/out/mdr/logs \
     --predict_file /home/thar011/data/baleen_downloads/hover/hover_qas_val_with_spfacts.jsonl \
-    --index_path /large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_paras_test3-07-12-2022-nomom/index.npy \
-    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_paras_test3-07-12-2022-nomom/id2doc.json \
+    --index_path /large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test5-07-20-2022-nomom/index.npy \
+    --corpus_dict /large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test5-07-20-2022-nomom/id2doc.json \
     --model_name roberta-base \
-    --init_checkpoint /large_data/thar011/out/mdr/logs/hover_hpqa_paras_test3-07-12-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+    --init_checkpoint /large_data/thar011/out/mdr/logs/hover_hpqa_nq_mu_paras_test5-07-20-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
     --model_name_stage google/electra-large-discriminator \
     --init_checkpoint_stage1 /large_data/thar011/out/mdr/logs/stage1_test5_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-05-29-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --init_checkpoint_stage2 /large_data/thar011/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \

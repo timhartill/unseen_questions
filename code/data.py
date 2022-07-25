@@ -129,8 +129,8 @@ def manual_encode(instr, tokenizer, args, truncation=True, max_length=512,
         if selfsupervised:
             ners = [n.lower() for n in ners]
     toks = tokenizer.tokenize(instr)
-    if args.indiv_digits:
-        toks = split_digits_special(toks, special=specialchar)
+#    if args.indiv_digits:  # superceded in favor of simply adding digits as special tokens to the tokenizer
+#        toks = split_digits_special(toks, special=specialchar)
     if selfsupervised:
         wstarts = get_word_starts(toks, specialchar, bos_token)
         ners, ners_ids = map_ners(toks, ners, tokenizer)

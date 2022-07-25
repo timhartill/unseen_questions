@@ -38,14 +38,14 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix hover_hpqa_nq_paras_test4 \
+    --prefix hover_hpqa_nq_mu_paras_test5 \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 24 \
     --learning_rate 2e-5 \
     --fp16 \
-    --train_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_train_with_neg_v0.jsonl \
-    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_dev_with_neg_v0.jsonl \
+    --train_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_train_with_neg_v0.jsonl \
+    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_dev_with_neg_v0.jsonl \
     --seed 16 \
     --eval-period -1 \
     --max_c_len 300 \

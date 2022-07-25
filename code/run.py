@@ -25,7 +25,7 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 from transformers.trainer_pt_utils import get_parameter_names
 
 from data import QAData
-from unified_data import UnifiedQAData
+from unified_data import UnifiedQAData, SampleProbs
 from bart import MyBart
 import eval_metrics  
 from overlap_detector import UQADataset
@@ -33,52 +33,34 @@ from sentence_embeddings import Embedder, restate_qa_all
 from utils import get_parsed_decomp_str, get_parsed_decomp_by_key, load_model, run_model, get_checkpoint
 from utils import load_uqa_supervised, create_uqa_example, add_key, get_timestamp
 
+
 def run(args, logger):
     model = None
+    if args.indiv_digits:
+        addspecialtoksdict = eval_metrics.special_tokens_dict
+    else:
+        addspecialtoksdict = {}
     
-    if args.do_train or args.calc_metrics:
-        tokenizer = AutoTokenizer.from_pretrained(args.model)
-    
+    if args.do_train:
+        if args.checkpoint is not None:
+            logger.info(f"Loading checkpoint from {args.checkpoint}")       
+        else:
+            logger.info("No checkpoint specified. Training from base pretrained model.")
+        tokenizer, model = load_model(model_name=args.model, checkpoint=args.checkpoint, special_tokens_dict=addspecialtoksdict)
         if args.is_unifiedqa:
             dev_data = UnifiedQAData(logger, args, args.predict_file, False)
-        else:
-            dev_data = QAData(logger, args, args.predict_file, False)
-    
-        if not args.skip_inference:
-            dev_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
-            dev_data.load_dataloader()
-
-    if args.do_train:
-        if args.is_unifiedqa:
             train_data = UnifiedQAData(logger, args, args.train_file, True)
         else:
+            dev_data = QAData(logger, args, args.predict_file, False)
             train_data = QAData(logger, args, args.train_file, True)
+        dev_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
+        dev_data.load_dataloader()
         train_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
         train_data.load_dataloader()
-        
-        if args.model == "facebook/bart-large":   
-            my_model = MyBart
-        else:
-            my_model = AutoModelForPreTraining  # HF documentation indicates this gives right models for T5 and gpt2 as well as vanilla bart
-
-
-        if args.checkpoint is not None:
-            logger.info("Loading checkpoint from {}".format(args.checkpoint))       
-            model = my_model.from_pretrained(args.model,
-                                           state_dict=torch.load(args.checkpoint))  
-        else:
-            model = my_model.from_pretrained(args.model) 
-            logger.info("No checkpoint loaded. Training from base pretrained model.")
-            
+                   
         model.config.to_json_file(os.path.join(args.output_dir, "model_config.json"))  
         logger.info("Saved model config to {}".format(os.path.join(args.output_dir, "model-config.json")))
     
-            
-        if args.n_gpu>1:
-            model = torch.nn.DataParallel(model)
-        if args.n_gpu>0:
-            model.to(torch.device("cuda"))
-
         # Added from HF trainer.py
         decay_parameters = get_parameter_names(model, [torch.nn.LayerNorm])
         decay_parameters = [name for name in decay_parameters if "bias" not in name]
@@ -92,8 +74,7 @@ def run(args, logger):
                 "weight_decay": 0.0,
             },
         ]
-
-        
+    
         optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
         scheduler =  get_linear_schedule_with_warmup(optimizer,
                                         num_warmup_steps=args.warmup_steps,
@@ -105,21 +86,21 @@ def run(args, logger):
         if model is None:
             checkpoint = get_checkpoint(args, logger)
             logger.info(f"Running Explanation Generation. Checkpoint={checkpoint}")    
-            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
+            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint, special_tokens_dict=addspecialtoksdict)
         gen_explanations_all(tokenizer, model, args, logger)
 
     if args.do_predict:
         if model is None:
             checkpoint = get_checkpoint(args, logger)
             logger.info(f"Running Predict. Checkpoint={checkpoint}")    
-            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
+            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint, special_tokens_dict=addspecialtoksdict)
         inference_wrapper(tokenizer, model, args, logger, predict_file=args.predict_file)
 
     if args.do_predict_all:
         if model is None:
             checkpoint = get_checkpoint(args, logger)
             logger.info(f"Running Predict All. Checkpoint={checkpoint}")    
-            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint)
+            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint, special_tokens_dict=addspecialtoksdict)
         uqa_dir = args.predict_file
         if uqa_dir[-4:] == '.tsv':  # eg specified as '/data/thar011/data/unifiedqa/dev.tsv' like uqa train format
             uqa_dir = os.path.split(uqa_dir)[0]  # base uqa directory
@@ -144,10 +125,17 @@ def run(args, logger):
             inference_wrapper(tokenizer, model, args, logger, predict_file=dspath)         
         
     if args.calc_metrics:
+        tokenizer = load_model(model_name=args.model, loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)        
+        if args.is_unifiedqa:
+            dev_data = UnifiedQAData(logger, args, args.predict_file, False)
+        else:
+            dev_data = QAData(logger, args, args.predict_file, False)    
+        dev_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
+        dev_data.load_dataloader()
         calc_metrics(args, logger, dev_data, predict_file=args.predict_file)
 
     if args.calc_metrics_all:
-        tokenizer = load_model(model_name=args.model, loadwhat='tokenizer_only')
+        tokenizer = load_model(model_name=args.model, loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)
         results_file = os.path.join(args.output_dir, 'eval_metrics.json')
         if os.path.exists(results_file):
             results_dict = json.load(open(results_file))
@@ -174,7 +162,6 @@ def run(args, logger):
                 continue
             dspath = os.path.join(uqa_dir, ds, ftype+'.tsv')
             calc_metrics_wrapper(tokenizer, args, logger, predict_file=dspath)
-
         
     if args.calc_similarity:
         calc_similarity(args, logger)
@@ -186,8 +173,7 @@ def run(args, logger):
         create_sentence_embeddings(args, logger)
         
     if args.calc_similarity_embeddings:
-        calc_similarity_embeddings(args, logger)
-    
+        calc_similarity_embeddings(args, logger)   
     return
         
 
@@ -282,6 +268,7 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                             curr_em*100,
                             epoch,
                             scheduler.get_last_lr()[0]))
+                    
                     save_config = args.__dict__
                     save_config['curr_train_loss'] = float(np.mean(train_losses))
                     save_config['curr_em'] = float(curr_em*100.0)
@@ -289,6 +276,11 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                     save_config['curr_lr'] = float(scheduler.get_last_lr()[0])
                     save_config['curr_time'] = str(datetime.datetime.now())
                     if args.is_unifiedqa:
+                        if args.error_based_sampling:
+                            train_data.err_sampler.update(ems)
+                            logger.info(f"New Error-based Sampling probs: {train_data.err_sampler.current_probs_string()}")
+                            save_config['curr_sample_probs'] = train_data.err_sampler.current_probs_string()
+
                         for i, dataset in enumerate(dev_data.unified_dataset):
                             save_config['em_' + dataset] = float(ems[i]*100.0)
                     

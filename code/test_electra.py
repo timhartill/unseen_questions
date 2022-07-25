@@ -46,6 +46,14 @@ vocab_toks = list(tokenizer.vocab.keys()) # 30522
 unused_toks = [v for v in vocab_toks if v.startswith('[unused')]  #994
 
 
+special_tokens_dict = {'additional_special_tokens':['0','1','2', '3', '4', '5', '6', '7', '8', '9']}
 
+# if try to add '[unused0]' into special_tokens_dict along with '0', then the '0' supercedes '[unused0]' and tokenizes as '[', 'unused', '0', ']'
+# so keep '[unused0]' in tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True, additional_special_tokens=ADDITIONAL_SPECIAL_TOKENS)
+# and add the digits separately:
+num_new = tokenizer.add_special_tokens(special_tokens_dict)
 
+tokenizer.tokenize('[unused0]1234567890') # ['[unused0]', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
+
+# note: if num_new > 0 (not the case here but eg if add '<totallynewtok>') then need to do: model.resize_token_embeddings(len(tokenizer))
 

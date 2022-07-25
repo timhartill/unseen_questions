@@ -30,6 +30,7 @@ SVISED_EXPL_ANS = '_dyn_expl_ans_'
 selfsupervisedkey = '_selfsvised'   # dataset names ending in this will be processed as self supervised
 add_explanationkey = 'Add Explanation:'
 EXPL_COMP_KEY = '_expl_components'
+special_tokens_dict = {'additional_special_tokens':['0','1','2', '3', '4', '5', '6', '7', '8', '9']}  # for individual digit tokenisation
 
 
 UQA_DIR = '/data/thar011/data/unifiedqa/' # datasets base directory

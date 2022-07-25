@@ -98,6 +98,10 @@ def main():
                         help="Normalise numbers before tokenisation eg 1,678.54 becomes 1678.54 and .90 becomes 0.9, 009 becomes 9 and twenty becomes 20 unless --norm_10e also set")
     parser.add_argument("--norm_10e", action='store_true',
                         help="if --norm_numbers and this is set use form '- 4 10e1 3 10e0 2 10e-1 1 10e-2' instead of -43.21 for all identifed numbers")
+    parser.add_argument("--error_based_sampling", action='store_true',
+                        help="In multitask training sample tasks based on oversampling those with higher dev error. Default is uniform sampling")
+    parser.add_argument("--error_based_ssvise_prob", default=0.5, type=float,
+                        help="For error based sampling the probability of choosing a self supervised dataset")
     parser.add_argument("--calc_similarity", action='store_true',
                         help="Calculate similarity between train datasets specified by  --mixture and eval datasets specified in eval_metrics.json.")
     parser.add_argument("--calc_similarity_numeric", action='store_true',

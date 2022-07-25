@@ -655,16 +655,33 @@ def convert_to_half(sample):
 #######################
 
 def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both', 
-               to_cuda=True, use_fp16=False, cuda_device=None):
-    """ Load a model and set for eval
+               to_cuda=True, use_fp16=False, cuda_device=None, special_tokens_dict={}, special_tokens_list=[]):
+    """ Load a tokenizer and model and set for eval
     Usage: tokenizer, model = load_model(model_name, checkpoint)
+    or tokenizer = load_model(model_name, loadwhat='tokenizer_only')
+    
+    special_tokens_list = list of special tokens added on .from_pretrained eg:
+        ['[unused0]', '[unused1]', '[unused2]', '[unused3]']                               
+    
+    special_tokens_dict = dict of e.g. for ind digit tokenization: 
+        {'additional_special_tokens':['0', '1','2', '3', '4', '5', '6', '7', '8', '9']}
+        
+    combine these if eg ant to both use "[unused0]" and individually tokenise '0':  special_tokens_list=['[unused0]'] and special_tokens_dict = {'additional_special_tokens':['1']} 
+    Note: t5 error if use special_tokens_list method
     """
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    num_new=0
+    if special_tokens_list == []:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_name, additional_special_tokens=special_tokens_list)
+        
+    if special_tokens_dict != {}:
+        num_new = tokenizer.add_special_tokens(special_tokens_dict)
 
     if loadwhat == 'tokenizer_only': 
         return tokenizer
     else:
-        if model_name == "facebook/bart-large":   
+        if model_name == "facebook/bart-large":
             my_model = MyBart
         elif model_name in ["EleutherAI/gpt-neo-1.3B", "EleutherAI/gpt-neo-2.7B"]:
             my_model = AutoModelForCausalLM
@@ -674,7 +691,7 @@ def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both
             my_model = AutoModelForPreTraining  # HF documentation indicates this gives right models for T5 and gpt2 as well as vanilla bart
         
         print(f"Loading model: {model_name}")
-        if checkpoint is not None:
+        if checkpoint is not None and checkpoint != '':
             print(f"Loading checkpoint from {checkpoint}")       
             model = my_model.from_pretrained(model_name, state_dict=torch.load(checkpoint))  
         else:
@@ -682,9 +699,13 @@ def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both
             if use_fp16 and model_name == "EleutherAI/gpt-j-6B":
                 model = GPTJForCausalLM.from_pretrained("EleutherAI/gpt-j-6B", torch_dtype=torch.float16)
             else:
-                model = my_model.from_pretrained(model_name) 
+                model = my_model.from_pretrained(model_name)
+            if num_new > 0:
+                model.resize_token_embeddings(len(tokenizer))
         
         if to_cuda:
+            if torch.cuda.device_count() > 1:
+                model = torch.nn.DataParallel(model)
             if cuda_device is None:  # else typically cuda_device = 0-based int id of particular device
                 cuda_device = "cuda"
             model.to(torch.device(cuda_device))

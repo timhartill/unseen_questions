@@ -154,13 +154,14 @@ class UnifiedQAData(QAData):
                 self.logger.info("Saved tokenised data to {}".format(preprocessed_path))
 
         self.metadata = metadata
+        self.err_sampler = SampleProbs(self.unified_dataset, self.selfsupervised, self.args.error_based_ssvise_prob)
         self.dataset = MyUnifiedQADataset(input_ids, attention_mask,
                                           decoder_input_ids, decoder_attention_mask, self.args, self.data,
                                           metadata=metadata, is_training=self.is_training,
                                           tokenizer=self.tokenizer,
                                           selfsupervised = self.selfsupervised,
                                           word_starts = word_starts,
-                                          ners_ids=ners_ids)
+                                          ners_ids=ners_ids, err_sampler=self.err_sampler)
 
 
     def load_dataloader(self, do_return=False):
@@ -218,13 +219,87 @@ def get_parentdata_indx(idx, metadata, unified_dataset):
     return dset, ds_idx
 
 
+class SampleProbs():
+    """ Update task sampling probs based on error sampling
+    """
+    def __init__(self, unified_datasets, selfsupervised, selfsupervised_prob=0.5, sampletype='err'):
+        """ selfsupervised = [True, False, ...]  whether each dataset is self-supervised or not
+        Return a self-supervised dataset with prob selfsupervised_prob else return a "normal" dataset
+        Within self-supervised and normal sets return dataset with probability based on error based sampling ie oversample dataset with higher error rate (1 - accuracy)
+        """
+        self.unified_datasets = unified_datasets
+        self.selfsupervised = selfsupervised
+        self.num_datasets = len(selfsupervised)
+        self.dataset_idx = [i for i in range(self.num_datasets)] # the actual dataset idx ssvise+normal
+        self.ssvise_prob = selfsupervised_prob
+        self.ssvise_idxs = []
+        self.normal_idxs = []
+        for i in self.dataset_idx:
+            if self.selfsupervised[i]:
+                self.ssvise_idxs.append(i)
+            else:
+                self.normal_idxs.append(i)
+        self.num_ssvise = len(self.ssvise_idxs)
+        self.num_normal = len(self.normal_idxs)
+        
+        self.sampleprobs_ssvise = np.array([1.0/self.num_ssvise for _ in range(self.num_ssvise)])
+        self.sampleprobs_norm = np.array([1.0/self.num_normal for _ in range(self.num_normal)])
+        self.sampletype = sampletype
+        
+    def update(self, ems):
+        if self.sampletype=='err':
+            acctotal_norm = np.sum([1.0-acc for i, acc in enumerate(ems) if not self.selfsupervised[i]])
+            acctotal_ssvise = np.sum([1.0-acc for i, acc in enumerate(ems) if self.selfsupervised[i]])
+            for i, acc in enumerate(ems):
+                if self.selfsupervised[i]:
+                    for nidx, j in enumerate(self.ssvise_idxs):
+                        if j==i:
+                            self.sampleprobs_ssvise[nidx] = (1.0-acc) / acctotal_ssvise
+                            break
+                else:
+                    for nidx, j in enumerate(self.normal_idxs):
+                        if j==i:
+                            self.sampleprobs_norm[nidx] = (1.0-acc) / acctotal_norm
+                            break
+        return
+    
+    def sample(self):
+        group_choice = np.random.choice(['ssvise', 'norm'], p=[self.ssvise_prob, 1.0-self.ssvise_prob])
+        if group_choice == 'ssvise' and self.num_ssvise == 0:
+            group_choice = 'norm'
+        elif group_choice == 'norm' and self.num_normal == 0:
+            group_choice = 'ssvise'
+        if group_choice == 'ssvise':
+            return np.random.choice(self.ssvise_idxs, p=self.sampleprobs_ssvise)
+        else:
+            return np.random.choice(self.normal_idxs, p=self.sampleprobs_norm)
+        
+    def current_probs_string(self):
+        outstr = ''
+        for i, name in enumerate(self.unified_datasets):
+            outstr += ' ' + name + ' '
+            if self.selfsupervised[i]:
+                for nidx, j in enumerate(self.ssvise_idxs):
+                    if j==i:
+                        outstr += str(round(self.sampleprobs_ssvise[nidx], 3))
+                        break
+            else:
+                for nidx, j in enumerate(self.normal_idxs):
+                   if j==i:
+                       outstr += str(round(self.sampleprobs_norm[nidx], 3))
+                       break
+        return outstr.strip()
+    
+        
+
+
 class MyUnifiedQADataset(Dataset):
     def __init__(self, input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, args, data,
                  metadata, is_training=False, tokenizer=None, selfsupervised=None, 
-                 word_starts=None, ners_ids=None):
+                 word_starts=None, ners_ids=None, err_sampler=None):
         self.args = args
         self.parent_data = data
-        self.unified_dataset = list(data.keys())
+        self.unified_dataset = list(data.keys())  #same order as unified_dataset in unifiedqadata above..
         self.tokenizer = tokenizer
         if tokenizer is not None and tokenizer.pad_token_id is not None:
             self.pad_token_id = tokenizer.pad_token_id
@@ -259,6 +334,8 @@ class MyUnifiedQADataset(Dataset):
         self.word_starts = word_starts                          # eg [2, 4, 7,8,...]
         self.ners_ids = ners_ids                                # eg [[[22, 30],[1,9]], [[8, 15]], [[61, 67]]]
         self.is_training = is_training
+        self.error_based_sampling = args.error_based_sampling
+        self.err_sampler = err_sampler
 
         assert len(self.input_ids)==len(self.attention_mask)==len(self.decoder_input_ids)==len(self.decoder_attention_mask)==len(self.word_starts)==len(self.ners_ids)
         assert len(self.input_ids)==metadata[-1][-1]
@@ -268,11 +345,16 @@ class MyUnifiedQADataset(Dataset):
 
         self.indices = [np.random.permutation(range(start, end)) for start, end in self.metadata]  # list of 11 buckets of component dataset indices
         self.positions = [0 for _ in self.metadata]  # Current position in each bucket. Incremented in __getitem__
-        self.length = len(self.metadata) * np.min([end-start for start, end in self.metadata]) \
-            if is_training else len(self.input_ids)
+        if is_training:
+            self.length = len(self.metadata) * np.min([end-start for start, end in self.metadata]) # num of datasets * min num of samples in any dataset
+        else: 
+            len(self.input_ids)  
+        
+        # error-based sampling 
+        # p(task t) = 1.0-acc(t) / sum over all tasks t': (1.0-acc(t'))
 
     def __len__(self):
-        return self.length  #Note 6655 not 391740 if is_training, if not is_training total # questions
+        return self.length  #Note 6655 not 391740 if is_training  (# datasets * min # samples in any dataset), if not is_training total # questions
 
     def __getitem__(self, idx):
         if not self.is_training:
@@ -296,8 +378,11 @@ class MyUnifiedQADataset(Dataset):
             attention_mask = torch.LongTensor(attention_mask)
             return input_ids, attention_mask
 
+        if self.error_based_sampling:
+            idx = self.err_sampler.sample()     # Error based sampling
+        else:    
+            idx = idx % len(self.metadata)      # Select component dataset with uniform chance not proportional to dataset sizes
 
-        idx = idx % len(self.metadata)                   # Select component dataset with uniform chance not proportional to dataset sizes
         ssvise = self.selfsupervised[idx]
         if self.positions[idx]==len(self.indices[idx]):  # If reached the end of this dataset reshuffle dataset indices in bucket
             start, end = self.metadata[idx]
@@ -306,7 +391,7 @@ class MyUnifiedQADataset(Dataset):
 
         dp_idx = self.indices[idx][self.positions[idx]]  # Select dataset index within bucket
         self.positions[idx] += 1
-        if ssvise:   
+        if ssvise:
             input_ids, attention_mask, decoder_input_ids, decoder_attention_mask = self_supervise(self.args, 
                                                                                                   self.input_ids[dp_idx], 
                                                                                                   self.word_starts[dp_idx], 
