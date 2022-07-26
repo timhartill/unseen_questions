@@ -45,8 +45,7 @@ class UnifiedQAData(QAData):
                 self.selfsupervised.append(False)
             
             assert data_path.endswith(".tsv"), "data file has to be in tsv format"
-            curr_data_path = data_path.replace("{}.tsv".format(self.data_type),
-                                               "{}/{}.tsv".format(dataset, self.data_type))
+            curr_data_path = data_path.replace(f"{self.data_type}.tsv", f"{dataset}/{self.data_type}.tsv")
             self.data[dataset] = {"id": [], "question": [], "answer": []}
             with open(curr_data_path, "r") as f:
                 cnt = 0
@@ -275,20 +274,22 @@ class SampleProbs():
             return np.random.choice(self.normal_idxs, p=self.sampleprobs_norm)
         
     def current_probs_string(self):
-        outstr = ''
+        outstr_ssvise = f'SSVISE_DS({self.ssvise_prob}):'
+        outstr_norm = 'NORM_DS:'
         for i, name in enumerate(self.unified_datasets):
-            outstr += ' ' + name + ' '
             if self.selfsupervised[i]:
+                outstr_ssvise += ' ' + name + ' '
                 for nidx, j in enumerate(self.ssvise_idxs):
                     if j==i:
-                        outstr += str(round(self.sampleprobs_ssvise[nidx], 3))
+                        outstr_ssvise += str(round(self.sampleprobs_ssvise[nidx], 3))
                         break
             else:
+                outstr_norm += ' ' + name + ' '
                 for nidx, j in enumerate(self.normal_idxs):
                    if j==i:
-                       outstr += str(round(self.sampleprobs_norm[nidx], 3))
+                       outstr_norm += str(round(self.sampleprobs_norm[nidx], 3))
                        break
-        return outstr.strip()
+        return outstr_norm.strip() + ' ' + outstr_ssvise.strip()
     
         
 
@@ -334,7 +335,7 @@ class MyUnifiedQADataset(Dataset):
         self.word_starts = word_starts                          # eg [2, 4, 7,8,...]
         self.ners_ids = ners_ids                                # eg [[[22, 30],[1,9]], [[8, 15]], [[61, 67]]]
         self.is_training = is_training
-        self.error_based_sampling = args.error_based_sampling
+        self.error_based_sampling = args.error_based_sampling   # # p(task t) = 1.0-acc(t) / sum over all tasks t': (1.0-acc(t'))
         self.err_sampler = err_sampler
 
         assert len(self.input_ids)==len(self.attention_mask)==len(self.decoder_input_ids)==len(self.decoder_attention_mask)==len(self.word_starts)==len(self.ners_ids)
@@ -349,9 +350,7 @@ class MyUnifiedQADataset(Dataset):
             self.length = len(self.metadata) * np.min([end-start for start, end in self.metadata]) # num of datasets * min num of samples in any dataset
         else: 
             len(self.input_ids)  
-        
-        # error-based sampling 
-        # p(task t) = 1.0-acc(t) / sum over all tasks t': (1.0-acc(t'))
+        return        
 
     def __len__(self):
         return self.length  #Note 6655 not 391740 if is_training  (# datasets * min # samples in any dataset), if not is_training total # questions

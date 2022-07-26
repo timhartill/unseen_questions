@@ -37,8 +37,10 @@ from utils import load_uqa_supervised, create_uqa_example, add_key, get_timestam
 def run(args, logger):
     model = None
     if args.indiv_digits:
+        logger.info('Applying individual digit tokenisation.')
         addspecialtoksdict = eval_metrics.special_tokens_dict
     else:
+        logger.info('Normal Tokenisation (without individual digit tokenisation).')
         addspecialtoksdict = {}
     
     if args.do_train:

@@ -32,8 +32,8 @@ def main():
     parser = argparse.ArgumentParser()
 
     ## Basic parameters
-    parser.add_argument("--train_file", default="data/train.tsv")
-    parser.add_argument("--predict_file", default="data/dev.tsv")
+    parser.add_argument("--train_file", default="/data/thar011/data/unifiedqa/train.tsv")
+    parser.add_argument("--predict_file", default="/data/thar011/data/unifiedqa/dev.tsv")
     parser.add_argument("--output_dir", default=None, type=str)  #TJH , required=True)
     parser.add_argument("--do_train", action='store_true')
     parser.add_argument("--do_predict", action='store_true')
@@ -137,7 +137,6 @@ def main():
                         help="If set the preprocessed token file for train mixtures won't be saved to disk or loaded from disk")
 
 
-
     # Other parameters
     parser.add_argument("--verbose", action='store_true',
                         help="If true, all of the warnings related to data processing will be printed. "
@@ -150,6 +149,7 @@ def main():
                         help="Use a subset of data for debugging")
     parser.add_argument('--seed', type=int, default=42,
                         help="random seed for initialization")
+    
     args = parser.parse_args()
     assert args.output_dir is not None and args.output_dir != '', "Output directory must be specified using --output_dir"
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
