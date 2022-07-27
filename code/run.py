@@ -11,6 +11,7 @@ Portions adapted from https://github.com/allenai/unifiedqa
 """
 
 import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import numpy as np
 from tqdm import tqdm
 import datetime    
@@ -18,6 +19,8 @@ import json
 import shutil
 import pickle
 
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
 import torch
 from transformers import BartTokenizer, BartConfig
 from transformers import AutoTokenizer, AutoModelForPreTraining  
@@ -30,7 +33,7 @@ from bart import MyBart
 import eval_metrics  
 from overlap_detector import UQADataset
 from sentence_embeddings import Embedder, restate_qa_all
-from utils import get_parsed_decomp_str, get_parsed_decomp_by_key, load_model, run_model, get_checkpoint
+from utils import get_parsed_decomp_str, get_parsed_decomp_by_key, load_model, run_model, get_checkpoint, move_to_cuda
 from utils import load_uqa_supervised, create_uqa_example, add_key, get_timestamp
 
 
@@ -50,6 +53,7 @@ def run(args, logger):
             logger.info("No checkpoint specified. Training from base pretrained model.")
         tokenizer, model = load_model(model_name=args.model, checkpoint=args.checkpoint, special_tokens_dict=addspecialtoksdict)
         if args.is_unifiedqa:
+            #dev_data = UnifiedQAData(logger, args, args.predict_file, True)
             dev_data = UnifiedQAData(logger, args, args.predict_file, False)
             train_data = UnifiedQAData(logger, args, args.train_file, True)
         else:
@@ -57,6 +61,7 @@ def run(args, logger):
             train_data = QAData(logger, args, args.train_file, True)
         dev_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
         dev_data.load_dataloader()
+        # batch = next(iter(dev_data.dataloader))
         train_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
         train_data.load_dataloader()
                    
@@ -180,11 +185,12 @@ def run(args, logger):
         
 
 def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
+    scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
     model.train()
     global_step = 0
     train_losses = []
     best_accuracy = -1
-    stop_training=False       
+    stop_training=False
 
     if args.checkpoint_step > 0:
         if (args.checkpoint_step // args.gradient_accumulation_steps) < args.num_scheduler_steps:
@@ -213,28 +219,40 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                 logger.info("Epoch %d   Global Step %d Number of global steps exceeds lr scheduler steps. lr = 0 so exiting after final inference.." % (epoch, global_step))   #TJH Added
                 stop_training = True
                 
-            batch = [b.to(torch.device("cuda")) for b in batch]
+            #batch = [b.to(torch.device("cuda")) for b in batch]
+            batch = move_to_cuda(batch)
             if args.model != "facebook/bart-large":   # Standard pytorch loss used in hf models ignores -100 values in labels
-                batch[2][batch[2]==train_data.tokenizer.pad_token_id] = -100                
-            outputs = model(input_ids=batch[0], attention_mask=batch[1],
-                         labels=batch[2], decoder_attention_mask=batch[3])  
-            loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]  
-            if args.n_gpu > 1:
-                loss = loss.mean() 
-            if torch.isnan(loss).data:
-                logger.info("Stop training because loss=%s" % (loss.data))
-                stop_training=True
-                break
-            if args.gradient_accumulation_steps > 1:   
-                loss = loss / args.gradient_accumulation_steps
+                batch['decoder_input_ids'][batch['decoder_input_ids']==train_data.tokenizer.pad_token_id] = -100
+            with torch.cuda.amp.autocast(enabled=args.fp16):            
+                outputs = model(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'],
+                                labels=batch['decoder_input_ids'], decoder_attention_mask=batch['decoder_attention_mask'])
+                loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]  
+                if args.n_gpu > 1:
+                    loss = loss.mean() 
+                if torch.isnan(loss).data:
+                    logger.info("Stop training because loss=%s" % (loss.data))
+                    stop_training=True
+                    break
+                if args.gradient_accumulation_steps > 1:   
+                    loss = loss / args.gradient_accumulation_steps
+                    
+            scaler.scale(loss).backward()
+            #loss.backward()
             train_losses.append(loss.detach().cpu())
-            loss.backward()
 
             if global_step % args.gradient_accumulation_steps == 0:
+                # Unscales the gradients of optimizer's assigned params in-place
+                scaler.unscale_(optimizer)  
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-                optimizer.step()    # We have accumulated enought gradients
-                scheduler.step()
+                # scaler.step() first unscales the gradients of the optimizer's assigned params.
+                # If these gradients do not contain infs or NaNs, optimizer.step() is then called, otherwise, optimizer.step() is skipped.
+                scaler.step(optimizer)
+                scaler.update() # Updates the scale for next iteration.
+                scheduler.step()  #Note: Using amp get "Detected call of `lr_scheduler.step()` before `optimizer.step()`". Can ignore this. Explanation: if the first iteration creates NaN gradients (e.g. due to a high scaling factor and thus gradient overflow), the optimizer.step() will be skipped and you might get this warning.
                 model.zero_grad()
+                #optimizer.step()    # We have accumulated enought gradients
+                #scheduler.step()
+                #model.zero_grad()
 
             if (global_step % args.eval_period == 0) or stop_training:
                 if args.skip_inference:
@@ -344,14 +362,15 @@ def inference(model, dev_data, save_predictions=False, return_details=False, ret
     if dev_data.args.verbose:
         dev_data.dataloader = tqdm(dev_data.dataloader)
     for i, batch in enumerate(dev_data.dataloader):
-        batch = [b.to(model.device) for b in batch]  # was torch.device("cuda")
-        outputs = model.generate(input_ids=batch[0],
-                                 attention_mask=batch[1],
+        batch = move_to_cuda(batch)
+        #batch = [b.to(model.device) for b in batch]  # was torch.device("cuda")
+        outputs = model.generate(input_ids=batch['input_ids'],
+                                 attention_mask=batch['attention_mask'],
                                  num_beams=dev_data.args.num_beams,
                                  min_length=1,  #TJH: was min_lnegth
                                  max_length=dev_data.args.max_output_length,
                                  early_stopping=True,)
-        for input_, output in zip(batch[0], outputs):
+        for input_, output in zip(batch['input_ids'], outputs):
             pred = dev_data.decode(output)
             predictions.append(pred)
     if save_predictions:

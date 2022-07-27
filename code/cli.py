@@ -135,6 +135,11 @@ def main():
                         help="Generate explanations e for datasets specified in dataset_attibutes.create_datasets_dynamic, append as q[+mc]+e->a and save as new uqa-formatted datasets in dataset_attributes.UQA_DIR")
     parser.add_argument("--dont_save_train_token_file", action='store_true',
                         help="If set the preprocessed token file for train mixtures won't be saved to disk or loaded from disk")
+    parser.add_argument("--dont_pretokenize", action='store_true',
+                        help="If set text is tokenized on the fly instead of in one step at beginning.")
+    parser.add_argument("--num_workers", default=0, type=int, 
+                        help="number of dataloader processes for training. 0 means run on main thread.")
+    parser.add_argument('--fp16', action='store_true')
 
 
     # Other parameters
@@ -151,6 +156,33 @@ def main():
                         help="random seed for initialization")
     
     args = parser.parse_args()
+    
+    """
+    Test options:
+
+    args.do_train = True
+    args.is_unifiedqa = True
+    args.mixture = 'unifiedqa' #  'unifiedqa,synthetic_textual,synthetic_numeric'
+    args.output_dir = '/data/thar011/out/unifiedqa_bart_large_TEST'
+    args.train_file = '/data/thar011/data/unifiedqa/train.tsv'
+    args.predict_file = '/data/thar011/data/unifiedqa/dev.tsv'
+    args.verbose=True
+    args.train_batch_size = 4
+    args.predict_batch_size = 4
+    args.dont_save_train_token_file = True
+    args.indiv_digits = True
+    args.error_based_sampling = True
+    args.error_based_ssvise_prob = 0.5
+    args.dont_pretokenize = True
+    args.num_workers=5
+    args.fp16=True
+
+    args.checkpoint = '/data/thar011/out/unifiedqa_bart_large_s7_v1_uqa_sqa_mqa_expl_mswq_explans_msw/best-model-150000.pt'
+
+        
+    """
+    
+    
     assert args.output_dir is not None and args.output_dir != '', "Output directory must be specified using --output_dir"
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
         print("Output directory () already exists and is not empty.")
