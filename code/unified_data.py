@@ -113,7 +113,7 @@ class UnifiedQAData(QAData):
             with open(preprocessed_path, "r") as f:
                 input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, metadata, word_starts, ners_ids = json.load(f)
         else:
-            print ("Calculating metadata...")            
+            self.logger.info("Calculating metadata...")            
             metadata, questions, answers = [], [], []
             for dataset in self.unified_dataset:  # metadata = [(start idx ds1, end idx ds1), (start ds2, end ds2),...]
                 metadata.append((len(questions), len(questions)+len(self.data[dataset]["question"])))  # store start & end indices of each dataset in metadata
@@ -121,10 +121,10 @@ class UnifiedQAData(QAData):
                 answers += [ d if type(d) == str else d[0] for d in self.data[dataset]["answer"] ]  #only tokenise 1st answer if list
 
             if self.args.dont_pretokenize:
-                print("Not pre-tokenizing.")
+                self.logger.info("Not pre-tokenizing.")
                 word_starts, ners_ids, input_ids, attention_mask, decoder_input_ids, decoder_attention_mask = [], [], [], [], [], []
             else:                
-                print("Encoding questions...")
+                self.logger.info("Pre-tokenizing questions...")
                 question_input = manual_batch_encode(questions, 
                                                      self.tokenizer,
                                                      self.logger,
@@ -134,7 +134,7 @@ class UnifiedQAData(QAData):
                                                      truncation=True,
                                                      pad=False,
                                                      max_length=self.args.max_input_length)
-                print("Encoding answers...")
+                self.logger.info("Pre-tokenizing answers...")
                 answer_input = manual_batch_encode(answers, 
                                                      self.tokenizer,
                                                      self.logger,
@@ -165,6 +165,8 @@ class UnifiedQAData(QAData):
                                           selfsupervised = self.selfsupervised,
                                           word_starts = word_starts,
                                           ners_ids=ners_ids, err_sampler=self.err_sampler)
+        self.logger.info("Loaded {} examples from {} data".format(len(self.dataset), self.data_type))
+
 
 
     def load_dataloader(self, do_return=False):
@@ -227,8 +229,8 @@ class SampleProbs():
     """
     def __init__(self, unified_datasets, selfsupervised, selfsupervised_prob=0.5, sampletype='err'):
         """ selfsupervised = [True, False, ...]  whether each dataset is self-supervised or not
-        Return a self-supervised dataset with prob selfsupervised_prob else return a "normal" dataset
-        Within self-supervised and normal sets return dataset with probability based on error based sampling ie oversample dataset with higher error rate (1 - accuracy)
+        Return idx of a self-supervised dataset with prob selfsupervised_prob else return idx of a "normal" dataset
+        Within self-supervised and normal sets return idx of dataset with probability based on error based sampling ie oversample dataset with higher error rate (1 - accuracy)
         """
         self.unified_datasets = unified_datasets
         self.selfsupervised = selfsupervised
@@ -249,7 +251,7 @@ class SampleProbs():
         self.sampleprobs_norm = np.array([1.0/self.num_normal for _ in range(self.num_normal)])
         self.sampletype = sampletype
         
-    def update(self, ems):
+    def update(self, ems, verbose=False):
         if self.sampletype=='err':
             acctotal_norm = np.sum([1.0-acc for i, acc in enumerate(ems) if not self.selfsupervised[i]])
             acctotal_ssvise = np.sum([1.0-acc for i, acc in enumerate(ems) if self.selfsupervised[i]])
@@ -264,6 +266,8 @@ class SampleProbs():
                         if j==i:
                             self.sampleprobs_norm[nidx] = (1.0-acc) / acctotal_norm
                             break
+        if verbose:
+            print(f"New probs: {self.current_probs_string()}")
         return
     
     def sample(self):
@@ -354,8 +358,8 @@ class MyUnifiedQADataset(Dataset):
         if is_training:
             self.length = len(self.metadata) * np.min([end-start for start, end in self.metadata]) # num of datasets * min num of samples in any dataset
         else: 
-            len(self.input_ids)  
-        return        
+            self.length = self.metadata[-1][-1]   #len(self.input_ids)  
+        return
 
     def __len__(self):
         return self.length  #Note 6655 not 391740 if is_training  (# datasets * min # samples in any dataset), if not is_training total # questions
@@ -375,10 +379,10 @@ class MyUnifiedQADataset(Dataset):
                                                      truncation=True,
                                                      pad=False,
                                                      max_length=self.args.max_input_length)
-                self.input_ids = [question_input['input_ids']]
-                self.attention_mask = [question_input['attention_mask']]
-                self.word_starts = [question_input['word_starts']]
-                self.ners_ids = [question_input['ners_ids']]
+                self.input_ids = question_input['input_ids']
+                self.attention_mask = question_input['attention_mask']
+                self.word_starts = question_input['word_starts']
+                self.ners_ids = question_input['ners_ids']
                 idx = 0
                 
             if ssvise:
@@ -401,9 +405,9 @@ class MyUnifiedQADataset(Dataset):
             return {'input_ids': input_ids, 'attention_mask': attention_mask}
 
         # Training below..idx is index of component dataset
-        
         if self.error_based_sampling:
             idx = self.err_sampler.sample()     # Error based sampling
+            #print(self.err_sampler.current_probs_string())
         else:    
             idx = idx % len(self.metadata)      # Select component dataset with uniform chance not proportional to dataset sizes
 
@@ -415,11 +419,11 @@ class MyUnifiedQADataset(Dataset):
         else:    
             self.positions[idx] += 1
 
-        dp_idx = self.indices[idx][self.positions[idx]]  # Select dataset index within bucket
+        dp_idx = self.indices[idx][self.positions[idx]]  # Select index within input_ids
         dset = self.unified_dataset[idx]
         
         if self.args.dont_pretokenize: # push tokenized input into vars where pretokenised data would have been stored and set dp_idx=0
-            question_input = manual_batch_encode([ self.parent_data[dset]['question'][dp_idx] ], 
+            question_input = manual_batch_encode([ self.parent_data[dset]['question'][self.positions[idx]] ], 
                                                  self.tokenizer,
                                                  None,
                                                  self.args,
@@ -428,11 +432,11 @@ class MyUnifiedQADataset(Dataset):
                                                  truncation=True,
                                                  pad=False,
                                                  max_length=self.args.max_input_length)
-            self.input_ids = [question_input['input_ids']]
-            self.attention_mask = [question_input['attention_mask']]
-            self.word_starts = [question_input['word_starts']]
-            self.ners_ids = [question_input['ners_ids']]
-            answer = self.parent_data[dset]['answer'][dp_idx] if type(self.parent_data[dset]['answer'][dp_idx]) == str else self.parent_data[dset]['answer'][dp_idx][0]
+            self.input_ids = question_input['input_ids']
+            self.attention_mask = question_input['attention_mask']
+            self.word_starts = question_input['word_starts']
+            self.ners_ids = question_input['ners_ids']
+            answer = self.parent_data[dset]['answer'][self.positions[idx]] if type(self.parent_data[dset]['answer'][self.positions[idx]]) == str else self.parent_data[dset]['answer'][self.positions[idx]][0]
             answer_input = manual_batch_encode([ answer ],
                                                  self.tokenizer,
                                                  None,
@@ -442,11 +446,12 @@ class MyUnifiedQADataset(Dataset):
                                                  truncation=True,
                                                  pad=False,
                                                  max_length=self.args.max_output_length)
-            self.decoder_input_ids = [answer_input['input_ids']]
-            self.decoder_attention_mask = [answer_input['attention_mask']]
-            dp_idx = 0
+            self.decoder_input_ids = answer_input['input_ids']
+            self.decoder_attention_mask = answer_input['attention_mask']
+            dp_idx = 0   # index within input_ids always 0 if not pretokenised
         
         if ssvise:
+            #input_ids, attention_mask, decoder_input_ids, decoder_attention_mask = self_supervise(dev_data.dataset.args, dev_data.dataset.input_ids[0], dev_data.dataset.word_starts[0], dev_data.dataset.ners_ids[0], dev_data.dataset.mask_seq, dev_data.dataset.no_question_label, dev_data.dataset.bos_token_id,                                                                                               dev_data.dataset.eos_token_id)
             input_ids, attention_mask, decoder_input_ids, decoder_attention_mask = self_supervise(self.args, 
                                                                                                   self.input_ids[dp_idx], 
                                                                                                   self.word_starts[dp_idx], 
@@ -455,15 +460,13 @@ class MyUnifiedQADataset(Dataset):
                                                                                                   self.no_question_label,
                                                                                                   self.bos_token_id,
                                                                                                   self.eos_token_id)
-            #input_ids, attention_mask = pad_list(input_ids, attention_mask, self.args.max_input_length, self.pad_token_id)
-            #decoder_input_ids, decoder_attention_mask = pad_list(decoder_input_ids, decoder_attention_mask, self.args.max_output_length, self.pad_token_id)
         else:
             input_ids, attention_mask = self.input_ids[dp_idx], self.attention_mask[dp_idx]
-            #input_ids, attention_mask = pad_list(self.input_ids[dp_idx], self.attention_mask[dp_idx], self.args.max_input_length, self.pad_token_id)
-            #decoder_input_ids, decoder_attention_mask = pad_list(self.decoder_input_ids[dp_idx], self.decoder_attention_mask[dp_idx], self.args.max_output_length, self.pad_token_id)
+            decoder_input_ids, decoder_attention_mask = self.decoder_input_ids[dp_idx], self.decoder_attention_mask[dp_idx]
         input_ids = torch.LongTensor(input_ids)
         attention_mask = torch.LongTensor(attention_mask)
         decoder_input_ids = torch.LongTensor(decoder_input_ids)
         decoder_attention_mask = torch.LongTensor(decoder_attention_mask)
-        return {'input_ids': input_ids, 'attention_mask': attention_mask, 'decoder_input_ids': decoder_input_ids, 'decoder_attention_mask': decoder_attention_mask}
+        return {'input_ids': input_ids, 'attention_mask': attention_mask, 
+                'decoder_input_ids': decoder_input_ids, 'decoder_attention_mask': decoder_attention_mask}
 

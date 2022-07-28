@@ -51,17 +51,24 @@ def run(args, logger):
             logger.info(f"Loading checkpoint from {args.checkpoint}")       
         else:
             logger.info("No checkpoint specified. Training from base pretrained model.")
+        #tokenizer = load_model(model_name=args.model, loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)
         tokenizer, model = load_model(model_name=args.model, checkpoint=args.checkpoint, special_tokens_dict=addspecialtoksdict)
         if args.is_unifiedqa:
             #dev_data = UnifiedQAData(logger, args, args.predict_file, True)
             dev_data = UnifiedQAData(logger, args, args.predict_file, False)
             train_data = UnifiedQAData(logger, args, args.train_file, True)
         else:
+            #dev_data = QAData(logger, args, '/data/thar011/data/unifiedqa/arc_da_od_ans/dev.tsv', True)
             dev_data = QAData(logger, args, args.predict_file, False)
             train_data = QAData(logger, args, args.train_file, True)
         dev_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
         dev_data.load_dataloader()
         # batch = next(iter(dev_data.dataloader))
+        # dev_data.err_sampler.update([0.9, 0.1, 0.5, 0.9, 0.1])
+        # batch = next(iter(dev_data.dataloader))
+        # dev_data.err_sampler.update([0.6, 0.4, 0.5, 0.6, 0.4])
+        # batch = next(iter(dev_data.dataloader))
+
         train_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
         train_data.load_dataloader()
                    

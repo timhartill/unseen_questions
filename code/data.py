@@ -358,7 +358,7 @@ class QAData(object):
                 input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, \
                     metadata, word_starts, ners_ids = json.load(f)
         else:
-            print ("Calculating metadata...")
+            self.logger.info("Calculating metadata...")
             
             questions = [d["question"] if d["question"].endswith("?") else d["question"]+"?"
                         for d in self.data]
@@ -366,7 +366,7 @@ class QAData(object):
             answers, metadata = self.flatten(answers)  # "flatten" means "take 1st answer only". For training, dev only tokenise 1st answer. For dev tokenised answer not actually used for anything..
 
             if self.args.dont_pretokenize:
-                print("Not pre-tokenizing.")
+                self.logger.info("Not pre-tokenizing.")
                 word_starts, ners_ids, input_ids, attention_mask, decoder_input_ids, decoder_attention_mask = [], [], [], [], [], []
             else:                
                 question_input = manual_batch_encode(questions, 
@@ -598,7 +598,7 @@ class MyQADataset(Dataset):
         self.eos_token_id = tokenizer.eos_token_id
         self.no_question_label = tokenizer.convert_tokens_to_ids(tokenizer.tokenize("no mask"))        
         self.selfsupervised = selfsupervised
-        self.metadata = [(0, len(input_ids))]  #override historical metadata setup
+        self.metadata = metadata  #[(0, len(input_ids))]  #override historical metadata setup
         self.input_ids = input_ids              # torch.LongTensor(input_ids)
         self.attention_mask = attention_mask    # torch.LongTensor(attention_mask)
         self.decoder_input_ids = decoder_input_ids              # torch.LongTensor(decoder_input_ids)
@@ -617,7 +617,7 @@ class MyQADataset(Dataset):
 
     def __getitem__(self, idx):
         orig_idx = idx
-        ssvise = self.selfsupervised[0]
+        ssvise = self.selfsupervised[0] # only 1 dataset
         if self.args.dont_pretokenize: # push tokenized input into vars where pretokenised data would have been stored and set idx=0
             question = self.parent_data[idx]['question'] if self.parent_data[idx]['question'].endswith("?") else self.parent_data[idx]['question']+"?"
             question_input = manual_batch_encode([ question ], 
@@ -629,10 +629,10 @@ class MyQADataset(Dataset):
                                                  truncation=True,
                                                  pad=False,
                                                  max_length=self.args.max_input_length)
-            self.input_ids = [question_input['input_ids']]
-            self.attention_mask = [question_input['attention_mask']]
-            self.word_starts = [question_input['word_starts']]
-            self.ners_ids = [question_input['ners_ids']]
+            self.input_ids = question_input['input_ids']
+            self.attention_mask = question_input['attention_mask']
+            self.word_starts = question_input['word_starts']
+            self.ners_ids = question_input['ners_ids']
             if not ssvise and self.is_training:
                 answer = self.parent_data[idx]['answer'] if type(self.parent_data[idx]['answer']) == str else self.parent_data[idx]['answer'][0]
                 answer_input = manual_batch_encode([ answer ],
@@ -644,8 +644,8 @@ class MyQADataset(Dataset):
                                                      truncation=True,
                                                      pad=False,
                                                      max_length=self.args.max_output_length)
-                self.decoder_input_ids = [answer_input['input_ids']]
-                self.decoder_attention_mask = [answer_input['attention_mask']]
+                self.decoder_input_ids = answer_input['input_ids']
+                self.decoder_attention_mask = answer_input['attention_mask']
             idx = 0
 
         if not self.is_training:
@@ -683,13 +683,15 @@ class MyQADataset(Dataset):
 
         else:
             input_ids, attention_mask = self.input_ids[idx], self.attention_mask[idx]
+            decoder_input_ids, decoder_attention_mask = self.decoder_input_ids[idx], self.decoder_attention_mask[idx]
             #input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx], self.args.max_input_length, self.pad_token_id)
             #decoder_input_ids, decoder_attention_mask = pad_list(self.decoder_input_ids[idx], self.decoder_attention_mask[idx], self.args.max_output_length, self.pad_token_id)
         input_ids = torch.LongTensor(input_ids)
         attention_mask = torch.LongTensor(attention_mask)
         decoder_input_ids = torch.LongTensor(decoder_input_ids)
         decoder_attention_mask = torch.LongTensor(decoder_attention_mask)
-        return {'input_ids': input_ids, 'attention_mask': attention_mask, 'decoder_input_ids': decoder_input_ids, 'decoder_attention_mask': decoder_attention_mask}
+        return {'input_ids': input_ids, 'attention_mask': attention_mask, 
+                'decoder_input_ids': decoder_input_ids, 'decoder_attention_mask': decoder_attention_mask}
 
 
 class MyDataLoader(DataLoader):
@@ -703,8 +705,12 @@ class MyDataLoader(DataLoader):
             sampler=SequentialSampler(dataset)
             batch_size = args.predict_batch_size
             num_workers = 0  # if ssvise dev set the writeback of the temp answer to parent data might not work otherwise
-        super(MyDataLoader, self).__init__(dataset, sampler=sampler, batch_size=batch_size, 
-                                           pin_memory=True, collate_fn=self.collate_fc, num_workers=num_workers)
+        print(f"Creating dataloader with training:{is_training} pad tok id:{pad_token_id} num_workers:{num_workers} batch_size:{batch_size}")
+
+#        super(MyDataLoader, self).__init__(dataset, sampler=sampler, batch_size=batch_size, 
+#                                           pin_memory=True, collate_fn=self.collate_fc, num_workers=num_workers)
+        super().__init__(dataset, sampler=sampler, batch_size=batch_size, 
+                                           collate_fn=self.collate_fc, num_workers=num_workers)
 
 
 def collate(samples, pad_id=0):

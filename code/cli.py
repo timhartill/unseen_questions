@@ -162,7 +162,9 @@ def main():
 
     args.do_train = True
     args.is_unifiedqa = True
-    args.mixture = 'unifiedqa' #  'unifiedqa,synthetic_textual,synthetic_numeric'
+    args.mixture = 'musique_full_qa_od_ans,strategy_qa_od_ans,arc_da_od_ans,musique_full_all_dev_in_train_selfsvised,strategy_qa_facts_dev_in_train_selfsvised'
+#    args.mixture = 'unifiedqa,musique_full_qa_od_ans,strategy_qa_od_ans,arc_da_od_ans,nq_open_od_ans,musique_full_qa_od_expl,strategy_qa_od_expl,worldtree_od_expl,qasc_od_expl,arc_da_od_expl,musique_full_qa_expl_ans,strategy_qa_expl_ans,worldtree_mc_ans,arc_da_expl_ans,musique_full_all_dev_in_train_selfsvised,strategy_qa_facts_dev_in_train_selfsvised,worldtree_all_dev_in_train_selfsvised,qasc_facts_dev_in_train_selfsvised'
+#    args.mixture = 'unifiedqa' #  'unifiedqa,synthetic_textual,synthetic_numeric'
     args.output_dir = '/data/thar011/out/unifiedqa_bart_large_TEST'
     args.train_file = '/data/thar011/data/unifiedqa/train.tsv'
     args.predict_file = '/data/thar011/data/unifiedqa/dev.tsv'
@@ -174,7 +176,7 @@ def main():
     args.error_based_sampling = True
     args.error_based_ssvise_prob = 0.5
     args.dont_pretokenize = True
-    args.num_workers=5
+    args.num_workers=10
     args.fp16=True
 
     args.checkpoint = '/data/thar011/out/unifiedqa_bart_large_s7_v1_uqa_sqa_mqa_expl_mswq_explans_msw/best-model-150000.pt'
