@@ -192,6 +192,8 @@ def run(args, logger):
         
 
 def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
+    logger.info(f"Train using FP16: {args.fp16}")
+    logger.info(f"Using Error based sampling: {args.error_based_sampling}  ssvise prob:{args.error_based_ssvise_prob}")
     scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
     model.train()
     global_step = 0
