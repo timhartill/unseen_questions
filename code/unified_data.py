@@ -348,7 +348,7 @@ class MyUnifiedQADataset(Dataset):
         self.is_training = is_training
         self.error_based_sampling = args.error_based_sampling   # # p(task t) = 1.0-acc(t) / sum over all tasks t': (1.0-acc(t'))
         self.err_sampler = err_sampler
-        self.initialize = True  # if numworkers > 0 insufficient to randomly initalize indices in __init__ since dataloadrer makes copies
+        #self.initialize = True  # if numworkers > 0 insufficient to randomly initalize indices in __init__ since dataloadrer makes copies
 
         assert len(self.input_ids)==len(self.attention_mask)==len(self.decoder_input_ids)==len(self.decoder_attention_mask)==len(self.word_starts)==len(self.ners_ids)
         if not self.args.dont_pretokenize:        
@@ -410,11 +410,10 @@ class MyUnifiedQADataset(Dataset):
             return {'input_ids': input_ids, 'attention_mask': attention_mask}
 
         # Training below..idx becomes index of component dataset
-        if self.initialize:
-            time.sleep(0.25)
-            np.random.seed(int(str(idx)[-5:]+str(time.time_ns())[-4:]))  # in case seed is carried over into num_workers datasets
-            self.indices = [np.random.permutation(range(start, end)) for start, end in self.metadata]
-            self.initialize = False
+        #if self.initialize:  #didnt work! Seems indices shared across worker processes. Can only use num_workers 0. To use more would need to pick random position each time
+        #    np.random.seed(int(str(idx)[-5:]+str(time.time_ns())[-4:]))  # in case seed is carried over into num_workers datasets
+        #    self.indices = [np.random.permutation(range(start, end)) for start, end in self.metadata]
+        #    self.initialize = False
                 
         if self.error_based_sampling:
             idx = self.err_sampler.sample()     # Error based sampling

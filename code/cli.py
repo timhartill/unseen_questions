@@ -177,7 +177,7 @@ def main():
     args.error_based_sampling = True
     args.error_based_ssvise_prob = 0.5
     args.dont_pretokenize = True
-    args.num_workers=10
+    args.num_workers=0
     args.fp16=True
 
     args.checkpoint = '/data/thar011/out/unifiedqa_bart_large_s7_v1_uqa_sqa_mqa_expl_mswq_explans_msw/best-model-150000.pt'
