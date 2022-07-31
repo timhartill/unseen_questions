@@ -9,6 +9,7 @@ import os
 import json
 import re
 import string
+import time
 import numpy as np
 
 import torch
@@ -158,6 +159,8 @@ class UnifiedQAData(QAData):
 
         self.metadata = metadata
         self.err_sampler = SampleProbs(self.unified_dataset, self.selfsupervised, self.args.error_based_ssvise_prob)
+        if self.is_training and self.args.error_based_sampling:
+            self.logger.info(f"Initial err based sampling probs: {self.err_sampler.current_probs_string()}")
         self.dataset = MyUnifiedQADataset(input_ids, attention_mask,
                                           decoder_input_ids, decoder_attention_mask, self.args, self.data,
                                           metadata=metadata, is_training=self.is_training,
@@ -345,6 +348,7 @@ class MyUnifiedQADataset(Dataset):
         self.is_training = is_training
         self.error_based_sampling = args.error_based_sampling   # # p(task t) = 1.0-acc(t) / sum over all tasks t': (1.0-acc(t'))
         self.err_sampler = err_sampler
+        self.initialize = True  # if numworkers > 0 insufficient to randomly initalize indices in __init__ since dataloadrer makes copies
 
         assert len(self.input_ids)==len(self.attention_mask)==len(self.decoder_input_ids)==len(self.decoder_attention_mask)==len(self.word_starts)==len(self.ners_ids)
         if not self.args.dont_pretokenize:        
@@ -364,9 +368,9 @@ class MyUnifiedQADataset(Dataset):
     def __len__(self):
         return self.length  #Note 6655 not 391740 if is_training  (# datasets * min # samples in any dataset), if not is_training total # questions
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx):            
         orig_idx = idx
-        if not self.is_training:   # idx is idx into input_ids etc not idx of component dataset
+        if not self.is_training:   # if pretokenised: idx is idx into input_ids etc not idx of component dataset
             ssvise = self.objective[idx] 
             if self.args.dont_pretokenize: # push tokenized input into vars where pretokenised data would have been stored and set idx=0
                 dset, ds_idx = get_parentdata_indx(idx, self.metadata, self.unified_dataset)
@@ -396,15 +400,22 @@ class MyUnifiedQADataset(Dataset):
                                                                                                       self.eos_token_id)
                 dset, ds_idx = get_parentdata_indx(orig_idx, self.metadata, self.unified_dataset)
                 self.parent_data[dset]['answer'][ds_idx] = self.tokenizer.decode(decoder_input_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-                #input_ids, attention_mask = pad_list(input_ids, attention_mask, self.args.max_input_length, self.pad_token_id)
             else:
                 input_ids, attention_mask = self.input_ids[idx], self.attention_mask[idx]
                 #input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx], self.args.max_input_length, self.pad_token_id)
+            ###
+            #input_ids, attention_mask = pad_list(input_ids, attention_mask, self.args.max_input_length, self.pad_token_id)
             input_ids = torch.LongTensor(input_ids)
             attention_mask = torch.LongTensor(attention_mask)
             return {'input_ids': input_ids, 'attention_mask': attention_mask}
 
-        # Training below..idx is index of component dataset
+        # Training below..idx becomes index of component dataset
+        if self.initialize:
+            time.sleep(0.25)
+            np.random.seed(int(str(idx)[-5:]+str(time.time_ns())[-4:]))  # in case seed is carried over into num_workers datasets
+            self.indices = [np.random.permutation(range(start, end)) for start, end in self.metadata]
+            self.initialize = False
+                
         if self.error_based_sampling:
             idx = self.err_sampler.sample()     # Error based sampling
             #print(self.err_sampler.current_probs_string())
@@ -416,8 +427,6 @@ class MyUnifiedQADataset(Dataset):
             start, end = self.metadata[idx]
             self.indices[idx] = np.random.permutation(range(start, end))
             self.positions[idx] = 0
-        else:    
-            self.positions[idx] += 1
 
         dp_idx = self.indices[idx][self.positions[idx]]  # Select index within input_ids
         dset = self.unified_dataset[idx]
@@ -449,6 +458,8 @@ class MyUnifiedQADataset(Dataset):
             self.decoder_input_ids = answer_input['input_ids']
             self.decoder_attention_mask = answer_input['attention_mask']
             dp_idx = 0   # index within input_ids always 0 if not pretokenised
+
+        self.positions[idx] += 1
         
         if ssvise:
             #input_ids, attention_mask, decoder_input_ids, decoder_attention_mask = self_supervise(dev_data.dataset.args, dev_data.dataset.input_ids[0], dev_data.dataset.word_starts[0], dev_data.dataset.ners_ids[0], dev_data.dataset.mask_seq, dev_data.dataset.no_question_label, dev_data.dataset.bos_token_id,                                                                                               dev_data.dataset.eos_token_id)
@@ -463,6 +474,11 @@ class MyUnifiedQADataset(Dataset):
         else:
             input_ids, attention_mask = self.input_ids[dp_idx], self.attention_mask[dp_idx]
             decoder_input_ids, decoder_attention_mask = self.decoder_input_ids[dp_idx], self.decoder_attention_mask[dp_idx]
+
+        ###
+        #input_ids, attention_mask = pad_list(input_ids, attention_mask, self.args.max_input_length, self.pad_token_id)
+        #decoder_input_ids, decoder_attention_mask = pad_list(decoder_input_ids, decoder_attention_mask, self.args.max_output_length, self.pad_token_id)
+
         input_ids = torch.LongTensor(input_ids)
         attention_mask = torch.LongTensor(attention_mask)
         decoder_input_ids = torch.LongTensor(decoder_input_ids)

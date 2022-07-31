@@ -71,8 +71,12 @@ def run(args, logger):
 
         train_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
         train_data.load_dataloader()
-                   
-        model.config.to_json_file(os.path.join(args.output_dir, "model_config.json"))  
+        
+        if args.n_gpu > 1:
+            model.module.config.to_json_file(os.path.join(args.output_dir, "model_config.json"))  
+        else:
+            model.config.to_json_file(os.path.join(args.output_dir, "model_config.json"))  
+            
         logger.info("Saved model config to {}".format(os.path.join(args.output_dir, "model-config.json")))
     
         # Added from HF trainer.py
@@ -232,10 +236,10 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
             batch = move_to_cuda(batch)
             if args.model != "facebook/bart-large":   # Standard pytorch loss used in hf models ignores -100 values in labels
                 batch['decoder_input_ids'][batch['decoder_input_ids']==train_data.tokenizer.pad_token_id] = -100
-            with torch.cuda.amp.autocast(enabled=args.fp16):            
+            with torch.cuda.amp.autocast(enabled=args.fp16):
                 outputs = model(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'],
                                 labels=batch['decoder_input_ids'], decoder_attention_mask=batch['decoder_attention_mask'])
-                loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]  
+                loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
                 if args.n_gpu > 1:
                     loss = loss.mean() 
                 if torch.isnan(loss).data:

@@ -710,7 +710,7 @@ class MyDataLoader(DataLoader):
 #        super(MyDataLoader, self).__init__(dataset, sampler=sampler, batch_size=batch_size, 
 #                                           pin_memory=True, collate_fn=self.collate_fc, num_workers=num_workers)
         super().__init__(dataset, sampler=sampler, batch_size=batch_size, 
-                                           collate_fn=self.collate_fc, num_workers=num_workers)
+                         collate_fn=self.collate_fc, num_workers=num_workers)
 
 
 def collate(samples, pad_id=0):
