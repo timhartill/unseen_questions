@@ -6,7 +6,7 @@
 #        --error_based_sampling \
 #        --indiv_digits \
 #         --num_workers 10 \
-
+#         --num_workers 0 \    default is 0 so no need to include
 
 cd ../code
 
@@ -25,7 +25,6 @@ python cli.py --do_train --output_dir /large_data/thar011/out/mdr/logs/UQA_s8_v9
         --learning_rate 2e-5 \
         --model facebook/bart-large \
         --seed 42 \
-        --num_workers 0 \
         --ssm_prob 1.0 \
         --add_mask_char NONE \
         --max_output_length 130 \

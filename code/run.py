@@ -246,7 +246,7 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                     logger.info("Stop training because loss=%s" % (loss.data))
                     stop_training=True
                     break
-                if args.gradient_accumulation_steps > 1:   
+                if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                     
             scaler.scale(loss).backward()

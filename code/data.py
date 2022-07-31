@@ -700,7 +700,7 @@ class MyDataLoader(DataLoader):
         if is_training:
             sampler=RandomSampler(dataset)
             batch_size = args.train_batch_size
-            num_workers = args.num_workers
+            num_workers = 0   # ignoring args.num_workers since training with num_workers > 0 currently doesnt work..
         else:
             sampler=SequentialSampler(dataset)
             batch_size = args.predict_batch_size
