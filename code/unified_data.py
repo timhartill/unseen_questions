@@ -15,12 +15,33 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, TensorDataset, DataLoader, RandomSampler, SequentialSampler
 
-from transformers import AutoTokenizer
+#from transformers import AutoTokenizer
 
 from data import QAData, MyDataLoader, manual_batch_encode, normalize_num_batch, selfsupervisedkey, pad_list, self_supervise
 
 import utils
 from eval_metrics import get_exact_match, parse_mixture
+
+
+def sample_datasets(logger, data, approx_dev_samples):
+    """ Restrict size of each dev dataset to ~approx_dev_samples for reasonable validation step time
+    """
+    logger.info(f"Loaded data for dev. Now restricting each dev dataset to approximately {approx_dev_samples} samples.")
+    sampled_data = {}
+    for dataset in data.keys():
+        datasetlen = len(data[dataset]["question"])
+        n_skip = round(datasetlen / approx_dev_samples)
+        if n_skip <= 1:   
+            sampled_data[dataset] = data[dataset]
+        else:
+            sampled_data[dataset] = {"id": [], "question": [], "answer": []}
+            for i in range(0, datasetlen, n_skip):
+                 sampled_data[dataset]["id"].append( data[dataset]["id"][i] )
+                 sampled_data[dataset]["question"].append( data[dataset]["question"][i] )
+                 sampled_data[dataset]["answer"].append( data[dataset]["answer"][i] )
+    for dataset in sampled_data.keys():
+        logger.info(f"{dataset}: New count:{len(sampled_data[dataset]['question'])} Orig:{len(data[dataset]['question'])}")
+    return sampled_data
 
 
 class UnifiedQAData(QAData):
@@ -47,6 +68,7 @@ class UnifiedQAData(QAData):
             
             assert data_path.endswith(".tsv"), "data file has to be in tsv format"
             curr_data_path = data_path.replace(f"{self.data_type}.tsv", f"{dataset}/{self.data_type}.tsv")
+            print(f"Dataset: Loading {curr_data_path}..")
             self.data[dataset] = {"id": [], "question": [], "answer": []}
             with open(curr_data_path, "r") as f:
                 cnt = 0
@@ -71,6 +93,16 @@ class UnifiedQAData(QAData):
                     if args.debug and cnt==20:
                         break
 
+        if not is_training and args.approx_dev_samples != -1:  # limit number of dev samples so validation step takes reasonable amount of time
+            self.data = sample_datasets(logger, self.data, args.approx_dev_samples)  
+        if is_training:
+            logger.info("Loaded data for training:")
+        else:
+            logger.info("Loaded data for dev/test:")
+        for dataset in self.data.keys():
+            logger.info(f"{dataset}: count:{len(self.data[dataset]['question'])} samples")
+                  
+                    
         self.is_training = is_training
         self.load = not args.debug
         self.logger = logger

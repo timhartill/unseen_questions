@@ -312,8 +312,12 @@ def create_grouped_metrics(logger, sample_list, group_key='src',
             missing_metric_keys.append(key)
     if missing_metric_keys != []:
         metric_keys = present_metric_keys
-        logger.info("------------------------------------------------")     
-        logger.info(f"Samples dont have: {missing_metric_keys}. Skipping these.")
+        if logger is not None:
+            logger.info("------------------------------------------------")     
+            logger.info(f"Samples dont have: {missing_metric_keys}. Skipping these.")
+        else:
+            print("------------------------------------------------")     
+            print(f"Samples dont have: {missing_metric_keys}. Skipping these.")
     
     for sample in sample_list:
         if group_key.upper() == 'ALL':
@@ -328,17 +332,32 @@ def create_grouped_metrics(logger, sample_list, group_key='src',
                 grouped_metrics[group][key] = []
             if sample[key] != -1:
                 grouped_metrics[group][key].append( sample[key] )
-    logger.info("------------------------------------------------")     
-    logger.info(f"Metrics grouped by: {group_key}")
-    logger.info("------------------------------------------------")
+    if logger is not None:
+        logger.info("------------------------------------------------")     
+        logger.info(f"Metrics grouped by: {group_key}")
+        logger.info("------------------------------------------------")
+    else:
+        print("------------------------------------------------")     
+        print(f"Metrics grouped by: {group_key}")
+        print("------------------------------------------------")
+        
     for group in grouped_metrics:
         mgroup = grouped_metrics[group]
-        logger.info(f"{group_key}: {group}")
+        if logger is not None:
+            logger.info(f"{group_key}: {group}")
+        else:
+            print(f"{group_key}: {group}")            
         for key in metric_keys:
             n = len(mgroup[key])
             val = np.mean( mgroup[key] ) if n > 0 else -1
-            logger.info(f'{key}: {val}  n={n}')
-        logger.info("------------------------------------------------")
+            if logger is not None:
+                logger.info(f'{key}: {val}  n={n}')
+            else:
+                print(f'{key}: {val}  n={n}')    
+        if logger is not None:
+            logger.info("------------------------------------------------")
+        else:
+            print("------------------------------------------------")
     return
 
 

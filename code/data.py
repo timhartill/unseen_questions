@@ -705,6 +705,8 @@ class MyDataLoader(DataLoader):
             sampler=SequentialSampler(dataset)
             batch_size = args.predict_batch_size
             num_workers = 0  # if ssvise dev set the writeback of the temp answer to parent data might not work otherwise
+            if args.num_workers != 0:
+                print(f"Forcing num_workers to 0..")
         print(f"Creating dataloader with training:{is_training} pad tok id:{pad_token_id} num_workers:{num_workers} batch_size:{batch_size}")
 
 #        super(MyDataLoader, self).__init__(dataset, sampler=sampler, batch_size=batch_size, 

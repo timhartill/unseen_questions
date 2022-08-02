@@ -22,14 +22,14 @@ import pickle
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 import torch
-from transformers import BartTokenizer, BartConfig
-from transformers import AutoTokenizer, AutoModelForPreTraining  
+#from transformers import BartTokenizer, BartConfig
+#from transformers import AutoTokenizer, AutoModelForPreTraining  
 from transformers import AdamW, get_linear_schedule_with_warmup
 from transformers.trainer_pt_utils import get_parameter_names
 
 from data import QAData
-from unified_data import UnifiedQAData, SampleProbs
-from bart import MyBart
+from unified_data import UnifiedQAData  #, SampleProbs
+#from bart import MyBart
 import eval_metrics  
 from overlap_detector import UQADataset
 from sentence_embeddings import Embedder, restate_qa_all

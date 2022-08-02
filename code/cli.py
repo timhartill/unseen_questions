@@ -140,7 +140,10 @@ def main():
                         help="If set text is tokenized on the fly instead of in one step at beginning.")
     parser.add_argument("--num_workers", default=0, type=int, 
                         help="number of dataloader processes for training. 0 means run on main thread.")
-    parser.add_argument('--fp16', action='store_true')
+    parser.add_argument('--fp16', action='store_true',
+                        help="Train using mixed precision.")
+    parser.add_argument("--approx_dev_samples", default=-1, type=int, 
+                        help="If not -1 each unified_data dev set will reduced to approximately this number of samples by taking every 9datasetsize // max_dev_samples) sample.")
 
 
     # Other parameters
@@ -148,7 +151,7 @@ def main():
                         help="If true, all of the warnings related to data processing will be printed. "
                              "A number of warnings are expected for a normal SQuAD evaluation.")
     parser.add_argument('--eval_period', type=int, default=2000,
-                        help="Evaluate & save model")
+                        help="Evaluate & save model every eval_period steps")
     parser.add_argument('--prefix', type=str, default='',
                         help="Prefix for saving predictions")
     parser.add_argument('--debug', action='store_true',
