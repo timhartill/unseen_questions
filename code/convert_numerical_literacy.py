@@ -3,7 +3,7 @@
 """
 Created on Mon May  3 18:20:11 2021
 
-@author: thar011
+@author: tim hartill
 
 Convert Geva et al Numerical Literacy datasets into UnifiedQa format
 
@@ -11,51 +11,35 @@ From paper: Injecting numerical reasoning skills into language models
 
 Edit indir and outdir before running...
 
+
 """
 
 import os
 import json
-import shutil
 
-indir = '/data/thar011/data/injecting_numeracy/data/'
+import utils
+
+indir = '/home/thar011/data/injecting_numeracy/data/'
 dsets = os.listdir(indir)
-outdir = '/data/thar011/data/injecting_numeracy/unifiedqa_format/'
+outdir = '/home/thar011/data/injecting_numeracy/unifiedqa_format/'
 os.makedirs(outdir, exist_ok=True)
 unifiedqadir = '/data/thar011/data/unifiedqa/'  # NOT USED. Manually copy the resulting files after checking them...
 
 
-def load_jsonl(file, verbose=True):
-    """ Load a list of json msgs from a file formatted as 
-           {json msg 1}
-           {json msg 2}
-           ...
-    """
-    if verbose:
-        print('Loading json file: ', file)
-    with open(file, "r") as f:
-        all_json_list = f.read()
-    all_json_list = all_json_list.split('\n')
-    num_jsons = len(all_json_list)
-    if verbose:
-        print('JSON as text successfully loaded. Number of json messages in file is ', num_jsons)
-    all_json_list = [json.loads(j) for j in all_json_list if j.strip() != '']
-    if verbose:
-        print('Text successfully converted to JSON.')
-    return all_json_list
-
-
-
 numdata = os.path.join(indir, 'synthetic_numeric.jsonl')
-num_outdir = outdir + 'synthetic_numeric'
+num_outdir = os.path.join(outdir, 'synthetic_numeric')
 os.makedirs(num_outdir, exist_ok=True)
+
 txtdata_dev = os.path.join(indir, 'synthetic_textual_mixed_min3_max6_up0.7_dev.json')
 txtdata_train = os.path.join(indir, 'synthetic_textual_mixed_min3_max6_up0.7_train.json')
-txt_outdir = outdir + 'synthetic_textual'
+txt_outdir = os.path.join(outdir, 'synthetic_textual')
 os.makedirs(txt_outdir, exist_ok=True)
 
-num = load_jsonl(numdata)
+num = utils.load_jsonl(numdata)
 num[0].keys()  # ['id', 'expr', 'val', 'args', 'type', 'check_domain', 'split']
 # split: {'train': 990000, 'dev': 9996}
+qtypes = set([n['type'] for n in num])  # {'arg_min_max_expression','date_diff','date_min_max','min_max_avg_expression', 'percent', 'signed_expression'}
+
 
 fout_train = open(f"{num_outdir}/train.tsv", "w")
 fout_dev = open(f"{num_outdir}/dev.tsv", "w")
@@ -109,5 +93,8 @@ for i, key in enumerate(txtdrop):
         k += 1
 print('Num train samples=',k)    # 2523192
 
+
+
+    
 
 
