@@ -6,39 +6,50 @@ Created on Wed Aug  3 2022
 @author: tim hartill
 
 Adapted from Geva et al 2020 "Injecting numerical reasoning skills into language models" gen_numeric_data.py 
-to generate large amounts of synthetic data with POET-style variablised context
+Extended to generate large amounts of synthetic data with POET-style variablised context with separate dataset per type.
 
-Edit indir and outdir before running...
+Added yn_nums and yn_dates tasks
 
 Note: first run:
 import nltk 
 nltk.download('words')
 
+Usage:
+python create_variablized_numeric.py --num_samples 1e6 --num_dev_samples 1e4 --output_dir ../data
+
+Takes ~ 1 hours to output 1M samples for each dataset
 
 """
 
-
-import uuid, random, jsonlines, logging, argparse, re
-from datetime import datetime, date, timedelta
-from dateutil import relativedelta
+import os
+import random, argparse
+from datetime import datetime, timedelta
+#from dateutil import relativedelta
 from random import shuffle
 
-import ujson as json
+#import ujson as json
 from tqdm import tqdm
 import numpy as np
-from nltk.corpus import words, wordnet
+from nltk.corpus import words  #, wordnet
 from transformers import AutoTokenizer
+
+import utils
 
 
 tokenizer = AutoTokenizer.from_pretrained('facebook/bart-large', do_lower_case=True)
 
 var_mapping = [chr(i) for i in list(range(97, 123))] + [chr(i)+chr(i) for i in list(range(97, 123))]  # BART tokenizer parse all these to single toks
+print(f"Substituting using variable names: {var_mapping}")
 
 # words with <= 2 tokens
+print("Building word list using words with <= 2 tokens...")
 nltk_words = [w.lower() for w in words.words() if len(tokenizer.tokenize(w)) <= 2 and w not in set(var_mapping)]  #64944 words
 
 context_vars = 30
+print(f"Adding {context_vars} real+distractor variables to the context.")
 max_num = 20000
+print(f"Using numbers ranging from 0 to {max_num}")
+
 
 superlatives = {'max':["longest", "last", "highest", "largest", "most", "greatest"], 
                 'min':["shortest", "first", "smallest", "lowest", "least"]}
@@ -46,26 +57,16 @@ superlatives = {'max':["longest", "last", "highest", "largest", "most", "greates
 argsuperlatives = {'argmax':["highest", "largest", "biggest", "maximum", "greatest"], 
                    'argmin':["minimum", "smallest", "lowest", "least"]}
 
-comparatives = {'less': ["fewer", "less", "before", "earlier", "smaller", "lower", "shorter"],
-                'more': ["more", "later", "bigger", "higher", "longer", "larger", "greater", "taller"]}
-
 date_superlatives = {'max':["last", "latest", "most recent", "youngest"], 
                     'min':["first", "earliest", "oldest", 'least recent']}
 
-date_comparatives = {'less': ["before", "earlier", "older"],
-                     'more': ['after', "later", "younger"]}
+date_comparatives = {'less': ["before", "earlier than", "older than", "<"],
+                     'more': ['after', "later than", "younger than", ">"]}
+
+comparatives = {'less': ["fewer than", "less than", "before", "earlier than", "smaller than", "lower than", "<"],
+                'more': ["more than", "later than", "bigger than", "higher than", ">", "larger than", "greater than"]}
 
 
-# def rand_expression(args):
-#     # returns arithmetic expression, val
-#     if len(args) == 1:
-#         return str(args[0]), args[0]
-#     split = random.randint(1, len(args)-1)
-#     exp1, val1 = rand_expression(args[:split])
-#     exp2, val2 = rand_expression(args[split:])
-#     op = random.choice(['+', '-', '*']) #if len(str(val1*val2)) < 10 else random.choice(['+', '-'])
-#     val = {'+': val1 + val2, '-': val1 - val2, '*': val1 * val2}[op]
-#     return '(%s %s %s)' % (exp1, op, exp2), val # infix
 
 
 def fill_context(i, subst, valtype='num'):
@@ -92,11 +93,55 @@ def fill_context(i, subst, valtype='num'):
         i += 1
     return
 
+
 def rand_float(x):
     # randomly add up to 2 decimal places
     precision = np.random.choice([0, 1, 2], p=[0.2, 0.4, 0.4])
     fractional_part = {0: 0, 1: random.randint(0, 9)*0.1, 2: random.randint(0, 99)*0.01}[precision]
     return x + fractional_part
+
+
+def yn_nums(args):
+    """ returns comparison, val=y/n, context
+    eg ('Is x > y?', no, "a = 2 ; x = 1.1 ; z = 2.2 ; y = 3.3 ; ff = 12.4 ;")
+    """
+    shuffle(var_mapping)
+    if len(args) > 3:
+        args = args[:3] if random.randint(0,1) else args[:2]
+    subst = []
+    i = 0
+    newargs = []
+    for a in args:
+        aa = a * -1 if random.randint(0,1) else a
+        v = var_mapping[i]
+        subst.append(f"{v} = {str(aa)} ;")
+        newargs.append(aa)
+        i += 1
+    fill_context(i, subst)
+    expr = 'Is ' if random.randint(0,1) else ''    
+    if len(args) == 3:
+        expr += f"{var_mapping[0]} between {var_mapping[1]} and {var_mapping[2]}"
+        if (newargs[0] >= newargs[1] and newargs[0] <= newargs[2]) or (newargs[0] >= newargs[2] and newargs[0] <= newargs[1]):
+            val = 'yes'
+        else:
+            val = 'no'                
+    else: #2 args
+        lessormore = 'less' if random.randint(0,1) else 'more'
+        comparative = random.choice(comparatives[lessormore])
+        expr += f"{var_mapping[0]} {comparative} {var_mapping[1]}"
+        if lessormore == 'less':
+            if newargs[0] < newargs[1]:
+                val = 'yes'
+            else:
+                val = 'no'
+        else:
+            if newargs[0] > newargs[1]:
+                val = 'yes'
+            else:
+                val = 'no'
+    shuffle(subst)
+    return expr.strip() + '?', val, ' '.join(subst)
+
 
 
 def signed_expression(args):
@@ -271,18 +316,66 @@ def date_diff(typ=''):
     expr = expr[:-2]    
 
     #expr = '; '.join(choices).strip()
-    expr = 'What is the difference in %s of %s?' % (typ, expr)
+    expr = f'What is the difference in {typ} of {expr}?'
     shuffle(subst)
     return expr.strip(), val, choices, ' '.join(subst)
 
 
+def yn_dates():
+    """ returns date comparison, val=y/n, context
+    """
+    shuffle(var_mapping)
+    typ = random.choice([2,3])
+    close_dates = random.randint(0,1)
+    rds = [datetime.now() - timedelta(days=2018*365) * random.random() for _ in range(typ)]
+    if close_dates:
+        for i, r in enumerate(rds):
+            if i > 0:
+                diff = timedelta(days=60) if random.randint(0,1) else timedelta(days=200)
+                rds[i] = rds[0] + random.choice([-1,1]) * diff * random.random()            
+    random.shuffle(rds)
+    choices = [[rd.strftime("%d %B %Y"), rd.strftime("%B %d, %Y")][random.randint(0, 1)] for rd in rds]
+
+    subst = []
+    i = 0
+    for a, r in zip(choices, rds):
+        v = var_mapping[i]
+        subst.append(f"{v} = {str(a)} ;")
+        i += 1
+    fill_context(i, subst, valtype='date')
+    expr = 'Is ' if random.randint(0,1) else ''    
+    if len(choices) == 3:
+        expr += f"{var_mapping[0]} between {var_mapping[1]} and {var_mapping[2]}"
+        if (rds[0] >= rds[1] and rds[0] <= rds[2]) or (rds[0] >= rds[2] and rds[0] <= rds[1]):
+            val = 'yes'
+        else:
+            val = 'no'                
+    else: #2 args
+        lessormore = 'less' if random.randint(0,1) else 'more'
+        comparative = random.choice(date_comparatives[lessormore])
+        expr += f"{var_mapping[0]} {comparative} {var_mapping[1]}"
+        if lessormore == 'less':
+            if rds[0] < rds[1]:
+                val = 'yes'
+            else:
+                val = 'no'
+        else:
+            if rds[0] > rds[1]:
+                val = 'yes'
+            else:
+                val = 'no'
+    shuffle(subst)
+    return expr.strip() + '?', val, ' '.join(subst)
+
+
 def main():
     parser = argparse.ArgumentParser(description='For generating variablized synthetic numeric data.')
-    parser.add_argument("--num_samples", default=1e6, type=float, help="Total number of samples to generate.")
-    parser.add_argument("--num_dev_samples", default=1e4, type=float, help="Num of samples to keep aside for dev set.")
-    parser.add_argument("--output_jsonl", default='./data/synthetic_numeric.jsonl', type=str, 
-                        help="Output synthetic numeric data .jsonl file.")
+    parser.add_argument("--num_samples", default=1e6, type=float, help="Total number of samples to generate PER DATASET.")
+    parser.add_argument("--num_dev_samples", default=1e4, type=float, help="Num of samples to keep aside for dev set PER DATASET.")
+    parser.add_argument("--output_dir", default='/home/thar011/data/new_synth_numeric_datasets', type=str, 
+                        help="Output synthetic datasets into subdirs below this.")
     pargs = parser.parse_args()
+    print(pargs)
     
     # split the domain
     domain, train_number_range, dev_number_range = int(max_num), [], []
@@ -290,14 +383,24 @@ def main():
         x = train_number_range if random.random() < 0.8 else dev_number_range
         x.append(i)
 
-    n_examples, n_dev, q_types = int(pargs.num_samples), int(pargs.num_dev_samples), 6
-    discrete_ops_data, n_iters = [], n_examples // q_types
+    n_examples, n_dev, q_types = int(pargs.num_samples), int(pargs.num_dev_samples), 8
+    n_iters = n_examples # // q_types
     train_args, dev_args = set(), set()
+    out_dict = {'synthetic_num_signed_arith': {'train':[], 'dev':[]},
+                'synthetic_num_min_max_avg': {'train':[], 'dev':[]},
+                'synthetic_num_arg_min_max': {'train':[], 'dev':[]},
+                'synthetic_num_date_min_max': {'train':[], 'dev':[]},
+                'synthetic_num_date_diff': {'train':[], 'dev':[]},
+                'synthetic_num_percent': {'train':[], 'dev':[]},
+                'synthetic_num_yn_nums': {'train':[], 'dev':[]},
+                'synthetic_num_yn_dates': {'train':[], 'dev':[]},
+                }
+    assert q_types == len(out_dict)
 
-    print(f"Creating {n_examples} samples...")
+    print(f"Creating total {n_examples} samples per dataset including {n_dev} dev samples...")
     for i_s in tqdm(range(n_iters)):
         # decide train/dev split
-        split = 'train' if i_s < n_iters - (n_dev // q_types) else 'dev'
+        split = 'train' if i_s < n_iters - n_dev else 'dev'   #  n_iters - (n_dev // q_types)
         rng = {'train': train_number_range, 'dev': dev_number_range}[split]
         args = [random.choice(rng) for _ in range(np.random.choice([2, 3, 4], p=[1/3]*3))]
         # with 50% prob add rand fraction
@@ -307,41 +410,67 @@ def main():
         wrds = [random.choice(nltk_words) for _ in range(len(args))]
 
         expr, val, context = signed_expression(args)
-        d1 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': args, 
-              'type': 'signed_expression', 'check_domain':True, 'split': split, context: context}
+        out_dict['synthetic_num_signed_arith'][split].append( utils.create_uqa_example(expr, context, str(val)) )
+        #d1 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': args, 
+        #      'type': 'signed_expression', 'check_domain':True, 'split': split, context: context}
 
         expr, val, context = min_max_avg_expression(args)
-        d2 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': args, 
-              'type': 'min_max_avg_expression', 'check_domain':True, 'split': split, context: context}
+        out_dict['synthetic_num_min_max_avg'][split].append( utils.create_uqa_example(expr, context, str(val)) )
+        #d2 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': args, 
+        #      'type': 'min_max_avg_expression', 'check_domain':True, 'split': split, context: context}
 
         expr, val, context = arg_min_max_expression(wrds, args)
-        d3 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': args, 
-              'type': 'arg_min_max_expression', 'check_domain':True, 'split': split, context: context}
+        out_dict['synthetic_num_arg_min_max'][split].append( utils.create_uqa_example(expr, context, str(val)) )
+        #d3 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': args, 
+        #      'type': 'arg_min_max_expression', 'check_domain':True, 'split': split, context: context}
 
         expr, val, date_args, context = date_min_max(n_args=len(args))
-        d4 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': date_args, 
-              'type': 'date_min_max', 'check_domain':False, 'split': split, context: context}
+        out_dict['synthetic_num_date_min_max'][split].append( utils.create_uqa_example(expr, context, str(val)) )
+        #d4 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': date_args, 
+        #      'type': 'date_min_max', 'check_domain':False, 'split': split, context: context}
 
         expr, val, date_args, context = date_diff()
-        d5 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': date_args, 
-              'type': 'date_diff', 'check_domain':False, 'split': split, context: context}
+        out_dict['synthetic_num_date_diff'][split].append( utils.create_uqa_example(expr, context, str(val)) )
+        #d5 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': date_args, 
+        #      'type': 'date_diff', 'check_domain':False, 'split': split, context: context}
 
         expr, oldcontext, qn, val, args, context = rand_percent()
-        d6 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': args, 'ques': qn, 
-              'context': context, 'type': 'percent', 'check_domain':False, 'split': split}
+        out_dict['synthetic_num_percent'][split].append( utils.create_uqa_example(expr, context, str(val)) )
+        #d6 = {'id': str(uuid.uuid4().hex), 'expr': expr, 'val': val, 'args': args, 'ques': qn, 
+        #      'context': context, 'type': 'percent', 'check_domain':False, 'split': split}
 
-        discrete_ops_data += [d1, d2, d3, d4, d5, d6]
+        expr, val, context = yn_nums(args)
+        out_dict['synthetic_num_yn_nums'][split].append( utils.create_uqa_example(expr, context, str(val)) )
+
+        expr, val, context = yn_dates()
+        out_dict['synthetic_num_yn_dates'][split].append( utils.create_uqa_example(expr, context, str(val)) )
+
+
+        #discrete_ops_data += [d1, d2, d3, d4, d5, d6]
 
     assert train_args.isdisjoint(dev_args) # trn, dev args are disjoint
 
-    with jsonlines.open(pargs.output_jsonl, mode='w') as writer:
-        writer.write_all(discrete_ops_data)
+    #with jsonlines.open(pargs.output_jsonl, mode='w') as writer:
+    #    writer.write_all(discrete_ops_data)
+    
+    for dataset in out_dict:
+        out_dir = os.path.join(pargs.output_dir, dataset)
+        print(f"Creating {out_dir}")
+        os.makedirs(out_dir, exist_ok=True)
+        outfile = os.path.join(out_dir, 'train.tsv')
+        print(f"Counts: Train:{len(out_dict[dataset]['train'])} Dev:{len(out_dict[dataset]['dev'])}")
+        print(f"Outputting train: {outfile}")
+        with open(outfile, 'w') as f:
+            f.write(''.join(out_dict[dataset]['train']))
+        outfile = os.path.join(out_dir, 'dev.tsv')
+        print(f"Outputting dev: {outfile}")
+        with open(outfile, 'w') as f:
+            f.write(''.join(out_dict[dataset]['dev']))
+    print('Finished!')
+        
     
 
 if __name__ == "__main__":
     main()
     
     
-'''
-python gen_numeric_data.py --num_samples 1e6 --num_dev_samples 1e4 --output_jsonl ../data/synthetic_numeric.jsonl
-'''
