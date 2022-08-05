@@ -53,14 +53,14 @@ def pad_list(ids, attention_mask, max_length, pad_token_id):
 def get_word_starts(toks, specialchar = 'Ġ', bos_token='<s>'):
     """ Get the beginning of each word in a list of tokenised text
         Return list of word beginning indices into toks
+        Works with BART tokenizer with/without digit tokenization and with/without BOS at start
+        Works with T5 tokenizer with/without digit tokenization
     """
-    word_starts = [i for (i,t) in enumerate(toks) if t[0]==specialchar or t[0] in string.punctuation]
+    word_starts = [i for (i,t) in enumerate(toks) if t[0]==specialchar or t[0] in string.punctuation or i==0 or (i==1 and toks[0]==bos_token)]        
     if toks[0] == bos_token: # don't want to mask a bos token 
         word_starts.pop(0)   
-    if toks[word_starts[-1]] == specialchar: #space at end before newline
+    if toks[word_starts[-1]] == specialchar: #dont mask space at end 
         word_starts.pop(-1)
-    if word_starts[0] != 1:  # first non bos token is always a word start
-        word_starts = [1] + word_starts
     return word_starts
 
 
@@ -215,14 +215,14 @@ def manual_batch_encode(instrlist, tokenizer, logger, args, selfsupervised, meta
     for i, instr in enumerate(instrlist):
         if i >= metadata[meta_index][1]:
             meta_index += 1    
-        if instr != '':
+        if instr != '':  
             input_ids, attention_mask, wstarts, ners_ids = manual_encode(instr, tokenizer, args,
                                                       truncation=truncation,
                                                       max_length=max_length,
                                                       pad=pad, specialchar=specialchar,
                                                       bos_token=bos_token,
                                                       selfsupervised=selfsupervised[meta_index])
-        else:
+        else: # Answer part of self supervised sample always = ''
             input_ids = []
             attention_mask = []
             wstarts = []
@@ -508,7 +508,7 @@ def mask_words(tok_idxs, replace_spans, mask_seq):
     for replace_span in replace_spans:
         replaced_toks.append( mask_seq[ctr] + tok_idxs[replace_span[0]:replace_span[1]] )
         ctr += 1
-        if ctr > 18:  # use mask_seq[19] to as answer end indicator
+        if ctr > 18:  # use mask_seq[19] as answer end indicator
             ctr = 0
         first = True
         for i in range(replace_span[0], replace_span[1]):
@@ -524,7 +524,7 @@ def mask_words(tok_idxs, replace_spans, mask_seq):
             if tok == -8888:
                 new_tok_idxs.extend(mask_seq[ctr])
                 ctr += 1
-                if ctr > 18:  # use mask_seq[19] to as answer end indicator
+                if ctr > 18:  # use mask_seq[19] as answer end indicator
                     ctr = 0
             else:    
                 new_tok_idxs.append(tok)
@@ -534,12 +534,12 @@ def mask_words(tok_idxs, replace_spans, mask_seq):
 def self_supervise(args, tok_idxs, word_starts, ners_ids, mask_seq, nq_token_ids, bos_token_id, eos_token_id):
     """ Mask text and return masked input and list of masked spans
     """
-    if len(ners_ids) > 0 and np.random.rand() < args.ssm_prob:
+    if len(ners_ids) > 0 and np.random.rand() < args.ssm_prob:  # Mask Named Entities and Noun Phrases
         ner_idx = np.random.choice(len(ners_ids))
         ner_pos = np.random.choice(len(ners_ids[ner_idx]))
         replace_spans = [ ners_ids[ner_idx][ner_pos] ]
         new_tok_idxs, replaced_toks = mask_words(tok_idxs, replace_spans, mask_seq)
-    else:  #Whole Word Span Corruption
+    else:  # Whole Word Span Corruption
         span_lengths = get_spans(tok_idxs, toks_to_mask=args.wwsc_toks_to_mask, 
                                  avg_span_len=args.wwsc_avg_span_len, sd=args.wwsc_span_len_sd)
         replace_spans = wwsc_select_spans(tok_idxs, span_lengths, word_starts)
