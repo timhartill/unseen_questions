@@ -66,6 +66,8 @@ def add_question_context(split):
         
         if out_dict.get(s['category']) is None:
             out_dict[s['category']] = []
+        if s['output'].strip() == '':    # a few samples have erroneous tables and no answer
+            s['output'] = '<no answer>'
         out_dict[s['category']].append( utils.create_uqa_example(s['question'], s['context'], s['output'], append_q_char='?')   )
             
         if i % 500000 == 0:

@@ -308,6 +308,43 @@ unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elemen
                         "arc_hard", "arc_easy", "mctest_corrected_the_separator",
                         "squad1_1", "squad2", "boolq", "race_string", "openbookqa"]
 
+# PReasM / turning tables datasets:
+tt_base_train = [   "tt_arithmetic_addition",
+                    "tt_arithmetic_superlatives",
+                    "tt_composition",
+                    "tt_composition_2_hop",
+                    "tt_conjunction",
+                    "tt_counting",
+                    "tt_every_quantifier",
+                    "tt_most_quantifier",
+                    "tt_numeric_comparison_boolean",
+                    "tt_numeric_superlatives",
+                    "tt_only_quantifier",
+                    "tt_temporal_comparison",
+                    "tt_temporal_comparison_boolean",
+                    "tt_temporal_difference",
+                    "tt_temporal_superlatives", ]
+
+# Poet-SQL: separated datasets:
+poet_base_train = [ "poetsql_multi",
+                    "poetsql_select_abs",
+                    "poetsql_select_arith",
+                    "poetsql_select_count",
+                    "poetsql_select_max",
+                    "poetsql_select_min",
+                    "poetsql_select_sum",
+                    "poetsql_single",  ]
+
+# New synthetic numeric datasets
+synth_num_base_train = ["synthetic_num_arg_min_max",
+                        "synthetic_num_date_diff",
+                        "synthetic_num_date_min_max",
+                        "synthetic_num_min_max_avg",
+                        "synthetic_num_percent",
+                        "synthetic_num_signed_arith",
+                        "synthetic_num_yn_dates",
+                        "synthetic_num_yn_nums", ]
+
 ########################################################
 # where same train dataset in difft formats, just calc sim against one format and map similarity for others against that...
 ########################################################

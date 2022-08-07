@@ -127,10 +127,10 @@ def main():
                         help="If sample is self supervised and doing WWSC, the mean token span length (will adjusted upwards to whole word boundary).")
     parser.add_argument("--wwsc_span_len_sd", default=0.75, type=float,
                         help="If sample is self supervised and doing WWSC, the std deviation on token span length.")
-    parser.add_argument("--add_mask_char", type=str, default="_",
-                        help="Add a character after <mask> e.g. make it <mask>_. Specify NONE to exclude this.")
+    parser.add_argument("--add_mask_char", type=str, default="NONE",
+                        help="Add a character after <mask> e.g. if _ make it <mask>_. Specify NONE to exclude this.")
     parser.add_argument("--add_mask_ctr", action='store_true',
-                        help="Add a counter to <mask> e.g. make it <mask>_2")
+                        help="Add a counter to <mask> e.g. if _ make it <mask>_2")
 
     parser.add_argument("--gen_explanations_all", action='store_true',
                         help="Generate explanations e for datasets specified in dataset_attibutes.create_datasets_dynamic, append as q[+mc]+e->a and save as new uqa-formatted datasets in dataset_attributes.UQA_DIR")

@@ -36,7 +36,8 @@ import copy
 import datasets
 
 from sari import SARI
-from dataset_attributes import dev_eval, test_eval, metric_groups, dataset_attribs, unifiedqa_base_train, replace_sim_with
+from dataset_attributes import dev_eval, test_eval, metric_groups, dataset_attribs, replace_sim_with
+from dataset_attributes import unifiedqa_base_train, synth_num_base_train, poet_base_train, tt_base_train
 from dataset_attributes import unifiedqa_unseen_1, unifiedqa_unseen_2, unifiedqa_unseen_3, unifiedqa_unseen_4, unifiedqa_unseen_4_map, unifiedqa_unseen_5, unifiedqa_unseen_6, unifiedqa_seen_1, mmlu_unseen_1
 from dataset_attributes import UQA_DIR, SVISED_EXPL_ANS, selfsupervisedkey, add_explanationkey, EXPL_COMP_KEY, special_tokens_dict
 from dataset_attributes import create_datasets_dynamic
@@ -58,6 +59,9 @@ def parse_mixture(mixture):
     """ Parse args.mixture and return list of datasets to include plus a key to add 
         to the pretokenised file name.
         args.mixture format: --mixture unifiedqa,extradataset1,extradataset2
+        
+        eg mixture = 'unifiedqa,tt_all,poet_all,synth_num_all,synthetic_textual,enwiki_20200801_selfsvised'
+        eg mixture = 'tt_all,poet_all,synth_num_all,synthetic_textual,enwiki_20200801_selfsvised'
     """
     unified_dataset  = []
     mixture_file_key = ''
@@ -66,6 +70,12 @@ def parse_mixture(mixture):
         mixture_file_key = mixture_file_key + '_' + ds
         if ds == 'unifiedqa':
             unified_dataset.extend(unifiedqa_base_train)
+        elif ds == 'tt_all':    
+            unified_dataset.extend(tt_base_train)
+        elif ds == 'poet_all':
+            unified_dataset.extend(poet_base_train)
+        elif ds == 'synth_num_all':
+            unified_dataset.extend(synth_num_base_train)            
         else:
             unified_dataset.append(ds)
     return unified_dataset, mixture_file_key

@@ -143,7 +143,7 @@ def run(args, logger):
             inference_wrapper(tokenizer, model, args, logger, predict_file=dspath)         
         
     if args.calc_metrics:
-        tokenizer = load_model(model_name=args.model, loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)        
+        tokenizer = load_model(model_name=args.model, loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)
         if args.is_unifiedqa:
             dev_data = UnifiedQAData(logger, args, args.predict_file, False)
         else:
@@ -263,9 +263,6 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                 scaler.update() # Updates the scale for next iteration.
                 scheduler.step()  #Note: Using amp get "Detected call of `lr_scheduler.step()` before `optimizer.step()`". Can ignore this. Explanation: if the first iteration creates NaN gradients (e.g. due to a high scaling factor and thus gradient overflow), the optimizer.step() will be skipped and you might get this warning.
                 model.zero_grad()
-                #optimizer.step()    # We have accumulated enought gradients
-                #scheduler.step()
-                #model.zero_grad()
 
             if (global_step % args.eval_period == 0) or stop_training:
                 if args.skip_inference:

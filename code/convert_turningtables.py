@@ -93,9 +93,9 @@ def output_std_format(train_files, dev_files, out_dir_base):
             print(f'Match:{train==dev}  Train:{train}  Dev:{dev}')
             break
         samples_train = read_jsonl_smart(t)
-        train_list = [utils.create_uqa_example(s['question'], s['context'], s['answer']) for s in samples_train]
+        train_list = [utils.create_uqa_example(s['question'], s['context'], s['answer'] if s['answer'].strip() != '' else '<no answer>') for s in samples_train]
         samples_dev = read_jsonl_smart(d)
-        dev_list = [utils.create_uqa_example(s['question'], s['context'], s['answer']) for s in samples_dev]
+        dev_list = [utils.create_uqa_example(s['question'], s['context'], s['answer'] if s['answer'].strip() != '' else '<no answer>') for s in samples_dev]
         out_dir = os.path.join(out_dir_base, "tt_"+train)
         print(f"Creating {out_dir}")
         os.makedirs(out_dir, exist_ok=True)
