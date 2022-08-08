@@ -120,7 +120,8 @@ class UnifiedQAData(QAData):
         return np.sum([len(d["question"]) for d in self.data.values()])
 
     def decode(self, tokens):
-        return self.tokenizer.decode(tokens, skip_special_tokens=True, clean_up_tokenization_spaces=True).lower()
+        #return self.tokenizer.decode(tokens, skip_special_tokens=True, clean_up_tokenization_spaces=True).lower()
+        return utils.decode_new(self.tokenizer, tokens, self.args.special_toks)
 
     def decode_batch(self, tokens):
         return [self.decode(_tokens) for _tokens in tokens]

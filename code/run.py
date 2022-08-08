@@ -33,12 +33,16 @@ from unified_data import UnifiedQAData  #, SampleProbs
 import eval_metrics  
 from overlap_detector import UQADataset
 from sentence_embeddings import Embedder, restate_qa_all
-from utils import get_parsed_decomp_str, get_parsed_decomp_by_key, load_model, run_model, get_checkpoint, move_to_cuda
+from utils import get_parsed_decomp_str, get_parsed_decomp_by_key, load_model, run_model, get_checkpoint, move_to_cuda, get_original_special_toks
 from utils import load_uqa_supervised, create_uqa_example, add_key, get_timestamp
 
 
 def run(args, logger):
     model = None
+    print(f"Obtaining special tokens for {args.model}")
+    special_toks = get_original_special_toks(args.model)
+    args.special_toks = special_toks
+    logger.info(f"Special toks that will be stripped from generations: {args.special_toks}")
     if args.indiv_digits:
         logger.info('Applying individual digit tokenisation.')
         addspecialtoksdict = eval_metrics.special_tokens_dict

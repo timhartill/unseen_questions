@@ -11,6 +11,7 @@ Misc utility fns - general on top and Huggingface related below
 import json
 import pickle
 import os
+import re
 import numpy as np
 import random
 import copy
@@ -674,6 +675,47 @@ def convert_to_half(sample):
 # HF Utils
 #######################
 
+def strip_special_toks(s, special_tokens_list):
+    """ Since can't use skip_special_tokens=True in decode when added digits as special toks
+    must manually strip them so pred matches gold answer format..
+    """
+    for t in special_tokens_list:
+        s = s.replace(t, '')
+    return s
+    
+      
+def fix_output_spacing(s: str) -> str:
+    """From https://github.com/lesterpjy/numeric-t5/blob/main/nt5_multitask_training.ipynb
+    Fixing the odd bug in T5 decoding that numerical numbers are losing a whitespace in 
+    front after adding digits to special tokens.
+    """
+    match = re.compile(r'([a-z]|,|-)(\d)')
+    s = re.sub(match, r'\1 \2', s)
+    match = re.compile(r'(\d|[a-z])( )?(-)( )?(\d|[a-z])')
+    s = re.sub(match, r'\1\3\5', s)
+    return s
+
+
+def get_original_special_toks(model_name):
+    """ Get the original special tokens for a particular tokenizer so these can later be stripped from predictions
+    """
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    specials = []
+    for key in tokenizer.special_tokens_map:
+        if type(tokenizer.special_tokens_map[key]) == str:
+            specials.append(tokenizer.special_tokens_map[key])
+        else:
+            specials.extend(tokenizer.special_tokens_map[key])
+    return list(set(specials))
+
+
+def decode_new(tokenizer, tokens, special_tokens_list):
+    """ New decoder accounting for individual digit tokenization using additional_special_tokens
+    """
+    return strip_special_toks( fix_output_spacing(tokenizer.decode(tokens, skip_special_tokens=False, clean_up_tokenization_spaces=True).strip() ), special_tokens_list)
+    
+    
+
 def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both', 
                to_cuda=True, use_fp16=False, cuda_device=None, special_tokens_dict={}, special_tokens_list=[]):
     """ Load a tokenizer and model and set for eval
@@ -745,9 +787,9 @@ def string_to_ids(input_string, tokenizer, indiv_digits=False, norm_numbers=True
     if lower:
         input_string = input_string.lower()
     if norm_numbers:
-        input_string = normalize_num(input_string, norm=norm)    
+        input_string = normalize_num(input_string, norm=norm)
     toks = tokenizer.tokenize(input_string)
-    if indiv_digits:
+    if indiv_digits:  #TODO always set to false if using add_special_tokens method of ind digit tokenization
         toks = split_digits_special(toks, special=special)
     ids = tokenizer.convert_tokens_to_ids(toks)
     if prepend_bos and tokenizer.bos_token_id is not None:
@@ -772,6 +814,7 @@ def decode_ids(res, tokenizer, skip_special_tokens=True, clean_up_tokenization_s
     Note: if res of shape [id1, id4, id2, ..] result will be ['txt1', 'txt4', 'txt2', ..]
           if res of shape [[id1, id4, id2, ..]] result will be ['txt1 txt4 txt2 ..']
     """
+    #TODO fix skip_special_tokens issue with ind digits
     return tokenizer.batch_decode(res, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
 
 

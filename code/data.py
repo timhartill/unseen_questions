@@ -312,9 +312,10 @@ class QAData(object):
         return len(self.data)
 
     def decode(self, tokens):
-        return self.tokenizer.decode(tokens,
-                                     skip_special_tokens=True,
-                                     clean_up_tokenization_spaces=True).strip()
+        #return self.tokenizer.decode(tokens,
+        #                             skip_special_tokens=True,
+        #                             clean_up_tokenization_spaces=True).strip()
+        return utils.decode_new(self.tokenizer, tokens, self.args.special_toks)
 
     def decode_batch(self, tokens):
         return [self.decode(_tokens) for _tokens in tokens]
