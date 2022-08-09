@@ -432,7 +432,8 @@ class MyUnifiedQADataset(Dataset):
                                                                                                       self.bos_token_id,
                                                                                                       self.eos_token_id)
                 dset, ds_idx = get_parentdata_indx(orig_idx, self.metadata, self.unified_dataset)
-                self.parent_data[dset]['answer'][ds_idx] = self.tokenizer.decode(decoder_input_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+                self.parent_data[dset]['answer'][ds_idx] = utils.decode_new(self.tokenizer, decoder_input_ids, self.args.special_toks)
+                #self.parent_data[dset]['answer'][ds_idx] = self.tokenizer.decode(decoder_input_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
             else:
                 input_ids, attention_mask = self.input_ids[idx], self.attention_mask[idx]
                 #input_ids, attention_mask = pad_list(self.input_ids[idx], self.attention_mask[idx], self.args.max_input_length, self.pad_token_id)

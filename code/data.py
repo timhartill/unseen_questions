@@ -659,7 +659,8 @@ class MyQADataset(Dataset):
                                                                                                       self.no_question_label,
                                                                                                       self.bos_token_id,
                                                                                                       self.eos_token_id)
-                self.parent_data[orig_idx]['answer'] = self.tokenizer.decode(decoder_input_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+                self.parent_data[orig_idx]['answer'] = utils.decode_new(self.tokenizer, decoder_input_ids, self.args.special_toks)
+                #self.parent_data[orig_idx]['answer'] = self.tokenizer.decode(decoder_input_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
                 #input_ids, attention_mask = pad_list(input_ids, attention_mask, self.args.max_input_length, self.pad_token_id)
             else:
                 input_ids, attention_mask = self.input_ids[idx], self.attention_mask[idx]

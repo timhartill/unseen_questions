@@ -689,10 +689,11 @@ def fix_output_spacing(s: str) -> str:
     Fixing the odd bug in T5 decoding that numerical numbers are losing a whitespace in 
     front after adding digits to special tokens.
     """
-    match = re.compile(r'([a-z]|,|-)(\d)')
+    #match = re.compile(r'([a-z]|,|-)(\d)')
+    match = re.compile(r'([a-z]|,|:|;|>)(\d|-)')
     s = re.sub(match, r'\1 \2', s)
-    match = re.compile(r'(\d|[a-z])( )?(-)( )?(\d|[a-z])')
-    s = re.sub(match, r'\1\3\5', s)
+    #match = re.compile(r'(\d|[a-z])( )?(-)( )?(\d|[a-z])')
+    #s = re.sub(match, r'\1\3\5', s)
     return s
 
 
