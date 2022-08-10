@@ -79,7 +79,7 @@ class UnifiedQAData(QAData):
                     else:
                         question, answer = line.split("\t")
                         
-                        #always train with single answers but can eval EM/F1 with multiple answers
+                        #always train with single answers [0] but can eval EM/F1 with multiple answers
                         if answer.lstrip().startswith(utils.MULTI_ANS_SEP): # #!# answer 1#!# answer 2 #!# -> ['answer 1','answer 2']
                             answer = answer.strip().strip(utils.MULTI_ANS_SEP).split(utils.MULTI_ANS_SEP)
                             answer = [a + '\n' for a in answer]
