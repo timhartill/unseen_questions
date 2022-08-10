@@ -232,7 +232,7 @@ def make_samples(split, tokenizer, max_toks=507, include_title_prob=0.5, include
                 if text[-1] not in ['.', '!', '?', ':', ';']:
                     text += '.'
                 text += ' '
-            else:                                        # include gold + partial other sentences
+            else:                                        # include subset of para sentences
                 sentence_spans = create_sentence_spans(split_into_sentences(para['text']))
                 if len(sentence_spans) > 1:
                     for j, (start, end) in enumerate(sentence_spans):
@@ -271,8 +271,6 @@ def make_samples(split, tokenizer, max_toks=507, include_title_prob=0.5, include
 
 random.seed(42)
 dev_out = make_samples(mdr_dev, tokenizer, max_toks, include_title_prob=0.5, include_all_sent_prob=0.5)
-
-
 out_dir = os.path.join(UQA_DIR, "hpqa_hard")
 print(f'Outputting to {out_dir}')
 os.makedirs(out_dir, exist_ok=True)
@@ -286,7 +284,6 @@ outfile = os.path.join(out_dir, 'train.tsv')
 print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
     f.write(''.join(train_out))
-
 print('Finished!')
 
 
