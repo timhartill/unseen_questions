@@ -29,6 +29,7 @@ import json
 import random
 from html import unescape
 
+import eval_metrics
 import utils
 from text_processing import normalize_unicode, convert_brc, replace_chars, create_sentence_spans, strip_accents
 
@@ -44,6 +45,19 @@ UPDATED_DEV = '/home/thar011/data/baleen_downloads/hover/hover_dev_with_neg_and_
 UPDATED_TRAIN = '/home/thar011/data/baleen_downloads/hover/hover_train_with_neg_and_sent_annots.jsonl'
 
 QAS_VAL_FILE_OUT = '/home/thar011/data/baleen_downloads/hover/hover_qas_val_with_spfacts.jsonl'
+
+# Below for creating UQA-formatted hard examples - code to do so at end
+UQA_DIR = eval_metrics.UQA_DIR
+HO_DEV_MDRFMT = '/home/thar011/data/baleen_downloads/hover/hover_dev_with_neg_and_sent_annots.jsonl'
+HO_TRAIN_MDRFMT = '/home/thar011/data/baleen_downloads/hover/hover_train_with_neg_and_sent_annots.jsonl'
+
+addspecialtoksdict = eval_metrics.special_tokens_dict  # test tokenization length with ind. digit tokenization...
+tokenizer = utils.load_model(model_name='facebook/bart-large', loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)        
+
+max_toks = 512
+added_bits = len(tokenizer.tokenize('<s>. \\n</s>'))
+max_toks = max_toks - added_bits
+print(f"Max num tokens for text after allowing for BOS, EOS etc: {max_toks}")
 
 
 #hpqa_corpus = json.load(open(PROCESSED_CORPUS_DIR))             # 5233329
@@ -339,7 +353,41 @@ def save_to_val_file(dev, outfile):
 save_to_val_file(hover_dev_out, QAS_VAL_FILE_OUT)
 
 
+################################
+# Create UQA-formatted hard examples with gold para mixed with as many neg paras as can fit in a context
+################################
+def convert_ans_yn(split):
+    for sample in split:
+        if sample['answers'][0] in ["SUPPORTED", "SUPPORTS"]: #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
+            sample['answers'][0] = 'yes'
+        elif sample['answers'][0] in ["REFUTES", "NOT_SUPPORTED"]:
+            sample['answers'][0] = 'no'
+    return
 
+
+ho_dev = utils.load_jsonl(HO_DEV_MDRFMT)     #4000 
+ho_train = utils.load_jsonl(HO_TRAIN_MDRFMT) #18171  dict_keys(['question', 'answers', 'id', 'type', 'src', 'para_agg_map', 'bridge', 'pos_paras', 'neg_paras'])
+
+convert_ans_yn(ho_dev)
+convert_ans_yn(ho_train)
+
+
+random.seed(42)
+dev_out = utils.make_uqa_from_mdr_format(ho_dev, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=0.5)
+out_dir = os.path.join(UQA_DIR, "hover_hard")
+print(f'Outputting to {out_dir}')
+os.makedirs(out_dir, exist_ok=True)
+outfile = os.path.join(out_dir, 'dev.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_out))
+    
+train_out = utils.make_uqa_from_mdr_format(ho_train, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=0.5)
+outfile = os.path.join(out_dir, 'train.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(train_out))
+print('Finished outputting hover_hard!')
 
 
 

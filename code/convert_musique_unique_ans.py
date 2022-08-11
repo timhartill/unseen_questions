@@ -43,6 +43,8 @@ import copy
 import numpy as np
 from html import unescape
 from collections import Counter
+
+import eval_metrics
 import utils
 from utils import load_jsonl, saveas_jsonl, create_uqa_example, format_decomp_ans, load_model, string_to_ids
 from text_processing import white_space_fix, replace_chars, format_sentence
@@ -57,6 +59,19 @@ MU_TRAIN_FILE = 'musique_ans_v1.0_train.jsonl'
 MU_DEV_FILE = 'musique_ans_v1.0_dev.jsonl'
 
 BQA_CORPUS = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl'
+
+# Below for creating UQA-formatted hard examples - code to do so at end
+UQA_DIR = eval_metrics.UQA_DIR
+MU_DEV_MDRFMT = '/home/thar011/data/musique/musique_v1.0/data/musique_ans_v1.0_dev_retriever_new_with_hl_negs_v0.jsonl'
+MU_TRAIN_MDRFMT = '/home/thar011/data/musique/musique_v1.0/data/musique_ans_v1.0_train_retriever_full_with_hl_negs_v0.jsonl'
+
+addspecialtoksdict = eval_metrics.special_tokens_dict  # test tokenization length with ind. digit tokenization...
+tokenizer = utils.load_model(model_name='facebook/bart-large', loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)        
+
+max_toks = 512
+added_bits = len(tokenizer.tokenize('<s>. \\n</s>'))
+max_toks = max_toks - added_bits
+print(f"Max num tokens for text after allowing for BOS, EOS etc: {max_toks}")
 
 
 
@@ -525,6 +540,29 @@ outfile = os.path.join(MU_DIR_IN, 'musique_ans_v1.0_dev_retriever_new_with_hl_ne
 saveas_jsonl(dev_list, outfile)
 
 
+################################
+# Create UQA-formatted hard examples with gold para mixed with as many neg paras as can fit in a context
+################################
+mu_dev = utils.load_jsonl(MU_DEV_MDRFMT)     #382 
+mu_train = utils.load_jsonl(MU_TRAIN_MDRFMT) #19556  dict_keys(['question', 'answers', 'id', 'type', 'src', 'para_agg_map', 'bridge', 'pos_paras', 'neg_paras'])
+
+
+random.seed(42)
+dev_out = utils.make_uqa_from_mdr_format(mu_dev, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=1.1)
+out_dir = os.path.join(UQA_DIR, "musique_hard")
+print(f'Outputting to {out_dir}')
+os.makedirs(out_dir, exist_ok=True)
+outfile = os.path.join(out_dir, 'dev.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_out))
+    
+train_out = utils.make_uqa_from_mdr_format(mu_train, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=1.1)
+outfile = os.path.join(out_dir, 'train.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(train_out))
+print('Finished outputting musique_hard!')
 
 
 ### BELOW IS UNMODIFIED FROM 2021 experiments  ######

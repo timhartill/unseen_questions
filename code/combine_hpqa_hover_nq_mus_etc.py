@@ -7,6 +7,11 @@ Created on Tue Jul 12 19:16:07 2022
 
 Combine hpqa and hover etc train and dev splits for retriever model training
 
+HPQA datasets created using convert_hotpot_sentence_annotations.py
+HOVER datasets created using convert_hover.py
+NQ, TQA datasets created using convert_dpr_singlehop_datasets_and_combowithbqa_calcstats.py
+Musique dataset created using convert_musique_unique_ans.py
+
 Notes
 - hpqa comparison samples have no 'bridge' key
 - hpqa samples have no 'src' key

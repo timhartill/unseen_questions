@@ -22,7 +22,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForPreTraining
 from transformers import GPTJForCausalLM, AutoModelForCausalLM
 from bart import MyBart
-from text_processing import normalize_num, split_digits_special, is_whitespace
+from text_processing import normalize_num, split_digits_special, is_whitespace, create_sentence_spans, split_into_sentences
 
 MULTI_ANS_SEP = '#!#'
 
@@ -1295,4 +1295,81 @@ def consistent_bridge_format(sample):
     return       
     
     
+def make_uqa_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=0.5, include_all_sent_prob=0.5, 
+                 keep_pos_sent_prob=0.5, keep_neg_sent_prob=0.6):
+    """ Create standard UQA formatted samples from "mdr" format dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id' [, 'bridge']])
+        with q + paras per doc packed in to roughly max_toks toks.
+    
+        Note: Short docs will be less than 512 toks. We dont pack more in to these to preserve diversity. 
+              Also some may end up slightly over max_toks.
+        Note 2: For datasets where the pos paras don't have sentence annotations, set include_all_sent_prob=1.0 and entire paras will be used
+    """
+    out_list = []
+    for i, s in enumerate(split):
+        tok_count = len(tokenizer.tokenize(s['question']))
+        
+        para_list = []  #list so we can shuffle
+        for para in s['pos_paras']:
+            text = ''
+            if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
+                text += unescape(para['title']).strip() + ': '
+            if random.random() < include_all_sent_prob or len(para['sentence_spans']) <= 1:  # include full para text
+                text += para['text'].strip()
+                if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                    text += '.'
+                text += ' '
+            else:                                                                            # include gold + partial other sentences
+                for j, (start, end) in enumerate(para['sentence_spans']):
+                    if j in para['sentence_labels'] or (random.random() < keep_pos_sent_prob):
+                        text += para['text'][start:end].strip()
+                        if  text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                            text += '.'
+                        text += ' '
+            tok_count += len(tokenizer.tokenize(text))
+            para_list.append(text.strip())
+            
+        for para in s['neg_paras']:
+            text = ''
+            if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
+                text += unescape(para['title']).strip() + ': '
+            if random.random() < include_all_sent_prob:  # include full para text
+                text += para['text'].strip()
+                if  text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                    text += '.'
+                text += ' '
+            else:                                        # include subset of para sentences
+                sentence_spans = create_sentence_spans(split_into_sentences(para['text']))
+                if len(sentence_spans) > 1:
+                    for j, (start, end) in enumerate(sentence_spans):
+                        if random.random() < keep_neg_sent_prob:
+                            text += para['text'][start:end].strip()
+                            if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                                text += '.'
+                            text += ' '
+                else:
+                    text += para['text'].strip()
+                    if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                        text += '.'
+                    text += ' '
+            para_toks = tokenizer.tokenize(text)            
+            if tok_count + len(para_toks) > max_toks:
+                excess = max_toks - (tok_count+len(para_toks)+1)
+                if excess > 25:
+                    para_toks = para_toks[:excess]
+                    para_truncated = tokenizer.decode(tokenizer.convert_tokens_to_ids(para_toks)) + '...'
+                    para_list.append(para_truncated.strip())
+                break
+            else:
+                tok_count += len(para_toks) + 1
+                para_list.append(text.strip())
+        random.shuffle(para_list)
+        context = ' '.join(para_list)
+        if type(s['answers']) == list and len(s['answers']) == 1:
+            answer = str(s['answers'][0])
+        else: 
+            answer = s['answers']
+        out_list.append( create_uqa_example(s['question'], context, answer, append_q_char='?') )
+        if i % 1000 == 0:
+            print(f"Loaded {i} samples of {len(split)}...")
+    return out_list
 

@@ -16,12 +16,7 @@ import numpy as np
 import json
 
 
-infiles = ['/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v1/log-train-history.jsonl',
-           '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v2_dev_in_train/log-train-history.jsonl',
-           '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v3_no_facts/log-train-history.jsonl',
-           '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v4_ctr_dev_in_train/log-train-history.jsonl',
-           '/data/thar011/out/unifiedqa_bart_large_s2_sqa_sqafacts_v5__ssm1_masktokonly_dev_in_train/log-train-history.jsonl',
-           '/data/thar011/out/unifiedqa_bart_large_V3_run2/log-train-history.jsonl']
+infiles = ['/large_data/thar011/out/mdr/logs/UQA_s9_v2_numlit_wikissvise_idt_errsamp_fixdecode/log-train-history.jsonl',]
 desclist = ['v1 no_de_in_tr m_', 
             'v2 de_in_tr m_',
             'v3 no_facts m_',

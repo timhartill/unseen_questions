@@ -12,7 +12,7 @@ Then extract to their json form.
 
 ALSO:
 
-Combines beerqa (bqa) (with/without squad) + nq + tqa in different combos 
+Combines beerqa (bqa) (with/without squad) + nq + tqa in different combos (Uused - see combine_hpqa_hover_nq_mus_etc.py for the combos actually finally used to train the retriever)
 Calculates stats on # distinct paras used per dataset etc..
 
 
@@ -24,6 +24,7 @@ import random
 import numpy as np
 from html import unescape
 
+import eval_metrics
 import utils
 
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
@@ -45,6 +46,24 @@ DPR_TQA_TRAIN = '/home/thar011/data/DPR/triviaqa-train_new.json'
 BQA_TRAIN = '/home/thar011/data/beerqa/beerqa_train_v1.0_with_neg_v0.jsonl'
 BQA_DEV = '/home/thar011/data/beerqa/beerqa_dev_v1.0_with_neg_v0.jsonl'
 BQA_QASVAL = '/home/thar011/data/beerqa/beerqa_qas_val.jsonl'
+
+# Below for creating UQA-formatted hard examples - code to do so at end
+UQA_DIR = eval_metrics.UQA_DIR
+NQ_DEV_MDRFMT = '/home/thar011/data/DPR/nq_dev_v1.0_with_neg_v0.jsonl'
+NQ_TRAIN_MDRFMT = '/home/thar011/data/DPR/nq_train_v1.0_with_neg_v0.jsonl'
+TQA_DEV_MDRFMT = '/home/thar011/data/DPR/tqa_dev_v1.0_with_neg_v0.jsonl'
+TQA_TRAIN_MDRFMT = '/home/thar011/data/DPR/tqa_train_v1.0_with_neg_v0.jsonl'
+
+addspecialtoksdict = eval_metrics.special_tokens_dict  # test tokenization length with ind. digit tokenization...
+tokenizer = utils.load_model(model_name='facebook/bart-large', loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)        
+
+max_toks = 512
+added_bits = len(tokenizer.tokenize('<s>. \\n</s>'))
+max_toks = max_toks - added_bits
+print(f"Max num tokens for text after allowing for BOS, EOS etc: {max_toks}")
+
+
+
 
 simple_tokenizer = SimpleTokenizer()
 
@@ -335,4 +354,48 @@ overlaps = calc_train_dev_overlap(stats_bqa_nq_tqa_train, stats_bqa_nq_tqa_dev)
 #tqa: {'title_overlaps': 2825, 'para_overlaps': 1771, 'ans_overlaps': 3502, 'title_overlaps_pct': 0.06651440949331325, 'para_overlaps_pct': 0.035067918102253376, 'ans_overlaps_pct': 0.13592609843192052}
 
 
+################################
+# Create UQA-formatted hard examples with gold para mixed with as many neg paras as can fit in a context
+################################
+nq_dev = utils.load_jsonl(NQ_DEV_MDRFMT)     #6515 
+nq_train = utils.load_jsonl(NQ_TRAIN_MDRFMT) #69639  dict_keys(['question', 'answers', 'id', 'type', 'src', 'para_agg_map', 'bridge', 'pos_paras', 'neg_paras'])
+
+
+random.seed(42)
+dev_out = utils.make_uqa_from_mdr_format(nq_dev, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=1.1)
+out_dir = os.path.join(UQA_DIR, "nq_hard")
+print(f'Outputting to {out_dir}')
+os.makedirs(out_dir, exist_ok=True)
+outfile = os.path.join(out_dir, 'dev.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_out))
+    
+train_out = utils.make_uqa_from_mdr_format(nq_train, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=1.1)
+outfile = os.path.join(out_dir, 'train.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(train_out))
+print('Finished outputting nq_hard!')
+
+
+tqa_dev = utils.load_jsonl(TQA_DEV_MDRFMT)     #6760 
+tqa_train = utils.load_jsonl(TQA_TRAIN_MDRFMT) #60413  dict_keys(['question', 'answers', 'id', 'type', 'src', 'para_agg_map', 'bridge', 'pos_paras', 'neg_paras'])
+
+random.seed(42)
+dev_out = utils.make_uqa_from_mdr_format(tqa_dev, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=1.1)
+out_dir = os.path.join(UQA_DIR, "tqa_hard")
+print(f'Outputting to {out_dir}')
+os.makedirs(out_dir, exist_ok=True)
+outfile = os.path.join(out_dir, 'dev.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_out))
+    
+train_out = utils.make_uqa_from_mdr_format(tqa_train, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=1.1)
+outfile = os.path.join(out_dir, 'train.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(train_out))
+print('Finished outputting tqa_hard!')
 

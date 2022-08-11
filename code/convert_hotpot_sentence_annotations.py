@@ -35,11 +35,9 @@ import json
 import random
 from html import unescape
 
-from transformers import AutoTokenizer
-
 import eval_metrics
 import utils
-from text_processing import create_sentence_spans, split_into_sentences
+from text_processing import create_sentence_spans
 
 HPQA_DEV = '/home/thar011/data/hpqa/hotpot_dev_fullwiki_v1.json'
 HPQA_TRAIN = '/home/thar011/data/hpqa/hotpot_train_v1.1.json'
@@ -54,7 +52,7 @@ MDR_UPDATED_TRAIN = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_t
 MDR_UPDATED_QAS_VAL = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl'
 MDR_UPDATED_CORPUS = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_with_sent_spans.jsonl'
 
-UQA_DIR = '/data/thar011/data/unifiedqa/'
+UQA_DIR = eval_metrics.UQA_DIR
 
 addspecialtoksdict = eval_metrics.special_tokens_dict  # test tokenization length with ind. digit tokenization...
 tokenizer = utils.load_model(model_name='facebook/bart-large', loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)        
@@ -191,86 +189,8 @@ mdr_dev = utils.load_jsonl(MDR_UPDATED_DEV)     #7405
 mdr_train = utils.load_jsonl(MDR_UPDATED_TRAIN) #90447  dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id' [, 'bridge']])
 
 
-def make_samples(split, tokenizer, max_toks=507, include_title_prob=0.5, include_all_sent_prob=0.5, 
-                 keep_pos_sent_prob=0.5, keep_neg_sent_prob=0.6):
-    """ Create standard UQA formatted samples from "mdr" format dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id' [, 'bridge']])
-        with q + paras per doc packed in to roughly max_toks toks.
-    
-        Note: Short docs will be less than 512 toks. We dont pack more in to these to preserve diversity. 
-              Also some may end up slightly over max_toks.
-    """
-    out_list = []
-    for i, s in enumerate(split):
-        tok_count = len(tokenizer.tokenize(s['question']))
-        
-        para_list = []  #list so we can shuffle
-        for para in s['pos_paras']:
-            text = ''
-            if random.random() < include_title_prob:
-                text += unescape(para['title']).strip() + ': '
-            if random.random() < include_all_sent_prob or len(para['sentence_spans']) <= 1:  # include full para text
-                text += para['text'].strip()
-                if text[-1] not in ['.', '!', '?', ':', ';']:
-                    text += '.'
-                text += ' '
-            else:                                                                            # include gold + partial other sentences
-                for j, (start, end) in enumerate(para['sentence_spans']):
-                    if j in para['sentence_labels'] or (random.random() < keep_pos_sent_prob):
-                        text += para['text'][start:end].strip()
-                        if text[-1] not in ['.', '!', '?', ':', ';']:
-                            text += '.'
-                        text += ' '
-            tok_count += len(tokenizer.tokenize(text))
-            para_list.append(text.strip())
-            
-        for para in s['neg_paras']:
-            text = ''
-            if random.random() < include_title_prob:
-                text += unescape(para['title']).strip() + ': '
-            if random.random() < include_all_sent_prob:  # include full para text
-                text += para['text'].strip()
-                if text[-1] not in ['.', '!', '?', ':', ';']:
-                    text += '.'
-                text += ' '
-            else:                                        # include subset of para sentences
-                sentence_spans = create_sentence_spans(split_into_sentences(para['text']))
-                if len(sentence_spans) > 1:
-                    for j, (start, end) in enumerate(sentence_spans):
-                        if random.random() < keep_neg_sent_prob:
-                            text += para['text'][start:end].strip()
-                            if text[-1] not in ['.', '!', '?', ':', ';']:
-                                text += '.'
-                            text += ' '
-                else:
-                    text += para['text'].strip()
-                    if text[-1] not in ['.', '!', '?', ':', ';']:
-                        text += '.'
-                    text += ' '
-            para_toks = tokenizer.tokenize(text)            
-            if tok_count + len(para_toks) > max_toks:
-                excess = max_toks - (tok_count+len(para_toks)+1)
-                if excess > 25:
-                    para_toks = para_toks[:excess]
-                    para_truncated = tokenizer.decode(tokenizer.convert_tokens_to_ids(para_toks)) + '...'
-                    para_list.append(para_truncated.strip())
-                break
-            else:
-                tok_count += len(para_toks) + 1
-                para_list.append(text.strip())
-        random.shuffle(para_list)
-        context = ' '.join(para_list)
-        if type(s['answers']) == list and len(s['answers']) == 1:
-            answer = str(s['answers'][0])
-        else: 
-            answer = s['answers']
-        out_list.append( utils.create_uqa_example(s['question'], context, answer, append_q_char='?') )
-        if i % 1000 == 0:
-            print(f"Loaded {i} samples of {len(split)}...")
-    return out_list
-
-
 random.seed(42)
-dev_out = make_samples(mdr_dev, tokenizer, max_toks, include_title_prob=0.5, include_all_sent_prob=0.5)
+dev_out = utils.make_uqa_from_mdr_format(mdr_dev, tokenizer, max_toks, include_title_prob=0.5, include_all_sent_prob=0.5)
 out_dir = os.path.join(UQA_DIR, "hpqa_hard")
 print(f'Outputting to {out_dir}')
 os.makedirs(out_dir, exist_ok=True)
@@ -279,7 +199,7 @@ print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
     f.write(''.join(dev_out))
     
-train_out = make_samples(mdr_train, tokenizer, max_toks, include_title_prob=0.5, include_all_sent_prob=0.5)
+train_out = utils.make_uqa_from_mdr_format(mdr_train, tokenizer, max_toks, include_title_prob=0.5, include_all_sent_prob=0.5)
 outfile = os.path.join(out_dir, 'train.tsv')
 print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
