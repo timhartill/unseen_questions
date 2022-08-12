@@ -42,6 +42,7 @@ import json
 from html import unescape
 import random
 
+import eval_metrics
 import utils
 from text_processing import normalize_unicode, convert_brc, replace_chars, create_sentence_spans, strip_accents
 
@@ -54,6 +55,22 @@ BQA_CORPUS = '/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-w
 
 UPDATED_DEV = '/home/thar011/data/fever/fever_dev_with_sent_annots.jsonl'
 UPDATED_TRAIN = '/home/thar011/data/fever/fever_train_with_sent_annots.jsonl'
+
+NEI_DEV = '/home/thar011/data/fever/fever_dev_nei_with_sent_annots.jsonl'
+NEI_TRAIN = '/home/thar011/data/fever/fever_train_nei_with_sent_annots.jsonl'
+
+
+# Below for creating UQA-formatted hard examples - code to do so at end
+UQA_DIR = eval_metrics.UQA_DIR
+
+addspecialtoksdict = eval_metrics.special_tokens_dict  # test tokenization length with ind. digit tokenization...
+tokenizer = utils.load_model(model_name='facebook/bart-large', loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)        
+
+max_toks = 512
+added_bits = len(tokenizer.tokenize('<s>. \\n</s>'))
+max_toks = max_toks - added_bits
+print(f"Max num tokens for text after allowing for BOS, EOS etc: {max_toks}")
+
 
 fever_dev = utils.load_jsonl(DEV)      # 19998 dict_keys(['id', 'verifiable', 'label', 'claim', 'evidence'])
 fever_train =  utils.load_jsonl(TRAIN) # 145449 dict_keys(['id', 'verifiable', 'label', 'claim', 'evidence'])
@@ -179,9 +196,11 @@ def create_samples(split, wiki_dict, wiki_accent_map):
             - where multiple sentences in a single doc are pointed to in difft evidence sets we label all such sentences in the doc as positive and consolidate
         - Since we are building this dataset to train a sentence prediction model we skip "NOT SUPPORTED" claims.
         - We retain REFUTED claims in the belief that we are marking sentences as evidential toward deriving an answer rather than just positive examples ie "positive" means "evidential" not necessarily "supportive"
+        - Note sentence labels are often individially evidential ie sent 1 or sent 2 or sent 3 is sufficient rather than the more usual sent 1 and sent 2 and sent 3 together are sufficient
     
     """
     out_samples = []
+    #nei_samples = []
     missing_titles = []
     for i,s in enumerate(split):
         label = s['label']
@@ -217,10 +236,13 @@ def create_samples(split, wiki_dict, wiki_accent_map):
                 sample = {'question': q, 'answers': ans, 'src': 'fever', 'type': 'fever', '_id': fid+'_'+str(j)}
                 sample['bridge'] = [t['title'] for t in pos_paras]
                 sample['pos_paras'] = pos_paras
+                #if label != 'NOT ENOUGH INFO':
                 out_samples.append(sample)
+                #else:    
+                #    nei_samples.append(sample)
         if i % 25000 == 0:
             print(f"Processed: {i}")
-    return out_samples, missing_titles
+    return out_samples, missing_titles #, nei_samples
 
 
 
@@ -243,8 +265,43 @@ utils.add_neg_paras(docs, titledict, fever_train_out) # Status counts: total:130
 utils.saveas_jsonl(fever_dev_out, UPDATED_DEV)
 utils.saveas_jsonl(fever_train_out, UPDATED_TRAIN)
 
-#fever_dev_out = utils.load_jsonl(UPDATED_DEV)      # 19998 dict_keys(['id', 'verifiable', 'label', 'claim', 'evidence'])
-#fever_train_out =  utils.load_jsonl(UPDATED_TRAIN) # 145449 dict_keys(['id', 'verifiable', 'label', 'claim', 'evidence'])
 
+
+################################
+# Create UQA-formatted hard examples with gold para mixed with as many neg paras as can fit in a context
+################################
+def convert_ans_yn(split):
+    for sample in split:
+        if sample['answers'][0] in ["SUPPORTED", "SUPPORTS"]: #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
+            sample['answers'][0] = 'yes'
+        elif sample['answers'][0] in ["REFUTES", "NOT_SUPPORTED"]:
+            sample['answers'][0] = 'no'
+        elif sample['answers'][0] == 'NOT ENOUGH INFO':  #Unused
+            sample['answers'][0] = '<No Answer>'
+    return
+
+fever_dev_out = utils.load_jsonl(UPDATED_DEV)      # 15182 dict_keys(['question', 'answers', 'src', 'type', '_id', 'bridge', 'pos_paras', 'neg_paras'])
+fever_train_out =  utils.load_jsonl(UPDATED_TRAIN) # 130658 dict_keys(['question', 'answers', 'src', 'type', '_id', 'bridge', 'pos_paras', 'neg_paras'])
+
+convert_ans_yn(fever_dev_out)
+convert_ans_yn(fever_train_out)
+
+
+random.seed(42)
+dev_out = utils.make_uqa_from_mdr_format(fever_dev_out, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=0.5)
+out_dir = os.path.join(UQA_DIR, "fever_hard")
+print(f'Outputting to {out_dir}')
+os.makedirs(out_dir, exist_ok=True)
+outfile = os.path.join(out_dir, 'dev.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_out))
+    
+train_out = utils.make_uqa_from_mdr_format(fever_train_out, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=0.5)
+outfile = os.path.join(out_dir, 'train.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(train_out))
+print('Finished outputting fever_hard!')
 
 

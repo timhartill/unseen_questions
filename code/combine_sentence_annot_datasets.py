@@ -5,7 +5,7 @@ Created on Mon May  9 11:43:19 2022
 
 @author: tim hartill
 
-Aggregate datasets with sentence annotations into single train / dev
+Aggregate datasets with sentence annotations into single train / dev ie fever + hover + hpqa
 
 """
 import os
