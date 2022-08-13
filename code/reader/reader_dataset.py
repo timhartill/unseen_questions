@@ -163,7 +163,7 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
     para_titles = flatten(sample['bridge'])
     all_pos_sents = []
     all_neg_sents = []
-    for t in para_titles:
+    for t in para_titles:  # build list of all gold sentences plus separate list of all neg sentences from positive paras
         para = sample['pos_paras'][ sample['para_idxs'][t][0] ]
         pos_sents = encode_title_sents(para['text'], t.strip(), para['sentence_spans'], para['sentence_labels'])
         all_pos_sents.extend( pos_sents )
@@ -180,7 +180,7 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
     first_time = True
     while first_time or len(all_neg_sents) < num_pos_initial:
         first_time = False
-        for i in range(2):  # add neg sents from neg paras
+        for i in range(2):  # add neg sents from neg paras to neg sentences list
             if train:
                 para = random.choice(sample["neg_paras"])
             else: 
@@ -193,7 +193,7 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
     if train:
         random.shuffle(all_neg_sents)
     
-    if rerank_para == -1: # neg sample - replace some pos sents with neg sents, CLS label will be insuff evidence
+    if rerank_para == -1: # neg sample - replace some/all pos sents with neg sents, CLS label will be insuff evidence
         curr_pos_idxs = list(range(num_pos_initial))
         if train:
             divisor = random.choice([2,3])
