@@ -59,7 +59,7 @@ standardize(sent_train)
 
 
 random.seed(42)
-dev_out = utils.make_unanswerable_uqa_from_mdr_format(sent_dev, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=0.5)
+dev_out = utils.make_unanswerable_uqa_from_mdr_format(sent_dev, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=0.15)
 out_dir = os.path.join(UQA_DIR, "noanswer_hpqa_fever_hover_hard")
 print(f'Outputting to {out_dir}')
 os.makedirs(out_dir, exist_ok=True)
@@ -68,7 +68,7 @@ print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
     f.write(''.join(dev_out))
     
-train_out = utils.make_unanswerable_uqa_from_mdr_format(sent_train, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=0.5)
+train_out = utils.make_unanswerable_uqa_from_mdr_format(sent_train, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=0.15)
 outfile = os.path.join(out_dir, 'train.tsv')
 print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:

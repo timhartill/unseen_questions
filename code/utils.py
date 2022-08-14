@@ -1295,10 +1295,12 @@ def consistent_bridge_format(sample):
     return       
     
     
-def make_uqa_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=0.5, include_all_sent_prob=0.5, 
+def make_uqa_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=0.9, include_all_sent_prob=0.5, 
                  keep_pos_sent_prob=0.5, keep_neg_sent_prob=0.6):
     """ Create standard UQA formatted samples from "mdr" format dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id' [, 'bridge']])
         with q + pos/neg paras per doc packed in to roughly max_toks toks.
+
+        include_all_sent_prob: Probability of including full para text (vs subset of para sentences)
     
         Note: Short docs will be less than 512 toks. We dont pack more in to these to preserve diversity. 
               Also some may end up slightly over max_toks.
@@ -1374,16 +1376,21 @@ def make_uqa_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=
     return out_list
 
 
-def make_unanswerable_uqa_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=0.5, include_all_sent_prob=0.5, 
+def make_unanswerable_uqa_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=0.9, include_all_sent_prob=0.15, 
                  keep_pos_sent_prob=0.5, keep_neg_sent_prob=0.6):
     """ Create standard UQA formatted samples which are unanswerable 
-        from "mdr" format dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id' [, 'bridge']])
+        from "mdr" format dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id' [, 'bridge', ...]])
         i.e. with q + pos/neg paras per doc packed in to roughly max_toks toks but key necessary sentences omitted.
+    
+        include_all_sent_prob: Probability of including/dropping full para text (vs subset of para sentences)
     
         Note: Short docs will be less than 512 toks. We dont pack more in to these to preserve diversity. 
               Also some may end up slightly over max_toks.
-        Note 2: For datasets where the pos paras don't have sentence annotations, set include_all_sent_prob=1.0 and entire paras will be used
+        Note 2: For datasets where the pos paras don't have sentence annotations, set include_all_sent_prob=1.0 and entire paras will be used (negs) or dropped (pos)
+        Note 3 Unlike make_uqa_from_mdr_format(..) above, this fn takes random paras as negs since too many adversarial neg paras leak the correct answer, contradicting the <No Answer> label
     """
+    num_in_split = len(split)
+    rand_choices = list(range(num_in_split))
     out_list = []
     for i, s in enumerate(split):
         tok_count = len(tokenizer.tokenize(s['question']))
@@ -1415,7 +1422,7 @@ def make_unanswerable_uqa_from_mdr_format(split, tokenizer, max_toks=507, includ
             else:                       # drop para or gold sent(s) from a para
                 if random.random() >= include_all_sent_prob and len(para['sentence_spans']) > 1: # implicitly drop full paras and where not dropping full, drop all gold sents
                     for j, (start, end) in enumerate(para['sentence_spans']):
-                        if j not in para['sentence_labels'] and (random.random() > 0.1): # always drop all gold sents and occasionally a non-gold
+                        if j not in para['sentence_labels']: # always drop all gold sents, keep all others
                             text += para['text'][start:end].strip()
                             if  text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
                                 text += '.'
@@ -1426,8 +1433,14 @@ def make_unanswerable_uqa_from_mdr_format(split, tokenizer, max_toks=507, includ
                     text = unescape(para['title']).strip() + ': ' + text
                 tok_count += len(tokenizer.tokenize(text))
                 para_list.append(text.strip())
-            
-        for para in s['neg_paras']:
+        
+        neg_paras = []
+        while len(neg_paras) < 4:
+            neg_candidate_idx = random.choice(rand_choices)
+            if neg_candidate_idx != i:
+                neg_paras.append(random.choice(split[neg_candidate_idx]['neg_paras']))
+                
+        for para in neg_paras:
             text = ''
             if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
                 text += unescape(para['title']).strip() + ': '

@@ -288,7 +288,7 @@ convert_ans_yn(fever_train_out)
 
 
 random.seed(42)
-dev_out = utils.make_uqa_from_mdr_format(fever_dev_out, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=0.5)
+dev_out = utils.make_uqa_from_mdr_format(fever_dev_out, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=0.5)
 out_dir = os.path.join(UQA_DIR, "fever_hard")
 print(f'Outputting to {out_dir}')
 os.makedirs(out_dir, exist_ok=True)
@@ -297,7 +297,7 @@ print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
     f.write(''.join(dev_out))
     
-train_out = utils.make_uqa_from_mdr_format(fever_train_out, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=0.5)
+train_out = utils.make_uqa_from_mdr_format(fever_train_out, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=0.5)
 outfile = os.path.join(out_dir, 'train.tsv')
 print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:

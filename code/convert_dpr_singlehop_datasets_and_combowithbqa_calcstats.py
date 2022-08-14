@@ -362,7 +362,7 @@ nq_train = utils.load_jsonl(NQ_TRAIN_MDRFMT) #69639  dict_keys(['question', 'ans
 
 
 random.seed(42)
-dev_out = utils.make_uqa_from_mdr_format(nq_dev, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=1.1)
+dev_out = utils.make_uqa_from_mdr_format(nq_dev, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
 out_dir = os.path.join(UQA_DIR, "nq_hard")
 print(f'Outputting to {out_dir}')
 os.makedirs(out_dir, exist_ok=True)
@@ -371,7 +371,7 @@ print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
     f.write(''.join(dev_out))
     
-train_out = utils.make_uqa_from_mdr_format(nq_train, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=1.1)
+train_out = utils.make_uqa_from_mdr_format(nq_train, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
 outfile = os.path.join(out_dir, 'train.tsv')
 print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
@@ -383,7 +383,7 @@ tqa_dev = utils.load_jsonl(TQA_DEV_MDRFMT)     #6760
 tqa_train = utils.load_jsonl(TQA_TRAIN_MDRFMT) #60413  dict_keys(['question', 'answers', 'id', 'type', 'src', 'para_agg_map', 'bridge', 'pos_paras', 'neg_paras'])
 
 random.seed(42)
-dev_out = utils.make_uqa_from_mdr_format(tqa_dev, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=1.1)
+dev_out = utils.make_uqa_from_mdr_format(tqa_dev, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
 out_dir = os.path.join(UQA_DIR, "tqa_hard")
 print(f'Outputting to {out_dir}')
 os.makedirs(out_dir, exist_ok=True)
@@ -392,7 +392,7 @@ print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
     f.write(''.join(dev_out))
     
-train_out = utils.make_uqa_from_mdr_format(tqa_train, tokenizer, max_toks, include_title_prob=0.65, include_all_sent_prob=1.1)
+train_out = utils.make_uqa_from_mdr_format(tqa_train, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
 outfile = os.path.join(out_dir, 'train.tsv')
 print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
