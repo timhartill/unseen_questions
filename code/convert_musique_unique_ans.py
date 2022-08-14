@@ -564,6 +564,22 @@ with open(outfile, 'w') as f:
     f.write(''.join(train_out))
 print('Finished outputting musique_hard!')
 
+random.seed(42)
+dev_out = utils.make_unanswerable_uqa_from_mdr_format(mu_dev, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
+out_dir = os.path.join(UQA_DIR, "no_answer_musique_hard")
+print(f'Outputting to {out_dir}')
+os.makedirs(out_dir, exist_ok=True)
+outfile = os.path.join(out_dir, 'dev.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_out))
+    
+train_out = utils.make_unanswerable_uqa_from_mdr_format(mu_train, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
+outfile = os.path.join(out_dir, 'train.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(train_out))
+print('Finished outputting no_answer_musique_hard!')
 
 ### BELOW IS UNMODIFIED FROM 2021 experiments  ######
 
