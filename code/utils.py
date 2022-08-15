@@ -590,8 +590,17 @@ def check_mem():
     return mem
 
 def get_model_device(model):
-    """ returns device that model is on i.e. the device that the first parameter is on"""
+    """ returns device that model is on i.e. the device that the first parameter is on.
+        Will return eg device(type='cuda', index=0)
+        To convert to string use eg: tst = get_model_device(model).type  'cuda' 
+    """
     return next(model.parameters()).device
+
+
+def is_data_parallel(model):
+    """ returns True if model is type torch.nn.parallel.data_parallel.DataParallel
+    """
+    return '.DataParallel' in str(type(model))
 
 
 # Below from and adapted from https://github.com/facebookresearch/multihop_dense_retrieval:
@@ -815,7 +824,7 @@ def decode_ids(res, tokenizer, skip_special_tokens=True, clean_up_tokenization_s
     Note: if res of shape [id1, id4, id2, ..] result will be ['txt1', 'txt4', 'txt2', ..]
           if res of shape [[id1, id4, id2, ..]] result will be ['txt1 txt4 txt2 ..']
     """
-    #TODO fix skip_special_tokens issue with ind digits
+    #TODO fix skip_special_tokens issue with ind digits. In meantime run with skip_special_tokens=False
     return tokenizer.batch_decode(res, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
 
 
@@ -868,13 +877,18 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
         ids = [ids]
     #input_ids = tokenizer.encode(input_string, return_tensors="pt")
     input_ids = torch.LongTensor(ids)
-    if model.device != input_ids.device:
-        input_ids = input_ids.to(model.device)
+    if get_model_device(model).type == 'cuda':
+    #if model.device != input_ids.device:
+        input_ids = input_ids.cuda()
+        #input_ids = input_ids.to(model.device)
     #if to_cuda:
     #    if cuda_device is None:  # else typically cuda_device = 0-based int id of particular device
     #        cuda_device = "cuda"
     #    input_ids = input_ids.to(torch.device(cuda_device))
-    res = model.generate(input_ids, **generator_args)
+    if not is_data_parallel(model):
+        res = model.generate(input_ids, **generator_args)
+    else:
+        res = model.module.generate(input_ids, **generator_args)
     if isinstance(res, dict):     
         if only_decode_new:  #LMs output orig input + preds, skip orig input decode
             res['preds'] = decode_ids(res['sequences'][:, start_decode:], tokenizer, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
