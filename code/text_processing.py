@@ -20,8 +20,9 @@ import unicodedata
 from urllib.parse import unquote  # convert percent encoding eg %28%20%29 -> ( )   quote does opposite
 from html import unescape # eg H&amp;M -> H&M
 
-
+import nltk
 from nltk import word_tokenize  # Usage: word_tokenize("The rain in Spain. It lies on God's domain.") -> ['The', 'rain', 'in', 'Spain', '.', 'It', 'lies', 'on', 'God', "'s", 'domain', '.']
+from nltk.corpus import words, wordnet
 from nltk.corpus import stopwords as nltk_stopwords
 STOPWORDS = set(nltk_stopwords.words('english'))
 STOPWORDS2 = set(nltk_stopwords.words('english') + [',', '.', ';', '?', '"', '\'', '(', ')', '&', '!'])
@@ -791,5 +792,112 @@ def LCS(a, b):
     return len(result), result, (xst, xen)
 
 
+#######
+#NLTK words and wordnet functions 
+#######
 
+def nltk_words_download():
+    """ Run once before using nltk fns below involving words corpus """
+    nltk.download('words')
+    return
+
+
+def nltk_all_words():
+    """ List of all 236736 words in NLTK words corpus"""
+    return words.words()
+
+
+def nltk_short_words(tokenizer, max_toks=2, lower=True, exclude_words=None):
+    """ List of words that tokenize to <= max_toks and are not in exclude_words  
+    """
+    if exclude_words is None:
+        exclude_words = []
+    nltk_words = [w for w in words.words() if len(tokenizer.tokenize(w)) <= max_toks and w not in set(exclude_words)]
+    if lower:
+        nltk_words = sorted(list(set([w.lower() for w in nltk_words])))
+    return nltk_words
+    
+
+def random_word(wordlist):
+    return random.choice(wordlist)    
+
+
+def nltk_wordnet_download():
+    """ Run once before using nltk fns below involving words corpus """
+    nltk.download('wordnet')
+    return
+
+
+def nltk_synsets(word, pos=None):
+    """ return list of synsets for a word, optionally with eg pos=wordnet.VERB or single synset if word in form 'script.n.01'
+    eg [Synset('book.n.01'), Synset('book.n.02'), Synset('record.n.05'), Synset('script.n.01'), ..., Synset('book.v.01'), ...]
+    returns [] if no match found
+    Synsets of a word are other words with the same meaning as the supplied word..
+    """
+    if "." in word:
+        return wordnet.synset(word)
+    return wordnet.synsets(word, pos=pos)
+
+
+def nltk_synset_info(synset, return_type='def'):
+    """ return info relating to an individual synset  """
+    if type(synset) == str:
+        synset = nltk_synsets(synset)
+    if type(synset) == list:
+        synset = synset[0]
+    if return_type.startswith('def'):
+        return synset.definition()
+    elif return_type.startswith('lem'):
+        return synset.lemma_names()  # ['lemma1', 'lemma2', ..]    
+    elif return_type.startswith('ant'):
+        antonyms = []
+        for l in synset.lemmas():
+            for a in l.antonyms():
+                antonyms.append(a)
+        return antonyms  # [Lemma('bad.a.01.bad'), ..]
+    elif return_type.startswith('ex'):
+        return synset.examples()     # ['example sent 1', 'example', ..]
+    elif return_type.startswith('ent'):  # entailments, insuations, "eat implies chew"
+        return synset.entailments()     # [synset1, synset2,...]   
+    elif return_type.startswith('hype'):  # parent class synsets ie more general, "if a type of"
+        return synset.hypernyms() + synset.root_hypernyms()        # [synset1, synset2,...]
+    elif return_type.startswith('hypo'):  # child class synsets ie more specific, "has sub-types"
+        return synset.hyponyms()          # [synset1, synset2,...]
+    elif return_type.startswith('mer'):  # "has parts"
+        return synset.part_meronyms() + synset.member_meronyms() + synset.substance_meronyms()         # [synset1, synset2,...]
+    elif return_type.startswith('hol'):  # "is a part of"
+        return synset.part_holonyms()  + synset.member_holonyms() + synset.substance_holonyms()        # [synset1, synset2,...]
+    elif return_type.startswith('dom'):  # ""
+        return synset.topic_domains()  + synset.region_domains() + synset.usage_domains()        # [synset1, synset2,...]
+    elif return_type.startswith('in_dom'):  # ""
+        return synset.in_topic_domains()  + synset.in_region_domains() + synset.in_usage_domains()        # [synset1, synset2,...]
+    elif return_type.startswith('path'):  # "hypernym paths to root"
+        return synset.hypernym_paths()       # [[synset1, synset2,...], [synset1, synset2,...]]    
+    else: 
+        print(f'Invalid return_type: {return_type}')
+    return None
+
+
+def nltk_synset_compare(synset1, synset2, return_type='hype'):
+    """ Return comparison of two hypernyms """
+    if type(synset1) == str:
+        synset1 = nltk_synsets(synset1)
+    if type(synset1) == list:
+        synset1 = synset1[0]
+    if type(synset2) == str:
+        synset2 = nltk_synsets(synset2)
+    if type(synset2) == list:
+        synset2 = synset2[0]
+
+    if return_type.startswith('hype'):
+        return synset1.lowest_common_hypernyms(synset2)  # lowest common parent class eg cat, dog -> carnivore
+    else:
+        print(f'Invalid return_type: {return_type}')
+    return None        
+
+
+def nltk_find_word(word, pos=None):
+    """ find a form of a word possibly not in wordnet that is in wordnet
+    """
+    return wordnet.morphy(word, pos=pos)
 

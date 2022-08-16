@@ -54,7 +54,7 @@ def run(args, logger):
         if args.checkpoint is not None:
             logger.info(f"Loading checkpoint from {args.checkpoint}")       
         else:
-            logger.info("No checkpoint specified. Training from base pretrained model.")
+            logger.info("No checkpoint specified. Using base pretrained model.")
         #tokenizer = load_model(model_name=args.model, loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)
         tokenizer, model = load_model(model_name=args.model, checkpoint=args.checkpoint, special_tokens_dict=addspecialtoksdict)
         if args.is_unifiedqa:
