@@ -84,11 +84,12 @@ def output_train_dev(train, dev):
             out_train.append( utils.create_uqa_example(sample['question'], ' ', answer.strip()) )
             
             # answer with order reversed
-            answer = ''
-            for pair in combo[::-1]:
-                answer += pair[0] + ': ' + pair[1] + '; '
-            #print(answer)
-            out_train.append( utils.create_uqa_example(sample['question'], ' ', answer.strip()) )
+            if len(combo) > 1:
+                answer = ''
+                for pair in combo[::-1]:
+                    answer += pair[0] + ': ' + pair[1] + '; '
+                #print(answer)
+                out_train.append( utils.create_uqa_example(sample['question'], ' ', answer.strip()) )
     
     out_dev = []
     for sample in dev:
@@ -98,10 +99,11 @@ def output_train_dev(train, dev):
             for pair in combo:
                 answer += pair[0] + ': ' + pair[1] + '; '
             answer_list.append(answer.strip())
-            answer = ''
-            for pair in combo[::-1]:
-                answer += pair[0] + ': ' + pair[1] + '; '
-            answer_list.append(answer.strip())
+            if len(combo) > 1:
+                answer = ''
+                for pair in combo[::-1]:
+                    answer += pair[0] + ': ' + pair[1] + '; '
+                answer_list.append(answer.strip())
         print(answer_list)
         out_dev.append( utils.create_uqa_example(sample['question'], ' ', answer_list) )
         
