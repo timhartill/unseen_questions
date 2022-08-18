@@ -21,22 +21,29 @@ Edit the directory and file names below before running...
 
 Note: UQA_SQA_FACTS_DIR must end with _selfsvised - this signals the train/inference programs to treat this as a self supervised task
 
+NOTE: Established that BIG-bench split = SQA full train 2290 examples ie uses this as unseen "eval/test" as does UQAv2/PALM/Sanh/Self-consistency
+Therefore output train file as test/dev split
+
 """
 
 import os
 import json
 import numpy as np
+import eval_metrics
 import utils
 import text_processing
 
-UQA_DIR = '/data/thar011/data/unifiedqa/'
+UQA_DIR = eval_metrics.UQA_DIR
 UQA_SQA_FACTS_DIR = 'strategy_qa_facts_selfsvised'
 UQA_SQA_Q_DIR = 'strategy_qa' 
+UQA_SQA_BIGBENCH = 'strategy_qa_bigbench'
 SQA_DIR_IN = '/home/thar011/data/strategyqa/'
 SQA_TRAIN_FILE = 'strategyqa_train.json'
 SQA_PARA_FILE = 'strategyqa_train_paragraphs.json'
+SQA_BIG_BENCHMARK_FILE = '/home/thar011/data/strategyqa/big_benchmark_sqa_task.json'
 
 SQA_BASE = os.path.join(UQA_DIR, UQA_SQA_Q_DIR)
+SQA_BASE_BB = os.path.join(UQA_DIR, UQA_SQA_BIGBENCH)
 
 Q_PREFIX = 'Add Explanation: '
 OD_EXPL = '_od_expl'
@@ -50,9 +57,14 @@ with open(os.path.join(SQA_DIR_IN, SQA_TRAIN_FILE),'r') as f:
 with open(os.path.join(SQA_DIR_IN, SQA_PARA_FILE),'r') as f:
     sqa_para = json.load(f)  #9251 paragraphs
 
+#with open(os.path.join(SQA_DIR_IN, SQA_BIG_BENCHMARK_FILE),'r') as f:  # 2290 = len(sqa_bigb['examples'])
+#    sqa_bigb = json.load(f)  # dict_keys(['canary', 'name', 'description', 'keywords', 'preferred_score', 'metrics', 'append_choices_to_input', 'examples'])
+
+
 
 def save_single(split, outdir, ds_type, file):
     """ save a single dataset split """
+    os.makedirs(outdir, exist_ok=True)
     out = [s[ds_type] for s in split]
     outfile = os.path.join(outdir, file)
     print(f'Saving {outfile} ...')
@@ -72,7 +84,7 @@ def save_datasets(dev, train):
     print('Finished saving uqa-formatted explanation datasets!')
     return
     
-# strategyQA has no dev split so create one as 10% of train
+# strategyQA has no dev split so create one as 10% of train  [actually no longer used, now using full train as eval]
 # Update the paragraph dict with which qids use each paragraph
 num_q = len(sqa_train)
 dev_size = int(num_q*0.1)
@@ -154,18 +166,25 @@ for qa in sqa_train:
 
 qa_train = []
 qa_dev = []
+qa_bigbench = []
 for qa in sqa_train:
     if qa['split'] == 'train':
         qa_train.append(qa)
     else:
         qa_dev.append(qa)
+    qa_bigbench.append(qa)
         
-print(f"train count: {len(qa_train)}  dev count: {len(qa_dev)}")    # train count: 2061  dev count: 229
+print(f"bigbench split count:{len(qa_bigbench)} train count: {len(qa_train)}  dev count: {len(qa_dev)}")    # bigbench split count:2290 train count: 2061  dev count: 229
 
 save_datasets(qa_dev, qa_train)
 
 
+###################################
+# Save open domain "big-bench" ie full train set split as eval...
+###################################
 
+save_single(qa_bigbench, SQA_BASE_BB + OD_ANS, OD_ANS, 'dev.tsv')
+save_single(qa_bigbench, SQA_BASE_BB + EXPL_ANS, EXPL_ANS, 'dev.tsv')
 
 
 

@@ -225,6 +225,16 @@ def load_uqa_selfsupervised(file, verbose=True):
     return questions, answers
 
 
+def convert_q_a_to_uqalist(qlist, alist):
+    """ convert q list of q[+mc][+c] strings and corresponding answer list to list of uqa examples
+        that can be saved with save_uqa(..)
+    """
+    outlist = []
+    for q,a in zip(qlist,alist):
+        outlist.append( create_uqa_example(q, ' ', a, append_q_char='?') )
+    return outlist
+
+
 def parse_uqa_supervised(questions, answers):
     """ Convert [questions], [answers] into jsonl style format:
         [{'question': 'q txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]

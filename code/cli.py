@@ -184,8 +184,8 @@ def main():
     args.fp16=True
 
     args.checkpoint = '/data/thar011/out/unifiedqa_bart_large_s7_v1_uqa_sqa_mqa_expl_mswq_explans_msw/best-model-150000.pt'
-
-        
+    args.checkpoint = '/large_data/thar011/out/mdr/logs/UQA_s10_v2_implicitrelations_dsfix_ws50/best-model.pt'
+    args.indiv_digits = False    
     """
     
     
