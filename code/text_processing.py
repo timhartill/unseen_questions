@@ -42,6 +42,10 @@ Token.set_extension('relative_position', default=0, force=True)
 
 nlp = spacy.load("en_core_web_sm")
 
+#!pip install scispacy
+# !pip install https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.0/en_core_sci_sm-0.5.0.tar.gz
+#nlp_sci = spacy.load("en_core_sci_sm")
+
 # For verb phrase matching:
 pattern = [{'POS': 'VERB', 'OP': '?'},
            {'POS': 'ADV', 'OP': '*'},
