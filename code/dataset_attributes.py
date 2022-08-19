@@ -40,7 +40,7 @@ UQA_DIR = '/data/thar011/data/unifiedqa/' # datasets base directory
 dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
             'drop', 'contrast_sets_drop', 'boolq_np', 'contrast_sets_boolq', 'multirc', 
             'natural_questions', 'natural_questions_with_dpr_para', 'physical_iqa', 
-            'social_iqa', 'squad1_1', 'squad2', 'boolq', 'commonsenseqa', 
+            'social_iqa', 'squad1_1_titlereformat', 'squad2_titlereformat', 'boolq', 'commonsenseqa', 
             'qasc', 'qasc_with_ir', 'winogrande_xl', 'mctest_corrected_the_separator', 
             'contrast_sets_drop_dedup', 'drop_dedup', 'contrast_sets_boolq_dedup', 
             'boolq_np_dedup', 'social_iqa_dedup', 'quoref_dedup', 
@@ -183,8 +183,8 @@ dataset_attribs = {
     'ropes': {'type':'EX', 'prefer':''},
     'social_iqa': {'type':'MC', 'prefer':''},
     'social_iqa_dedup': {'type':'MC', 'prefer':''},
-    'squad1_1': {'type':'EX', 'prefer':''},
-    'squad2': {'type':'EX', 'prefer':''},
+    'squad1_1_titlereformat': {'type':'EX', 'prefer':''},
+    'squad2_titlereformat': {'type':'EX', 'prefer':''},
     'winogrande_l': {'type':'MC', 'prefer':''},
     'winogrande_m': {'type':'MC', 'prefer':''},
     'winogrande_s': {'type':'MC', 'prefer':''},
@@ -306,7 +306,7 @@ dataset_attribs = {
 
 unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
                         "arc_hard", "arc_easy", "mctest_corrected_the_separator",
-                        "squad1_1", "squad2", "boolq", "race_string", "openbookqa"]
+                        "squad1_1_titlereformat", "squad2_titlereformat", "boolq", "race_string", "openbookqa"]
 
 # PReasM / turning tables datasets:
 tt_base_train = [   "tt_arithmetic_addition",
