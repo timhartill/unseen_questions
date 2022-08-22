@@ -1116,9 +1116,19 @@ def build_title_idx(docs, verbose=False):
     return titledict, dupdict
 
 
+def build_idx_title(titledict):
+    """ build a dict with key wiki id and value: {'title': title, 'idx': docs idx}
+    """
+    id_dict = {}
+    for title in titledict:
+        for entry in titledict[title]:
+            id_dict[entry['id']] = {'title': entry['title'], 'idx': entry['idx']}  # title unescaped to match docs title
+    return id_dict
+
+
 def map_title_case(hlink, titledict, id_type='idx', verbose=False):
     """ Some titles in HPQA abstracts have incorrect casing. Attempt to map casing.
-    hlink is a wiki doc title not necessarily from and hlink..
+    hlink is a wiki doc title not necessarily from an hlink..
     titledict has key 'title' with entry(s) like: [{'title': 'Chinnar Wildlife Sanctuary', 'id': '9642568', 'idx': 0}]
     id_type = 'id' will return wiki doc id, id_type='idx' will return idx of this title in docs
     Note unescape will map eg &amp; to & but will have no effect on already unescaped text so can pass either escaped or unescaped version
@@ -1148,6 +1158,27 @@ def map_title_case(hlink, titledict, id_type='idx', verbose=False):
             if verbose:
                 print(f"Hlink lower:{tlower} No exact match found so assigning first: {hlink}")
     return hlink, status, idx
+
+
+def merge_two_paras(para1, para2):
+    """ Merge para2 into para1 including adjusting hyperlinks + sentence_span offsets"""
+    m_text = copy.deepcopy(para1['text']) + ' '
+    m_offset = len(m_text)
+    m_text += para2['text']
+    m_ss = copy.deepcopy(para1['sentence_spans'])
+    for s,e in para2['sentence_spans']:
+        m_ss.append( [s+m_offset, e+m_offset] )
+    m_hl = copy.deepcopy(para1['hyperlinks_cased'])
+    for hlink in para2['hyperlinks_cased']:
+        hrec = copy.deepcopy(para2['hyperlinks_cased'][hlink])
+        for h in hrec:
+            h['span'][0] += m_offset
+            h['span'][1] += m_offset
+        if m_hl.get(hlink) is None:
+            m_hl[hlink] = hrec
+        else:
+            m_hl[hlink].extend(hrec)
+    return {'text': m_text, 'sentence_spans': m_ss, 'hyperlinks_cased': m_hl}
 
 
 def get_hyperlinked_docs(docs, titledict, curr_d_idx, curr_p_idx, exclude=set()):

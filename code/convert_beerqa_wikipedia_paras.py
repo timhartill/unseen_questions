@@ -93,7 +93,7 @@ import random
 import text_processing
 import utils_elasticsearch as UES
 import utils
-from utils import build_title_idx, map_title_case, get_hyperlinked_docs, get_paras
+from utils import build_title_idx, map_title_case, get_hyperlinked_docs, get_paras, merge_two_paras
 
 ####### MDR:
 #import utils #Duplicate "utils" with AISO so must run MDR and AISO portions separately from different working directories
@@ -774,28 +774,6 @@ def remove_conflicts(merge_dict):
 print("Identifying conflicts in para merge list...")
 merge_dict_without_conflicts, conflicts_dict = remove_conflicts(merge_dict)
 
-
-# merge paras into new_paras include adjusting hyperlinks + sentence_span offsets
-def merge_two_paras( para1, para2):
-    """ Merge para2 into para1 """
-    m_text = copy.deepcopy(para1['text']) + ' '
-    m_offset = len(m_text)
-    m_text += para2['text']
-    m_ss = copy.deepcopy(para1['sentence_spans'])
-    for s,e in para2['sentence_spans']:
-        m_ss.append( [s+m_offset, e+m_offset] )
-    m_hl = copy.deepcopy(para1['hyperlinks_cased'])
-    for hlink in para2['hyperlinks_cased']:
-        hrec = copy.deepcopy(para2['hyperlinks_cased'][hlink])
-        for h in hrec:
-            h['span'][0] += m_offset
-            h['span'][1] += m_offset
-        if m_hl.get(hlink) is None:
-            m_hl[hlink] = hrec
-        else:
-            m_hl[hlink].extend(hrec)
-    return {'text': m_text, 'sentence_spans': m_ss, 'hyperlinks_cased': m_hl}
-    
 
 def merge_paras(docs, merge_dict_without_conflicts, conflicts_dict):
     """ Merge paras in docs occuring in merge_dict_without_conflicts, conflicts_dict
