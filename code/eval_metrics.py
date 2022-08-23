@@ -34,7 +34,7 @@ import os
 import copy
 
 import datasets
-
+import eval_drop
 from sari import SARI
 from dataset_attributes import dev_eval, test_eval, metric_groups, dataset_attribs, replace_sim_with
 from dataset_attributes import unifiedqa_base_train, synth_num_base_train, poet_base_train, tt_base_train
@@ -106,7 +106,7 @@ def load_uqa_supervised(file, ans_lower=True, verbose=True):
 
 
 # the standard "squad" normalization
-def normalize_answer(s):
+def normalize_answer_squad(s):
     def remove_articles(text):
         return re.sub(r'\b(a|an|the)\b', ' ', text)
     def white_space_fix(text):
@@ -118,6 +118,11 @@ def normalize_answer(s):
     def lower(text):
         return text.lower()
     return white_space_fix(remove_articles(remove_punc(lower(s))))
+
+
+# DROP-style normalization - same as squad only number formats are normalised as well eg 1,234 -> 1234.0
+def normalize_answer(s):
+    return eval_drop._normalize_answer(s)
 
 
 def replace_punctuation(instr):
@@ -175,12 +180,25 @@ def get_exact_match(prediction, groundtruth):
     return int(normalize_answer(prediction) == normalize_answer(groundtruth))
 
 
-# adapted from https://github.com/huggingface/datasets/blob/86e66e7be32f96a625314b8e7d4b16d703eba82d/metrics/squad_v2/evaluate.py#L104
 def get_f1(prediction, groundtruth):
+    """ DROP-style f1 where if there is a number in the answer and it doesnt match then F1=0 regardless of other matches
+    Note: Some Drop samples for encoder models have gold & pred  = [span1, span2] for multispan answers and both spans must be matched. 
+          However in seq2seq models these spans are concatenated together into a single string and a gold answer in list form indicates *any* element can match
+          In practice this means in seq2seq DROP etc always have both pred and gold as single strings and other datasets may have multiple valid answers in list form.
+    """
     if type(groundtruth)==list:
         if len(groundtruth)==0:
             return 0.0
-        return float(np.max([get_f1(prediction, gt) for gt in groundtruth]) )   
+        return float(np.max([get_f1(prediction, gt) for gt in groundtruth]) )
+    return float(eval_drop.f1_metrics(prediction, groundtruth))
+
+
+# adapted from https://github.com/huggingface/datasets/blob/86e66e7be32f96a625314b8e7d4b16d703eba82d/metrics/squad_v2/evaluate.py#L104
+def get_f1_squad(prediction, groundtruth):
+    if type(groundtruth)==list:
+        if len(groundtruth)==0:
+            return 0.0
+        return float(np.max([get_f1(prediction, gt) for gt in groundtruth]) )
     gold_toks = get_tokens(groundtruth)
     pred_toks = get_tokens(prediction)
     common = collections.Counter(gold_toks) & collections.Counter(pred_toks)

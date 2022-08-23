@@ -227,6 +227,23 @@ def convert_to_unicode(text):
         raise ValueError("Unsupported string type: %s" % (type(text)))
         
 
+def remove_html_tags(text):
+    """ Remove tags such as hyperlinks etc from a body of text eg from wikipedia
+    """
+    text = re.sub("<[^>]*>", "", text)
+    return text
+
+
+def create_paras(text, para_end='\n', remove_tags=True):
+    """ Split an article into paragraphs, optionally removing html etc tags 
+        and return as list.
+    """ 
+    if remove_tags:
+        text = remove_html_tags(text)
+    text_list = text.split(para_end)
+    return [t.strip() for t in text_list if t.strip() != '']
+
+
 def replace_control_chars(text, replace= ' '):
     """ Replace control chars with ' ' or eg '' """
     output = []
