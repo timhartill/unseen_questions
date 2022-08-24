@@ -14,10 +14,12 @@ TAT-QA repo: https://github.com/NExTplusplus/TAT-QA
 import os
 import json
 import random
+import itertools
+
 from tqdm import tqdm
 import numpy as np
 from html import unescape
-import pandas as pd
+#import pandas as pd
 
 import utils
 
@@ -67,14 +69,23 @@ def build_context(split):
 def write_std(split, out_dir, out_file):
     """ output multiple samples per context
     Note: where there are multiple answers generally it needs to predict all of them not any of them 
-          so outputing as single comma-delimited string
+          so outputing as list of comma-delimited strings for all permutations
     """
     out_list = []
     for sample in split:
         for qa in sample['questions']:
             q = qa['question']
             if type(qa['answer']) == list:
-                ans = ', '.join([str(a).strip() for a in qa['answer']])
+                if len(qa['answer']) == 1:
+                    ans = str(qa['answer'][0]).strip()
+                else:
+                    ans = [str(a).strip() for a in qa['answer']]
+                    all_permutations = list(itertools.permutations(ans))
+                    a_list = []
+                    for spanlist in all_permutations:
+                        a_list.append( ', '.join(spanlist) )
+                    ans = a_list
+                #ans = ', '.join([str(a).strip() for a in qa['answer']])
             else:
                 ans = str(qa['answer']).strip()
             out_list.append( utils.create_uqa_example(q, sample['context'], ans, append_q_char='?')   )
