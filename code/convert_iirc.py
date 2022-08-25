@@ -71,6 +71,27 @@ def get_article(title):
         article = context_articles.get(title.strip().lower())
     return article
 
+def get_random_article(exclude=[]):
+    """ Get a random title whose title is not in exclude
+    """
+    title = random.choice(list(context_articles.keys())) 
+    while title in exclude:
+        title = random.choice(list(context_articles.keys()))
+    return title, get_article(title)
+
+def get_random_para(exclude=[]):
+    """ Get a random paragraph from a random article
+    """
+    title, article = get_random_article(exclude)
+    para_list = text_processing.create_paras(article)
+    while para_list == []:
+        title, article = get_random_article(exclude)
+        para_list = text_processing.create_paras(article)        
+    para = random.choice(para_list)
+    return title, text_processing.format_sentence(para)
+    
+    
+
 def get_para(article_no_tags, sent, key='\n', widen_by=0):
     """ Try to get a full para demarcated by \n or a full sentence or sentences demarcated by '.'
     """
@@ -96,7 +117,7 @@ def build_golds(title_main, text_main, question):
         #realtitle = unescape(title).strip() if title != 'main' else unescape(title_main).strip()
         titledict[title] = {}
         sents = sorted([c for c in question['context'] if c['passage'] == title], key=lambda c: c['indices'])
-        titledict[title]['gold_sents'] = ' '.join([text_processing.format_sentence(s['text']) for s in sents])
+        #titledict[title]['gold_sents'] = ' '.join([text_processing.format_sentence(s['text']) for s in sents])
         gold_paras = []
         if title != 'main':
             article = get_article(title)
@@ -135,9 +156,15 @@ def build_golds(title_main, text_main, question):
                     break
             if not substr:
                 new_gold_paras.append(curr_para)    
+
         titledict[title]['gold_paras'] = new_gold_paras
 
-    question['gold_contexts'] = titledict
+    exclude_titles = list(titledict.keys()) + [title_main]
+    for i in range(2):
+        title, para = get_random_para(exclude=exclude_titles)
+        titledict[title] = {}
+        titledict[title]['neg_paras'] = [para]
+    question['gold_contexts'] = titledict        
     return
     
     
@@ -164,7 +191,7 @@ def process_ds_split(ds_split):
                 else:  # multiple spans: answer = list of all span permutations. In training only the first is used (EM) but in validation max EM over all permuations is used
                     if len(answer_spans) > max_ans_spans:
                         max_ans_spans = len(answer_spans)
-                        print(f'new max answer_span length: {max_ans_spans}')
+                        #print(f'new max answer_span length: {max_ans_spans}')
                         #print(question)
                     if len(answer_spans) < 4:   # 4 = 28 permutations, 5 = 120 permutations ...
                         all_permutations = list(itertools.permutations(answer_spans))
@@ -187,7 +214,7 @@ def process_ds_split(ds_split):
             #print(f"Ended {i} {j}")
     print("Finished!")
     return
-            
+
             
 process_ds_split(dev)
 
@@ -201,8 +228,9 @@ process_ds_split(test)
 #TODO create random context for <No Answer> types
 #TODO create IIRC_OD_ANS = q->a
 #TODO create IIRC_C = q+single gold para->a
+#TODO create IIRC_CS = q+single gold para sents->a
 #TODO create IIRC_G = q+single gold+all gold paras->a
-#TODO create IIRC_P = q+single gold+all gold phrases->a
+#TODO create IIRC_GS = q+single gold sents+all gold paras->a
 #TODO (eventually) create IIRC_R = q+single gold+ retrieved paras->a
 #TODO (eventually) create IIRC_RS = q+single gold+ retrieved sents->a
 
