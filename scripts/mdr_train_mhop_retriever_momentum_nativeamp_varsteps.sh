@@ -8,19 +8,19 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix momhpqastop \
+    --prefix hover_hpqa_nq_mu_paras_test9_mom_6gpubs200 \
     --predict_batch_size 100 \
     --model_name roberta-base \
-    --train_batch_size 50 \
+    --train_batch_size 200 \
     --learning_rate 1e-5 \
     --fp16 \
-    --train_file /home/thar011/data/mdr/hotpot/hotpot_train_with_neg_v0.json \
-    --predict_file /home/thar011/data/mdr/hotpot/hotpot_dev_with_neg_v0.json \
+    --train_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_train_with_neg_v0.jsonl \
+    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_dev_with_neg_v0.jsonl \
     --seed 16 \
     --eval-period -1 \
     --max_c_len 300 \
     --max_q_len 70 \
-    --max_q_sp_len 350 \
+    --max_q_sp_len 512 \
     --shared-encoder \
     --gradient_accumulation_steps 1 \
     --use_var_versions \
@@ -28,16 +28,14 @@ python mdr_train_mhop_nativeamp.py \
     --momentum \
     --reduction none \
     --retrieve_loss_multiplier 1.0 \
-    --max_hops 2 \
+    --max_hops 4 \
     --num_negs 2 \
-    --query_use_sentences \
-    --query_add_titles \
     --random_multi_seq \
-    --debug \
     --k 76800 \
     --m 0.999 \
     --temperature 1 \
-    --init_retriever /large_data/thar011/out/mdr/logs/03-26-2022/varinitialtest2_-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue/checkpoint_best.pt \
-    --num_train_epochs 50 \
+    --init_retriever /large_data/thar011/out/mdr/logs/hover_hpqa_nq_mu_paras_test8_6gpubs100-08-25-2022-nomom-seed16-bsz100-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+    --output_dir /large_data/thar011/out/mdr/logs \
+    --num_train_epochs 75 \
     --warmup-ratio 0.1
     

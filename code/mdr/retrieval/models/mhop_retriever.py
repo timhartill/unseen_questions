@@ -140,7 +140,7 @@ class RobertaMomentumRetriever_var(nn.Module):
 
         stop_encoded = []
         q_encoded = []
-        for i, q_input_ids, q_mask in enumerate(zip(batch['q_input_ids'], batch['q_mask'])):
+        for i, (q_input_ids, q_mask) in enumerate(zip(batch['q_input_ids'], batch['q_mask'])):
             if i == 0 or not self.eval_stop: # no need to encode stop for q only
                 q_encoded.append(self.encoder_q.encode_seq(q_input_ids, q_mask))
             else:    
