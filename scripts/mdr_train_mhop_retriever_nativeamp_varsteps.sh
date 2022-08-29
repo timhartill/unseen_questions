@@ -44,8 +44,8 @@ python mdr_train_mhop_nativeamp.py \
     --train_batch_size 100 \
     --learning_rate 2e-5 \
     --fp16 \
-    --train_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_train_with_neg_v0.jsonl \
-    --predict_file /large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_dev_with_neg_v0.jsonl \
+    --train_file $LDATA/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_train_with_neg_v0.jsonl \
+    --predict_file $LDATA/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_dev_with_neg_v0.jsonl \
     --seed 16 \
     --eval-period -1 \
     --max_c_len 300 \
@@ -59,7 +59,7 @@ python mdr_train_mhop_nativeamp.py \
     --max_hops 4 \
     --num_negs 2 \
     --random_multi_seq \
-    --output_dir /large_data/thar011/out/mdr/logs \
+    --output_dir $LDATA/out/mdr/logs \
     --num_train_epochs 75 \
     --warmup-ratio 0.1
 

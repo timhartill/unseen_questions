@@ -13,8 +13,8 @@ python mdr_train_stage1_nativeamp.py \
     --train_batch_size 12 \
     --learning_rate 5e-5 \
     --fp16 \
-    --train_file /home/thar011/data/sentences/sent_train.jsonl \
-    --predict_file /home/thar011/data/sentences/sent_dev.jsonl \
+    --train_file $HDATA/data/sentences/sent_train.jsonl \
+    --predict_file $HDATA/data/sentences/sent_dev.jsonl \
     --seed 42 \
     --eval-period 2000 \
     --max_c_len 512 \
@@ -22,7 +22,7 @@ python mdr_train_stage1_nativeamp.py \
     --gradient_accumulation_steps 8 \
     --use-adam \
     --sp-weight 1.0 \
-    --output_dir /large_data/thar011/out/mdr/logs \
+    --output_dir $LDATA/out/mdr/logs \
     --save_prediction stage1_dev_predictions.jsonl \
     --num_train_epochs 7 \
     --sent_score_force_zero \

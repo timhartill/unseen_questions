@@ -2,10 +2,10 @@
 
 cd ../code
 
-python cli.py --do_train --output_dir /data/thar011/out/unifiedqa_t5_large \
+python cli.py --do_train --output_dir $LDATA/out/unifiedqa_t5_large \
         --is_unifiedqa \
-        --train_file /data/thar011/data/unifiedqa/train.tsv \
-        --predict_file /data/thar011/data/unifiedqa/dev.tsv \
+        --train_file $UDATA/data/unifiedqa/train.tsv \
+        --predict_file $UDATA/data/unifiedqa/dev.tsv \
         --train_batch_size 16 \
         --predict_batch_size 16 \
         --append_another_bos --do_lowercase \

@@ -32,8 +32,10 @@ add_explanationkey = 'Add Explanation:'
 EXPL_COMP_KEY = '_expl_components'
 special_tokens_dict = {'additional_special_tokens':['0','1','2', '3', '4', '5', '6', '7', '8', '9']}  # for individual digit tokenisation
 
-
-UQA_DIR = '/data/thar011/data/unifiedqa/' # datasets base directory
+if os.environ.get('UQA_DIR') is not None:
+    UQA_DIR = os.environ.get('UQA_DIR') + '/'  #'/data/thar011/data/unifiedqa/' # datasets base directory
+else:
+    assert False, "ERROR: Set the environment variable 'UQA_DIR' to the base directory of tsv-formatted datasets: export UQA_DIR=/parentdir/datasets "    
 
 
 #Add to this list to create predictions/calc metrics for corresponding dev.tsv:

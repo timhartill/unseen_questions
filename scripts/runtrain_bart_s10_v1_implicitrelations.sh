@@ -11,10 +11,10 @@
 
 cd ../code
 
-python cli.py --do_train --output_dir /large_data/thar011/out/mdr/logs/UQA_s10_v1_implicitrelations \
+python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s10_v1_implicitrelations \
         --is_unifiedqa \
-        --train_file /data/thar011/data/unifiedqa/train.tsv \
-        --predict_file /data/thar011/data/unifiedqa/dev.tsv \
+        --train_file $UDATA/data/unifiedqa/train.tsv \
+        --predict_file $UDATA/data/unifiedqa/dev.tsv \
         --train_batch_size 32 \
         --predict_batch_size 32 \
         --append_another_bos --do_lowercase \
