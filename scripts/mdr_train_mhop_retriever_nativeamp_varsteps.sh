@@ -38,10 +38,10 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix hover_hpqa_nq_mu_paras_test8_6gpubs100 \
+    --prefix hover_hpqa_nq_mu_paras_test10_6gpubs150 \
     --predict_batch_size 100 \
     --model_name roberta-base \
-    --train_batch_size 100 \
+    --train_batch_size 150 \
     --learning_rate 2e-5 \
     --fp16 \
     --train_file $LDATA/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_train_with_neg_v0.jsonl \
