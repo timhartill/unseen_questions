@@ -47,8 +47,15 @@ def sample_datasets(logger, data, approx_dev_samples):
 class UnifiedQAData(QAData):
 
     def __init__(self, logger, args, data_path, is_training):
-               
-        self.unified_dataset, self.mixture_key = parse_mixture(args.mixture)          
+        
+        self.unified_dataset, self.mixture_key = parse_mixture(args.mixture)
+        
+        if args.do_2_group_sampling:
+            self.g2_datasets, _ = parse_mixture(args.g2_datasets) 
+        else:
+            self.g2_datasets = []
+            
+            
         self.data_path = data_path  # this would be ../unifiedqa/train.tsv
         self.data_type = data_path.split("/")[-1][:-4]
         assert self.data_type in ["train", "dev", "test"]
@@ -191,8 +198,15 @@ class UnifiedQAData(QAData):
                     self.logger.info("Saved tokenised data to {}".format(preprocessed_path))
 
         self.metadata = metadata
-        self.err_sampler = SampleProbs(self.unified_dataset, self.selfsupervised, self.args.error_based_ssvise_prob)
-        if self.is_training and self.args.error_based_sampling:
+        if self.args.do_2_group_sampling:  # 2-Group sampling
+            self.err_sampler = TwoGroupSampler(self.unified_dataset, self.selfsupervised, self.g2_datasets,
+                                               self.args.error_based_ssvise_prob, self.args.g2_prob, 
+                                               self.args.g1_type, self.args.g2_type)
+        else:    #set to err-based but only used if err-based sampling
+            self.err_sampler = SampleProbs(self.unified_dataset, self.selfsupervised, self.args.error_based_ssvise_prob)
+        if self.is_training and self.args.do_2_group_sampling:
+            self.logger.info(f"Initial 2-Group sampling probs: {self.err_sampler.current_probs_string()}")
+        elif self.is_training and self.args.error_based_sampling:
             self.logger.info(f"Initial err based sampling probs: {self.err_sampler.current_probs_string()}")
         self.dataset = MyUnifiedQADataset(input_ids, attention_mask,
                                           decoder_input_ids, decoder_attention_mask, self.args, self.data,
@@ -202,7 +216,6 @@ class UnifiedQAData(QAData):
                                           word_starts = word_starts,
                                           ners_ids=ners_ids, err_sampler=self.err_sampler)
         self.logger.info("Loaded {} examples from {} data".format(len(self.dataset), self.data_type))
-
 
 
     def load_dataloader(self, do_return=False):
@@ -263,12 +276,15 @@ def get_parentdata_indx(idx, metadata, unified_dataset):
 class SampleProbs():
     """ Update task sampling probs based on error sampling
     """
-    def __init__(self, unified_datasets, selfsupervised, selfsupervised_prob=0.5, sampletype='err'):
-        """ selfsupervised = [True, False, ...]  whether each dataset is self-supervised or not
+    def __init__(self, datasets, selfsupervised, selfsupervised_prob=0.5, sampletype='err'):
+        """ 
+        datasets = [dataset names]
+        selfsupervised = [True, False, ...]  whether each dataset is self-supervised or not
+        selfsupervised_prob = prob of selecting a dataset from the self-supervised set
         Return idx of a self-supervised dataset with prob selfsupervised_prob else return idx of a "normal" dataset
         Within self-supervised and normal sets return idx of dataset with probability based on error based sampling ie oversample dataset with higher error rate (1 - accuracy)
         """
-        self.unified_datasets = unified_datasets
+        self.datasets = datasets
         self.selfsupervised = selfsupervised
         self.num_datasets = len(selfsupervised)
         self.dataset_idx = [i for i in range(self.num_datasets)] # the actual dataset idx ssvise+normal
@@ -283,12 +299,15 @@ class SampleProbs():
         self.num_ssvise = len(self.ssvise_idxs)
         self.num_normal = len(self.normal_idxs)
         
+        # start with uniform sampling
         self.sampleprobs_ssvise = np.array([1.0/self.num_ssvise for _ in range(self.num_ssvise)])
         self.sampleprobs_norm = np.array([1.0/self.num_normal for _ in range(self.num_normal)])
         self.sampletype = sampletype
         
     def update(self, ems, verbose=False):
-        if self.sampletype=='err':
+        """ Update sampling probs - called from training loop with ems = [dev accuracy per dataset]
+        """
+        if self.sampletype=='err':  # don't update probs if uniform
             acctotal_norm = np.sum([1.0-acc for i, acc in enumerate(ems) if not self.selfsupervised[i]])
             acctotal_ssvise = np.sum([1.0-acc for i, acc in enumerate(ems) if self.selfsupervised[i]])
             for i, acc in enumerate(ems):
@@ -320,7 +339,7 @@ class SampleProbs():
     def current_probs_string(self):
         outstr_ssvise = f'SSVISE_DS({self.ssvise_prob}):'
         outstr_norm = 'NORM_DS:'
-        for i, name in enumerate(self.unified_datasets):
+        for i, name in enumerate(self.datasets):
             if self.selfsupervised[i]:
                 outstr_ssvise += ' ' + name + ' '
                 for nidx, j in enumerate(self.ssvise_idxs):
@@ -335,7 +354,81 @@ class SampleProbs():
                        break
         return outstr_norm.strip() + ' ' + outstr_ssvise.strip()
     
-        
+
+class TwoGroupSampler():
+    """ Two group sampler - either group can be error or uniform based sampling
+    """
+    def __init__(self, all_datasets, all_selfsupervised, g2_datasets, selfsupervised_prob=0.5, g2_prob=0.5,
+                 g1_sampletype='err', g2_sampletype='err'):
+        """ 
+        all_datasets = [all dataset names], g2_datasets = [dataset names from all_datasets that will go into group 2, remainder go into g1]
+        selfsupervised = [True, False, ...]  whether each dataset is self-supervised or not
+        selfsupervised_prob = prob of selecting a dataset from the self-supervised set of a group - reuse same value in both groups given we would seldom have self-supervised datasets in both groups
+        g2_prob = prob of selecting from group 2
+        g1_sampletype='err' or 'uni', g2_sampletype='err' or 'uni'  error-based or uniform sampling in each group
+        Return idx of a self-supervised dataset with prob selfsupervised_prob else return idx of a "normal" dataset
+        Within self-supervised and normal sets return idx of dataset with probability based on error based sampling ie oversample dataset with higher error rate (1 - accuracy)
+        """
+        self.all_datasets = all_datasets
+        self.all_selfsupervised = all_selfsupervised
+        self.g1_sampletype = g1_sampletype.strip().lower()
+        self.g2_sampletype = g2_sampletype.strip().lower()
+        self.g2_prob = g2_prob
+        self.selfsupervised_prob = selfsupervised_prob
+        self.g1_datasets = []
+        self.g2_datasets = []
+        self.g1_selfsupervised = []
+        self.g2_selfsupervised = []
+        self.g1_idxs = []
+        self.g2_idxs = []
+        for i, ds in enumerate(all_datasets):
+            if ds in g2_datasets:
+                self.g2_datasets.append(ds)
+                self.g2_idxs.append(i)
+                self.g2_selfsupervised.append(all_selfsupervised[i])
+            else:
+                self.g1_datasets.append(ds)
+                self.g1_idxs.append(i)
+                self.g1_selfsupervised.append(all_selfsupervised[i])
+        self.num_g1 = len(self.g1_datasets)
+        self.num_g2 = len(self.g2_datasets)
+        self.g1sampler = SampleProbs(self.g1_datasets, self.g1_selfsupervised, selfsupervised_prob, g1_sampletype)
+        self.g2sampler = SampleProbs(self.g2_datasets, self.g2_selfsupervised, selfsupervised_prob, g2_sampletype)
+
+    def update(self, ems, verbose=False):
+        """ Update sampling probs - called from training loop with ems = [dev accuracy per dataset]
+        """
+        g1_ems = []
+        g2_ems = []
+        for i, em in enumerate(ems):
+            if i in self.g2_idxs:
+                g2_ems.append(em)
+            else:
+                g1_ems.append(em)
+        self.g1sampler.update(g1_ems)
+        self.g2sampler.update(g2_ems)
+        if verbose:
+            print(f"New probs: {self.current_probs_string()}")
+        return
+
+    def sample(self):
+        group_choice = np.random.choice(['g1', 'g2'], p=[1.0-self.g2_prob, self.g2_prob])
+        if group_choice == 'g1' and self.num_g1 == 0:
+            group_choice = 'g2'
+        elif group_choice == 'g2' and self.num_g2 == 0:
+            group_choice = 'g1'
+        if group_choice == 'g1':
+            s_idx = self.g1sampler.sample()
+            idx = self.g1_idxs[s_idx]
+        else:
+            s_idx = self.g2sampler.sample()
+            idx = self.g2_idxs[s_idx]
+        return idx
+            
+    def current_probs_string(self):
+        g1str = f"GROUP 1: {self.g1_sampletype}(" + str(round(1.0-self.g2_prob, 2)) + ") " + self.g1sampler.current_probs_string()
+        g2str = f"GROUP 2: {self.g2_sampletype}(" + str(round(self.g2_prob, 2)) + ") " + self.g2sampler.current_probs_string()
+        return g1str + "  " + g2str
 
 
 class MyUnifiedQADataset(Dataset):
@@ -449,10 +542,10 @@ class MyUnifiedQADataset(Dataset):
         #    self.indices = [np.random.permutation(range(start, end)) for start, end in self.metadata]
         #    self.initialize = False
                 
-        if self.error_based_sampling:
-            idx = self.err_sampler.sample()     # Error based sampling
+        if self.error_based_sampling or self.args.g2_datasets != []:
+            idx = self.err_sampler.sample()     # Error based sampling or 2-group sampling
             #print(self.err_sampler.current_probs_string())
-        else:    
+        else:
             idx = idx % len(self.metadata)      # Select component dataset with uniform chance not proportional to dataset sizes
 
         ssvise = self.selfsupervised[idx]

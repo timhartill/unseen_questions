@@ -51,6 +51,11 @@ def run(args, logger):
         addspecialtoksdict = {}
     
     if args.do_train:
+        if args.g2_datasets is not None and args.g2_datasets.strip() != '':
+            args.do_2_group_sampling = True
+        else:
+            args.do_2_group_sampling = False
+
         if args.checkpoint is not None:
             logger.info(f"Loading checkpoint from {args.checkpoint}")       
         else:
@@ -201,7 +206,12 @@ def run(args, logger):
 
 def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
     logger.info(f"Train using FP16: {args.fp16}")
-    logger.info(f"Using Error based sampling: {args.error_based_sampling}  ssvise prob:{args.error_based_ssvise_prob}")
+    if args.do_2_group_sampling:
+        logger.info(f"Using 2-Group Sampling: ssvise prob:{args.error_based_ssvise_prob}  g2 prob:{args.g2_prob}  g1 sampling type:{args.g1_type}  g2 sampling type:{args.g2_type}")
+    elif args.error_based_sampling:    
+        logger.info(f"Using Error based sampling over single group: ssvise prob:{args.error_based_ssvise_prob}")
+    else:
+        logger.info(f"Using Uniform sampling over single group.")
     scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
     model.train()
     global_step = 0
@@ -310,9 +320,9 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                     save_config['curr_lr'] = float(scheduler.get_last_lr()[0])
                     save_config['curr_time'] = str(datetime.datetime.now())
                     if args.is_unifiedqa:
-                        if args.error_based_sampling:
+                        if args.error_based_sampling or args.do_2_group_sampling:
                             train_data.err_sampler.update(ems)
-                            logger.info(f"New Error-based Sampling probs: {train_data.err_sampler.current_probs_string()}")
+                            logger.info(f"New Error-based or 2-Group Sampling probs: {train_data.err_sampler.current_probs_string()}")
                             save_config['curr_sample_probs'] = train_data.err_sampler.current_probs_string()
 
                         for i, dataset in enumerate(dev_data.unified_dataset):

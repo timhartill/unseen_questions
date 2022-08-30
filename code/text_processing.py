@@ -40,6 +40,7 @@ Token.set_extension('lefts', default=[], force=True)
 Token.set_extension('rights', default=[], force=True)
 Token.set_extension('relative_position', default=0, force=True)
 
+# python -m spacy download en_core_web_sm
 nlp = spacy.load("en_core_web_sm")
 
 #!pip install scispacy

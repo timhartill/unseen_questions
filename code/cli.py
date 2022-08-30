@@ -99,10 +99,21 @@ def main():
                         help="Normalise numbers before tokenisation eg 1,678.54 becomes 1678.54 and .90 becomes 0.9, 009 becomes 9 and twenty becomes 20 unless --norm_10e also set")
     parser.add_argument("--norm_10e", action='store_true',
                         help="if --norm_numbers and this is set use form '- 4 10e1 3 10e0 2 10e-1 1 10e-2' instead of -43.21 for all identifed numbers")
+
     parser.add_argument("--error_based_sampling", action='store_true',
                         help="In multitask training sample tasks based on oversampling those with higher dev error. Default is uniform sampling")
     parser.add_argument("--error_based_ssvise_prob", default=0.5, type=float,
-                        help="For error based sampling the probability of choosing a self supervised dataset")
+                        help="For error based or 2-group sampling, the probability of choosing a self supervised dataset")
+
+    parser.add_argument("--g2_datasets", type=str, default="",
+                        help="If not blank use 2-Group Sampling and contains set of group 2 datasets (must be in --mixture). Datasets in mixture not in g2_datasets are in group 1. Format: --g2_datasets unifiedqa,extradataset2")
+    parser.add_argument("--g2_prob", default=0.5, type=float,
+                        help="For 2 group sampling the probability of choosing a dataset from group 2 (vs group 1)")
+    parser.add_argument("--g1_type", type=str, default="uni",
+                        help="If using 2-Group sampling: uni = uniform sampling for group 1, err = error-based sampling for group 1")
+    parser.add_argument("--g2_type", type=str, default="err",
+                        help="If using 2-Group sampling: uni = uniform sampling for group 2, err = error-based sampling for group 2")
+    
     parser.add_argument("--calc_similarity", action='store_true',
                         help="Calculate similarity between train datasets specified by  --mixture and eval datasets specified in eval_metrics.json.")
     parser.add_argument("--calc_similarity_numeric", action='store_true',
@@ -139,7 +150,7 @@ def main():
     parser.add_argument("--dont_pretokenize", action='store_true',
                         help="If set text is tokenized on the fly instead of in one step at beginning.")
     parser.add_argument("--num_workers", default=0, type=int, 
-                        help="number of dataloader processes for training. 0 means run on main thread.")
+                        help="number of dataloader processes for training. 0 means run on main thread. ONLY 0 currently supported!")
     parser.add_argument('--fp16', action='store_true',
                         help="Train using mixed precision.")
     parser.add_argument("--approx_dev_samples", default=-1, type=int, 
