@@ -122,9 +122,11 @@ def get_para(article_no_tags, sent, key='\n', widen_by=0, max_chars=600):
 
 
 def consolidate_contexts(title_main, question):
-    """ Takes'gold_contexts' key to each question: {'title': {'gold_paras': ['Para 1', 'Para 2', ..]},  #title = 'main' or actual title
+    """ Adds 'gold_contexts' key to each question: {'title': {'gold_paras': ['Para 1', 'Para 2', ..]},  #title = 'main' or actual title
                                                          {'neg_paras': ['Para 1']}  # each title has only 'gold_paras' xor 'neg_paras' 
-        and consolidates paras into new 'final_gold_context' and 'final_initial_context' keys            
+        and consolidates paras into new 'final_gold_context' and 'final_initial_context' keys     
+        'final_initial_context' key = initial gold para title: condensed sents around gold sentences
+        'final_gold_context' key = initial gold para title: condensed sents around gold sentences + each gold linked para title: para
     """
     golds = {}
     negs = {}

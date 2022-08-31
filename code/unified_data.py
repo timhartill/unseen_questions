@@ -79,19 +79,24 @@ class UnifiedQAData(QAData):
             self.data[dataset] = {"id": [], "question": [], "answer": []}
             with open(curr_data_path, "r") as f:
                 cnt = 0
+                invalid_lines = 0
                 for line in f:
-                    if self.selfsupervised[-1]:
-                        answer = ""
-                        question = line.strip()
-                    else:
-                        question, answer = line.split("\t")
-                        
-                        #always train with single answers [0] but can eval EM/F1 with multiple answers
-                        if answer.lstrip().startswith(utils.MULTI_ANS_SEP): # #!# answer 1#!# answer 2 #!# -> ['answer 1','answer 2']
-                            answer = answer.strip().strip(utils.MULTI_ANS_SEP).split(utils.MULTI_ANS_SEP)
-                            answer = [a + '\n' for a in answer]
+                    try:
+                        if self.selfsupervised[-1]:
+                            answer = ""
+                            question = line.strip()
                         else:
-                            answer = answer # note always ends in \n  and if singular is str not list unlike data.py                   
+                            question, answer = line.split("\t")
+                            
+                            #always train with single answers [0] but can eval EM/F1 with multiple answers
+                            if answer.lstrip().startswith(utils.MULTI_ANS_SEP): # #!# answer 1#!# answer 2 #!# -> ['answer 1','answer 2']
+                                answer = answer.strip().strip(utils.MULTI_ANS_SEP).split(utils.MULTI_ANS_SEP)
+                                answer = [a + '\n' for a in answer]
+                            else:
+                                answer = answer # note always ends in \n  and if singular is str not list unlike data.py                   
+                    except Exception:
+                        invalid_lines += 1
+                        continue
 
                     self.data[dataset]["id"].append("{}-{}-{}".format(dataset, self.data_type, cnt))
                     self.data[dataset]["question"].append(question)
@@ -99,6 +104,8 @@ class UnifiedQAData(QAData):
                     cnt += 1
                     if args.debug and cnt==20:
                         break
+                if invalid_lines > 0:
+                    logger.info(f"{curr_data_path}: # invalid lines skipped: {invalid_lines}")
 
         if not is_training and args.approx_dev_samples != -1:  # limit number of dev samples so validation step takes reasonable amount of time
             self.data = sample_datasets(logger, self.data, args.approx_dev_samples)  

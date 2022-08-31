@@ -44,7 +44,8 @@ def main():
     parser.add_argument("--skip_inference", action='store_true')
 
     ## Model parameters
-    parser.add_argument("--checkpoint", type=str)
+    parser.add_argument("--checkpoint", type=str,
+                        help="Model checkpoint to load.")
     parser.add_argument('--checkpoint_step', type=int, default=0)
     parser.add_argument("--do_lowercase", action='store_true')
 
@@ -109,9 +110,9 @@ def main():
                         help="If not blank use 2-Group Sampling and contains set of group 2 datasets (must be in --mixture). Datasets in mixture not in g2_datasets are in group 1. Format: --g2_datasets unifiedqa,extradataset2")
     parser.add_argument("--g2_prob", default=0.5, type=float,
                         help="For 2 group sampling the probability of choosing a dataset from group 2 (vs group 1)")
-    parser.add_argument("--g1_type", type=str, default="uni",
+    parser.add_argument("--g1_type", type=str, default="err",
                         help="If using 2-Group sampling: uni = uniform sampling for group 1, err = error-based sampling for group 1")
-    parser.add_argument("--g2_type", type=str, default="err",
+    parser.add_argument("--g2_type", type=str, default="uni",
                         help="If using 2-Group sampling: uni = uniform sampling for group 2, err = error-based sampling for group 2")
     
     parser.add_argument("--calc_similarity", action='store_true',
