@@ -37,7 +37,7 @@ def make_samples(split, out_dir, out_file):
     for s in split:
         s['subj_question'] = s['subject'].strip() + ' - ' + s['question'].strip()
         s['answer_yn'] = 'yes' if s['majority'] else 'no'
-        out_list.append( utils.create_uqa_example(s['subj_question'], ' ', s['answer_yn'], append_q_char='?') )
+        out_list.append( utils.create_uqa_example(s['subj_question'], '', s['answer_yn'], append_q_char='?') )
     utils.save_uqa(out_list, out_dir, out_file)
     return 
 

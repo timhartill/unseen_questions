@@ -226,12 +226,18 @@ def load_uqa_selfsupervised(file, verbose=True):
 
 
 def convert_q_a_to_uqalist(qlist, alist):
-    """ convert q list of q[+mc][+c] strings and corresponding answer list to list of uqa examples
+    """ convert q list of uqa-formatted q[+mc][+c] strings ie separated with \\n and corresponding answer list to list of uqa examples
         that can be saved with save_uqa(..)
     """
     outlist = []
     for q,a in zip(qlist,alist):
-        outlist.append( create_uqa_example(q, ' ', a, append_q_char='?') )
+        first_separator = q.find('\\n')
+        if first_separator == -1:  # q->a example
+            outlist.append( create_uqa_example(q.strip(), '', a.strip(), append_q_char='?') )
+        else:
+            question = q[:first_separator].strip()
+            context = q[first_separator+2:].strip()
+            outlist.append( create_uqa_example(question, context, a.strip(), append_q_char='?') )
     return outlist
 
 
@@ -404,7 +410,7 @@ def create_uqa_example(question, context=None, answer=None, append_nl=True, appe
     """ Returns an example in uqa format
     Notes: 
     To create a self supervised example put the input para in question and set context = ' ' and append_q_char='.' or ''
-    To create a closed book example likewise set context = ' ' but append_q_char='' or '?'
+    To create a closed book (ie open domain) example set context = '' but append_q_char='' or '?'
     """
     sample = question.strip().replace('\n', '').replace('\t', '')
     if sample[-1] in ['.','!','?'] and append_q_char != '':

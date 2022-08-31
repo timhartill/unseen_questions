@@ -347,6 +347,30 @@ synth_num_base_train = ["synthetic_num_arg_min_max",
                         "synthetic_num_yn_dates",
                         "synthetic_num_yn_nums", ]
 
+# q+paras->a
+q_paras_train = ["narrativeqa", "squad1_1_titlereformat", "squad2_titlereformat", "boolq", "boolq_np",
+                 "ropes", "newsqa", "quoref", "multirc", 
+                 "adversarialqa_all", "qaconv", "pubmedqa_pqal_short_ans", "record_extractive", "tweetqa",
+                 "creak_hard", "tatqa", "hpqa_hard", "musique_hard", "tqa_hard", "nq_hard", "hover_hard",
+                 "fever_hard"]
+
+# q+paras -> <No Answer>
+q_paras_noanswer_train = ["noanswer_hpqa_fever_hover_hard", "no_answer_musique_hard"]
+
+# q->a
+q_od_train = ["tqa_open_od_ans", "nq_open_od_ans", "csqa2", "creak_od_ans", "twentyquestions"]
+
+# q+mc->a
+q_mc_train = ["ai2_science_middle", "ai2_science_elementary", "arc_hard", "arc_easy", "openbookqa", "qasc", 
+              "physical_iqa", "winogrande_xl", ]
+
+# q+mc+paras->a
+q_mc_paras_train = ["mctest_corrected_the_separator", "race_string", "openbookqa_with_ir",
+                    "arc_easy_with_ir", "arc_hard_with_ir", "qasc_with_ir", "social_iqa", 
+                    "quail", "reclor", ]
+
+
+
 ########################################################
 # where same train dataset in difft formats, just calc sim against one format and map similarity for others against that...
 ########################################################

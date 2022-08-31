@@ -106,9 +106,15 @@ utils.add_neg_paras(docs, titledict, cs, neg_key='neg_paras', top_up_with_rand=T
         
 utils.saveas_jsonl(dev, mdr_dev)            # note: saves the existing, now extraneous keys also
 utils.saveas_jsonl(train, mdr_train)            
-utils.saveas_jsonl(cs, mdr_cs)            
+utils.saveas_jsonl(cs, mdr_cs)      
+
+dev = utils.load_jsonl(mdr_dev)      
+train = utils.load_jsonl(mdr_train)  
+cs = utils.load_jsonl(mdr_cs)      
+    
 
 
+# hard = q+gold+distractors->a
 random.seed(42)
 dev_out = utils.make_uqa_from_mdr_format(dev, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
 out_dir = os.path.join(UQA_DIR, "creak_hard")
@@ -137,14 +143,26 @@ with open(outfile, 'w') as f:
 print('Finished outputting creak_contrast_set_hard!')
 
 
+# open domain q->a
 out_dir = os.path.join(UQA_DIR, "creak_od_ans")
-dev_out = [utils.create_uqa_example(s['question'], ' ', s['answers'][0]) for s in dev]
+dev_out = [utils.create_uqa_example(s['question'], '', s['answers'][0]) for s in dev]
 utils.save_uqa(dev_out, out_dir, 'dev.tsv')
-train_out = [utils.create_uqa_example(s['question'], ' ', s['answers'][0]) for s in train]
+train_out = [utils.create_uqa_example(s['question'], '', s['answers'][0]) for s in train]
 utils.save_uqa(train_out, out_dir, 'train.tsv')
 
 out_dir = os.path.join(UQA_DIR, "creak_contrast_set_od_ans")
-cs_out = [utils.create_uqa_example(s['question'], ' ', s['answers'][0]) for s in cs]
+cs_out = [utils.create_uqa_example(s['question'], '', s['answers'][0]) for s in cs]
+utils.save_uqa(cs_out, out_dir, 'dev.tsv')
+
+# q + initial gold para -> a
+out_dir = os.path.join(UQA_DIR, "creak_initial_context")
+dev_out = [utils.create_uqa_example(s['question'], s['pos_paras'][0]['title'].strip()+': '+s['pos_paras'][0]['text'].strip(), s['answers'][0]) for s in dev]
+utils.save_uqa(dev_out, out_dir, 'dev.tsv')
+train_out = [utils.create_uqa_example(s['question'], s['pos_paras'][0]['title'].strip()+': '+s['pos_paras'][0]['text'].strip(), s['answers'][0]) for s in train]
+utils.save_uqa(train_out, out_dir, 'train.tsv')
+
+out_dir = os.path.join(UQA_DIR, "creak_contrast_set_initial_context")
+cs_out = [utils.create_uqa_example(s['question'], s['pos_paras'][0]['title'].strip()+': '+s['pos_paras'][0]['text'].strip(), s['answers'][0]) for s in cs]
 utils.save_uqa(cs_out, out_dir, 'dev.tsv')
 
 
