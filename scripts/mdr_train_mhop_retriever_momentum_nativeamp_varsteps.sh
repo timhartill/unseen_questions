@@ -8,10 +8,10 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix hover_hpqa_nq_mu_paras_test9_mom_6gpubs200 \
+    --prefix hover_hpqa_nq_mu_paras_test11_mom_6gpubs150_hgx2 \
     --predict_batch_size 100 \
     --model_name roberta-base \
-    --train_batch_size 200 \
+    --train_batch_size 150 \
     --learning_rate 1e-5 \
     --fp16 \
     --train_file $LDATA/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_train_with_neg_v0.jsonl \
@@ -34,7 +34,7 @@ python mdr_train_mhop_nativeamp.py \
     --k 76800 \
     --m 0.999 \
     --temperature 1 \
-    --init_retriever $LDATA/out/mdr/logs/hover_hpqa_nq_mu_paras_test8_6gpubs100-08-25-2022-nomom-seed16-bsz100-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+    --init_retriever $LDATA/out/mdr/logs/hover_hpqa_nq_mu_paras_test10_6gpubs150-08-30-2022-nomom-seed16-bsz150-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
     --output_dir $LDATA/out/mdr/logs \
     --num_train_epochs 75 \
     --warmup-ratio 0.1
