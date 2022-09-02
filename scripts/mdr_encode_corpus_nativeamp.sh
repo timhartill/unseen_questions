@@ -40,8 +40,8 @@ python mdr_encode_corpus_nativeamp.py \
     --predict_batch_size 500 \
     --model_name roberta-base \
     --predict_file $LDATA/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_with_sent_spans.jsonl \
-    --init_checkpoint $LDATA/out/mdr/logs/hover_hpqa_nq_mu_paras_test11_mom_6gpubs150_hgx2-09-01-2022-mom-seed16-bsz150-fp16True-lr1e-05-decay0.0-warm0.1-valbsz100-m0.999-k76800-t1.0-ga1-varTrue-cenone/checkpoint_q_last.pt \
-    --embed_save_path $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test11_mom_6gpubs150_hgx2-09-01-2022 \
+    --init_checkpoint $LDATA/out/mdr/logs/hover_hpqa_nq_mu_paras_test10_6gpubs150-08-30-2022-nomom-seed16-bsz150-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
+    --embed_save_path $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test10_6gpubs150-08-30-202 \
     --use_var_versions \
     --fp16 \
     --max_c_len 300 \
