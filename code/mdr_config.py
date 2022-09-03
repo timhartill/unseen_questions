@@ -133,6 +133,7 @@ def eval_args():
     parser.add_argument('--save_index', action="store_true",help="Save index if hnsw option chosen")
     parser.add_argument('--only_eval_ans', action="store_true")
     parser.add_argument('--hnsw', action="store_true", help="Non-exhaustive but fast and relatively accurate. Suitable for FAISS use on cpu.")
+    parser.add_argument('--hnsw_buffersize', type=int, default=20000000, help="Buffer size (ie num docs to load into hnsw index in an iteration), if building hnsw index. 20000000 fits in ~700GB RAM")
     parser.add_argument('--strict', action="store_true", help="load ckpt in 'strict' mode")  
     parser.add_argument('--exact', action="store_true", help="filter ckpt in 'exact' mode")  
     parser.add_argument("--model_name_stage", default='google/electra-large-discriminator', type=str, help="stage 1 rereranker model name")

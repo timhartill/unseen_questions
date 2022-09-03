@@ -108,7 +108,6 @@ class DenseSearcher():
         logger.info(f"Loading trained dense retrieval encoder model {args.model_name} from {args.init_checkpoint}...")
         self.bert_config = AutoConfig.from_pretrained(args.model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-        #self.simple_tokenizer = SimpleTokenizer()  #TODO needed in eval?
         self.model = RobertaRetriever_var(self.bert_config, args)
         self.model = load_saved(self.model, args.init_checkpoint, exact=args.exact, strict=args.strict) #TJH added  strict=args.strict
         if args.gpu_model:
@@ -124,7 +123,7 @@ class DenseSearcher():
                 logger.info(f"Reading HNSW index from {index_path} ...")
                 index = faiss.read_index(index_path)
             else:
-                logger.info(f"Creating HNSW index from {args.index_path}. WARNING this will take a long time ...")
+                logger.info(f"Creating HNSW index from {args.index_path}. WARNING this will take a long time and a lot of RAM ...")
                 xb = np.load(args.index_path).astype('float32')  
                 logger.info("Building HNSW index ...")
                 m = 512  # the number of links per vector - higher is more accurate but uses more RAM. memory usage is (d * 4 + m * 2 * 4) bytes per vector (d=d+1 in this case) ~258GB
@@ -136,7 +135,7 @@ class DenseSearcher():
                     norms = (vector ** 2).sum()
                     phi = max(phi, norms)
                 logger.info(f'HNSWF DotProduct -> L2 space phi={phi}')
-                buffer_size = 20000000  #1000000000  #50000
+                buffer_size = args.hnsw_buffersize #20000000  #1000000000  #50000
                 n = len(xb)
                 logger.info(f"Indexing {n} vectors with buffer size {buffer_size}...")
                 index.verbose = True
