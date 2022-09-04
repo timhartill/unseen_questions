@@ -7,9 +7,16 @@ Created on Mon Apr 18 13:14:05 2022
 
 Read sentence-level annotations from original HPQA train/dev files and add to mdr-formatted HPQA train/dev files + qas_val file
 
-Also converts the MDR_PROCESSED_CORPUS file into our format hpqa abstracts file.
+Also converts the MDR_PROCESSED_CORPUS file into our format hpqa abstracts file in format:
 
-Output format example:
+{'title': 'One Night Stand (1984 film)',
+ 'text': 'One Night Stand is a 1984 film directed by John Duigan.',
+ 'sentence_spans': [[0, 55]]}
+
+... and creates hpqa abstracts + genericskb corpus in same format.
+
+
+train/dev output format example:
 
 {"question": "What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tell?", 
  "answers": ["Chief of Protocol"], 
@@ -34,10 +41,11 @@ import os
 import json
 import random
 from html import unescape
+from tqdm import tqdm
 
 import eval_metrics
 import utils
-from text_processing import create_sentence_spans
+from text_processing import create_sentence_spans, split_into_sentences
 
 HPQA_DEV = '/home/thar011/data/hpqa/hotpot_dev_fullwiki_v1.json'
 HPQA_TRAIN = '/home/thar011/data/hpqa/hotpot_train_v1.1.json'
@@ -51,6 +59,9 @@ MDR_UPDATED_DEV = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_dev
 MDR_UPDATED_TRAIN = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_train_with_neg_v0_sentannots.jsonl'
 MDR_UPDATED_QAS_VAL = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl'
 MDR_UPDATED_CORPUS = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_with_sent_spans.jsonl'
+
+HPQA_GENERICSKB_UPDATED_CORPUS = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_generic_kb_with_sent_spans.jsonl'
+GENERICSKB = '/home/thar011/data/genericskb/GenericsKB/GenericsKB-Best.tsv'
 
 UQA_DIR = eval_metrics.UQA_DIR
 
@@ -207,7 +218,30 @@ with open(outfile, 'w') as f:
 print('Finished!')
 
 
+###################
+# Create hpqa + genericskb corpus
+####################
 
+mdr_abstracts_out = utils.load_jsonl(MDR_UPDATED_CORPUS)
+
+gen_in = []
+with open(GENERICSKB) as f:
+    for i, line in tqdm(enumerate(f.readlines())):
+        if i > 0:
+            gen_list = line.strip().split('\t')
+            text = gen_list[3].strip()
+            sent_spans = create_sentence_spans(split_into_sentences(text))
+            gen_in.append( {'title': gen_list[1].strip(), 'text': text, 'sentence_spans': sent_spans} )
+
+tst = [g for g in gen_in if g['text'].strip()=='' or g['sentence_spans']==[]]
+print(f"Number of erroneous entries: {len(tst)} of {len(gen_in)}")  # Number of erroneous entries: 0 of 1020868
+
+hpqa_generics = mdr_abstracts_out + gen_in  # 6254103
+
+utils.saveas_jsonl(hpqa_generics, HPQA_GENERICSKB_UPDATED_CORPUS)
+
+
+############
 # Below is error checking stuff
 
 errlist = check_sentence_annots(mdr_dev) # sample:5059 pospara: 0 sent idx > # sentences! Error is in hpqa sentence annot
