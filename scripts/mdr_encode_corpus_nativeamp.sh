@@ -31,7 +31,7 @@
 #    --embed_save_path /large_data/thar011/out/mdr/encoded_corpora/bqa_nosquad_nq_tqa_test3-04-14_bs24_no_momentum_cenone_ckpt_best \
 
 #     --predict_file $LDATA/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_with_sent_spans.jsonl \
-
+#    --predict_file $HDATA/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl \
 
 cd ../code
 
@@ -39,9 +39,9 @@ python mdr_encode_corpus_nativeamp.py \
     --do_predict \
     --predict_batch_size 500 \
     --model_name roberta-base \
-    --predict_file $HDATA/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl \
+    --predict_file $LDATA/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_generic_kb_with_sent_spans.jsonl \
     --init_checkpoint $LDATA/out/mdr/logs/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250_hgx2-09-02-2022-mom-seed16-bsz250-fp16True-lr1e-05-decay0.0-warm0.1-valbsz100-m0.999-k76800-t1.0-ga1-varTrue-cenone/checkpoint_q_best.pt \
-    --embed_save_path $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022 \
+    --embed_save_path $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_hpqaabsgenerics_6gpubs250-09-02-2022 \
     --use_var_versions \
     --fp16 \
     --max_c_len 300 \
