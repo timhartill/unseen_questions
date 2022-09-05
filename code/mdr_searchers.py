@@ -874,7 +874,7 @@ def eval_samples(args, logger, samples):
     return 
 
 
-def build_context(args, logger, samples):
+def build_context(args, logger, samples, tokenizer):
     """ Build context from samples
     Sometimes highest scoring sentences contain only partial info. Therefore we take a sentence 
     before and after each high scoring sentence in a paragraph where possible. 
@@ -885,10 +885,17 @@ def build_context(args, logger, samples):
      'text': 'The Epson HX-20 (also known as the HC-20) was the first laptop computer. It was invented in July 1980 by Yukio Yokozawa, who worked for Suwa Seikosha, a branch of Japanese company Seiko (now Seiko Epson), receiving a patent for the invention. It was announced in 1981 as the HC-20 in Japan, and was introduced by Epson in North America as the HX-20 in 1981, at the COMDEX computer show in Las Vegas, where it drew significant attention for its portability. It had a mass-market release in July 1982, as the HC-20 in Japan and as the Epson HX-20 in North America. The size of an A4 notebook and weighing 1.6\xa0kg, it was both the first notebook and handheld computer, for which it was hailed by "BusinessWeek" magazine as the “fourth revolution in personal computing”.',
      'sentence_spans': [[0, 72], [72, 242], [242, 456], [456, 562], [562, 765]]}
     
-    The second sentence "It was invented in July 1980..." has s2_score 0.81 however without the first sentence we lack the context that the HX-20 is a laptop 
+    The second sentence "It was invented in July 1980..." has s2_score 0.81 however without the first sentence we 
+    lack the context that the HX-20 is a laptop.
     In this case the first sentence is also in 's2_best' with a lower score, but that may not necessarily be the case.
+
+    Then we output the resulting condensed paras in s2_para_sent_ratio*s1para_score' + (1-s2_para_sent_ratio*s2_score), 
+    stopping when more than max_toks are in the context
+    
+    tokenizer = dense_searcher.tokenizer = roberta = bart but without ind digit tokenisation so only approximate.
+    Also question may have been expanded with implicit relations.
         
-    Note: Must call eval_samples first as it builds prerequisite keys..
+    Note: Must call eval_samples(...) first as it builds prerequisite keys..
     """
     ps_ratio = 0.5
     for sample in samples:
@@ -897,17 +904,49 @@ def build_context(args, logger, samples):
                                          (1-ps_ratio)*k.get('s1_sent_score_max', 0.0), 
                            reverse=True) # rough heuristic to minimise looping time below.. 
         context_dict = {}
-        for sent in sample['s2_best']:
-            if context_dict.get(sent['idx']) is None:
+        for sent in sample['s2_best']:  # context will be sorted by s2_para_sent_ratio*s1para_score' + (1-s2_para_sent_ratio*s2_score)
+            s_idx = sent['s_idx']
+            p_idx = sent['idx']
+            if context_dict.get(p_idx) is None:
                 foundpara = None
                 for para in all_retrieved:
-                    if para['idx'] == sent['idx']:
+                    if para['idx'] == p_idx:
                         foundpara = para
                         break
                 assert foundpara is not None
-                context_dict[sent['idx']] = {'para': {foundpara}, 's_idxs':[], 's2_scores':[]}
-            context_dict[sent['idx']]['s_idxs'].append(sent['s_idx'])
-            context_dict[sent['idx']]['s2_scores'].append(sent['s2_score'])
+                context_dict[p_idx] = {'para': foundpara, 's_idxs':[]}
+            if s_idx > 0 and s_idx-1 not in context_dict[p_idx]['s_idxs']:
+                context_dict[p_idx]['s_idxs'].append(s_idx-1)
+            if s_idx not in context_dict[sent['idx']]['s_idxs']:   
+                context_dict[p_idx]['s_idxs'].append(s_idx)
+            if s_idx+1 < len(context_dict[p_idx]['para']['sentence_spans'])-1 and s_idx+1 not in context_dict[sent['idx']]['s_idxs']:
+                context_dict[p_idx]['s_idxs'].append(s_idx+1)
+        context_list = []        
+        for p_idx in context_dict:
+            context_dict[p_idx]['s_idxs'].sort()
+            context_str = unescape(context_dict[p_idx]['para']['title']).strip() + ': '
+            for s_idx in context_dict[p_idx]['s_idxs']:
+                s, e = context_dict[p_idx]['para']['sentence_spans'][s_idx]
+                context_str += context_dict[p_idx]['para']['text'][s:e].strip() + ' '
+                context_dict[p_idx]['para_summary'] = context_str.strip()
+            context_list.append(context_dict[p_idx])
+        #context_list.sort(key=lambda k: ps_ratio*k['para']['s1_para_score']+(1-ps_ratio)*k.get('s1_sent_score_max', 0.0), reverse=True)
+        sample['final_context_all'] = ' '.join([c['para_summary'] for c in context_list])
+        tok_count = len(tokenizer.tokenize(sample['question']))  # only approximate - not using ind digit tokenisation
+        context_str_fitted = ''
+        pcount = 0
+        for context in context_list:
+            para_summary = context['para_summary']
+            psum_len = len(tokenizer.tokenize(para_summary))+2
+            if tok_count + psum_len < 507:
+                context_str_fitted += ' ' + para_summary
+                pcount += 1
+                tok_count += psum_len
+            else:
+                break
+        sample['final_context_fitted'] = context_str_fitted.strip()
+        sample['final_context_fitted_count'] = pcount
+        return        
             
                 
                     
@@ -1025,8 +1064,9 @@ if __name__ == '__main__':
     #samples = utils.load_jsonl('')
 
     eval_samples(args, logger, samples)  # adds 's2_best' and other keys as well as calculating metrics
-    
     # samples after eval_samples: dict_keys(['question', '_id', 'answer', 'sp', 'type', 'sp_facts', 'src', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'act_hops', 'sp_r20_rdist', 'sp_r20', 'sp_r4', 'sp_ract', 'sp_covered_em', 'sp_covered_em_act', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall'])
+    
+    build_context(args, logger, samples, tokenizer=dense_searcher.tokenizer)
     
     #create_grouped_metrics(logger, samples, group_key='ALL', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
     create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em','sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
