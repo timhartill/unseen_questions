@@ -77,9 +77,22 @@
 #     --hnsw \
 #    --gpu_faiss \
 #     --stop_lowerev \
+
 # /large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl \
 # /home/thar011/data/baleen_downloads/hover/hover_qas_val_with_spfacts.jsonl \
 # /home/thar011/data/strategyqa/strategyqa_aristotle_qas_val_with_spfacts.jsonl \
+
+# HPQA Abstracts encoded against best retriever:
+# $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250-09-02-2022/index.npy
+# $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250-09-02-2022/id2doc.json
+
+# HPQA Abstracts +genericsKB encoded against best retriever:
+# $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_hpqaabsgenerics_6gpubs250-09-02-2022/index.npy
+# $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_hpqaabsgenerics_6gpubs250-09-02-2022/id2doc.json
+
+# Full Wiki encoded against best retriever:
+# $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/index.npy
+# $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/id2doc.json
 
 
 cd ../code

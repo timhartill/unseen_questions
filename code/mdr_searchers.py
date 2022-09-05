@@ -8,31 +8,106 @@ Created on Wed Jun 15 13:52:39 2022
 
 iterator over dense retrieval, stage 1 and stage 2 search classes 
 
+Progressively adds keys to the original input as follows:
+'question', '_id', 'answer', 'sp', 'type', 'sp_facts', 'src', # from input
+'dense_retrieved', # list of paras retrieved for current iteration
+           
+{'title': 'Lenovo Yoga',
+ 'text': 'Lenovo Yoga (stylized as Lenovo YOGA or simply as YOGΛ) is a range of laptop and tablet computer products from Lenovo, named for their ability to assume multiple form factors due to a hinged screen.',
+ 'sentence_spans': [[0, 198]],
+ 'idx': 1423926,                            # index into dense_searcher.id2doc eg dense_searcher.id2doc[ str(1423926) ]
+ 'score': 726.983154296875,                 # retriever score of this para in this iteration
+ 's1_ans_pred': '[unused0]',                # predicted answer from stage 1 using current query + this para - insuff, yes, no or span
+ 's1_ans_pred_score': 21.05351448059082,    # score of predicted answer from stage 1
+ 's1_ans_insuff_score': 21.05351448059082,  # score of insuff token from stage 1
+ 's1_ans_conf_delta': 0.0,                  # difference between prior 2 scores (= 0 if insuff token predicted)
+ 's1_para_score': 0.0006806915043853223,        # evidentiality score from stage 1 using current query + this para 
+ 's1_sent_score_max': 0.0007250226335600019}    # max sentence evidentiality score from stage 1 using current query + this para ie score of best sentence in para
+
+'s1', 
+#list of top 9 sentences from 
+prior selected sents from s2 if any sorted by (s2_para_sent_ratio*s1para_score') + (1-s2_para_sent_ratio*s2_score)
++ all paras run through stage 1 in curr iteration sorted by (s1_para_sent_ratios1*para score) + (1-s1_para_sent_ratio*s1sent score)
+
+{'title': 'Lenovo IdeaPad Yoga 13',
+ 'sentence': 'The Lenovo IdeaPad Yoga 13 is a convertible laptop created by Lenovo and first announced at the International CES 2012 in January.',
+ 'score': 0.05224253982305527,          # this sentence evidentiality score from stage 1
+ 's1para_score': 0.08526720106601715,   # evidentiality score from stage 1 using current query + this para
+ 'idx': 1442367,                        # index into dense_searcher.id2doc eg dense_searcher.id2doc[ str(1423926) ]
+ 's_idx': 0,                            # index of this sentence in para ie index into 'sentence_spans' key of para
+ 's2_score': 0.8818813562393188,        # this sentence evidentiality score from stage 2
+ 's2ev_score': 0.9699244499206543}
+
+'s2', 
+# list of top 5 sentences as scored after stage 2 on the top 9 sentences from stage 1
+sorted by s2_para_sent_ratio*s1para_score' + (1-s2_para_sent_ratio*s2_score)
+
+{'title': 'Lenovo IdeaPad Yoga 13',
+ 'sentence': 'The Lenovo IdeaPad Yoga 13 is a convertible laptop created by Lenovo and first announced at the International CES 2012 in January.',
+ 'score': 0.05224253982305527,          # this sentence evidentiality score from stage 1
+ 's1para_score': 0.08526720106601715,   # evidentiality score from stage 1 using current query + this para
+ 'idx': 1442367,                        # index into dense_searcher.id2doc eg dense_searcher.id2doc[ str(1423926) ]
+ 's_idx': 0,                            # index of this sentence in para ie index into 'sentence_spans' key of para
+ 's2_score': 0.8818813562393188,        # this sentence evidentiality score from stage 2
+ 's2ev_score': 0.9699244499206543}      # overall evidentiality score of this set of ~9 sentences input into stage 2 denormalised for convenience
+
+
+'s2_full',  # list of all top ~9 sentences as scored after stage 2 ie 's2' before truncation to 5
+
+'s2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', # answer predictions from stage 2 as per stage 1 except for top 9 sents input, not not per-para 
+'s2ev_score', # overall evidentiality score of this set of ~9 sentences input into stage 2
+
+'stop_reason', # reason for stopping iteration. For unseen eval typically 'max' ie got to max_hops. See suff_evidence() for other options typically applicable if eval set is in-domain to training
+
+# lists of prior iterations. Note s2_hist is list of 's2_full' not 's2'
+'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 
+
+'s2_hist_all', 's2_pred_hist_all', 
+# like s2_hist but last iteration appended to end for convenience. Created in eval_samples(..)->get_best_hop(...)
+
+'best_hop', 'total_hops', 's2_best', 's2_best_preds', # Created in eval_samples(..)->get_best_hop(...) 
+'s2_best' is the best iteration (as measured by s2ev_score) 's2_full' list of ~9 sentences ordered by s2_para_sent_ratio*s1para_score' + (1-s2_para_sent_ratio*s2_score)
+
+
+# assorted eval metrics added by eval_samples:
+'answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'act_hops', 'sp_r20_rdist', 'sp_r20', 'sp_r4', 'sp_ract', 'sp_covered_em', 'sp_covered_em_act', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall'])
+
+                                               
+# TEST parameters below
+
 args.fp16=False
 args.sp_weight = 1.0
 args.prefix = 'TESTITER'
 args.output_dir = '/large_data/thar011/out/mdr/logs'
-args.predict_file = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl'
-args.index_path = '/large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/index.npy'
-args.corpus_dict = '/large_data/thar011/out/mdr/encoded_corpora/hpqa_sent_annots_test1_04-18_bs24_no_momentum_cenone_ckpt_best/id2doc.json'
+#args.predict_file = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl'
+args.predict_file = '/home/thar011/data/strategyqa/strategyqa_aristotle_qas_val_with_spfacts.jsonl'
+
+#args.index_path = '/large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/index.npy'
+#args.corpus_dict = '/large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/id2doc.json'
+#args.index_path = '/large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_hpqaabsgenerics_6gpubs250-09-02-2022/index.npy'
+#args.corpus_dict = '/large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_hpqaabsgenerics_6gpubs250-09-02-2022/id2doc.json'
+args.index_path = '/large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250-09-02-2022/index.npy'
+args.corpus_dict = '/large_data/thar011/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250-09-02-2022/id2doc.json'
+
 args.model_name = 'roberta-base'
-args.init_checkpoint = '/large_data/thar011/out/mdr/logs/hpqa_sent_annots_test1-04-18-2022-nomom-seed16-bsz24-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt'
+args.init_checkpoint = '/large_data/thar011/out/mdr/logs/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250_hgx2-09-02-2022-mom-seed16-bsz250-fp16True-lr1e-05-decay0.0-warm0.1-valbsz100-m0.999-k76800-t1.0-ga1-varTrue-cenone/checkpoint_q_best.pt'
+
 args.model_name_stage = 'google/electra-large-discriminator'
 args.init_checkpoint_stage1 = '/large_data/thar011/out/mdr/logs/stage1_test5_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-05-29-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
 args.init_checkpoint_stage2 = '/large_data/thar011/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
 args.gpu_model=True
 args.gpu_faiss=True
-args.hnsw = True
+args.hnsw = False
 args.save_index = True
-args.beam_size = 25     # num paras to return from retriever each hop
-args.topk = 9           # max num sents to return from stage 1 ie prior s2 sents + selected s1 sents <= 9
-args.topk_stage2 = 5    # max num sents to return from stage 2
-args.s1_use_para_score = True  # Stage 1: use s1 para_score + s1 sent score (vs s1 sent score only) to determine topk sents from stage 1
-args.s1_para_sent_ratio = 0.5  # Stage 1 iter select: Ratio for formula s1_para_sent_ratio*s1 para score + (1-s1_para_sent_ratio)*s1 sent score (vs s1 sent score only) in selecting topk sentences.
-args.s1_para_sent_ratio_final = -1.0  #Stage 1 final select: Ratio for formula s1_para_sent_ratio_final*s1 para score + (1-s1_para_sent_ratio_final)*max(s1 sent score) (vs s1 sent score only) in selecting final R@20 topk sentences.
-args.s2_use_para_score = True  # Stage 2: Use s1 para score + s2 sent score (vs s2 sent score only) in selecting topk s2 sentences.
-args.s2_para_sent_ratio = 0.5        # Stage 2 iter select: Ratio for formula s2_para_sent_ratio*s1 para score + (1-s2_para_sent_ratio)*s2 sent score (vs s2 sent score only) in selecting topk sentences while iterating.
-args.s2_para_sent_ratio_final = -1.0  # Stage 2 final select: Ratio for formula s2_para_sent_ratio*s1 para score + (1-s2_para_sent_ratio)*s2 sent score (vs s2 sent score only) in selecting final topk sentences.
+args.beam_size = 150     # num paras to return from retriever each hop
+args.topk = 9            # max num sents to return from stage 1 ie prior s2 sents + selected s1 sents <= 9
+args.topk_stage2 = 5     # max num sents to return from stage 2
+args.s1_use_para_score = True         # Stage 1: use s1 para_score + s1 sent score (vs s1 sent score only) to determine topk sents from stage 1
+args.s1_para_sent_ratio = 0.5         # Stage 1 iter select: Ratio for formula s1_para_sent_ratio*s1 para score + (1-s1_para_sent_ratio)*s1 sent score (vs s1 sent score only) in selecting topk sentences.
+args.s1_para_sent_ratio_final = -1.0  # Stage 1 final select (will be set to s1_para_sent_ratio if no gold paras): Ratio for formula s1_para_sent_ratio_final*s1 para score + (1-s1_para_sent_ratio_final)*max(s1 sent score) (vs s1 sent score only) in selecting final R@20 topk sentences.
+args.s2_use_para_score = True         # Stage 2: Use s1 para score + s2 sent score (vs s2 sent score only) in selecting topk s2 sentences.
+args.s2_para_sent_ratio = 0.5         # Stage 2 iter select: Ratio for formula s2_para_sent_ratio*s1 para score + (1-s2_para_sent_ratio)*s2 sent score (vs s2 sent score only) in selecting topk sentences while iterating.
+args.s2_para_sent_ratio_final = -1.0  # Stage 2 final select (will be set to s1_para_sent_ratio if no gold paras): Ratio for formula s2_para_sent_ratio*s1 para score + (1-s2_para_sent_ratio)*s2 sent score (vs s2 sent score only) in selecting final topk sentences.
 args.max_q_len = 70
 args.max_q_sp_len = 512  # retriever max input seq len was 400
 args.max_c_len = 512     # stage models max input seq length
@@ -40,12 +115,12 @@ args.max_ans_len = 35
 args.predict_batch_size = 26            # batch size for stage 1 model, set small so can fit all models on 1 gpu
 args.s2_sp_thresh = 0.10                # s2 sent score min for selection as part of query in next iteration
 args.s2_min_take = 2                    # Min number of sentences to select from stage 2
-args.max_hops = 2                       # max num hops
-args.stop_ev_thresh = 0.91               # stop if s2_ev_score >= this thresh. Set > 1.0 to ignore. 0.6 = best per s2 train eval
-args.stop_ansconfdelta_thresh = 18.0     # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. 5 seemed reasonable
-args.stop_lowerev = False                # Stop iterating if current hop s2ev_score < last hop s2ev_score. 
-args.query_use_sentences = False          # if true use title: sents form for para in retriever query otherwise use full para text in query optionally prepended by title (retriever only: s1 always uses title | sents form)
-args.query_add_titles = False             # prepend retriever query paras with para title (only if using paras, if using sents always prepending title regardless)
+args.max_hops = 4                       # max num hops
+args.stop_ev_thresh = 1.01               # stop if s2_ev_score >= this thresh. Set > 1.0 to ignore. 0.6 - 0.91 = best per s2 train eval
+args.stop_ansconfdelta_thresh = 99999.0  # stop if s2_ans_conf_delta >= this thresh. Set to large number eg 99999.0 to ignore. 5 seemed reasonable
+args.stop_lowerev = False                # If True: Stop iterating if current hop s2ev_score < last hop s2ev_score. 
+args.query_use_sentences = False         # If True use title: sents form for para in retriever query otherwise use full para text in query optionally prepended by title (retriever only: s1 always uses title | sents form)
+args.query_add_titles = False            # If True: prepend retriever query paras with para title (only if using paras, if using sents always prepending title regardless)
 
 """
 
@@ -69,6 +144,7 @@ from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
 from reader.reader_model import StageModel, SpanAnswerer
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
 
+import utils
 from utils import (encode_text, load_saved, move_to_cuda, create_grouped_metrics, saveas_jsonl, flatten, unique_preserve_order,
                    aggregate_sents, encode_query_paras, concat_title_sents, context_toks_to_ids, collate_tokens)
 from text_processing import get_sentence_list 
@@ -798,6 +874,47 @@ def eval_samples(args, logger, samples):
     return 
 
 
+def build_context(args, logger, samples):
+    """ Build context from samples
+    Sometimes highest scoring sentences contain only partial info. Therefore we take a sentence 
+    before and after each high scoring sentence in a paragraph where possible. 
+ 
+    eg for "Did Aristotle use a laptop" we get two sentences from the paragraph:
+    
+    {'title': 'Epson HX-20',
+     'text': 'The Epson HX-20 (also known as the HC-20) was the first laptop computer. It was invented in July 1980 by Yukio Yokozawa, who worked for Suwa Seikosha, a branch of Japanese company Seiko (now Seiko Epson), receiving a patent for the invention. It was announced in 1981 as the HC-20 in Japan, and was introduced by Epson in North America as the HX-20 in 1981, at the COMDEX computer show in Las Vegas, where it drew significant attention for its portability. It had a mass-market release in July 1982, as the HC-20 in Japan and as the Epson HX-20 in North America. The size of an A4 notebook and weighing 1.6\xa0kg, it was both the first notebook and handheld computer, for which it was hailed by "BusinessWeek" magazine as the “fourth revolution in personal computing”.',
+     'sentence_spans': [[0, 72], [72, 242], [242, 456], [456, 562], [562, 765]]}
+    
+    The second sentence "It was invented in July 1980..." has s2_score 0.81 however without the first sentence we lack the context that the HX-20 is a laptop 
+    In this case the first sentence is also in 's2_best' with a lower score, but that may not necessarily be the case.
+        
+    Note: Must call eval_samples first as it builds prerequisite keys..
+    """
+    ps_ratio = 0.5
+    for sample in samples:
+        all_retrieved = sample['dense_retrieved'] + flatten(sample['dense_retrieved_hist'])
+        all_retrieved.sort(key=lambda k: ps_ratio*k['s1_para_score'] + 
+                                         (1-ps_ratio)*k.get('s1_sent_score_max', 0.0), 
+                           reverse=True) # rough heuristic to minimise looping time below.. 
+        context_dict = {}
+        for sent in sample['s2_best']:
+            if context_dict.get(sent['idx']) is None:
+                foundpara = None
+                for para in all_retrieved:
+                    if para['idx'] == sent['idx']:
+                        foundpara = para
+                        break
+                assert foundpara is not None
+                context_dict[sent['idx']] = {'para': {foundpara}, 's_idxs':[], 's2_scores':[]}
+            context_dict[sent['idx']]['s_idxs'].append(sent['s_idx'])
+            context_dict[sent['idx']]['s2_scores'].append(sent['s2_score'])
+            
+                
+                    
+
+    
+
+
 if __name__ == '__main__':
     args = eval_args()
     
@@ -907,7 +1024,9 @@ if __name__ == '__main__':
 
     #samples = utils.load_jsonl('')
 
-    eval_samples(args, logger, samples)
+    eval_samples(args, logger, samples)  # adds 's2_best' and other keys as well as calculating metrics
+    
+    # samples after eval_samples: dict_keys(['question', '_id', 'answer', 'sp', 'type', 'sp_facts', 'src', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'act_hops', 'sp_r20_rdist', 'sp_r20', 'sp_r4', 'sp_ract', 'sp_covered_em', 'sp_covered_em_act', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall'])
     
     #create_grouped_metrics(logger, samples, group_key='ALL', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
     create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em','sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
