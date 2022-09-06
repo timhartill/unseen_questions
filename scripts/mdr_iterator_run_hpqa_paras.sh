@@ -84,6 +84,7 @@
 # /home/thar011/data/strategyqa/strategyqa_aristotle_qas_val_with_spfacts.jsonl \
 # $UQA_DIR/aristotle_od_ans/test.tsv
 # $UQA_DIR/csqa2/dev.tsv
+# $UQA_DIR/creak_od_ans/dev.tsv
 
 # HPQA Abstracts encoded against best retriever:
 # $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250-09-02-2022/index.npy
@@ -101,10 +102,10 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_csqa2dev_test43_b150_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_creakdev_test44_b150_h4_hpqahovnqmubs250_mom \
     --output_dir $LDATA/out/mdr/logs \
-    --output_dataset $UQA_DIR/csqa2_fullwiki_bs150_noimplrel/dev.tsv \
-    --predict_file $UQA_DIR/csqa2/dev.tsv \
+    --output_dataset $UQA_DIR/creak_fullwiki_bs150_noimplrel/dev.tsv \
+    --predict_file $UQA_DIR/creak_od_ans/dev.tsv \
     --index_path $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/index.npy \
     --corpus_dict $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/id2doc.json \
     --model_name roberta-base \
