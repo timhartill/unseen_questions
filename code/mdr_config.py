@@ -133,9 +133,9 @@ def eval_args():
     parser.add_argument('--save_index', action="store_true",help="Save index if hnsw option chosen")
     parser.add_argument('--only_eval_ans', action="store_true")
     parser.add_argument('--hnsw', action="store_true", help="Non-exhaustive but fast and relatively accurate. Suitable for FAISS use on cpu.")
-    parser.add_argument('--hnsw_buffersize', type=int, default=20000000, help="Buffer size (ie num docs to load into hnsw index in an iteration), if building hnsw index. 20000000 fits in ~700GB RAM")
-    parser.add_argument('--strict', action="store_true", help="load ckpt in 'strict' mode")  
-    parser.add_argument('--exact', action="store_true", help="filter ckpt in 'exact' mode")  
+    parser.add_argument('--hnsw_buffersize', type=int, default=20000000, help="Buffer size (ie num docs to load into hnsw index in an iteration), if building hnsw index. 20000000 fits in ~700GB RAM. 40000000 is enough for all english wikipedia in 1 pass but requires at least 800GB RAM, maybe a bit more")
+    parser.add_argument('--strict', action="store_true", help="load ckpt in 'strict' mode")
+    parser.add_argument('--exact', action="store_true", help="filter ckpt in 'exact' mode")
     parser.add_argument("--model_name_stage", default='google/electra-large-discriminator', type=str, help="stage 1 rereranker model name")
     parser.add_argument("--init_checkpoint_stage1", default='', type=str, help="stage 1 rereranker model checkpoint")
     parser.add_argument("--init_checkpoint_stage2", default='', type=str, help="stage 2 rereranker model checkpoint")
@@ -150,6 +150,8 @@ def eval_args():
     parser.add_argument("--stop_ev_thresh", default=99.0, type=float, help="Stop iterating if s2ev_score >= this (s2ev_score between 0 & 1).")
     parser.add_argument("--stop_ansconfdelta_thresh", default=99999.0, type=float, help="Stop iterating if s2_ans_conf_delta >= this (Note: s2_ans_conf_delta not between 0 & 1. If 0.0 ans pred is insuff evidence).")
     parser.add_argument("--stop_lowerev", action="store_true", help="Stop iterating if current hop s2ev_score < last hop s2ev_score.")
+    parser.add_argument("--output_dataset", default='', type=str, help="Full path to output tsv-formatted files to. Typically /parent/.../unifiedqa/newdatasetname/train|dev|test.tsv ")
+    
     
     return parser.parse_args()
 

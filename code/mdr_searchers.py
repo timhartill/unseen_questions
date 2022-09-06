@@ -121,6 +121,7 @@ args.stop_ansconfdelta_thresh = 99999.0  # stop if s2_ans_conf_delta >= this thr
 args.stop_lowerev = False                # If True: Stop iterating if current hop s2ev_score < last hop s2ev_score. 
 args.query_use_sentences = False         # If True use title: sents form for para in retriever query otherwise use full para text in query optionally prepended by title (retriever only: s1 always uses title | sents form)
 args.query_add_titles = False            # If True: prepend retriever query paras with para title (only if using paras, if using sents always prepending title regardless)
+args.output_dataset = '/data/thar011/data/unifiedqa/iter_test/test.tsv'
 
 """
 
@@ -293,7 +294,8 @@ class DenseSearcher():
                     corpus_idxs.append(sent['idx'])
                     para = self.id2doc[ str(sent['idx']) ]
                     q_sents += ' ' + encode_query_paras(para['text'], para['title'], 
-                                                        use_sentences=False, prepend_title=self.args.query_add_titles, title_sep=':')
+                                                        use_sentences=False, prepend_title=self.args.query_add_titles, 
+                                                        title_sep=':')
         
         m_input = encode_text(self.tokenizer, sample['question'], text_pair=q_sents, max_input_length=self.args.max_q_sp_len, 
                               truncation=True, padding=False, return_tensors="pt") 
@@ -670,6 +672,7 @@ def eval_samples(args, logger, samples):
     else:
         evidence_key = 'title'      # hpqa abstracts
 
+    logger.info("Calculating best hop for each sample..")
     for sample in samples:
         get_best_hop(sample)  # obtain best data from best hop by s2_ev_score
 
@@ -874,7 +877,7 @@ def eval_samples(args, logger, samples):
     return 
 
 
-def build_context(args, logger, samples, tokenizer):
+def build_context(args, logger, samples, tokenizer, max_toks=507):
     """ Build context from samples
     Sometimes highest scoring sentences contain only partial info. Therefore we take a sentence 
     before and after each high scoring sentence in a paragraph where possible. 
@@ -898,7 +901,9 @@ def build_context(args, logger, samples, tokenizer):
     Note: Must call eval_samples(...) first as it builds prerequisite keys..
     """
     ps_ratio = 0.5
-    for sample in samples:
+    logger.info("Building context for each sample from best hop...")
+    outlist = []
+    for sample in tqdm(samples):
         all_retrieved = sample['dense_retrieved'] + flatten(sample['dense_retrieved_hist'])
         all_retrieved.sort(key=lambda k: ps_ratio*k['s1_para_score'] + 
                                          (1-ps_ratio)*k.get('s1_sent_score_max', 0.0), 
@@ -932,13 +937,13 @@ def build_context(args, logger, samples, tokenizer):
             context_list.append(context_dict[p_idx])
         #context_list.sort(key=lambda k: ps_ratio*k['para']['s1_para_score']+(1-ps_ratio)*k.get('s1_sent_score_max', 0.0), reverse=True)
         sample['final_context_all'] = ' '.join([c['para_summary'] for c in context_list])
-        tok_count = len(tokenizer.tokenize(sample['question']))  # only approximate - not using ind digit tokenisation
+        tok_count = len(tokenizer.tokenize(sample['question'])) #TODO + len(tokenizer.tokenize(sample['init_context'])) # only approximate - not using ind digit tokenisation
         context_str_fitted = ''
         pcount = 0
         for context in context_list:
             para_summary = context['para_summary']
             psum_len = len(tokenizer.tokenize(para_summary))+2
-            if tok_count + psum_len < 507:
+            if tok_count + psum_len < max_toks:
                 context_str_fitted += ' ' + para_summary
                 pcount += 1
                 tok_count += psum_len
@@ -946,12 +951,17 @@ def build_context(args, logger, samples, tokenizer):
                 break
         sample['final_context_fitted'] = context_str_fitted.strip()
         sample['final_context_fitted_count'] = pcount
-        return        
-            
+        q = sample['question'].strip()
+        a = sample['answer'][0] if len(sample['answer']) <= 1 else sample['answer'] 
                 
-                    
-
-    
+        outlist.append( utils.create_uqa_example(q, 
+                                                 utils.create_uqa_context(sample['mc_options'], sample['final_context_fitted']),
+                                                 a, append_q_char='?') 
+                      ) #TODO add init context or put into 's2' initially?
+    out_dir, out_file = os.path.split(args.output_dataset)    
+    utils.save_uqa(outlist, out_dir, out_file)
+    logger.info(f"Saved into {args.output_dataset}")
+    return        
 
 
 if __name__ == '__main__':
@@ -970,7 +980,18 @@ if __name__ == '__main__':
     logger = logging.getLogger(__name__)
     logger.info(args)    
     n_gpu = torch.cuda.device_count()
+    logger.info(f"eval_log.txt and samples_with_context.jsonl will be output to: {args.output_dir}")
     logger.info(f"Visible gpus: {n_gpu}")
+    
+    if args.output_dataset is None or args.output_dataset.strip() == '':
+        logger.info(f"WARNING: --output_dataset not specified. tsv-formatted file output will be skipped. If this is in error, stop this job and rerun with --output_dataset /dir/to/output/dataset_name/train|dev|test.tsv")
+    else: 
+        logger.info(f"tsv-formatted file will be output to: {args.output_dataset}")
+        out_tuple = os.path.split(args.output_dataset)
+        if out_tuple[1].endswith('.tsv'):
+            os.makedirs(out_tuple[0], exist_ok=True)    
+        else:
+            assert out_tuple[1].endswith('.tsv') 
            
     if args.gpu_faiss and n_gpu > 1:  #Note: FAISS freezes at index_cpu_to_gpu_multiple if gpu_resources is not a list of res's with global scope, hence defining here..
         tempmem = 0
@@ -983,7 +1004,22 @@ if __name__ == '__main__':
             gpu_resources.append(res)
 
     logger.info(f"Loading queries from {args.predict_file} ...")
-    samples = [json.loads(s) for s in tqdm(open(args.predict_file).readlines())]  # dict_keys(['question', '_id', 'answer', 'sp', 'type', 'src'])
+    if args.predict_file.endswith('.tsv'):
+        logger.info('Loading as tsv-formatted...')
+        samples_tsv = utils.load_uqa_supervised(args.predict_file, ans_lower=False, verbose=True, return_parsed=True) 
+        # [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
+        samples = []
+        for i, sample in enumerate(samples_tsv):
+            samples.append( {'question': sample['q_only'], 
+                             'answer': sample['answer'] if type(sample['answer'])==list else [sample['answer']],
+                             'mc_options': sample['mc_options'] if sample.get('mc_options') else '',
+                             'init_context': sample['context'] if sample.get('context') else '',
+                             'src': 'tsv', 'type': 'tsv', '_id': str(i)} )
+    else:
+        logger.info("Loading as jsonl 'qas_val' formatted...")
+        samples = [json.loads(s) for s in tqdm(open(args.predict_file).readlines())]
+        # dict_keys(['question', '_id', 'answer', 'sp', 'type', 'src'])
+
     logger.info("Standardising query formats ...")
     for sample in tqdm(samples):
             if sample["question"].endswith("?"):
@@ -999,6 +1035,11 @@ if __name__ == '__main__':
             if sample.get('sp_facts') is not None:  # a few hpqa pos_para titles are escaped
                 for s in sample['sp_facts']:
                     s[0] = unescape(s[0])
+            if sample.get('mc_options') is None:  # just to make downstream tsv outputting logic easier..
+                sample['mc_options'] = ''
+            if sample.get('init_context') is None:  # just to make downstream tsv outputting logic easier..
+                sample['init_context'] = ''
+            
             # this hop:    
             sample['dense_retrieved'] = []   # [id2doc idx1 para, id2doc idx2 para, ...]  paras retrieved this hop q + each para = s1 query
             sample['s1'] = []   # [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:.., 's1para_score':..}, ..]  selected sentences from s1 = best sents from topk paras this hop
@@ -1061,20 +1102,23 @@ if __name__ == '__main__':
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_wiki_aristoeval_test26_beam400_maxh4_bqanosquadnqtqabs24-07-12-2022-ITER-16False-tkparas400-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
 
 
-    #samples = utils.load_jsonl('')
+    #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/ITER_fullwiki_aristoeval_test40_b150_h4_hpqahovnqmubs250_mom-09-06-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesFalse/samples_with_context.jsonl')
 
     eval_samples(args, logger, samples)  # adds 's2_best' and other keys as well as calculating metrics
     # samples after eval_samples: dict_keys(['question', '_id', 'answer', 'sp', 'type', 'sp_facts', 'src', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'act_hops', 'sp_r20_rdist', 'sp_r20', 'sp_r4', 'sp_ract', 'sp_covered_em', 'sp_covered_em_act', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall'])
-    
-    build_context(args, logger, samples, tokenizer=dense_searcher.tokenizer)
-    
-    #create_grouped_metrics(logger, samples, group_key='ALL', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
-    create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em','sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
-    create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
-    create_grouped_metrics(logger, samples, group_key='type', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
-    create_grouped_metrics(logger, samples, group_key='total_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist', 'best_hop'])
-    create_grouped_metrics(logger, samples, group_key='best_hop', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist', 'total_hops'])
-    create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
+
+    if args.output_dataset is not None and args.output_dataset.strip() != '':
+        logger.info("Building contexts and outputting tsv-formatted datasets...")
+        build_context(args, logger, samples, tokenizer=dense_searcher.tokenizer)
+        create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1'])
+    else:
+        #create_grouped_metrics(logger, samples, group_key='ALL', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
+        create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em','sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
+        create_grouped_metrics(logger, samples, group_key='stop_reason', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
+        create_grouped_metrics(logger, samples, group_key='type', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
+        create_grouped_metrics(logger, samples, group_key='total_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist', 'best_hop'])
+        create_grouped_metrics(logger, samples, group_key='best_hop', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist', 'total_hops'])
+        create_grouped_metrics(logger, samples, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
     
     logger.info('Finished!')
     

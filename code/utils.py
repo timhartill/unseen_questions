@@ -191,7 +191,7 @@ def load_uqa_supervised(file, ans_lower=True, verbose=True, return_parsed=False)
 
             if answer.lstrip().startswith(MULTI_ANS_SEP): # #!# answer 1#!# answer 2 #!# -> ['answer 1','answer 2']
                 answer = answer.strip().strip(MULTI_ANS_SEP).split(MULTI_ANS_SEP)
-                    
+                
             if type(answer) == list:
                 answer = [a.strip() for a in answer]
             else:
@@ -243,7 +243,7 @@ def convert_q_a_to_uqalist(qlist, alist):
 
 def parse_uqa_supervised(questions, answers):
     """ Convert [questions], [answers] into jsonl style format:
-        [{'question': 'q txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
+        [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
     """
     uqa_parsed = []
     for q, a in zip(questions, answers):
