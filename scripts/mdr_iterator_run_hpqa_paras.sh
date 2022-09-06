@@ -83,6 +83,7 @@
 # /home/thar011/data/baleen_downloads/hover/hover_qas_val_with_spfacts.jsonl \
 # /home/thar011/data/strategyqa/strategyqa_aristotle_qas_val_with_spfacts.jsonl \
 # $UQA_DIR/aristotle_od_ans/test.tsv
+# $UQA_DIR/csqa2/dev.tsv
 
 # HPQA Abstracts encoded against best retriever:
 # $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250-09-02-2022/index.npy
@@ -100,19 +101,19 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_hpqaabst_aristoeval_test42_b150_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_csqa2dev_test43_b150_h4_hpqahovnqmubs250_mom \
     --output_dir $LDATA/out/mdr/logs \
-    --output_dataset $UQA_DIR/aristotle_hpqaabst_bs150_test42_from_uqainput/test.tsv \
-    --predict_file $UQA_DIR/aristotle_od_ans/test.tsv \
-    --index_path $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250-09-02-2022/index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250-09-02-2022/id2doc.json \
+    --output_dataset $UQA_DIR/csqa2_fullwiki_bs150_noimplrel/dev.tsv \
+    --predict_file $UQA_DIR/csqa2/dev.tsv \
+    --index_path $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/id2doc.json \
     --model_name roberta-base \
     --init_checkpoint $LDATA/out/mdr/logs/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250_hgx2-09-02-2022-mom-seed16-bsz250-fp16True-lr1e-05-decay0.0-warm0.1-valbsz100-m0.999-k76800-t1.0-ga1-varTrue-cenone/checkpoint_q_best.pt \
     --model_name_stage google/electra-large-discriminator \
     --init_checkpoint_stage1 $LDATA/out/mdr/logs/stage1_test5_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-05-29-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --init_checkpoint_stage2 $LDATA/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --gpu_model \
-    --gpu_faiss \
+    --hnsw \
     --hnsw_buffersize 40000000 \
     --save_index \
     --beam_size 150 \
