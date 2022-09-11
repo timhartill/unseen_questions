@@ -19,6 +19,7 @@ import time
 from html import unescape
 import fnmatch
 import torch
+from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoTokenizer, AutoModelForPreTraining
 from transformers import GPTJForCausalLM, AutoModelForCausalLM
 from bart import MyBart
@@ -839,8 +840,8 @@ def decode_ids(res, tokenizer, skip_special_tokens=True, clean_up_tokenization_s
              otherwise returns the decoded prediction.
     Note: if res of shape [id1, id4, id2, ..] result will be ['txt1', 'txt4', 'txt2', ..]
           if res of shape [[id1, id4, id2, ..]] result will be ['txt1 txt4 txt2 ..']
+    Note 2: skip_special_tokens issue with ind digits. Run with skip_special_tokens=False if tokenizing individual digits (will work fine as-is if not using ind digits)
     """
-    #TODO fix skip_special_tokens issue with ind digits. In meantime run with skip_special_tokens=False
     return tokenizer.batch_decode(res, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
 
 
@@ -848,7 +849,7 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
               indiv_digits=False, norm_numbers=False, norm='', special='Ġ', verbose=False,
               truncation=True, max_input_length=512, lower=True, #to_cuda=True, cuda_device=None,
               append_eos=True, prepend_bos=True, only_decode_new=False, cut_at_nl=False, **generator_args):
-    """ Run cut-down version of tokenisation and generation pipeline for single input string
+    """ Run cut-down version of tokenisation and generation pipeline 
     Usage:
     # input_string is either a single string of a list of strings
     # for LM typically: append_eos=False, prepend_bos=False, only_decode_new=True, cut_at_nl=True (non-LM typically use defaults)
@@ -883,7 +884,10 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
                                 prepend_bos=prepend_bos)
             if len(idsingle) < start_decode:
                 start_decode = len(idsingle)
-            ids.append(idsingle)
+            ids.append(torch.tensor(idsingle))
+        if tokenizer.pad_token_id is not None:
+            input_ids = pad_sequence(ids, batch_first=True, padding_value=tokenizer.pad_token_id)
+        
     else:    
         ids = string_to_ids(input_string, tokenizer, indiv_digits=indiv_digits, norm_numbers=norm_numbers, 
                             norm=norm, special=special, verbose=verbose, truncation=truncation, 
@@ -891,16 +895,10 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
                             prepend_bos=prepend_bos)
         start_decode = len(ids)
         ids = [ids]
-    #input_ids = tokenizer.encode(input_string, return_tensors="pt")
-    input_ids = torch.LongTensor(ids)
+        input_ids = torch.LongTensor(ids)
+
     if get_model_device(model).type == 'cuda':
-    #if model.device != input_ids.device:
-        input_ids = input_ids.cuda()
-        #input_ids = input_ids.to(model.device)
-    #if to_cuda:
-    #    if cuda_device is None:  # else typically cuda_device = 0-based int id of particular device
-    #        cuda_device = "cuda"
-    #    input_ids = input_ids.to(torch.device(cuda_device))
+        input_ids = move_to_cuda(input_ids)
     if not is_data_parallel(model):
         res = model.generate(input_ids, **generator_args)
     else:
