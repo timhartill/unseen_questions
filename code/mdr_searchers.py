@@ -1023,8 +1023,12 @@ if __name__ == '__main__':
         for i, sample in enumerate(samples_tsv):
             if sample.get('context') is None:
                 init_context = ''
+                if i == 0:
+                    logger.info("No initial context. Starting from question only.")
             else:
                 init_context = sample['context']
+                if i == 0:
+                    logger.info("Utilising initial context in retriever, s1 and s2...initial context will be output as first portion of new context.")
                 
             samples.append( {'question': sample['q_only'], 
                              'answer': sample['answer'] if type(sample['answer'])==list else [sample['answer']],
