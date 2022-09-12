@@ -967,7 +967,7 @@ def encode_query_paras(text, title=None, sentence_spans=None, selected_sentences
     if not use_sentences or len(selected_sentences)==0:
         newtext = ' ' + text[:600].strip()
         if newtext[-1] not in ['.', '?', '!']:
-            newtext += '.'     
+            newtext += '.'
     else:
         newtext = ''
         for sent_idx in selected_sentences:

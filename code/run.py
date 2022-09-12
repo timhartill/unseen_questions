@@ -135,7 +135,7 @@ def run(args, logger):
         ftype='dev'
         for ds in eval_metrics.dev_eval:
             args.prefix = ftype + '_' + ds + '_'
-            out_file = os.path.join(args.output_dir, f"{args.prefix}predictions.json")
+            out_file = os.path.join(args.output_dir, f"{args.prefix}predictions.json") # args.prefix = dev|test + '_' + ds name + '_'
             if args.add_only_missing and os.path.exists(out_file):
                 logger.info(f"Skipping Prediction for {ftype} data of {ds} as prediction file already exists")
                 continue
@@ -208,10 +208,10 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
     logger.info(f"Train using FP16: {args.fp16}")
     if args.do_2_group_sampling:
         logger.info(f"Using 2-Group Sampling: ssvise prob:{args.error_based_ssvise_prob}  g2 prob:{args.g2_prob}  g1 sampling type:{args.g1_type}  g2 sampling type:{args.g2_type}")
-    elif args.error_based_sampling:    
-        logger.info(f"Using Error based sampling over single group: ssvise prob:{args.error_based_ssvise_prob}")
+    elif args.error_based_sampling:
+        logger.info(f"Using Error based sampling over single group of all train datasets: ssvise prob:{args.error_based_ssvise_prob}")
     else:
-        logger.info(f"Using Uniform sampling over single group.")
+        logger.info("Using Uniform sampling over single group of all train datasets.")
     scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
     model.train()
     global_step = 0
@@ -387,7 +387,6 @@ def inference(model, dev_data, save_predictions=False, return_details=False, ret
         dev_data.dataloader = tqdm(dev_data.dataloader)
     for i, batch in enumerate(dev_data.dataloader):
         batch = move_to_cuda(batch)
-        #batch = [b.to(model.device) for b in batch]  # was torch.device("cuda")
         outputs = model.generate(input_ids=batch['input_ids'],
                                  attention_mask=batch['attention_mask'],
                                  num_beams=dev_data.args.num_beams,
@@ -408,7 +407,8 @@ def inference(model, dev_data, save_predictions=False, return_details=False, ret
 
 
 def inference_wrapper(tokenizer, model, args, logger, predict_file):
-    """ Run inference for single dataset """
+    """ Run inference for single dataset and save to output dir + (args.prefix =) dev|test + '_' + ds name + '_' + 'predictions.json'
+    """
     dev_data = QAData(logger, args, predict_file, False)
     dev_data.load_dataset(tokenizer)
     dev_data.load_dataloader()
@@ -416,7 +416,7 @@ def inference_wrapper(tokenizer, model, args, logger, predict_file):
     logger.info("%s: %s on %s data: %.2f" % (args.prefix, dev_data.metric, dev_data.data_type, np.mean(ems)*100))
     results_file = os.path.join(args.output_dir, 'eval_results.csv')  
     dtnow = datetime.datetime.now()
-    if not os.path.exists(results_file):
+    if not os.path.exists(results_file): # Basic text file output of EM for quick viewing
         with open(results_file, 'w') as f:
             f.write('WHEN,TYPE,PREFIX,METRIC,VALUE' + '\n')
     with open(results_file, 'a') as f:

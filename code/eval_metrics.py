@@ -14,7 +14,7 @@ for the OutputResults class below and/or run fn: run_all(logdir, results_list).
 During training all validation is on EM
 
 For final eval datasets we use the metrics "most commonly used" for that dataset as per UnifiedQA Paper, specifically:
-Dataset type:
+Dataset type (configured per dataset in dataset_attributes.py):
     EX: F1
     AB: F1 or rougeL except NatQA uses EM
     MC: Select option with highest F1 score between prediction and each option
@@ -711,9 +711,9 @@ class OutputResults:
 
     #To create averaged files:
     results_list = [
-    '/data/outdir_v3run0/eval_metrics.json',   
+    '/data/outdir_v3run0/eval_metrics.json',
     '/data/outdir_v3run1/eval_metrics.json', 
-    '/data/outdir_v3run2/eval_metrics.json'     
+    '/data/outdir_v3run2/eval_metrics.json'
     ]
     res = OutputResults(results_list, logdir)
     avg_results_dict = res.create_mean_over_runs(newfile=logdir+'v3_avg3runs_eval_metrics.json')

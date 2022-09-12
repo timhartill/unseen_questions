@@ -429,7 +429,6 @@ class QAData(object):
 
     def save_predictions(self, predictions):
         assert len(predictions)==len(self), (len(predictions), len(self))
-        #prediction_dict = {dp["id"]:prediction for dp, prediction in zip(self.data, predictions)}
         save_path = os.path.join(self.args.output_dir, "{}predictions.json".format(self.args.prefix))
         with open(save_path, "w") as f:
             json.dump(predictions, f)

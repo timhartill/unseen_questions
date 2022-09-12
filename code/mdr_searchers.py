@@ -271,12 +271,11 @@ class DenseSearcher():
                 self.evidence_key = 'para_id'
             self.id2doc = id2doc
         logger.info(f"Evidence key field: {self.evidence_key}")
-        # title2text = {v[0]:v[1] for v in id2doc.values()}
         logger.info(f"Corpus size {len(self.id2doc)}")
         return
         
     def encode_input(self, sample):
-        """ Encode a question (and title:sents for hops > 0) for dense encoder input
+        """ Encode a question (and title:sents for hops > 0) for dense encoder input optionally with a given initial context
         sample['s2'] = output from stage 2 = currently selected sents: [ {'title':.. , 'sentence':.., 'score':.., idx:.., sidx:..}, ..]
         sample['s2'] = [{'title': 'Ed Wood', 'sentence': 'Edward Davis Wood Jr. (October 10, 1924\xa0– December 10, 1978) was an American filmmaker, actor, writer, producer, and director.', 'score': 1.0, 's1para_score':1.0,  'idx': 1787155, 's_idx': 0}]
         eg for sample['s2'] = [{'title':'title_a', 'sentence':'Sent 1', 'score':1.0},{'title':'title_b', 'sentence':'Sent 2', 'score':1.0},{'title':'title_a', 'sentence':' ', 'score':1.0}, {'title':'title_a', 'sentence':'Sent 3', 'score':1.0}, {'title':'title_c', 'sentence':'Sent c1', 'score':1.0}]        
@@ -284,6 +283,8 @@ class DenseSearcher():
         """
         if self.args.query_use_sentences:
             q_sents = aggregate_sents(sample['s2'], title_sep = ':')  # aggregate sents for each title always prepending title
+            if sample['init_context'] != '':
+                q_sents = sample['init_context'][:600] + ' ' + q_sents
             if len(q_sents) == 0:
                 q_sents = None
         else:
@@ -296,6 +297,8 @@ class DenseSearcher():
                     q_sents += ' ' + encode_query_paras(para['text'], para['title'], 
                                                         use_sentences=False, prepend_title=self.args.query_add_titles, 
                                                         title_sep=':')
+            if sample['init_context'] != '':
+                q_sents = sample['init_context'][:600] + ' ' + q_sents
         
         m_input = encode_text(self.tokenizer, sample['question'], text_pair=q_sents, max_input_length=self.args.max_q_sp_len, 
                               truncation=True, padding=False, return_tensors="pt") 
@@ -304,7 +307,7 @@ class DenseSearcher():
     def search(self, sample):
         """ retrieve beam_size nearest paras and put them in 'dense_retrieved' key
         """
-        with torch.inference_mode():        
+        with torch.inference_mode():
             s2_idxs = set([s['idx'] for s in sample['s2']])  # skip id2doc keys that are already in s2 output
             dense_query = self.encode_input(sample)  # create retriever query
             if self.args.gpu_model:
@@ -312,7 +315,7 @@ class DenseSearcher():
     
             with torch.cuda.amp.autocast(enabled=self.args.fp16):
                 q_sp_embeds = self.model.encode_q(batch_q_sp_encodes["input_ids"], batch_q_sp_encodes["attention_mask"], 
-                                                  batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)        
+                                                  batch_q_sp_encodes.get("token_type_ids", None), include_stop=False)
             q_sp_embeds = q_sp_embeds.cpu().contiguous().detach().numpy()  # [1, hs]
             if self.args.hnsw:
                 q_sp_embeds = convert_hnsw_query(q_sp_embeds)
@@ -349,7 +352,7 @@ class Stage1Searcher():
         return
 
     def encode_input(self, sample):
-        """ Encode a question, possible title | sents and retrieved paras for stage 1 reranker
+        """ Encode a question, possible retrieved title | sents/para for stage 1 reranker including optional given initial context
         Return:
             model_inputs: dict with keys(['input_ids', 'token_type_ids', 'attention_mask', 'paragraph_mask', 'sent_offsets'])
             batch_extras: dict with keys(['wp_tokens', 'doc_tokens', 'tok_to_orig_index', 'insuff_offset'])
@@ -359,6 +362,8 @@ class Stage1Searcher():
         q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
         max_toks_for_doc = self.args.max_c_len - para_offset - 1
         q_sents = aggregate_sents(sample['s2'], title_sep = ' |', para_sep='[unused2]')  # aggregate sents for each title
+        if sample['init_context'] != '':
+            q_sents = '[unused2] ' + sample['init_context'][:600].replace(':', ' |', 1) + ' ' + q_sents
         batch_extras = {'wp_tokens':[], 'doc_tokens':[], 'tok_to_orig_index':[], 'insuff_offset':[]}  # each key [len(sample['dense_retrieved'])] of data used for deriving answer span
         model_inputs = {'input_ids':[], 'token_type_ids':[], 'attention_mask':[], 'paragraph_mask':[], 'sent_offsets':[]}
         for para in sample['dense_retrieved']:
@@ -427,7 +432,7 @@ class Stage1Searcher():
                 with torch.cuda.amp.autocast(enabled=self.args.fp16):
                     outputs = self.model(batch_encodes)  # dict_keys(['start_logits', 'end_logits', 'rank_score', 'sp_score'])
                     scores_b = outputs["rank_score"]
-                    scores_b = scores_b.sigmoid().view(-1).tolist()  # added .sigmoid()  list [bs] = 0.46923
+                    scores_b = scores_b.sigmoid().view(-1).tolist()  
                     sp_scores_b = outputs["sp_score"]    # [bs, max#sentsinbatch]
                     sp_scores_b = sp_scores_b.float().masked_fill(batch_encodes["sent_offsets"].eq(0), float("-inf")).type_as(sp_scores_b)  #mask scores past end of # sents in sample
                     sp_scores_b = sp_scores_b.sigmoid().tolist()  # [bs, max#sentsinbatch]  [0.678, 0.5531, 0.0, 0.0, ...]
@@ -472,7 +477,6 @@ class Stage1Searcher():
             if sample['s1'] != []:
                 sample['s1_hist'].append( copy.deepcopy(sample['s1']) )
             sample['s1'] = (sample['s2'] + out_list)[:self.args.topk]
-            #TODO from condense.py: f7=remove dup (pid, sid) preserving order ie prior s2 top ~5 + new s1 ordered ie will only take the top 4 or so from s1
             return 
 
 
@@ -495,12 +499,15 @@ class Stage2Searcher():
         return
 
     def encode_input(self, sample):
-        """ Encode a question, possible title | sents and retrieved paras for stage 1 reranker
+        """ Encode a question, possible title | sents and retrieved paras for stage 2 reranker
         Return:
             model_inputs: dict with keys(['input_ids', 'token_type_ids', 'attention_mask', 'paragraph_mask', 'sent_offsets'])
             batch_extras: dict with keys(['wp_tokens', 'doc_tokens', 'tok_to_orig_index', 'insuff_offset'])
         """
         q_toks = self.tokenizer.tokenize(sample['question'])[:self.args.max_q_len]
+        if sample['init_context'] != '':
+            init_toks = self.tokenizer.tokenize(' ' + sample['init_context'][:600])
+            q_toks += init_toks
         para_offset = len(q_toks) + 1 #  cls
         q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
         max_toks_for_doc = self.args.max_c_len - para_offset - 1
@@ -937,6 +944,8 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
             context_list.append(context_dict[p_idx])
         #context_list.sort(key=lambda k: ps_ratio*k['para']['s1_para_score']+(1-ps_ratio)*k.get('s1_sent_score_max', 0.0), reverse=True)
         sample['final_context_all'] = ' '.join([c['para_summary'] for c in context_list])
+        if sample['init_context'] != '':
+            sample['final_context_all'] = sample['init_context'] + ' ' + sample['final_context_all']
         tok_count = len(tokenizer.tokenize(sample['question'])) #TODO + len(tokenizer.tokenize(sample['init_context'])) # only approximate - not using ind digit tokenisation
         context_str_fitted = ''
         pcount = 0
@@ -950,10 +959,12 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
             else:
                 break
         sample['final_context_fitted'] = context_str_fitted.strip()
+        if sample['init_context'] != '':
+            sample['final_context_fitted'] = sample['init_context'] + ' ' + sample['final_context_fitted']
         sample['final_context_fitted_count'] = pcount
         q = sample['question'].strip()
-        a = sample['answer'][0] if len(sample['answer']) <= 1 else sample['answer'] 
-                
+        a = sample['answer'][0] if len(sample['answer']) <= 1 else sample['answer']
+        
         outlist.append( utils.create_uqa_example(q, 
                                                  utils.create_uqa_context(sample['mc_options'], sample['final_context_fitted']),
                                                  a, append_q_char='?') 
@@ -1010,10 +1021,15 @@ if __name__ == '__main__':
         # [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
         samples = []
         for i, sample in enumerate(samples_tsv):
+            if sample.get('context') is None:
+                init_context = ''
+            else:
+                init_context = sample['context']
+                
             samples.append( {'question': sample['q_only'], 
                              'answer': sample['answer'] if type(sample['answer'])==list else [sample['answer']],
                              'mc_options': sample['mc_options'] if sample.get('mc_options') else '',
-                             'init_context': sample['context'] if sample.get('context') else '',
+                             'init_context': init_context,
                              'src': 'tsv', 'type': 'tsv', '_id': str(i)} )
     else:
         logger.info("Loading as jsonl 'qas_val' formatted...")
