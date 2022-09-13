@@ -538,8 +538,8 @@ mmlu_unseen_1 = [
 # NOTE2: The dynamically created versions will be added "on the fly" to dev_eval and test_eval and to a special "unseen" dataset
 ########################################################
 
-create_datasets_dynamic = ['musique_mu_dev_qa', 'strategy_qa_od_ans', 'qasc', 
-                           'arc_easy', 'arc_hard', 'nq_open_od_ans', 'arc_da_od_ans' ]
+#create_datasets_dynamic = ['musique_mu_dev_qa', 'strategy_qa_od_ans', 'qasc', 'arc_easy', 'arc_hard', 'nq_open_od_ans', 'arc_da_od_ans' ]
+create_datasets_dynamic = []
 
 # Not used
 unifiedqa_unseen_5 = []
