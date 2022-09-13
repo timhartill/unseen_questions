@@ -510,7 +510,11 @@ mudev_paras, mudev_titles = get_paras(mu_dev)
 common_paras = train_paras.intersection(mudev_paras)
 print(f"Number of mu dev paras in train: {len(common_paras)}")  # 0 whether or not include unassigned yay!
 
+
+####################################################
 # Dense Retriever Training Set
+####################################################
+
 train_list, dev_list = get_retriever_datasets(mu_train) # Train count: 19556  Dev count:382
 outfile = os.path.join(MU_DIR_IN, 'musique_ans_v1.0_train_retriever_full_with_negs_v0.jsonl')
 saveas_jsonl(train_list, outfile)
@@ -540,48 +544,9 @@ outfile = os.path.join(MU_DIR_IN, 'musique_ans_v1.0_dev_retriever_new_with_hl_ne
 saveas_jsonl(dev_list, outfile)
 
 
-################################
-# Create UQA-formatted hard examples with gold para mixed with as many neg paras as can fit in a context
-################################
-mu_dev = utils.load_jsonl(MU_DEV_MDRFMT)     #382 
-mu_train = utils.load_jsonl(MU_TRAIN_MDRFMT) #19556  dict_keys(['question', 'answers', 'id', 'type', 'src', 'para_agg_map', 'bridge', 'pos_paras', 'neg_paras'])
 
 
-random.seed(42)
-dev_out = utils.make_uqa_from_mdr_format(mu_dev, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
-out_dir = os.path.join(UQA_DIR, "musique_hard")
-print(f'Outputting to {out_dir}')
-os.makedirs(out_dir, exist_ok=True)
-outfile = os.path.join(out_dir, 'dev.tsv')
-print(f"Outputting: {outfile}")
-with open(outfile, 'w') as f:
-    f.write(''.join(dev_out))
-    
-train_out = utils.make_uqa_from_mdr_format(mu_train, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
-outfile = os.path.join(out_dir, 'train.tsv')
-print(f"Outputting: {outfile}")
-with open(outfile, 'w') as f:
-    f.write(''.join(train_out))
-print('Finished outputting musique_hard!')
-
-random.seed(42)
-dev_out = utils.make_unanswerable_uqa_from_mdr_format(mu_dev, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
-out_dir = os.path.join(UQA_DIR, "no_answer_musique_hard")
-print(f'Outputting to {out_dir}')
-os.makedirs(out_dir, exist_ok=True)
-outfile = os.path.join(out_dir, 'dev.tsv')
-print(f"Outputting: {outfile}")
-with open(outfile, 'w') as f:
-    f.write(''.join(dev_out))
-    
-train_out = utils.make_unanswerable_uqa_from_mdr_format(mu_train, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
-outfile = os.path.join(out_dir, 'train.tsv')
-print(f"Outputting: {outfile}")
-with open(outfile, 'w') as f:
-    f.write(''.join(train_out))
-print('Finished outputting no_answer_musique_hard!')
-
-### BELOW IS UNMODIFIED FROM 2021 experiments  ######
+### BELOW IS UNMODIFIED FROM 2021 experiments  EXCEPT FOR Create UQA-formatted hard examples at end ######
 
 # Create and output mu_train decomp fact datasets
 train_list, dev_list = get_facts_datasets(mu_train)
@@ -812,4 +777,46 @@ print(f"count:{len(tok_counts)} max:{tok_counts_np.max()} mean:{tok_counts_np.me
 hittoklimit = np.where(tok_counts_np >= 512)
 hittoklimit[0].shape  #
 
+
+
+################################
+# Create UQA-formatted hard examples with gold para mixed with as many neg paras as can fit in a context
+################################
+mu_dev = utils.load_jsonl(MU_DEV_MDRFMT)     #382 NOTE: this is our dev not the original musique dev we are saving for eval
+mu_train = utils.load_jsonl(MU_TRAIN_MDRFMT) #19556  dict_keys(['question', 'answers', 'id', 'type', 'src', 'para_agg_map', 'bridge', 'pos_paras', 'neg_paras'])
+
+
+random.seed(42)
+dev_out = utils.make_uqa_from_mdr_format(mu_dev, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
+out_dir = os.path.join(UQA_DIR, "musique_hard")
+print(f'Outputting to {out_dir}')
+os.makedirs(out_dir, exist_ok=True)
+outfile = os.path.join(out_dir, 'dev.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_out))
+    
+train_out = utils.make_uqa_from_mdr_format(mu_train, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
+outfile = os.path.join(out_dir, 'train.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(train_out))
+print('Finished outputting musique_hard!')
+
+random.seed(42)
+dev_out = utils.make_unanswerable_uqa_from_mdr_format(mu_dev, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
+out_dir = os.path.join(UQA_DIR, "no_answer_musique_hard")
+print(f'Outputting to {out_dir}')
+os.makedirs(out_dir, exist_ok=True)
+outfile = os.path.join(out_dir, 'dev.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(dev_out))
+    
+train_out = utils.make_unanswerable_uqa_from_mdr_format(mu_train, tokenizer, max_toks, include_title_prob=0.9, include_all_sent_prob=1.1)
+outfile = os.path.join(out_dir, 'train.tsv')
+print(f"Outputting: {outfile}")
+with open(outfile, 'w') as f:
+    f.write(''.join(train_out))
+print('Finished outputting no_answer_musique_hard!')
 

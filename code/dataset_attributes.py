@@ -17,7 +17,7 @@ Edit this file to add new datasets to evaluation/similarity routines:
 - Edit the following to add/remove datasets from sets of current output reports:
     unifiedqa_unseen_4      # unseen eval dataset
     unifiedqa_unseen_4_map  # must configure this to identify whether dev.tsv or test.tsv is the file to be used for calculation
-    unifiedqa_unseen_6      # filtered versions of unseen eval datasets
+    unifiedqa_unseen_6      # filtered versions of unseen eval datasets (not currently used)
     unifiedqa_seen_1        # datasets used in training but that we wish to evaluate for various reasons anyway
 - Edit UQA_DIR to point to base directory for unified-qa formatted datasets.
 - Edit create_datasets_dynamic to add new datasets to dynamically create explations for (i.e from q[+mc]->a make q[+mc]+e->a). 
@@ -70,85 +70,30 @@ else:
 
 #Add to this list to create predictions/calc metrics for corresponding dev.tsv:
 dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
-            'drop', 'contrast_sets_drop', 'boolq_np', 'contrast_sets_boolq', 'multirc', 
-            'natural_questions', 'natural_questions_with_dpr_para', 'physical_iqa', 
-            'social_iqa', 'squad1_1_titlereformat', 'squad2_titlereformat', 'boolq', 'commonsenseqa', 
-            'qasc', 'qasc_with_ir', 'winogrande_xl', 'mctest_corrected_the_separator', 
-            'contrast_sets_drop_dedup', 'drop_dedup', 'contrast_sets_boolq_dedup', 
-            'boolq_np_dedup', 'social_iqa_dedup', 'quoref_dedup', 
-            'contrast_sets_quoref_dedup', 'contrast_sets_ropes_dedup', 
-            'drop_dedup_lowsim_tdnd', 
-            'contrast_sets_drop_dedup_lowsim_tdnd', 'physical_iqa_lowsim_tdnd', 
-            'social_iqa_dedup_lowsim_tdnd', 'commonsenseqa_lowsim_tdnd', 
-            'qasc_lowsim_tdnd', 'qasc_with_ir_lowsim_tdnd', 'ropes_lowsim_tdnd', 
-            'newsqa_lowsim_tdnd', 'strategy_qa', 'cwwv', 'atomic',
-            'musique_qa', 'musique_qa_paras', 'musique_mu_dev_qa', 'musique_mu_dev_qa_paras',
-            'musique_qa_decomp_ans', 'musique_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_ans',
-            'musique_mu_dev_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_context', 
-            'musique_mu_dev_qa_expl_ans', 'qasc_mc_ans', 'strategy_qa_expl_ans', 'strategy_qa_od_ans']
+             'boolq_np', 'contrast_sets_boolq', 'physical_iqa', 
+            'social_iqa', 'squad1_1_titlereformat', 'squad2_titlereformat', 'boolq',  
+            'qasc', 'qasc_with_ir', 'winogrande_xl', 'tatqa',
+            'csqa2', 'csqa2_fullwiki_bs150_noimplrel', 'csqa2_impl_rels', 'csqa2_fullwiki_bs150_implrel',
+            'creak_hard', 'creak_initial_context', 'creak_fullwiki_bs150_frominitctx', 
+            'creak_od_ans', 'creak_fullwiki_bs150_noimplrel', 'creak_od_ans_impl_rels', 'creak_fullwiki_bs150_implrel', 
+            'creak_contrast_set_od_ans', 'creak_contrast_set_hard', 'creak_contrast_set_initial_context',
+            'drop', 'contrast_sets_drop',
+            'commonsenseqa',
+            'musique_mu_dev_qa', 'musique_mu_dev_qa_paras',
+            'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans',]
 
 #Add to this list to create predictions/calc metrics for corresponding test.tsv:
 test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
              'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string',  
-             'mmlu_elementary_to_college_math_test',  
-             'mmlu_elementary_to_college_math_test_lowsim_tdnd', 'worldtree_mc_ans', 
-             'nq_open_od_ans', 'arc_da_expl_ans', 'arc_da_od_ans']
+             'mmlu_elementary_to_college_math_test', 
+             'arc_da_expl_ans', 'arc_da_od_ans',
+             'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',]
 
-
-#Unused, just to keep complete list of everything ever used in eval handy..
-dev_eval_all = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
-            'drop', 'contrast_sets_drop', 'boolq_np', 'contrast_sets_boolq', 'multirc', 
-            'natural_questions', 'natural_questions_with_dpr_para', 'physical_iqa', 
-            'social_iqa', 'ambigqa', 'squad1_1', 'squad2', 'boolq', 'commonsenseqa', 
-            'qasc', 'qasc_with_ir', 'winogrande_xl', 'mctest_corrected_the_separator', 
-            'contrast_sets_drop_dedup', 'drop_dedup', 'contrast_sets_boolq_dedup', 
-            'boolq_np_dedup', 'ambigqa_dedup', 'social_iqa_dedup', 'quoref_dedup', 
-            'contrast_sets_quoref_dedup', 'contrast_sets_ropes_dedup', 
-            'drop_dedup_lowsim_uqa', 'contrast_sets_drop_dedup_lowsim_uqa', 
-            'physical_iqa_lowsim_uqa', 'social_iqa_dedup_lowsim_uqa', 
-            'commonsenseqa_lowsim_uqa', 'qasc_lowsim_uqa', 'qasc_with_ir_lowsim_uqa', 
-            'ropes_lowsim_uqa', 'newsqa_lowsim_uqa', 'drop_dedup_lowsim_tdnd', 
-            'contrast_sets_drop_dedup_lowsim_tdnd', 'physical_iqa_lowsim_tdnd', 
-            'social_iqa_dedup_lowsim_tdnd', 'commonsenseqa_lowsim_tdnd', 
-            'qasc_lowsim_tdnd', 'qasc_with_ir_lowsim_tdnd', 'ropes_lowsim_tdnd', 
-            'newsqa_lowsim_tdnd', 'strategy_qa', 'cwwv', 'atomic',
-            'musique_qa', 'musique_qa_paras', 'musique_mu_dev_qa', 'musique_mu_dev_qa_paras',
-            'musique_qa_decomp_ans', 'musique_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_ans',
-            'musique_mu_dev_qa_paras_decomp_ans', 'musique_mu_dev_qa_decomp_context']
-
-test_eval_all = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
-             'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string', 
-             'narrativeqa', 'mmlu_electrical_engineering_test', 'mmlu_high_school_statistics_test', 
-             'mmlu_college_chemistry_test', 'mmlu_econometrics_test', 'mmlu_high_school_world_history_test', 
-             'mmlu_management_test', 'mmlu_business_ethics_test', 'mmlu_jurisprudence_test', 
-             'mmlu_world_religions_test', 'mmlu_global_facts_test', 'mmlu_college_medicine_test', 
-             'mmlu_computer_security_test', 'mmlu_us_foreign_policy_test', 'mmlu_international_law_test', 
-             'mmlu_nutrition_test', 'mmlu_philosophy_test', 'mmlu_virology_test', 
-             'mmlu_high_school_government_and_politics_test', 'mmlu_clinical_knowledge_test', 
-             'mmlu_college_computer_science_test', 'mmlu_college_physics_test', 'mmlu_anatomy_test', 
-             'mmlu_college_biology_test', 'mmlu_high_school_us_history_test', 'mmlu_moral_scenarios_test', 
-             'mmlu_public_relations_test', 'mmlu_high_school_psychology_test', 
-             'mmlu_professional_psychology_test', 'mmlu_high_school_chemistry_test', 
-             'mmlu_high_school_geography_test', 'mmlu_medical_genetics_test', 'mmlu_college_mathematics_test', 
-             'mmlu_high_school_microeconomics_test', 'mmlu_machine_learning_test', 
-             'mmlu_professional_law_test', 'mmlu_miscellaneous_test', 'mmlu_moral_disputes_test', 
-             'mmlu_high_school_computer_science_test', 'mmlu_high_school_macroeconomics_test', 
-             'mmlu_elementary_mathematics_test', 'mmlu_professional_accounting_test', 'mmlu_astronomy_test', 
-             'mmlu_high_school_physics_test', 'mmlu_logical_fallacies_test', 'mmlu_human_aging_test', 
-             'mmlu_high_school_european_history_test', 'mmlu_sociology_test', 'mmlu_security_studies_test', 
-             'mmlu_high_school_mathematics_test', 'mmlu_high_school_biology_test', 'mmlu_prehistory_test', 
-             'mmlu_conceptual_physics_test', 'mmlu_professional_medicine_test', 'mmlu_marketing_test', 
-             'mmlu_abstract_algebra_test', 'mmlu_human_sexuality_test', 'mmlu_formal_logic_test', 
-             'mmlu_us_foreign_policy_test_dedup', 'mmlu_college_physics_test_dedup', 
-             'mmlu_public_relations_test_dedup', 'mmlu_high_school_psychology_test_dedup', 
-             'mmlu_professional_psychology_test_dedup', 'mmlu_elementary_mathematics_test_dedup', 
-             'mmlu_elementary_to_college_math_test', 'mmlu_elementary_to_college_math_test_lowsim_uqa', 
-             'mmlu_elementary_to_college_math_test_lowsim_tdnd']
 
 
 #Map dataset types to relevant metrics to calculate (and specify referred reporting metric)
 metric_groups = {
-    'EX': {'compute':['EM', 'F1'], 'prefer':'F1'},
+    'EX': {'compute':['EM', 'F1', 'RL'], 'prefer':'F1'},
     'AB': {'compute':['EM', 'F1', 'RL'], 'prefer':'RL'},
     'MC': {'compute':['EM', 'F1', 'SS'], 'prefer':'SS'},
     'YN': {'compute':['EM', 'F1', 'YN'], 'prefer':'YN'},
@@ -328,13 +273,39 @@ dataset_attribs = {
     'musique_mu_dev_qa_decomp_context': {'type':'EX', 'prefer':''},
     'strategy_qa_od_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_expl_ans': {'type':'YN', 'prefer':''},
+    'strategy_qa_bigbench_od_ans': {'type':'YN', 'prefer':''},
+    'strategy_qa_bigbench_expl_ans': {'type':'YN', 'prefer':''},
     'qasc_mc_ans': {'type':'MC', 'prefer':''},
     'worldtree_mc_ans': {'type':'MC', 'prefer':''},
     'musique_mu_dev_qa_expl_ans': {'type':'EX', 'prefer':''},
     'nq_open_od_ans': {'type':'EX', 'prefer':'EM'}, 
+    'tatqa': {'type':'EX', 'prefer':''},
     'arc_da_expl_ans': {'type':'EX', 'prefer':''}, 
     'arc_da_od_ans': {'type':'EX', 'prefer':''},
+    'iirc_od_ans': {'type':'EX', 'prefer':''},
+    'iirc_gold_context': {'type':'EX', 'prefer':''},
+    'iirc_initial_context': {'type':'EX', 'prefer':''},
+    'csqa2': {'type':'YN', 'prefer':''},
+    'csqa2_fullwiki_bs150_noimplrel': {'type':'YN', 'prefer':''},
+    'csqa2_impl_rels': {'type':'YN', 'prefer':''},
+    'csqa2_fullwiki_bs150_implrel': {'type':'YN', 'prefer':''},
+    'creak_hard': {'type':'YN', 'prefer':''},
+    'creak_initial_context': {'type':'YN', 'prefer':''},
+    'creak_fullwiki_bs150_frominitctx': {'type':'YN', 'prefer':''},
+    'creak_od_ans': {'type':'YN', 'prefer':''},
+    'creak_fullwiki_bs150_noimplrel': {'type':'YN', 'prefer':''},
+    'creak_od_ans_impl_rels': {'type':'YN', 'prefer':''},
+    'creak_fullwiki_bs150_implrel': {'type':'YN', 'prefer':''},
+    'creak_contrast_set_od_ans': {'type':'YN', 'prefer':''},
+    'creak_contrast_set_hard': {'type':'YN', 'prefer':''},
+    'creak_contrast_set_initial_context': {'type':'YN', 'prefer':''},
     }
+
+
+
+#################################################
+# Groups of datasets for use in 'mixture' parameter to save typing each in individually 
+#################################################
 
 unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
                         "arc_hard", "arc_easy", "mctest_corrected_the_separator",
@@ -428,77 +399,23 @@ replace_sim_with = {'cwwv_selfsvised': 'cwwv',
 ########################################################
 
 # Not used
-unifiedqa_unseen_1 = [
-    'newsqa',
-    'quoref',
-    'contrast_sets_quoref',
-    'ropes',
-    'contrast_sets_ropes',
-    'drop',
-    'contrast_sets_drop',
-    'qasc',
-    'commonsenseqa',
-    'boolq_np',
-    'contrast_sets_boolq',
-    'multirc'
-    ]   
+unifiedqa_unseen_1 = []
 
 # Not used
-unifiedqa_unseen_2 = [
-    'qasc_with_ir',
-    'winogrande_xl',
-    'physical_iqa',
-    'social_iqa',
-    'natural_questions_with_dpr_para'
-    ]
+unifiedqa_unseen_2 = []
 
 # Not used
-unifiedqa_unseen_3 = [
-    'drop_dedup',
-    'contrast_sets_drop_dedup',
-    'mmlu_elementary_mathematics_test_dedup',
-    'mmlu_high_school_mathematics_test',
-    'mmlu_high_school_statistics_test',
-    'mmlu_college_mathematics_test',
-    'physical_iqa',
-    'social_iqa_dedup',
-    'commonsenseqa',
-    'qasc',
-    'qasc_with_ir',
-    'ropes',
-    'newsqa'
-    ]
+unifiedqa_unseen_3 = []
 
 # The unseen evaluation datasets
 unifiedqa_unseen_4 = [
-    'drop_dedup',
-    'contrast_sets_drop_dedup',
-    'mmlu_elementary_to_college_math_test',
-    'physical_iqa',
-    'social_iqa_dedup',
+    'drop', 'contrast_sets_drop',
     'commonsenseqa',
-    'qasc',
-    'qasc_with_ir',
-    'ropes',
-    'newsqa',
-    'strategy_qa',
-    'musique_qa',
-    'musique_qa_decomp_ans',
-    'musique_mu_dev_qa',
-    'musique_mu_dev_qa_decomp_ans',
-    'musique_qa_paras',
-    'musique_qa_paras_decomp_ans',
-    'musique_mu_dev_qa_paras',
-    'musique_mu_dev_qa_paras_decomp_ans',
-    'musique_mu_dev_qa_decomp_context',
-    'strategy_qa_od_ans',
-    'nq_open_od_ans',
-    'arc_da_od_ans',
-    'strategy_qa_expl_ans',
-    'qasc_mc_ans',
-    'musique_mu_dev_qa_expl_ans',
-    'worldtree_mc_ans',
-    'arc_da_expl_ans',
+    'musique_mu_dev_qa', 'musique_mu_dev_qa_paras',
+    'arc_da_od_ans', 'arc_da_expl_ans',
+    'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans',
+    'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
+    'mmlu_elementary_to_college_math_test',
     ]
 
 
@@ -506,32 +423,15 @@ unifiedqa_unseen_4 = [
 # These two py files have now been modified s.t. if a datasets isn't in this map, the file defaults to 'dev.tsv'..
 # So only need to add datasets to this map if 'test.tsv' is the one needed..
 unifiedqa_unseen_4_map = {
-    'drop_dedup': 'dev.tsv',
-    'contrast_sets_drop_dedup': 'dev.tsv',
     'mmlu_elementary_to_college_math_test': 'test.tsv',
-    'physical_iqa': 'dev.tsv',
-    'social_iqa_dedup': 'dev.tsv',
-    'commonsenseqa': 'dev.tsv',
-    'qasc': 'dev.tsv',
-    'qasc_with_ir': 'dev.tsv',
-    'ropes': 'dev.tsv',
-    'newsqa': 'dev.tsv',
-    'strategy_qa': 'dev.tsv',
-    'musique_qa': 'dev.tsv',
-    'musique_qa_paras': 'dev.tsv',
-    'musique_mu_dev_qa': 'dev.tsv',
-    'musique_mu_dev_qa_paras': 'dev.tsv',
-    'musique_qa_decomp_ans': 'dev.tsv',
-    'musique_qa_paras_decomp_ans': 'dev.tsv',
-    'musique_mu_dev_qa_decomp_ans': 'dev.tsv',
-    'musique_mu_dev_qa_paras_decomp_ans': 'dev.tsv',
-    'musique_mu_dev_qa_decomp_context': 'dev.tsv',
     'worldtree_mc_ans': 'test.tsv',
     'nq_open_od_ans': 'test.tsv',
     'arc_da_od_ans': 'test.tsv',
     'arc_da_expl_ans': 'test.tsv',
+    'iirc_od_ans': 'test.tsv', 
+    'iirc_gold_context': 'test.tsv', 
+    'iirc_initial_context': 'test.tsv',
     }
-
 
 
 # The filtered versions of the 10 unseen datasets used in our paper
@@ -560,9 +460,14 @@ unifiedqa_seen_1 = [
     'race_string',
     'ai2_science_elementary',
     'ai2_science_middle',
-    'strategy_qa',
-    'cwwv',
-    'atomic'
+    'tatqa', 'newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
+    'boolq_np', 'contrast_sets_boolq', 'physical_iqa', 
+    'social_iqa', 'squad1_1_titlereformat', 'squad2_titlereformat', 'boolq', 
+    'qasc', 'qasc_with_ir', 'winogrande_xl',
+    'csqa2', 'csqa2_fullwiki_bs150_noimplrel', 'csqa2_impl_rels', 'csqa2_fullwiki_bs150_implrel',
+    'creak_hard', 'creak_initial_context', 'creak_fullwiki_bs150_frominitctx', 
+    'creak_od_ans', 'creak_fullwiki_bs150_noimplrel', 'creak_od_ans_impl_rels', 'creak_fullwiki_bs150_implrel', 
+    'creak_contrast_set_od_ans', 'creak_contrast_set_hard', 'creak_contrast_set_initial_context',
     ]
 
 # The 57 mmlu datasets. 
