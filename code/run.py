@@ -465,18 +465,18 @@ def calc_metrics(args, logger, dev_data, predict_file):
         pred_decomp = get_parsed_decomp_str(predictions)
         
         
-    logger.info("Loading pre-tokenized data from {}".format(dev_data.preprocessed_path))
-    with open(dev_data.preprocessed_path, "r") as f:
-        input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, \
-            metadata, word_starts, ners_ids = json.load(f)
+    #logger.info("Loading pre-tokenized data from {}".format(dev_data.preprocessed_path))
+    #with open(dev_data.preprocessed_path, "r") as f:
+    #    input_ids, attention_mask, decoder_input_ids, decoder_attention_mask, \
+    #        metadata, word_starts, ners_ids = json.load(f)
         
     output_dict = {'prefer': pref_metric,
                    'type': ds_type,
                    'comp_metrics': comp_metrics,
                    'eval_file_type': dev_data.data_type,
                    'gt_file': predict_file,
-                   'gt_file_tokenized': dev_data.preprocessed_path,
-                   'groundtruths_tokenized': decoder_input_ids,
+                   #'gt_file_tokenized': dev_data.preprocessed_path,
+                   #'groundtruths_tokenized': decoder_input_ids,
                    'groundtruths': groundtruths,
                    'predictions': predictions}
     
