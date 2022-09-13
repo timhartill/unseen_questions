@@ -410,7 +410,7 @@ def inference_wrapper(tokenizer, model, args, logger, predict_file):
     """ Run inference for single dataset and save to output dir + (args.prefix =) dev|test + '_' + ds name + '_' + 'predictions.json'
     """
     dev_data = QAData(logger, args, predict_file, False)
-    dev_data.load_dataset(tokenizer)
+    dev_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
     dev_data.load_dataloader()
     ems = inference(model, dev_data, save_predictions=True, return_details=False)
     logger.info("%s: %s on %s data: %.2f" % (args.prefix, dev_data.metric, dev_data.data_type, np.mean(ems)*100))
@@ -427,7 +427,7 @@ def inference_wrapper(tokenizer, model, args, logger, predict_file):
 def calc_metrics_wrapper(tokenizer, args, logger, predict_file):
     """ Calc metrics for single dataset """
     dev_data = QAData(logger, args, predict_file, False)
-    dev_data.load_dataset(tokenizer)
+    dev_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
     dev_data.load_dataloader()    
     calc_metrics(args, logger, dev_data, predict_file)
     return
