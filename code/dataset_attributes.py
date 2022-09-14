@@ -86,7 +86,7 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
 test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
              'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string',  
              'mmlu_elementary_to_college_math_test', 
-             'arc_da_expl_ans', 'arc_da_od_ans', 'arc_da_unfiltered_od_ans',
+             'arc_da_expl_ans', 'arc_da_od_ans', 
              'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',]
 
 
@@ -413,7 +413,7 @@ unifiedqa_unseen_4 = [
     'drop', 'contrast_sets_drop',
     'commonsenseqa',
     'musique_mu_dev_qa', 'musique_mu_dev_qa_paras',
-    'arc_da_od_ans', 'arc_da_expl_ans', 'arc_da_unfiltered_od_ans',
+    'arc_da_od_ans', 'arc_da_expl_ans', 
     'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans',
     'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
     'mmlu_elementary_to_college_math_test',

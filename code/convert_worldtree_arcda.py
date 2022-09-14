@@ -23,13 +23,10 @@ arXiv:2102.03315 [cs.CL].
 
 ARC-DA output datsets are filtered to only those samples for which a matching explanation can be found in Worldtree
 outputs:
-    arc_da_expl_ans: q+explanation->a
-    arc_da_od_ans: q->a
-    arc_da_od_expl: q->explanation
+    arc_da_expl_ans: q+explanation->a   # FILTERED to only those samples for which a matching explanation can be found in Worldtree
+    arc_da_od_ans: q->a                 # NOT FILTERED - MATCHES ORIG ARCDA SAMPLES
+    arc_da_od_expl: q->explanation      # FILTERED to only those samples for which a matching explanation can be found in Worldtree
     
-Unfiltered ARC OD versions matching original sample counts are output as: 
-    arc_da_unfiltered_od_ans
-
 """
 
 import os
@@ -272,6 +269,11 @@ def process_arcda(arcda, wt_all, dset_type='train'):
 
 def output_arcda_full_od(split, file='train.tsv'):
     """ Output full open domain versions of arc datasets ie not filtered to samples with WT explanations
+    
+     - DUPLICATES arcda_od_ans but slight changes (only useful if training on ARCDA so not currently used):
+            for train.tsv outputs a smaple for each answer not constrained to MAX_TRAIN_SAMPLES
+            if any sample only has 1 answer, outputs a string answer rather that a list
+    
     {   'question_id': 'ARCEZ_MCAS_1998_4_7',
         'tag': 'EASY-TEST',
         'question': 'What is the cause of most earthquakes?',
