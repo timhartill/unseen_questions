@@ -21,6 +21,15 @@ arXiv:2102.03315 [cs.CL].
 2. Update directory variables below
 3. Run. New datasets in UQA format with explanations as labels will be in .../uqa_dir/worldtree_mc_expl and .../uqa_dir/worldtree_od_expl
 
+ARC-DA output datsets are filtered to only those samples for which a matching explanation can be found in Worldtree
+outputs:
+    arc_da_expl_ans: q+explanation->a
+    arc_da_od_ans: q->a
+    arc_da_od_expl: q->explanation
+    
+Unfiltered ARC OD versions matching original sample counts are output as: 
+    arc_da_unfiltered_od_ans
+
 """
 
 import os
@@ -184,7 +193,7 @@ def load_questions(question_file, fact_dict, tokenizer, verbose=False):
 
 
 def save_single(split, outdir, ds_type, file):
-    """ save a single dataset split """
+    """ save a single dataset split ignoring entries where a match to WT explanation wasnt found """
     out = [s[ds_type] for s in split if s[ds_type] is not None]
     out = utils.flatten(out)
     outfile = os.path.join(outdir, file)
@@ -225,11 +234,11 @@ def save_facts_dataset(out_dset, train_list, dev_list, devfile='dev.tsv'):
 
 
 def process_arcda(arcda, wt_all, dset_type='train'):
-    """ Add Worldtree expl to arcda jsonl
+    """ Add Worldtree explanation to arcda jsonl
     """
     no_match = 0
     for a in arcda:
-        a['qid_wt'] = '_'.join(a['question_id'].split('_')[1:])    
+        a['qid_wt'] = '_'.join(a['question_id'].split('_')[1:])
         a['wt_match'] = wt_all.get( a['qid_wt'] )
         q = a['question']
         ans = [aa.replace('\n', '') for aa in a['answers']]
@@ -256,6 +265,39 @@ def process_arcda(arcda, wt_all, dset_type='train'):
             
     return
     
+
+###########################
+# Output full open domain versions of arc datasets ie not filtered to samples with WT explanations
+###########################
+
+def output_arcda_full_od(split, file='train.tsv'):
+    """ Output full open domain versions of arc datasets ie not filtered to samples with WT explanations
+    {   'question_id': 'ARCEZ_MCAS_1998_4_7',
+        'tag': 'EASY-TEST',
+        'question': 'What is the cause of most earthquakes?',
+        'answers': ['plates shifting',
+         'tectonic shifts',
+         'two plates are rubbing against each other',
+         'tectonic plates',
+         "the movement of plates on Earth's crust"]}
+    """    
+    outlist = []
+    for s in split:
+        q = s['question']
+        if file != 'train.tsv':
+            if len(s['answers']) == 1:
+                ans = s['answers'][0]
+            else:
+                ans = s['answers']
+            outlist.append(utils.create_uqa_example(q, None, ans))
+        else:
+            for ans in s['answers']:
+                outlist.append(utils.create_uqa_example(q, None, ans))
+    out_dir = arcda_uqa_dir + 'unfiltered_od_ans'
+    utils.save_uqa(outlist, out_dir, file)
+    return
+            
+
 
 ##########################
 # Build expl and output Worldtree
@@ -288,6 +330,11 @@ save_facts_dataset('dev_in_train_excl_test'+selfsupervisedkey, facts_train_dev, 
 arcda_dev = utils.load_jsonl(os.path.join(arcda_dir, 'dev.jsonl'))
 arcda_test = utils.load_jsonl(os.path.join(arcda_dir, 'test.jsonl'))
 arcda_train = utils.load_jsonl(os.path.join(arcda_dir, 'train.jsonl'))
+
+output_arcda_full_od(arcda_train, file='train.tsv')  # 4246
+output_arcda_full_od(arcda_dev, file='dev.tsv')  # 338
+output_arcda_full_od(arcda_test, file='test.tsv')  # 1397
+
 
 wt_all = utils.build_dict_from_jsonl(questions_dev, key='QuestionID')
 wt_all.update(utils.build_dict_from_jsonl(questions_test, key='QuestionID'))

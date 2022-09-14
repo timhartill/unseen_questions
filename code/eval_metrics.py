@@ -973,8 +973,14 @@ def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', '
                         '/data/thar011/out/unifiedqa_bart_large_s7_v4_uqa_ms_expl_mswq_explans_msw_ssviseall_mswq/eval_metrics.json',
                         '/data/thar011/out/unifiedqa_bart_large_s7_v5_uqa_msan_expl_mswqa_explans_mswa_ssviseall_mswq/eval_metrics.json',
                        ]
-        logdir='/data/thar011/out/unifiedqa_averages/s7_v1/'
-        run_all(logdir, results_list, include_list=['unseen4', 'unseen5', 'seen1'])
+        
+        results_list = ['/large_data/thar011/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise_COPY_AT810Ksteps/eval_metrics.json',
+                        '/large_data/thar011/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_COPY_AT810Ksteps/eval_metrics.json',
+                       ]
+
+        
+        logdir='/data/thar011/out/unifiedqa_averages/s11/'
+        run_all(logdir, results_list, include_list=['unseen4', 'seen1'])
     """
     if logdir[-1] != '/':
         logdir += '/'
