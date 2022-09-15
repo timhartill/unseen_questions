@@ -885,8 +885,19 @@ def eval_samples(args, logger, samples):
 
 
 def build_context(args, logger, samples, tokenizer, max_toks=507):
-    """ Build context from samples
-    Sometimes highest scoring sentences contain only partial info. Therefore we take a sentence 
+    """ Build context from samples using info in 's2_best' key which is the best hop in s2_full as measured by s2 ev score.
+
+    's2_best' is list of:    
+    {'title': 'Lenovo IdeaPad Yoga 13',
+     'sentence': 'The Lenovo IdeaPad Yoga 13 is a convertible laptop created by Lenovo and first announced at the International CES 2012 in January.',
+     'score': 0.05224253982305527,          # this sentence evidentiality score from stage 1
+     's1para_score': 0.08526720106601715,   # evidentiality score from stage 1 using current query + this para
+     'idx': 1442367,                        # index into dense_searcher.id2doc eg dense_searcher.id2doc[ str(1423926) ]
+     's_idx': 0,                            # index of this sentence in para ie index into 'sentence_spans' key of para
+     's2_score': 0.8818813562393188,        # this sentence evidentiality score from stage 2
+     's2ev_score': 0.9699244499206543}      # overall evidentiality score of this set of ~9 sentences input into stage 2 denormalised for convenience
+
+    Sometimes highest scoring sentences contain only partial info. Therefore we optionally take a sentence 
     before and after each high scoring sentence in a paragraph where possible. 
  
     eg for "Did Aristotle use a laptop" we get two sentences from the paragraph:
@@ -916,7 +927,7 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
                                          (1-ps_ratio)*k.get('s1_sent_score_max', 0.0), 
                            reverse=True) # rough heuristic to minimise looping time below.. 
         context_dict = {}
-        for sent in sample['s2_best']:  # context will be sorted by s2_para_sent_ratio*s1para_score' + (1-s2_para_sent_ratio*s2_score)
+        for sent in sample['s2_best']:  # context will be sorted by s2_para_sent_ratio*s1para_score' + (1-s2_para_sent_ratio)*s2_score
             s_idx = sent['s_idx']
             p_idx = sent['idx']
             if context_dict.get(p_idx) is None:
@@ -927,26 +938,26 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
                         break
                 assert foundpara is not None
                 context_dict[p_idx] = {'para': foundpara, 's_idxs':[]}
-            if s_idx > 0 and s_idx-1 not in context_dict[p_idx]['s_idxs']:
+            if s_idx > 0 and s_idx-1 not in context_dict[p_idx]['s_idxs']:   # Add sentence before
                 context_dict[p_idx]['s_idxs'].append(s_idx-1)
-            if s_idx not in context_dict[sent['idx']]['s_idxs']:   
+            if s_idx not in context_dict[sent['idx']]['s_idxs']:
                 context_dict[p_idx]['s_idxs'].append(s_idx)
-            if s_idx+1 < len(context_dict[p_idx]['para']['sentence_spans'])-1 and s_idx+1 not in context_dict[sent['idx']]['s_idxs']:
+            if s_idx+1 < len(context_dict[p_idx]['para']['sentence_spans'])-1 and s_idx+1 not in context_dict[sent['idx']]['s_idxs']:  # Add sentence after
                 context_dict[p_idx]['s_idxs'].append(s_idx+1)
-        context_list = []        
+        context_list = []
         for p_idx in context_dict:
-            context_dict[p_idx]['s_idxs'].sort()
+            context_dict[p_idx]['s_idxs'].sort()      # Put sentences in order within a para
             context_str = unescape(context_dict[p_idx]['para']['title']).strip() + ': '
             for s_idx in context_dict[p_idx]['s_idxs']:
                 s, e = context_dict[p_idx]['para']['sentence_spans'][s_idx]
                 context_str += context_dict[p_idx]['para']['text'][s:e].strip() + ' '
-                context_dict[p_idx]['para_summary'] = context_str.strip()
+            context_dict[p_idx]['para_summary'] = context_str.strip()
             context_list.append(context_dict[p_idx])
         #context_list.sort(key=lambda k: ps_ratio*k['para']['s1_para_score']+(1-ps_ratio)*k.get('s1_sent_score_max', 0.0), reverse=True)
         sample['final_context_all'] = ' '.join([c['para_summary'] for c in context_list])
         if sample['init_context'] != '':
             sample['final_context_all'] = sample['init_context'] + ' ' + sample['final_context_all']
-        tok_count = len(tokenizer.tokenize(sample['question'])) #TODO + len(tokenizer.tokenize(sample['init_context'])) # only approximate - not using ind digit tokenisation
+        tok_count = len(tokenizer.tokenize(sample['question'])) # only approximate - not using ind digit tokenisation
         context_str_fitted = ''
         pcount = 0
         for context in context_list:

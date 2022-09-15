@@ -636,7 +636,7 @@ def calc_similarity(args, logger):
         sim_results[trainset] = {}    
         for testset in results_dict.keys():
             logger.info(f" ... {testset}")
-            gt_file = results_dict[testset]['gt_file']
+            gt_file = eval_metrics.get_gt_file_path(results_dict[testset]['gt_file'])
             dev_data = QAData(logger, args, gt_file, False)
             prefmetric = results_dict[testset]['prefer']
             if prefmetric == 'RL':  # No sample-level results for RL
@@ -693,7 +693,7 @@ def calc_similarity_numeric(args, logger):
         for i in range(len(train_data.data[trainset]['question'])):  #reformat train to be same format as eval datasets below..
             train_reformat.append({'question': train_data.data[trainset]['question'][i],
                                    'answer': train_data.data[trainset]['answer'][i]} )
-        gt_file = results_dict[testset]['gt_file']
+        gt_file = eval_metrics.get_gt_file_path(results_dict[testset]['gt_file'])
         dev_data = QAData(logger, args, gt_file, False)
         prefmetric = results_dict[testset]['prefer']
         if prefmetric == 'RL':  # No sample-level results for RL
@@ -790,7 +790,7 @@ def create_sentence_embeddings(args, logger):
 
     #create sentence embeddings from eval datasets
     for testset in results_dict.keys():
-        gt_file = results_dict[testset]['gt_file']
+        gt_file = eval_metrics.get_gt_file_path(results_dict[testset]['gt_file'])
         dev_data = QAData(logger, args, gt_file, False)
         if gt_file.endswith('test.tsv'):
             if args.use_question_only:
@@ -926,7 +926,7 @@ def calc_similarity_embeddings(args, logger):
                 if args.add_only_missing and (sim_results[trainset].get(testset) is not None):
                     logger.info(f" ... skipping {testset} as it already exists..")
                     continue
-                gt_file = results_dict[testset]['gt_file']
+                gt_file = eval_metrics.get_gt_file_path(results_dict[testset]['gt_file'])
                 dev_data = QAData(logger, args, gt_file, False)
                 prefmetric = results_dict[testset]['prefer']
                 if prefmetric == 'RL':  # No sample-level results for RL
