@@ -474,9 +474,7 @@ def calc_metrics(args, logger, dev_data, predict_file):
                    'type': ds_type,
                    'comp_metrics': comp_metrics,
                    'eval_file_type': dev_data.data_type,
-                   'gt_file': predict_file,
-                   #'gt_file_tokenized': dev_data.preprocessed_path,
-                   #'groundtruths_tokenized': decoder_input_ids,
+                   'gt_file': predict_file,  # note always override with eval_metrics.get_gt_file_path(...['gt_file'])
                    'groundtruths': groundtruths,
                    'predictions': predictions}
     

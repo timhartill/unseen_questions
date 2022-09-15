@@ -41,7 +41,8 @@ from dataset_attributes import unifiedqa_base_train, synth_num_base_train, poet_
 from dataset_attributes import q_paras_train, q_paras_noanswer_train, q_od_train, q_mc_train, q_mc_paras_train
 from dataset_attributes import unifiedqa_unseen_1, unifiedqa_unseen_2, unifiedqa_unseen_3, unifiedqa_unseen_4, unifiedqa_unseen_4_map, unifiedqa_unseen_5, unifiedqa_unseen_6, unifiedqa_seen_1, mmlu_unseen_1
 from dataset_attributes import UQA_DIR, SVISED_EXPL_ANS, selfsupervisedkey, add_explanationkey, EXPL_COMP_KEY, special_tokens_dict
-from dataset_attributes import create_datasets_dynamic
+from dataset_attributes import create_datasets_dynamic, get_gt_file_path
+
 
 def replace_sim(datasets, mixture_file_key):
     """ Where same dataset in difft formats, just calc sim against one format and map similarity for others against that...
@@ -468,7 +469,7 @@ class DatasetMetrics:
                           'type: ': 'dataset type one of EX AB MC YN', 
                           'comp_metrics': [metrics actually appearing below subset of: 'EM', 'F1', 'RL', 'SS', 'YN'], 
                           'eval_file_type': 'dev' or 'test', 
-                          'gt_file': 'eg '/data/thar011/data/unifiedqa/newsqa/dev.tsv'', 
+                          'gt_file': 'eg '/data/thar011/data/unifiedqa/newsqa/dev.tsv', 
                           #'gt_file_tokenized': eg 'test-uncased-xbos-BartTokenizedFast.json',
                           #'groundtruths_tokenized': from decoder_input_ids: eg [563, 256, 9, 0, 1, 1, 1],
                           'groundtruths': [actual textual answers: 'gt1', 'gt2'..], 
@@ -595,7 +596,7 @@ class DatasetMetrics:
     
     def get_summary_plus_single_preds(self, ds, number_samples=5, metric='ALL'):
         """ Return summary of metrics for a single dataset including "x" random individual samples """
-        gt_file = self.results_dict[ds]['gt_file']
+        gt_file = get_gt_file_path(self.results_dict[ds]['gt_file'])
         questions, answers = load_uqa_supervised(gt_file, ans_lower=False)
         num_q = len(questions)
         np.random.seed(42)

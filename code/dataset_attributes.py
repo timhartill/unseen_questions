@@ -533,6 +533,26 @@ mmlu_unseen_1 = [
      'mmlu_college_chemistry_test']
 
 
+###############################################
+# utils imported into eval_metrics.py
+###############################################
+
+def get_gt_file_path(file):
+    """ If eg running on different machine to that which created eval_metrics 'gt_file' entry, return updated path using
+        UQA_DIR path on new machine
+        usage:
+            get_gt_file_path('/old/uqa/dataset/dev.tsv') -> 'current/uqa/dataset/dev.tsv' 
+            get_gt_file_path('dev.tsv') -> /current/uqa/dev.tsv without dataset name
+            get_gt_file_path('/old/uqa/dataset') -> 'current/uqa/dataset'             
+    """
+    curr_dir, probably_file = os.path.split(file)
+    if probably_file.strip().endswith('.tsv'):  # assume /old/uqadir/dataset/dev|train|test.tsv
+        curr_uqa_dir, dataset = os.path.split(curr_dir)
+        return os.path.join(UQA_DIR, dataset, probably_file)
+    else:                                       # assume /old/uqadir/dataset
+        return os.path.join(UQA_DIR, probably_file)        
+
+
 ########################################################
 # Eval Datasets q[+mc]->a to take as input and output to new dir as q[+mc]+e->a i.e to generate e for
 # New dynamically created datasets will be created as e.g /UQA_DIR/qasc_dyn_expl_ans_modeloutputdir_timestamp
