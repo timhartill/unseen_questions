@@ -363,7 +363,6 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                         if wait_step >= args.wait_step:
                             stop_training = True
                             logger.info("Early Stopping due to no improvement after %d wait steps!" % (wait_step))   #TJH Added
-                            break
                     if global_step > 0 and global_step % args.save_best_model_steps == 0:
                         try:
                             src = os.path.join(args.output_dir, "best-model.pt")
@@ -377,7 +376,9 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                             logger.info(f"Error saving best model after {global_step} steps. Skipping ...")
                                    
                 model.train()
-        if stop_training:
+            if stop_training:   # batches within epoch loop
+                break
+        if stop_training:       # epoch within epochs loop
             break
 
 

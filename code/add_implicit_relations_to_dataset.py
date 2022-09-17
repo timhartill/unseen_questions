@@ -8,7 +8,7 @@ Generate implicit relations using already trained model, update samples and outp
 @author: tim hartill
 
 
-Usage: edit and run bash runtrain_bart_s12_v1_add_impl_rels_creak_ods_ans.sh
+Usage: edit and run bash addimpl_bart_s12_v1_add_impl_rels_creak_ods_ans.sh
 
 """
 
@@ -58,7 +58,7 @@ def main():
     
     for file in files:
         infile = os.path.join(indir, file)    
-        dset = utils.load_uqa_supervised(infile, ans_lower=True, verbose=True, return_parsed=True) # [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
+        dset = utils.load_uqa_supervised(infile, ans_lower=False, verbose=True, return_parsed=True) # [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
     
         for b_start in tqdm( range(0, len(dset), args.predict_batch_size) ):
             b_end = b_start + args.predict_batch_size
