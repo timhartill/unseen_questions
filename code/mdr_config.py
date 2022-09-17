@@ -151,6 +151,8 @@ def eval_args():
     parser.add_argument("--stop_ansconfdelta_thresh", default=99999.0, type=float, help="Stop iterating if s2_ans_conf_delta >= this (Note: s2_ans_conf_delta not between 0 & 1. If 0.0 ans pred is insuff evidence).")
     parser.add_argument("--stop_lowerev", action="store_true", help="Stop iterating if current hop s2ev_score < last hop s2ev_score.")
     parser.add_argument("--output_dataset", default='', type=str, help="Full path to output tsv-formatted files to. Typically /parent/.../unifiedqa/newdatasetname/train|dev|test.tsv ")
+    parser.add_argument('--resume_dir', type=str, default=None, help="Path to log dir containing samples_with_context.jsonl to resume adding to.")
+    
     
     
     return parser.parse_args()

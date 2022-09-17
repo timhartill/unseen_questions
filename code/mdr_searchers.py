@@ -989,10 +989,23 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
 if __name__ == '__main__':
     args = eval_args()
     
-    date_curr = date.today().strftime("%m-%d-%Y")
-    model_name = f"{args.prefix}-{date_curr}-ITER-16{args.fp16}-tkparas{args.beam_size}-s1tksents{args.topk}-s1useparascr{args.s1_use_para_score}-s2tksents{args.topk_stage2}-s2minsentscr{args.s2_sp_thresh}-stmaxhops{args.max_hops}-stevthresh{args.stop_ev_thresh}-stansconf{args.stop_ansconfdelta_thresh}-rusesents{args.query_use_sentences}-rtitles{args.query_add_titles}"
-    args.output_dir = os.path.join(args.output_dir, model_name)
-
+    samples = None
+    num_already_processed = 0
+    if args.resume_dir is not None and args.resume_dir.strip() != '':
+        args.output_dir = args.resume_dir
+        resume_file = os.path.join(args.output_dir, 'samples_with_context.jsonl')
+        if os.path.exists(resume_file):
+            samples = utils.load_jsonl(resume_file)
+            for i, sample in enumerate(samples):
+                if sample['dense_retrieved'] != []:
+                    num_already_processed = i+1
+                    break
+            
+    else:
+        date_curr = date.today().strftime("%m-%d-%Y")
+        model_name = f"{args.prefix}-{date_curr}-ITER-16{args.fp16}-tkparas{args.beam_size}-s1tksents{args.topk}-s1useparascr{args.s1_use_para_score}-s2tksents{args.topk_stage2}-s2minsentscr{args.s2_sp_thresh}-stmaxhops{args.max_hops}-stevthresh{args.stop_ev_thresh}-stansconf{args.stop_ansconfdelta_thresh}-rusesents{args.query_use_sentences}-rtitles{args.query_add_titles}"
+        args.output_dir = os.path.join(args.output_dir, model_name)
+    
     os.makedirs(args.output_dir, exist_ok=True)
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s', datefmt='%m/%d/%Y %H:%M:%S',
@@ -1006,7 +1019,7 @@ if __name__ == '__main__':
     logger.info(f"Visible gpus: {n_gpu}")
     
     if args.output_dataset is None or args.output_dataset.strip() == '':
-        logger.info(f"WARNING: --output_dataset not specified. tsv-formatted file output will be skipped. If this is in error, stop this job and rerun with --output_dataset /dir/to/output/dataset_name/train|dev|test.tsv")
+        logger.info("WARNING: --output_dataset not specified. tsv-formatted file output will be skipped. If this is in error, stop this job and rerun with --output_dataset /dir/to/output/dataset_name/train|dev|test.tsv")
     else: 
         logger.info(f"tsv-formatted file will be output to: {args.output_dataset}")
         out_tuple = os.path.split(args.output_dataset)
@@ -1025,34 +1038,36 @@ if __name__ == '__main__':
                 res.setTempMemory(tempmem)
             gpu_resources.append(res)
 
-    logger.info(f"Loading queries from {args.predict_file} ...")
-    if args.predict_file.endswith('.tsv'):
-        logger.info('Loading as tsv-formatted...')
-        samples_tsv = utils.load_uqa_supervised(args.predict_file, ans_lower=False, verbose=True, return_parsed=True) 
-        # [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
-        samples = []
-        for i, sample in enumerate(samples_tsv):
-            if sample.get('context') is None:
-                init_context = ''
-                if i == 0:
-                    logger.info("No initial context. Starting from question only.")
-            else:
-                init_context = sample['context']
-                if i == 0:
-                    logger.info("Utilising initial context in retriever, s1 and s2...initial context will be output as first portion of new context.")
-                
-            samples.append( {'question': sample['q_only'], 
-                             'answer': sample['answer'] if type(sample['answer'])==list else [sample['answer']],
-                             'mc_options': sample['mc_options'] if sample.get('mc_options') else '',
-                             'init_context': init_context,
-                             'src': 'tsv', 'type': 'tsv', '_id': str(i)} )
-    else:
-        logger.info("Loading as jsonl 'qas_val' formatted...")
-        samples = [json.loads(s) for s in tqdm(open(args.predict_file).readlines())]
-        # dict_keys(['question', '_id', 'answer', 'sp', 'type', 'src'])
-
-    logger.info("Standardising query formats ...")
-    for sample in tqdm(samples):
+    if samples is None:
+        logger.info(f"Loading queries from {args.predict_file} ...")
+        if args.predict_file.endswith('.tsv'):
+            logger.info('Loading as tsv-formatted...')
+            samples_tsv = utils.load_uqa_supervised(args.predict_file, ans_lower=False, verbose=True, return_parsed=True) 
+            # [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
+            samples = []
+            for i, sample in enumerate(samples_tsv):
+                if sample.get('context') is None:
+                    init_context = ''
+                    if i == 0:
+                        logger.info("No initial context. Starting from question only.")
+                else:
+                    init_context = sample['context']
+                    if i == 0:
+                        logger.info("Utilising initial context in retriever, s1 and s2...initial context will be output as first portion of new context.")
+                    
+                samples.append( {'question': sample['q_only'], 
+                                 'answer': sample['answer'] if type(sample['answer'])==list else [sample['answer']],
+                                 'mc_options': sample['mc_options'] if sample.get('mc_options') else '',
+                                 'init_context': init_context,
+                                 'src': 'tsv', 'type': 'tsv', '_id': str(i)} )
+        else:
+            logger.info("Loading as jsonl 'qas_val' formatted...")
+            samples = [json.loads(s) for s in tqdm(open(args.predict_file).readlines())]
+            # dict_keys(['question', '_id', 'answer', 'sp', 'type', 'src'])
+    
+        logger.info("Standardising query formats ...")
+        i = 0
+        for sample in tqdm(samples):
             if sample["question"].endswith("?"):
                 sample["question"] = sample["question"][:-1]
             if sample.get('src') is None:
@@ -1087,24 +1102,33 @@ if __name__ == '__main__':
             sample['s1_hist'] = []  # stage 1 sents history
             sample['s2_hist'] = []  # stage 2 sents history
             sample['s2_pred_hist'] = [] # stage 2 history of pred answers, rank scores etc: list of [sample['s2_ans_pred'], sample['s2_ans_pred_score'], sample['s2_ans_insuff_score'], sample['s2_ans_conf_delta'], sample['s2_ev_score']]
+    else: # samples is not None - resume
+        logger.info(f"Resuming job. Number already processed: {num_already_processed}. Input data loaded from: {resume_file}")
 
     dense_searcher = DenseSearcher(args, logger)
     stage1_searcher = Stage1Searcher(args, logger)
     stage2_searcher = Stage2Searcher(args, logger)
 
-    for i, sample in enumerate(samples):
-        for hop in range(0, args.max_hops):
-            dense_searcher.search(sample)  # retrieve args.beam_size nearest paras and put them in sample['dense_retrieved'] key
-            stage1_searcher.search(sample)
-            stage2_searcher.search(sample)
-            if suff_evidence(args, hop, sample):
-                break
-        if i % 500 == 0:
-            logger.info(f"Processed {i} of {len(samples)} samples.")
-    logger.info("Finished processing all samples.")
-
-    logger.info(f"Saved full updated samples file to {os.path.join(args.output_dir, 'samples_with_context.jsonl')}")
-    saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_with_context.jsonl'))
+    if len(samples) > num_already_processed:
+        for i, sample in enumerate(samples):
+            if i < num_already_processed-1:
+                continue
+            for hop in range(0, args.max_hops):
+                dense_searcher.search(sample)  # retrieve args.beam_size nearest paras and put them in sample['dense_retrieved'] key
+                stage1_searcher.search(sample)
+                stage2_searcher.search(sample)
+                if suff_evidence(args, hop, sample):
+                    break
+            if i % 500 == 0:
+                logger.info(f"Processed {i+num_already_processed} of {len(samples)} samples. Saving partially completed file..")
+                saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_with_context.jsonl'))
+                logger.info(f"Saved partially completed samples file to {os.path.join(args.output_dir, 'samples_with_context.jsonl')}")
+        logger.info("Finished processing all samples.")
+    
+        logger.info(f"Saving full updated samples file to {os.path.join(args.output_dir, 'samples_with_context.jsonl')}")
+        saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_with_context.jsonl'))
+    else:
+        logger.info(f"All samples already processed ({num_already_processed}). Skipping inference and moving directly to eval and output stages...")
 
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-24-2022-iterator-fp16False-topkparas4-topks1sents9-topks2sents5-maxhops2-s1_use_para_scoreTrue/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-28-2022-iterator-fp16False-topkparas25-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops2-stopevthresh0.91-stopansconf18.0/samples_with_context.jsonl')
