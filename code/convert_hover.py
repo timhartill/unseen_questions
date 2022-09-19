@@ -390,4 +390,11 @@ with open(outfile, 'w') as f:
 print('Finished outputting hover_hard!')
 
 
-
+# OD samples
+out_dir = os.path.join(UQA_DIR, "hover_od_ans")
+print(f'Outputting to {out_dir}')
+dev_out = [utils.create_uqa_example(h['question'], None, h['answers'][0]) for h in ho_dev]
+utils.save_uqa(dev_out, out_dir, 'dev.tsv')
+train_out = [utils.create_uqa_example(h['question'], None, h['answers'][0]) for h in ho_train]
+utils.save_uqa(train_out, out_dir, 'train.tsv')
+print('Finished outputting hover_od_ans!')

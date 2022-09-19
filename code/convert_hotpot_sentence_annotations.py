@@ -215,7 +215,18 @@ outfile = os.path.join(out_dir, 'train.tsv')
 print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
     f.write(''.join(train_out))
-print('Finished!')
+print('Finished outputting hpqa_hard!')
+
+
+# OD samples
+out_dir = os.path.join(UQA_DIR, "hpqa_od_ans")
+print(f'Outputting to {out_dir}')
+dev_out = [utils.create_uqa_example(h['question'], None, h['answers'][0]) for h in mdr_dev]
+utils.save_uqa(dev_out, out_dir, 'dev.tsv')
+train_out = [utils.create_uqa_example(h['question'], None, h['answers'][0]) for h in mdr_train]
+utils.save_uqa(train_out, out_dir, 'train.tsv')
+print('Finished outputting hpqa_od_ans!')
+
 
 
 ###################

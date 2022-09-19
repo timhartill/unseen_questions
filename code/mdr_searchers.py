@@ -996,10 +996,16 @@ if __name__ == '__main__':
         resume_file = os.path.join(args.output_dir, 'samples_with_context.jsonl')
         if os.path.exists(resume_file):
             samples = utils.load_jsonl(resume_file)
+            num_already_processed = -1
             for i, sample in enumerate(samples):
-                if sample['dense_retrieved'] != []:
-                    num_already_processed = i+1
+                if sample['dense_retrieved'] == []:  # no retrieved paras in dense_retrieved key = unprocessed sample
+                    num_already_processed = i
                     break
+            if num_already_processed == -1:
+                num_already_processed = len(samples)  # all samples already processed, loading so can output using alternative context-building params
+        else:
+            print(f"Processed samples file not found: {resume_file}. Did you intend to set --resume_dir?")
+            assert os.path.exists(resume_file)
             
     else:
         date_curr = date.today().strftime("%m-%d-%Y")
@@ -1024,7 +1030,7 @@ if __name__ == '__main__':
         logger.info(f"tsv-formatted file will be output to: {args.output_dataset}")
         out_tuple = os.path.split(args.output_dataset)
         if out_tuple[1].endswith('.tsv'):
-            os.makedirs(out_tuple[0], exist_ok=True)    
+            os.makedirs(out_tuple[0], exist_ok=True)
         else:
             assert out_tuple[1].endswith('.tsv') 
            
@@ -1046,22 +1052,30 @@ if __name__ == '__main__':
             # [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
             samples = []
             for i, sample in enumerate(samples_tsv):
-                if sample.get('context') is None:
+                if sample.get('mc_options') is None or sample['mc_options'].strip() == '':
+                    mc_options = ''
+                    if i == 0:
+                        logger.info("No multichoice options. Running question only or question + context.")
+                else:
+                    mc_options = sample['mc_options'].strip()
+                    if i == 0:
+                        logger.info('Multichoice options found. Not used in retrieval but will be added to final output..')
+                if sample.get('context') is None or sample['context'].strip() == '':
                     init_context = ''
                     if i == 0:
                         logger.info("No initial context. Starting from question only.")
                 else:
-                    init_context = sample['context']
+                    init_context = sample['context'].strip()
                     if i == 0:
-                        logger.info("Utilising initial context in retriever, s1 and s2...initial context will be output as first portion of new context.")
+                        logger.info("Utilising question+initial context in retriever, s1 and s2...initial context will be output as first portion of new context.")
                     
                 samples.append( {'question': sample['q_only'], 
                                  'answer': sample['answer'] if type(sample['answer'])==list else [sample['answer']],
-                                 'mc_options': sample['mc_options'] if sample.get('mc_options') else '',
+                                 'mc_options': mc_options,
                                  'init_context': init_context,
                                  'src': 'tsv', 'type': 'tsv', '_id': str(i)} )
         else:
-            logger.info("Loading as jsonl 'qas_val' formatted...")
+            logger.info(f"Loading as jsonl 'qas_val' formatted from {args.predict_file}...")
             samples = [json.loads(s) for s in tqdm(open(args.predict_file).readlines())]
             # dict_keys(['question', '_id', 'answer', 'sp', 'type', 'src'])
     
@@ -1103,13 +1117,14 @@ if __name__ == '__main__':
             sample['s2_hist'] = []  # stage 2 sents history
             sample['s2_pred_hist'] = [] # stage 2 history of pred answers, rank scores etc: list of [sample['s2_ans_pred'], sample['s2_ans_pred_score'], sample['s2_ans_insuff_score'], sample['s2_ans_conf_delta'], sample['s2_ev_score']]
     else: # samples is not None - resume
-        logger.info(f"Resuming job. Number already processed: {num_already_processed}. Input data loaded from: {resume_file}")
+        logger.info(f"Resuming job. Number already processed: {num_already_processed} of {len(samples)}. Input data loaded from: {resume_file}")
 
-    dense_searcher = DenseSearcher(args, logger)
-    stage1_searcher = Stage1Searcher(args, logger)
-    stage2_searcher = Stage2Searcher(args, logger)
 
     if len(samples) > num_already_processed:
+        dense_searcher = DenseSearcher(args, logger)
+        stage1_searcher = Stage1Searcher(args, logger)
+        stage2_searcher = Stage2Searcher(args, logger)
+        
         for i, sample in enumerate(samples):
             if i < num_already_processed-1:
                 continue
@@ -1127,8 +1142,10 @@ if __name__ == '__main__':
     
         logger.info(f"Saving full updated samples file to {os.path.join(args.output_dir, 'samples_with_context.jsonl')}")
         saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_with_context.jsonl'))
-    else:
+        tokenizer = dense_searcher.tokenizer
+    else:  #all samples processed
         logger.info(f"All samples already processed ({num_already_processed}). Skipping inference and moving directly to eval and output stages...")
+        tokenizer = AutoTokenizer.from_pretrained(args.model_name) 
 
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-24-2022-iterator-fp16False-topkparas4-topks1sents9-topks2sents5-maxhops2-s1_use_para_scoreTrue/samples_with_context.jsonl')
     #samples = utils.load_jsonl('/large_data/thar011/out/mdr/logs/TESTITER-06-28-2022-iterator-fp16False-topkparas25-s1topksents9-s1useparascoreTrue-s2topksents5-s2minsentscore0.1-stopmaxhops2-stopevthresh0.91-stopansconf18.0/samples_with_context.jsonl')
@@ -1164,7 +1181,7 @@ if __name__ == '__main__':
 
     if args.output_dataset is not None and args.output_dataset.strip() != '':
         logger.info("Building contexts and outputting tsv-formatted datasets...")
-        build_context(args, logger, samples, tokenizer=dense_searcher.tokenizer)
+        build_context(args, logger, samples, tokenizer=tokenizer)
         create_grouped_metrics(logger, samples, group_key='src', metric_keys = ['answer_em', 'answer_f1'])
     else:
         #create_grouped_metrics(logger, samples, group_key='ALL', metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_covered_em', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'sp_covered_em_act', 'sp_ract', 'sp_r4', 'sp_r20', 'sp_r20_rdist'])
