@@ -152,6 +152,8 @@ def eval_args():
     parser.add_argument("--stop_lowerev", action="store_true", help="Stop iterating if current hop s2ev_score < last hop s2ev_score.")
     parser.add_argument("--output_dataset", default='', type=str, help="Full path to output tsv-formatted files to. Typically /parent/.../unifiedqa/newdatasetname/train|dev|test.tsv ")
     parser.add_argument('--resume_dir', type=str, default=None, help="Path to log dir containing samples_with_context.jsonl to resume adding to.")
+    parser.add_argument('--ctx_topk_paras', type=int, default=-1, help="Number of paras to include in final context build. -1 means include all.")
+    parser.add_argument('--ctx_gold_sents_only', action="store_true", help="If set only sentences from s2 included in final context. Otherwise 1 sentence before/after each s2 sent is included.")
     
     
     

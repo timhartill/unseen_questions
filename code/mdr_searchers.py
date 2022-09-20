@@ -281,6 +281,10 @@ class DenseSearcher():
         eg for sample['s2'] = [{'title':'title_a', 'sentence':'Sent 1', 'score':1.0},{'title':'title_b', 'sentence':'Sent 2', 'score':1.0},{'title':'title_a', 'sentence':' ', 'score':1.0}, {'title':'title_a', 'sentence':'Sent 3', 'score':1.0}, {'title':'title_c', 'sentence':'Sent c1', 'score':1.0}]        
         returns tokenised version of '<s>Were Scott Derrickson and Ed Wood of the same nationality</s></s>title_a:  Sent 1. Sent 3. title_b:  Sent 2. title_c:  Sent c1.</s>'
         """
+        q = sample['question'].strip()
+        if sample['mc_options'] != '': # treat multichoice options as part of question
+            q += ' ' + sample['mc_options'].strip()
+        
         if self.args.query_use_sentences:
             q_sents = aggregate_sents(sample['s2'], title_sep = ':')  # aggregate sents for each title always prepending title
             if sample['init_context'] != '':
@@ -297,10 +301,10 @@ class DenseSearcher():
                     q_sents += ' ' + encode_query_paras(para['text'], para['title'], 
                                                         use_sentences=False, prepend_title=self.args.query_add_titles, 
                                                         title_sep=':')
-            if sample['init_context'] != '':
+            if sample['init_context'] != '': # treat initial given para like it was the 1st retrieved para
                 q_sents = sample['init_context'][:600] + ' ' + q_sents
         
-        m_input = encode_text(self.tokenizer, sample['question'], text_pair=q_sents, max_input_length=self.args.max_q_sp_len, 
+        m_input = encode_text(self.tokenizer, q, text_pair=q_sents, max_input_length=self.args.max_q_sp_len, 
                               truncation=True, padding=False, return_tensors="pt") 
         return m_input
     
@@ -357,12 +361,16 @@ class Stage1Searcher():
             model_inputs: dict with keys(['input_ids', 'token_type_ids', 'attention_mask', 'paragraph_mask', 'sent_offsets'])
             batch_extras: dict with keys(['wp_tokens', 'doc_tokens', 'tok_to_orig_index', 'insuff_offset'])
         """
-        q_toks = self.tokenizer.tokenize(sample['question'])[:self.args.max_q_len]
+        q = sample['question'].strip()
+        if sample['mc_options'] != '': # treat multichoice options as part of question
+            q += ' ' + sample['mc_options'].strip()
+        
+        q_toks = self.tokenizer.tokenize(q)[:self.args.max_q_len]
         para_offset = len(q_toks) + 1 #  cls
         q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
         max_toks_for_doc = self.args.max_c_len - para_offset - 1
         q_sents = aggregate_sents(sample['s2'], title_sep = ' |', para_sep='[unused2]')  # aggregate sents for each title
-        if sample['init_context'] != '':
+        if sample['init_context'] != '': # treat given initial context like it was 1st retrieved para
             q_sents = '[unused2] ' + sample['init_context'][:600].replace(':', ' |', 1) + ' ' + q_sents
         batch_extras = {'wp_tokens':[], 'doc_tokens':[], 'tok_to_orig_index':[], 'insuff_offset':[]}  # each key [len(sample['dense_retrieved'])] of data used for deriving answer span
         model_inputs = {'input_ids':[], 'token_type_ids':[], 'attention_mask':[], 'paragraph_mask':[], 'sent_offsets':[]}
@@ -504,7 +512,11 @@ class Stage2Searcher():
             model_inputs: dict with keys(['input_ids', 'token_type_ids', 'attention_mask', 'paragraph_mask', 'sent_offsets'])
             batch_extras: dict with keys(['wp_tokens', 'doc_tokens', 'tok_to_orig_index', 'insuff_offset'])
         """
-        q_toks = self.tokenizer.tokenize(sample['question'])[:self.args.max_q_len]
+        q = sample['question'].strip()
+        if sample['mc_options'] != '': # treat multichoice options as part of question
+            q += ' ' + sample['mc_options'].strip()
+
+        q_toks = self.tokenizer.tokenize(q)[:self.args.max_q_len]
         if sample['init_context'] != '':
             init_toks = self.tokenizer.tokenize(' ' + sample['init_context'][:600])
             q_toks += init_toks
@@ -938,11 +950,11 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
                         break
                 assert foundpara is not None
                 context_dict[p_idx] = {'para': foundpara, 's_idxs':[]}
-            if s_idx > 0 and s_idx-1 not in context_dict[p_idx]['s_idxs']:   # Add sentence before
+            if s_idx > 0 and s_idx-1 not in context_dict[p_idx]['s_idxs'] and not args.ctx_gold_sents_only:   # Add sentence before
                 context_dict[p_idx]['s_idxs'].append(s_idx-1)
             if s_idx not in context_dict[sent['idx']]['s_idxs']:
                 context_dict[p_idx]['s_idxs'].append(s_idx)
-            if s_idx+1 < len(context_dict[p_idx]['para']['sentence_spans'])-1 and s_idx+1 not in context_dict[sent['idx']]['s_idxs']:  # Add sentence after
+            if s_idx+1 < len(context_dict[p_idx]['para']['sentence_spans'])-1 and s_idx+1 not in context_dict[sent['idx']]['s_idxs'] and not args.ctx_gold_sents_only:  # Add sentence after
                 context_dict[p_idx]['s_idxs'].append(s_idx+1)
         context_list = []
         for p_idx in context_dict:
@@ -961,6 +973,8 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
         context_str_fitted = ''
         pcount = 0
         for context in context_list:
+            if args.ctx_topk_paras != -1 and pcount >= args.ctx_topk_paras:
+                break
             para_summary = context['para_summary']
             psum_len = len(tokenizer.tokenize(para_summary))+2
             if tok_count + psum_len < max_toks:
@@ -1048,7 +1062,7 @@ if __name__ == '__main__':
         logger.info(f"Loading queries from {args.predict_file} ...")
         if args.predict_file.endswith('.tsv'):
             logger.info('Loading as tsv-formatted...')
-            samples_tsv = utils.load_uqa_supervised(args.predict_file, ans_lower=False, verbose=True, return_parsed=True) 
+            samples_tsv = utils.load_uqa_supervised(args.predict_file, ans_lower=False, verbose=True, return_parsed=True)
             # [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
             samples = []
             for i, sample in enumerate(samples_tsv):
@@ -1059,7 +1073,7 @@ if __name__ == '__main__':
                 else:
                     mc_options = sample['mc_options'].strip()
                     if i == 0:
-                        logger.info('Multichoice options found. Not used in retrieval but will be added to final output..')
+                        logger.info('Multichoice options found. Will be added to question in retrieval and will be added to final output..')
                 if sample.get('context') is None or sample['context'].strip() == '':
                     init_context = ''
                     if i == 0:
@@ -1138,8 +1152,8 @@ if __name__ == '__main__':
                 logger.info(f"Processed {i+num_already_processed} of {len(samples)} samples. Saving partially completed file..")
                 saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_with_context.jsonl'))
                 logger.info(f"Saved partially completed samples file to {os.path.join(args.output_dir, 'samples_with_context.jsonl')}")
+
         logger.info("Finished processing all samples.")
-    
         logger.info(f"Saving full updated samples file to {os.path.join(args.output_dir, 'samples_with_context.jsonl')}")
         saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_with_context.jsonl'))
         tokenizer = dense_searcher.tokenizer
