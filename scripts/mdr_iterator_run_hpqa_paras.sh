@@ -92,6 +92,9 @@
 # $UQA_DIR/hpqa_od_ans/dev.tsv            $UQA_DIR/hpqa_od_ans/train.tsv
 # $UQA_DIR/musique_full_qa_od_ans/dev.tsv            $UQA_DIR/musique_full_qa_od_ans/train.tsv
 # $UQA_DIR/qasc/dev.tsv            $UQA_DIR/qasc/train.tsv
+# $UQA_DIR/hover_od_ans/dev.tsv            $UQA_DIR/hover_od_ans/train.tsv
+
+
 
 # HPQA Abstracts encoded against best retriever:
 # $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250-09-02-2022/index.npy
@@ -109,10 +112,10 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_qascdev_test57_b60_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_hoverdev_test58_b60_h4_hpqahovnqmubs250_mom \
     --output_dir $LDATA/out/mdr/logs \
-    --output_dataset $UQA_DIR/qasc_fullwiki_bs60/dev.tsv \
-    --predict_file $UQA_DIR/qasc/dev.tsv \
+    --output_dataset $UQA_DIR/hover_fullwiki_bs60/dev.tsv \
+    --predict_file $UQA_DIR/hover_od_ans/dev.tsv \
     --index_path $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/index.npy \
     --corpus_dict $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/id2doc.json \
     --model_name roberta-base \
