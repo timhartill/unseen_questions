@@ -112,10 +112,10 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_qascdev_test60_b60_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_qasctrain_test61_b60_h4_hpqahovnqmubs250_mom \
     --output_dir $LDATA/out/mdr/logs \
-    --output_dataset $UQA_DIR/qasc_fullwiki_bs60/dev.tsv \
-    --predict_file $UQA_DIR/qasc/dev.tsv \
+    --output_dataset $UQA_DIR/qasc_fullwiki_bs60/train.tsv \
+    --predict_file $UQA_DIR/qasc/train.tsv \
     --index_path $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/index.npy \
     --corpus_dict $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/id2doc.json \
     --model_name roberta-base \

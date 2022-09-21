@@ -1034,8 +1034,15 @@ if __name__ == '__main__':
                                   logging.StreamHandler()])
     logger = logging.getLogger(__name__)
     logger.info(args)    
+    logger.info(f"Output log eval_log.txt will be written to: {args.output_dir}")
     n_gpu = torch.cuda.device_count()
-    logger.info(f"eval_log.txt and samples_with_context.jsonl will be output to: {args.output_dir}")
+    if samples is None:
+        logger.info(f"eval_log.txt and samples_with_context.jsonl will be output to: {args.output_dir}")
+    elif num_already_processed < len(samples):
+        logger.info("Existing partially processed samples_with_context.jsonl found and loaded. Processing will continue and updates written to this file before outputting tsv-formatted datasets.")
+    else:
+        logger.info("Existing fully processed samples_with_context.jsonl found and loaded. Outputting tsv formatted datasets will continue.")
+        
     logger.info(f"Visible gpus: {n_gpu}")
     
     if args.output_dataset is None or args.output_dataset.strip() == '':
