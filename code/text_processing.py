@@ -721,6 +721,20 @@ def ner(instr, add_nphrases = True, add_dot=True, verbose=False, return_types=Fa
     return ner_list
 
 
+def pos(instr, nlpmodel):
+    """ Extract and return POS tags.
+    Returns: toks = ['word1 without whitespace', 'word2', ...]
+             tags = ['NOUN', 'VERB', ...]  # |tags| = |toks|
+    """
+    toks = []
+    tags = []
+    doc = nlpmodel(instr)
+    for tok in doc:
+        toks.append(tok.text)
+        tags.append(tok.pos_)
+    return tags, toks
+
+
 def filter_stopwords(text):
     """ t, i = filter_stopwords(["The", "rain", "in", "Spain", "."]) -> t=['The', 'rain', 'Spain', '.'], i=[0, 1, 3, 4]
     """
