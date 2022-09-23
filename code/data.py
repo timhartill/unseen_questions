@@ -93,17 +93,20 @@ def map_ners(toks, ners, tokenizer, verbose = False):
     final_ner = []
     for n in unique_ner:
         ner_txt_tok = tokenizer.tokenize(n)
-        ner_txt_tok2 = tokenizer.tokenize(' ' + n)
-        found_list = find_sub_list(ner_txt_tok, ner_txt_tok2, toks)
-        if verbose: 
-            print(f"Orig: {n}") 
-            for tok_start, tok_end in found_list:
-                print(f"tokens: {toks[tok_start:tok_end]}")
-            if len(found_list) == 0:
-                print(f"NOT FOUND: {n} 1:{ner_txt_tok} 2:{ner_txt_tok2}")
-        if len(found_list) > 0:
-            tok_map.append(found_list)
-            final_ner.append(n)
+        if ner_txt_tok != []:
+            ner_txt_tok2 = tokenizer.tokenize(' ' + n)
+            found_list = find_sub_list(ner_txt_tok, ner_txt_tok2, toks)
+            if verbose: 
+                print(f"Orig: {n}") 
+                for tok_start, tok_end in found_list:
+                    print(f"tokens: {toks[tok_start:tok_end]}")
+                if len(found_list) == 0:
+                    print(f"NOT FOUND: {n} 1:{ner_txt_tok} 2:{ner_txt_tok2}")
+            if len(found_list) > 0:
+                tok_map.append(found_list)
+                final_ner.append(n)
+        else:  # very occasionally t5 tokenizer returns []
+            print(f"map_ners: Tokenizer returned [] on {n}. Skipping.")
     return final_ner, tok_map
 
 

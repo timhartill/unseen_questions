@@ -1,5 +1,7 @@
 # training command t5 large on stage 1 abstractable knowledge tasks
 # 1e-4 lr from Yoran/PreasM for t5 large (uqa used 1e-3)
+# under fp16 train bs 32 just ran in 80GB but reducing to 30 just to be safe
+
 
 #        --train_batch_size 32 \
 #        --fp16 \
@@ -16,8 +18,8 @@ python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s9_v5_numlit_wikis
         --is_unifiedqa \
         --train_file $UDATA/data/unifiedqa/train.tsv \
         --predict_file $UDATA/data/unifiedqa/dev.tsv \
-        --train_batch_size 32 \
-        --predict_batch_size 32 \
+        --train_batch_size 30 \
+        --predict_batch_size 30 \
         --do_lowercase \
         --eval_period 10000 --verbose \
         --gradient_accumulation_steps 4 \
