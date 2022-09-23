@@ -235,6 +235,14 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                 return key[7:]
             return key
         return {_convert(key):value for key, value in state_dict.items()}
+    
+    use_dtype=torch.float32
+    if args.fp16:
+        if 't5' in args.model:
+            use_dtype = torch.bfloat16
+        else:
+            use_dtype = torch.float16
+    
 
     logger.info("Starting training!")
     for epoch in range(int(args.num_train_epochs)):
@@ -250,7 +258,7 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
             batch = move_to_cuda(batch)
             if args.model != "facebook/bart-large":   # Standard pytorch loss used in hf models ignores -100 values in labels
                 batch['decoder_input_ids'][batch['decoder_input_ids']==train_data.tokenizer.pad_token_id] = -100
-            with torch.cuda.amp.autocast(enabled=args.fp16):
+            with torch.cuda.amp.autocast(enabled=args.fp16, dtype=use_dtype):
                 outputs = model(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'],
                                 labels=batch['decoder_input_ids'], decoder_attention_mask=batch['decoder_attention_mask'])
                 loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
