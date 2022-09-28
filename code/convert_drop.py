@@ -3,7 +3,7 @@
 """
 Created on Sat Sep 17 18:37:07 2022
 
-Original DROP files
+Extract answer types from original DROP files
 
 @author: tim hartill
 

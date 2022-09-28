@@ -18,8 +18,9 @@ import json
 import utils
 
 
-infiles = ['/large_data/thar011/out/mdr/logs/UQA_s9_v2_numlit_wikissvise_idt_errsamp_fixdecode/log-train-history.jsonl',]
-desclist = ['model_s9_v2', ]
+infiles = ['/large_data/thar011/out/mdr/logs/UQA_s9_v2_numlit_wikissvise_idt_errsamp_fixdecode/log-train-history.jsonl',
+           '/data/thar011/out/unifiedqa_averages/s11/t5large-partial-log-train-history.jsonl']
+desclist = ['s9_v2_bart', 's9_v5_t5lge']
 
 step_key = 'curr_global_step'
 #devset_keys = ['em_narrativeqa', 'em_ai2_science_middle', 'em_ai2_science_elementary',
@@ -80,7 +81,7 @@ def plot_metrics(steps, labels, values, desc, selected_labels, bbox_to_anchor=(1
 
 
 def comp_metrics(stepslist, labelslist, valueslist, desclist,
-                 selected_labels, bbox_to_anchor=(1.35, 1)):
+                 selected_labels, bbox_to_anchor=(1.35, 1), loc="best"):
     if type(selected_labels) != list:
         selected_labels = [selected_labels]    
     for j, labels in enumerate(labelslist):
@@ -91,12 +92,12 @@ def comp_metrics(stepslist, labelslist, valueslist, desclist,
     plt.xlabel("Step")
     plt.ylabel("Acc.")
     plt.grid()
-    plt.legend(bbox_to_anchor=bbox_to_anchor, loc="upper right")
+    plt.legend(bbox_to_anchor=bbox_to_anchor, loc=loc)
     plt.show()
                 
 
-def plot_all(infiles):
-    """ turned into fn to get this out of the way..
+def plot_all(infiles, desclist, selected_labels=['ALL'], bbox_to_anchor=(2,1), loc='best'):
+    """ Plot metrics for individual models then combined..
     """
     all_jsons = [] 
     all_steps = []
@@ -110,27 +111,27 @@ def plot_all(infiles):
         all_steps.append(steps)
         all_labels.append(labels)
         all_values.append(values)
-        plot_metrics(steps, labels, values, desclist[i], selected_labels=['SQA', 'SQA_Facts'], bbox_to_anchor=(1.65, 1.0))
-    comp_metrics(all_steps, all_labels, all_values, desclist, selected_labels=['SQA', 'SQA_Facts'], bbox_to_anchor=(1.65, 1.0))
-    comp_metrics(all_steps, all_labels, all_values, desclist, selected_labels=['SQA_Facts'], bbox_to_anchor=(1.65, 1.0))
-    comp_metrics(all_steps, all_labels, all_values, desclist, selected_labels=['SQA'], bbox_to_anchor=(1.65, 1.0))
-    
-    comp_metrics(all_steps, all_labels, all_values, desclist, selected_labels=['ARC_Hard'], bbox_to_anchor=(1.65, 1.0))
-    comp_metrics(all_steps, all_labels, all_values, desclist, selected_labels=['SQUAD1_1'], bbox_to_anchor=(1.65, 1.0))
-    comp_metrics(all_steps, all_labels, all_values, desclist, selected_labels=['OBQA'], bbox_to_anchor=(1.65, 1.0))
+        plot_metrics(steps, labels, values, desclist[i], selected_labels=selected_labels, bbox_to_anchor=bbox_to_anchor, loc=loc)
+    comp_metrics(all_steps, all_labels, all_values, desclist, selected_labels=selected_labels, bbox_to_anchor=bbox_to_anchor, loc=loc)
+    return
 
 
 
+selected_labels=[   'em_enwiki_20200801_selfsvised', 
+                    'em_synthetic_num_signed_arith', 
+                    'em_poetsql_select_count', 
+                    'em_tt_composition_2_hop',
+                    'em_tt_numeric_superlatives']
+
+plot_all(infiles, desclist, selected_labels=selected_labels, bbox_to_anchor=(2,1), loc='best')
+
+# plot selected metrics for single model:
 all_json_list1 = utils.load_jsonl(infiles[0])
 steps1, labels1, values1 = grab_metrics(all_json_list1, step_key, devset_keys, disp_labels)
 plot_metrics(steps1, labels1, values1, desclist[0], selected_labels=['ALL'], bbox_to_anchor=(2, 1), loc="best")
 
 plot_metrics(steps1, labels1, values1, desclist[0], 
-             selected_labels=[  'em_enwiki_20200801_selfsvised', 
-                                'em_synthetic_num_signed_arith', 
-                                'em_poetsql_select_count', 
-                                'em_tt_composition_2_hop',
-                                'em_tt_numeric_superlatives'], 
+             selected_labels=selected_labels, 
              bbox_to_anchor=(2, 1), loc="best")
 
 
