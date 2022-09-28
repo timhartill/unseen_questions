@@ -70,18 +70,27 @@ else:
 
 #Add to this list to create predictions/calc metrics for corresponding dev.tsv:
 dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
-             'boolq_np', 'contrast_sets_boolq', 'physical_iqa', 
+            'boolq_np', 'contrast_sets_boolq', 'physical_iqa', 
             'social_iqa', 'squad1_1_titlereformat', 'squad2_titlereformat', 'boolq',  
-            'qasc', 'qasc_with_ir', 'winogrande_xl', 'tatqa',
-            'csqa2', 'csqa2_fullwiki_bs150_noimplrel', 'csqa2_impl_rels', 'csqa2_fullwiki_bs150_implrel', 'csqa2_fullwiki_bs150_implrel_origq',
+            'winogrande_xl', 'tatqa',
+            'csqa2', 'csqa2_fullwiki_bs150_noimplrel', 'csqa2_fullwiki_bs150_noimplrel_maxp4', 
+            'csqa2_impl_rels', 'csqa2_fullwiki_bs150_implrel', 'csqa2_fullwiki_bs150_implrel_origq',
             'creak_hard', 'creak_initial_context', 'creak_fullwiki_bs150_frominitctx', 
-            'creak_od_ans', 'creak_fullwiki_bs150_noimplrel',
+            'creak_od_ans', 'creak_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel_maxp4', 
             'creak_od_ans_impl_rels', 'creak_fullwiki_bs150_implrel', 'creak_fullwiki_bs150_implrel_origq', 'creak_fullwiki_bs150_implrel_bestsentsonly_origq', 'creak_fullwiki_bs150_implrel_bestsents_maxp4_origq', 'creak_fullwiki_bs150_implrel_maxp4_origq',
             'creak_contrast_set_od_ans', 'creak_contrast_set_hard', 'creak_contrast_set_initial_context',
             'drop', 'contrast_sets_drop',
             'commonsenseqa',
             'musique_mu_dev_qa', 'musique_mu_dev_qa_paras',
-            'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans',]
+            'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans',
+            'fever_hard',
+            'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
+            'qasc', 'qasc_with_ir', 'qasc_fullwiki_bs60', 'qasc_fullwiki_bs60_maxp4',
+            'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
+            'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
+            'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
+            ]
+
 
 #Add to this list to create predictions/calc metrics for corresponding test.tsv:
 test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
@@ -119,6 +128,7 @@ dataset_attribs = {
     'arc_hard_dev': {'type':'MC', 'prefer':''},
     'arc_hard_with_ir': {'type':'MC', 'prefer':''},
     'arc_hard_with_ir_dev': {'type':'MC', 'prefer':''},
+    'worldtree_mc_ans': {'type':'MC', 'prefer':''},        
     'boolq': {'type':'YN', 'prefer':''},
     'boolq_np': {'type':'YN', 'prefer':''},
     'boolq_np_dedup': {'type':'YN', 'prefer':''},
@@ -150,10 +160,13 @@ dataset_attribs = {
     'openbookqa_with_ir': {'type':'MC', 'prefer':''},
     'openbookqa_with_ir_dev': {'type':'MC', 'prefer':''},
     'physical_iqa': {'type':'MC', 'prefer':''},
+    'qasc_mc_ans': {'type':'MC', 'prefer':''},
     'qasc': {'type':'MC', 'prefer':''},
     'qasc_test': {'type':'MC', 'prefer':''},
     'qasc_with_ir': {'type':'MC', 'prefer':''},
     'qasc_with_ir_test': {'type':'MC', 'prefer':''},
+    'qasc_fullwiki_bs60': {'type':'MC', 'prefer':''}, 
+    'qasc_fullwiki_bs60_maxp4': {'type':'MC', 'prefer':''},
     'quoref': {'type':'EX', 'prefer':''},
     'quoref_dedup': {'type':'EX', 'prefer':''},
     'race_string': {'type':'MC', 'prefer':''},
@@ -272,14 +285,18 @@ dataset_attribs = {
     'musique_qa_paras_plus_qa_paras_decomp_ans': {'type':'EX', 'prefer':''},
     'musique_qa_paras_plus_qa_paras_decomp_ans_full': {'type':'EX', 'prefer':''},
     'musique_mu_dev_qa_decomp_context': {'type':'EX', 'prefer':''},
+    'musique_mu_dev_qa_expl_ans': {'type':'EX', 'prefer':''},
+    'musique_hard': {'type':'EX', 'prefer':''}, 
+    'musique_qa_fullwiki_bs60': {'type':'EX', 'prefer':''}, 
+    'musique_qa_fullwiki_bs60_maxp4': {'type':'EX', 'prefer':''},
     'strategy_qa_od_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_expl_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_bigbench_od_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_bigbench_expl_ans': {'type':'YN', 'prefer':''},
-    'qasc_mc_ans': {'type':'MC', 'prefer':''},
-    'worldtree_mc_ans': {'type':'MC', 'prefer':''},
-    'musique_mu_dev_qa_expl_ans': {'type':'EX', 'prefer':''},
+    'nq_hard': {'type':'EX', 'prefer':'EM'},
     'nq_open_od_ans': {'type':'EX', 'prefer':'EM'}, 
+    'nq_open_fullwiki_bs60': {'type':'EX', 'prefer':'EM'}, 
+    'nq_open_fullwiki_bs60_maxp4': {'type':'EX', 'prefer':'EM'},
     'tatqa': {'type':'EX', 'prefer':''},
     'arc_da_expl_ans': {'type':'EX', 'prefer':''}, 
     'arc_da_od_ans': {'type':'EX', 'prefer':''},
@@ -289,6 +306,7 @@ dataset_attribs = {
     'iirc_initial_context': {'type':'EX', 'prefer':''},
     'csqa2': {'type':'YN', 'prefer':''},
     'csqa2_fullwiki_bs150_noimplrel': {'type':'YN', 'prefer':''},
+    'csqa2_fullwiki_bs150_noimplrel_maxp4': {'type':'YN', 'prefer':''},
     'csqa2_impl_rels': {'type':'YN', 'prefer':''},
     'csqa2_fullwiki_bs150_implrel': {'type':'YN', 'prefer':''},
     'csqa2_fullwiki_bs150_implrel_origq': {'type': 'YN', 'prefer':''},
@@ -297,6 +315,7 @@ dataset_attribs = {
     'creak_fullwiki_bs150_frominitctx': {'type':'YN', 'prefer':''},
     'creak_od_ans': {'type':'YN', 'prefer':''},
     'creak_fullwiki_bs150_noimplrel': {'type':'YN', 'prefer':''},
+    'creak_fullwiki_bs150_noimplrel_maxp4': {'type':'YN', 'prefer':''},
     'creak_od_ans_impl_rels': {'type':'YN', 'prefer':''},
     'creak_fullwiki_bs150_implrel': {'type':'YN', 'prefer':''},
     'creak_fullwiki_bs150_implrel_origq': {'type':'YN', 'prefer':''},
@@ -306,6 +325,13 @@ dataset_attribs = {
     'creak_contrast_set_od_ans': {'type':'YN', 'prefer':''},
     'creak_contrast_set_hard': {'type':'YN', 'prefer':''},
     'creak_contrast_set_initial_context': {'type':'YN', 'prefer':''},
+    'fever_hard': {'type':'YN', 'prefer':''},
+    'hover_hard': {'type':'YN', 'prefer':''}, 
+    'hover_fullwiki_bs60': {'type':'YN', 'prefer':''}, 
+    'hover_fullwiki_bs60_maxp4': {'type':'YN', 'prefer':''},
+    'hpqa_hard': {'type':'EX', 'prefer':''}, 
+    'hpqa_fullwiki_bs60': {'type':'EX', 'prefer':''}, 
+    'hpqa_fullwiki_bs60_maxp4': {'type':'EX', 'prefer':''},
     }
 
 
@@ -375,6 +401,13 @@ q_mc_paras_train = ["mctest_corrected_the_separator", "race_string", "openbookqa
                     "arc_easy_with_ir", "arc_hard_with_ir", "qasc_with_ir", "social_iqa", 
                     "quail", "reclor", ]
 
+#q[+mc]+our retrieved paras->a
+q_ret_paras_train = ['csqa2_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel', 'hover_fullwiki_bs60', 
+                     'qasc_fullwiki_bs60', 'hpqa_fullwiki_bs60', 'musique_qa_fullwiki_bs60', 'nq_open_fullwiki_bs60', ]
+
+#q[+mc]+our retrieved paras with max 4 paras->a
+q_ret_paras_maxp4_train = ['csqa2_fullwiki_bs150_noimplrel_maxp4', 'creak_fullwiki_bs150_noimplrel_maxp4', 'hover_fullwiki_bs60_maxp4', 
+                           'qasc_fullwiki_bs60_maxp4', 'hpqa_fullwiki_bs60_maxp4', 'musique_qa_fullwiki_bs60_maxp4', 'nq_open_fullwiki_bs60_maxp4', ]
 
 
 ########################################################
@@ -464,19 +497,27 @@ unifiedqa_seen_1 = [
     'arc_easy_with_ir',
     'arc_hard',
     'arc_hard_with_ir',
-    'race_string',
     'ai2_science_elementary',
     'ai2_science_middle',
+    'qasc', 'qasc_with_ir', 'qasc_fullwiki_bs60', 'qasc_fullwiki_bs60_maxp4',
+    'race_string',
     'tatqa', 'newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
     'boolq_np', 'contrast_sets_boolq', 'physical_iqa', 
     'social_iqa', 'squad1_1_titlereformat', 'squad2_titlereformat', 'boolq', 
-    'qasc', 'qasc_with_ir', 'winogrande_xl',
-    'csqa2', 'csqa2_fullwiki_bs150_noimplrel', 'csqa2_impl_rels', 'csqa2_fullwiki_bs150_implrel', 'csqa2_fullwiki_bs150_implrel_origq',
+    'winogrande_xl',
+    'csqa2', 'csqa2_fullwiki_bs150_noimplrel', 'csqa2_fullwiki_bs150_noimplrel_maxp4', 'csqa2_impl_rels', 'csqa2_fullwiki_bs150_implrel', 'csqa2_fullwiki_bs150_implrel_origq',
     'creak_hard', 'creak_initial_context', 'creak_fullwiki_bs150_frominitctx', 
-    'creak_od_ans', 'creak_fullwiki_bs150_noimplrel',
+    'creak_od_ans', 'creak_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel_maxp4', 
     'creak_od_ans_impl_rels', 'creak_fullwiki_bs150_implrel', 'creak_fullwiki_bs150_implrel_origq', 'creak_fullwiki_bs150_implrel_bestsentsonly_origq', 'creak_fullwiki_bs150_implrel_bestsents_maxp4_origq', 'creak_fullwiki_bs150_implrel_maxp4_origq',
     'creak_contrast_set_od_ans', 'creak_contrast_set_hard', 'creak_contrast_set_initial_context',
+    'fever_hard',
+    'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
+    'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
+    'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
+    'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
     ]
+
+
 
 # The 57 mmlu datasets. 
 mmlu_unseen_1 = [
