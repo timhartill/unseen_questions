@@ -146,7 +146,7 @@ def consolidate_contexts(title_main, question):
     random.shuffle(titles)
     for title in titles:
         finalstr += ' ' + title + ': ' + golds[title]
-    if question['final_answer'] == '<No Answer>':
+    if question['final_answer'] == '<No Answer>':   # Only add negs into final gold context if label = <No Answer>
         num_rands = 1 if random.random() < 0.5 else 2
         for i, title in enumerate(negs):
             if i >= num_rands:
@@ -223,7 +223,7 @@ def build_golds(title_main, text_main, question):
         titledict[title] = {}
         titledict[title]['neg_paras'] = [para]
     question['gold_contexts'] = titledict
-    consolidate_contexts(title_main, question)    
+    consolidate_contexts(title_main, question)    # Only add negs into final gold context if label = <No Answer>
     return
     
 

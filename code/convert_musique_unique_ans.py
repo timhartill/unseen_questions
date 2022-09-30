@@ -204,6 +204,7 @@ def process_musique(mu_data, make_all_dev=True):
             mu_sample['split'] = 'unassigned'
         question = mu_sample['question'].strip()
         answer = mu_sample['answer'].strip()
+        mu_sample['all_answers'] = [mu_sample['answer'].strip()] + mu_sample['answer_aliases']  # 2021 datasets saved with single answers only
         paras = retrieve_paras(mu_sample)
         mu_sample['context_paras'] = white_space_fix(' '.join(paras))
         decomp_ans_str = ''
@@ -543,6 +544,22 @@ saveas_jsonl(train_list, outfile)
 outfile = os.path.join(MU_DIR_IN, 'musique_ans_v1.0_dev_retriever_new_with_hl_negs_v0.jsonl')
 saveas_jsonl(dev_list, outfile)
 
+
+########
+# New musique mu dev processing which outputs titles with paras and multi-answers
+########
+
+train_list, dev_list = get_retriever_datasets(mu_dev)  #dev_list = 2417  train_list=[]
+outfile = os.path.join(MU_DIR_IN, 'musique_mu_dev_ans_v1.0_with_negs_v0.jsonl')  
+saveas_jsonl(dev_list, outfile)
+
+for d in dev_list:
+    goldstr = ''
+    for para in d['pos_paras']:
+        goldstr += ' ' + para['title'].strip() + ': ' + para['text'].strip()
+        if goldstr[-1] not in ['.','?','!', ':', ';']:
+            goldstr += '.'
+    d['gold_context'] = goldstr.strip()
 
 
 

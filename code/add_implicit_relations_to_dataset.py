@@ -48,6 +48,7 @@ def main():
     
     indir = os.path.join(UQA_DIR, args.predict_dataset)
     files = utils.list_files_pattern(indir, '*.tsv')
+    files = [f for f in files if f in ['dev.tsv', 'train.tsv', 'test.tsv']]  # skip any tsv files not in standard set
     print(f"Input from {indir} : {files}")
     
     outdir = os.path.join(UQA_DIR, args.output_dataset)
