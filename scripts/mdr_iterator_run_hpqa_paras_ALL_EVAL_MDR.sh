@@ -10,10 +10,10 @@
 
 
 # encoded corpus: /full_wiki_mdr_orig_ckpt_8gpu_bs150 mdr original ckpt
-    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
-    --model_name roberta-base \
-    --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
+#    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
+#    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+#    --model_name roberta-base \
+#    --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
 
 
 
@@ -25,7 +25,7 @@ cd ../code
 
 echo "BUILD CONTEXT FOR SQA OD..."
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_us_sqabb_test64_b150_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_us_sqabb_test72_b150_h4_mdr_orig \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/strategy_qa_bigbench_fullwiki_bs150_noimplrel_mdr/dev.tsv \
     --predict_file $UQA_DIR/strategy_qa_bigbench_od_ans/dev.tsv \
@@ -64,7 +64,7 @@ python mdr_searchers.py \
 
 echo "BUILD CONTEXT FOR SQA IMPL RELS..."
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_us_sqabbir_test65_b150_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_us_sqabbir_test73_b150_h4_mdr_orig \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/strategy_qa_bigbench_fullwiki_bs150_implrel_mdr/dev.tsv \
     --predict_file $UQA_DIR/strategy_qa_bigbench_od_ans_impl_rels/dev.tsv \
@@ -104,7 +104,7 @@ python mdr_searchers.py \
 
 echo "BUILD CONTEXT FOR CSQA..."
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_us_csqa_test66_b150_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_us_csqa_test74_b150_h4_mdr_orig \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/commonsenseqa_fullwiki_bs150_noimplrel_mdr/dev.tsv \
     --predict_file $UQA_DIR/commonsenseqa/dev.tsv \
@@ -143,7 +143,7 @@ python mdr_searchers.py \
 
 echo "BUILD CONTEXT FOR CSQA IMPL RELS..."
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_us_csqair_test67_b150_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_us_csqair_test75_b150_h4_mdr_orig \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/commonsenseqa_fullwiki_bs150_implrel_mdr/dev.tsv \
     --predict_file $UQA_DIR/commonsenseqa_impl_rels/dev.tsv \
@@ -182,7 +182,7 @@ python mdr_searchers.py \
 
 echo "BUILD CONTEXT FOR IIRC OD TEST..."
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_us_iircodtst_test68_b150_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_us_iircodtst_test76_b150_h4__mdr_orig \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/iirc_od_ans_fullwiki_bs150_mdr/test.tsv \
     --predict_file $UQA_DIR/iirc_od_ans/test.tsv \
@@ -221,7 +221,7 @@ python mdr_searchers.py \
 
 echo "BUILD CONTEXT FOR IIRC INITIAL CONTEXT TEST..."
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_us_iircictst_test69_b150_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_us_iircictst_test77_b150_h4_mdr_orig \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/iirc_initial_context_fullwiki_bs150_mdr/test.tsv \
     --predict_file $UQA_DIR/iirc_initial_context/test.tsv \
@@ -260,7 +260,7 @@ python mdr_searchers.py \
 
 echo "BUILD CONTEXT FOR ARC-DA TEST..."
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_us_arcdatst_test70_b150_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_us_arcdatst_test78_b150_h4_mdr_orig \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/arc_da_od_ans_fullwiki_bs150_mdr/test.tsv \
     --predict_file $UQA_DIR/arc_da_od_ans/test.tsv \
@@ -299,7 +299,7 @@ python mdr_searchers.py \
 
 echo "BUILD CONTEXT FOR MUSQUE MU DEV..."
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_us_mudev_test71_b150_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_us_mudev_test79_b150_h4_mdr_orig \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/musique_mu_dev_odv2_fullwiki_bs150_mdr/dev.tsv \
     --predict_file $UQA_DIR/musique_mu_dev_odv2/dev.tsv \
