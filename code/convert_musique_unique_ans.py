@@ -560,6 +560,16 @@ for d in dev_list:
         if goldstr[-1] not in ['.','?','!', ':', ';']:
             goldstr += '.'
     d['gold_context'] = goldstr.strip()
+    if len(d['answers']) == 1:
+        d['answers'] = d['answers'][0]
+
+out_list = [utils.create_uqa_example(d['question'], None, d['answers']) for d in dev_list]
+out_dir = os.path.join(UQA_DIR, "musique_mu_dev_odv2")
+utils.save_uqa(out_list, out_dir, 'dev.tsv')
+
+out_list = [utils.create_uqa_example(d['question'], d['gold_context'], d['answers']) for d in dev_list]
+out_dir = os.path.join(UQA_DIR, "musique_mu_dev_parasv2")
+utils.save_uqa(out_list, out_dir, 'dev.tsv')
 
 
 
