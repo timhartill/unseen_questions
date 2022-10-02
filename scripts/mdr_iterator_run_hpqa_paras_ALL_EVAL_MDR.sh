@@ -9,11 +9,11 @@
 #    --init_checkpoint $LDATA/out/mdr/logs/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250_hgx2-09-02-2022-mom-seed16-bsz250-fp16True-lr1e-05-decay0.0-warm0.1-valbsz100-m0.999-k76800-t1.0-ga1-varTrue-ce
 
 
-# encoded corpus: /hpqa_mdr_orig_ckpt_8gpu_bs150 mdr original ckpt
-#    --index_path $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
-#    --corpus_dict $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
-#    --model_name roberta-base \
-#    --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
+# encoded corpus: /full_wiki_mdr_orig_ckpt_8gpu_bs150 mdr original ckpt
+    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+    --model_name roberta-base \
+    --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
 
 
 
@@ -29,8 +29,8 @@ python mdr_searchers.py \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/strategy_qa_bigbench_fullwiki_bs150_noimplrel_mdr/dev.tsv \
     --predict_file $UQA_DIR/strategy_qa_bigbench_od_ans/dev.tsv \
-    --index_path $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
     --model_name roberta-base \
     --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
     --model_name_stage google/electra-large-discriminator \
@@ -68,8 +68,8 @@ python mdr_searchers.py \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/strategy_qa_bigbench_fullwiki_bs150_implrel_mdr/dev.tsv \
     --predict_file $UQA_DIR/strategy_qa_bigbench_od_ans_impl_rels/dev.tsv \
-    --index_path $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
     --model_name roberta-base \
     --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
     --model_name_stage google/electra-large-discriminator \
@@ -108,8 +108,8 @@ python mdr_searchers.py \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/commonsenseqa_fullwiki_bs150_noimplrel_mdr/dev.tsv \
     --predict_file $UQA_DIR/commonsenseqa/dev.tsv \
-    --index_path $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
     --model_name roberta-base \
     --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
     --model_name_stage google/electra-large-discriminator \
@@ -147,8 +147,8 @@ python mdr_searchers.py \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/commonsenseqa_fullwiki_bs150_implrel_mdr/dev.tsv \
     --predict_file $UQA_DIR/commonsenseqa_impl_rels/dev.tsv \
-    --index_path $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
     --model_name roberta-base \
     --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
     --model_name_stage google/electra-large-discriminator \
@@ -186,8 +186,8 @@ python mdr_searchers.py \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/iirc_od_ans_fullwiki_bs150_mdr/test.tsv \
     --predict_file $UQA_DIR/iirc_od_ans/test.tsv \
-    --index_path $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
     --model_name roberta-base \
     --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
     --model_name_stage google/electra-large-discriminator \
@@ -225,8 +225,8 @@ python mdr_searchers.py \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/iirc_initial_context_fullwiki_bs150_mdr/test.tsv \
     --predict_file $UQA_DIR/iirc_initial_context/test.tsv \
-    --index_path $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
     --model_name roberta-base \
     --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
     --model_name_stage google/electra-large-discriminator \
@@ -264,8 +264,8 @@ python mdr_searchers.py \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/arc_da_od_ans_fullwiki_bs150_mdr/test.tsv \
     --predict_file $UQA_DIR/arc_da_od_ans/test.tsv \
-    --index_path $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
     --model_name roberta-base \
     --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
     --model_name_stage google/electra-large-discriminator \
@@ -303,8 +303,8 @@ python mdr_searchers.py \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/musique_mu_dev_odv2_fullwiki_bs150_mdr/dev.tsv \
     --predict_file $UQA_DIR/musique_mu_dev_odv2/dev.tsv \
-    --index_path $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/wiki_index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/hpqa_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
+    --index_path $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/full_wiki_mdr_orig_ckpt_8gpu_bs150/id2doc.json \
     --model_name roberta-base \
     --init_checkpoint $LDATA/out/mdr/logs/hpqa_mdr_orig_ckpt_8gpu_bs150/q_encoder.pt \
     --model_name_stage google/electra-large-discriminator \
