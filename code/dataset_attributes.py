@@ -82,8 +82,11 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'creak_contrast_set_od_ans', 'creak_contrast_set_hard', 'creak_contrast_set_initial_context',
             'drop', 'contrast_sets_drop',
             'commonsenseqa',
+            'commonsenseqa_fullwiki_bs150_noimplrel', 'commonsenseqa_fullwiki_bs150_implrel', 'commonsenseqa_fullwiki_bs150_implrel_origq',
             'musique_mu_dev_odv2', 'musique_mu_dev_parasv2',
+            'musique_mu_dev_odv2_fullwiki_bs150',
             'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans',
+            'strategy_qa_bigbench_fullwiki_bs150_noimplrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq', 
             'fever_hard',
             'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
             'qasc', 'qasc_with_ir', 'qasc_fullwiki_bs60', 'qasc_fullwiki_bs60_maxp4',
@@ -98,7 +101,10 @@ test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir',
              'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string',  
              'mmlu_elementary_to_college_math_test', 
              'arc_da_expl_ans', 'arc_da_od_ans', 
-             'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',]
+             'arc_da_od_ans_fullwiki_bs150',
+             'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
+             'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
+             ]
 
 
 
@@ -135,6 +141,9 @@ dataset_attribs = {
     'boolq_np_dedup': {'type':'YN', 'prefer':''},
     'commonsenseqa': {'type':'MC', 'prefer':''},
     'commonsenseqa_test': {'type':'MC', 'prefer':''},
+    'commonsenseqa_fullwiki_bs150_noimplrel': {'type':'MC', 'prefer':''}, 
+    'commonsenseqa_fullwiki_bs150_implrel': {'type':'MC', 'prefer':''}, 
+    'commonsenseqa_fullwiki_bs150_implrel_origq': {'type':'MC', 'prefer':''},
     'contrast_sets_boolq': {'type':'YN', 'prefer':''},
     'contrast_sets_boolq_dedup': {'type':'YN', 'prefer':''},
     'contrast_sets_drop': {'type':'AB', 'prefer':'F1'},
@@ -292,10 +301,14 @@ dataset_attribs = {
     'musique_qa_fullwiki_bs60_maxp4': {'type':'EX', 'prefer':''},
     'musique_mu_dev_odv2': {'type':'EX', 'prefer':''}, 
     'musique_mu_dev_parasv2': {'type':'EX', 'prefer':''},
+    'musique_mu_dev_odv2_fullwiki_bs150': {'type':'EX', 'prefer':''},
     'strategy_qa_od_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_expl_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_bigbench_od_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_bigbench_expl_ans': {'type':'YN', 'prefer':''},
+    'strategy_qa_bigbench_fullwiki_bs150_noimplrel': {'type':'YN', 'prefer':''}, 
+    'strategy_qa_bigbench_fullwiki_bs150_implrel': {'type':'YN', 'prefer':''}, 
+    'strategy_qa_bigbench_fullwiki_bs150_implrel_origq': {'type':'YN', 'prefer':''}, 
     'nq_hard': {'type':'EX', 'prefer':'EM'},
     'nq_open_od_ans': {'type':'EX', 'prefer':'EM'}, 
     'nq_open_fullwiki_bs60': {'type':'EX', 'prefer':'EM'}, 
@@ -304,9 +317,12 @@ dataset_attribs = {
     'arc_da_expl_ans': {'type':'EX', 'prefer':''}, 
     'arc_da_od_ans': {'type':'EX', 'prefer':''},
     'arc_da_unfiltered_od_ans': {'type':'EX', 'prefer':''},
+    'arc_da_od_ans_fullwiki_bs150': {'type':'EX', 'prefer':''},
     'iirc_od_ans': {'type':'EX', 'prefer':''},
     'iirc_gold_context': {'type':'EX', 'prefer':''},
     'iirc_initial_context': {'type':'EX', 'prefer':''},
+    'iirc_od_ans_fullwiki_bs150': {'type':'EX', 'prefer':''}, 
+    'iirc_initial_context_fullwiki_bs150': {'type':'EX', 'prefer':''},
     'csqa2': {'type':'YN', 'prefer':''},
     'csqa2_fullwiki_bs150_noimplrel': {'type':'YN', 'prefer':''},
     'csqa2_fullwiki_bs150_noimplrel_maxp4': {'type':'YN', 'prefer':''},
@@ -336,6 +352,7 @@ dataset_attribs = {
     'hpqa_fullwiki_bs60': {'type':'EX', 'prefer':''}, 
     'hpqa_fullwiki_bs60_maxp4': {'type':'EX', 'prefer':''},
     }
+
 
 
 #################################################
@@ -453,10 +470,15 @@ unifiedqa_unseen_3 = []
 unifiedqa_unseen_4 = [
     'drop', 'contrast_sets_drop',
     'commonsenseqa',
+    'commonsenseqa_fullwiki_bs150_noimplrel', 'commonsenseqa_fullwiki_bs150_implrel', 'commonsenseqa_fullwiki_bs150_implrel_origq',
     'musique_mu_dev_odv2', 'musique_mu_dev_parasv2',
+    'musique_mu_dev_odv2_fullwiki_bs150',
     'arc_da_od_ans', 'arc_da_expl_ans', 
+    'arc_da_od_ans_fullwiki_bs150',
     'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans',
+    'strategy_qa_bigbench_fullwiki_bs150_noimplrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq', 
     'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
+    'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
     'mmlu_elementary_to_college_math_test',
     ]
 
@@ -474,6 +496,9 @@ unifiedqa_unseen_4_map = {
     'iirc_od_ans': 'test.tsv', 
     'iirc_gold_context': 'test.tsv', 
     'iirc_initial_context': 'test.tsv',
+    'iirc_od_ans_fullwiki_bs150': 'test.tsv', 
+    'iirc_initial_context_fullwiki_bs150': 'test.tsv',
+    'arc_da_od_ans_fullwiki_bs150': 'test.tsv',
     }
 
 

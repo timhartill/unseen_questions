@@ -437,8 +437,6 @@ def get_retriever_datasets(mu_data, train_splits = ['train','unassigned']):
     # There are NO 3 hop samples where the last hop doesnt have a #2 and no 4 hop without last hop having a #3 in it
     # SO only need to code RULE
 
-    #TODO add 'answer' -> 'answers' and output that
-    #TODO get more negative paras? Just use theirs?...
     ds_template = {'train':[], 'dev':[]}
     for i, mu_sample in enumerate(mu_data):
         key =  mu_sample['split']
@@ -555,10 +553,12 @@ saveas_jsonl(dev_list, outfile)
 
 for d in dev_list:
     goldstr = ''
-    for para in d['pos_paras']:
+    for i, para in enumerate(d['pos_paras']):
         goldstr += ' ' + para['title'].strip() + ': ' + para['text'].strip()
         if goldstr[-1] not in ['.','?','!', ':', ';']:
             goldstr += '.'
+        if i==0:
+            d['initial_context'] = goldstr.strip() # save an "initial context" version
     d['gold_context'] = goldstr.strip()
     if len(d['answers']) == 1:
         d['answers'] = d['answers'][0]
@@ -570,6 +570,11 @@ utils.save_uqa(out_list, out_dir, 'dev.tsv')
 out_list = [utils.create_uqa_example(d['question'], d['gold_context'], d['answers']) for d in dev_list]
 out_dir = os.path.join(UQA_DIR, "musique_mu_dev_parasv2")
 utils.save_uqa(out_list, out_dir, 'dev.tsv')
+
+out_list = [utils.create_uqa_example(d['question'], d['initial_context'], d['answers']) for d in dev_list]
+out_dir = os.path.join(UQA_DIR, "musique_mu_dev_inital_contextv2")
+utils.save_uqa(out_list, out_dir, 'dev.tsv')
+
 
 
 

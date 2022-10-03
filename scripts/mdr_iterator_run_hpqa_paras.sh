@@ -93,6 +93,7 @@
 # $UQA_DIR/musique_full_qa_od_ans/dev.tsv            $UQA_DIR/musique_full_qa_od_ans/train.tsv
 # $UQA_DIR/qasc/dev.tsv            $UQA_DIR/qasc/train.tsv
 # $UQA_DIR/hover_od_ans/dev.tsv            $UQA_DIR/hover_od_ans/train.tsv
+# $UQA_DIR/musique_mu_dev_inital_contextv2/dev.tsv
 
 
 
@@ -112,10 +113,10 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix ITER_fullwiki_csqa2train_test63_b60_h4_hpqahovnqmubs250_mom \
+    --prefix ITER_fullwiki_mudev_test80ic_b150_h4_hpqahovnqmubs250_mom \
     --output_dir $LDATA/out/mdr/logs \
-    --output_dataset $UQA_DIR/csqa2_fullwiki_bs150_noimplrel/train.tsv \
-    --predict_file $UQA_DIR/csqa2/train.tsv \
+    --output_dataset $UQA_DIR/musique_mu_dev_inital_contextv2_fullwiki_bs150/dev.tsv \
+    --predict_file $UQA_DIR/musique_mu_dev_inital_contextv2/dev.tsv \
     --index_path $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/index.npy \
     --corpus_dict $LDATA/out/mdr/encoded_corpora/hover_hpqa_nq_mu_paras_test12_mom_fullwiki_6gpubs250-09-02-2022/id2doc.json \
     --model_name roberta-base \
@@ -127,7 +128,7 @@ python mdr_searchers.py \
     --hnsw \
     --hnsw_buffersize 40000000 \
     --save_index \
-    --beam_size 60 \
+    --beam_size 150 \
     --predict_batch_size 160 \
     --query_add_titles \
     --topk 9 \
