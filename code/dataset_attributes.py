@@ -84,7 +84,7 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'commonsenseqa',
             'commonsenseqa_fullwiki_bs150_noimplrel', 'commonsenseqa_fullwiki_bs150_implrel', 'commonsenseqa_fullwiki_bs150_implrel_origq',
             'musique_mu_dev_odv2', 'musique_mu_dev_parasv2',
-            'musique_mu_dev_odv2_fullwiki_bs150',
+            'musique_mu_dev_odv2_fullwiki_bs150', 'musique_mu_dev_inital_contextv2',
             'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans',
             'strategy_qa_bigbench_fullwiki_bs150_noimplrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq', 
             'fever_hard',
@@ -94,6 +94,7 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
             'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
             ]
+
 
 
 #Add to this list to create predictions/calc metrics for corresponding test.tsv:
@@ -302,6 +303,7 @@ dataset_attribs = {
     'musique_mu_dev_odv2': {'type':'EX', 'prefer':''}, 
     'musique_mu_dev_parasv2': {'type':'EX', 'prefer':''},
     'musique_mu_dev_odv2_fullwiki_bs150': {'type':'EX', 'prefer':''},
+    'musique_mu_dev_inital_contextv2': {'type':'EX', 'prefer':''},
     'strategy_qa_od_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_expl_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_bigbench_od_ans': {'type':'YN', 'prefer':''},
@@ -471,7 +473,7 @@ unifiedqa_unseen_4 = [
     'drop', 'contrast_sets_drop',
     'commonsenseqa',
     'commonsenseqa_fullwiki_bs150_noimplrel', 'commonsenseqa_fullwiki_bs150_implrel', 'commonsenseqa_fullwiki_bs150_implrel_origq',
-    'musique_mu_dev_odv2', 'musique_mu_dev_parasv2',
+    'musique_mu_dev_odv2', 'musique_mu_dev_parasv2', 'musique_mu_dev_inital_contextv2',
     'musique_mu_dev_odv2_fullwiki_bs150',
     'arc_da_od_ans', 'arc_da_expl_ans', 
     'arc_da_od_ans_fullwiki_bs150',
