@@ -86,6 +86,7 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'musique_mu_dev_odv2', 'musique_mu_dev_parasv2',
             'musique_mu_dev_odv2_fullwiki_bs150', 'musique_mu_dev_inital_contextv2',
             'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans',
+            'strategy_qa_bigbench_gold_context_0', 'strategy_qa_bigbench_gold_context_1', 'strategy_qa_bigbench_gold_context_2',
             'strategy_qa_bigbench_fullwiki_bs150_noimplrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq', 
             'fever_hard',
             'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
@@ -94,7 +95,6 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
             'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
             ]
-
 
 
 #Add to this list to create predictions/calc metrics for corresponding test.tsv:
@@ -311,6 +311,9 @@ dataset_attribs = {
     'strategy_qa_bigbench_fullwiki_bs150_noimplrel': {'type':'YN', 'prefer':''}, 
     'strategy_qa_bigbench_fullwiki_bs150_implrel': {'type':'YN', 'prefer':''}, 
     'strategy_qa_bigbench_fullwiki_bs150_implrel_origq': {'type':'YN', 'prefer':''}, 
+    'strategy_qa_bigbench_gold_context_0': {'type':'YN', 'prefer':''}, 
+    'strategy_qa_bigbench_gold_context_1': {'type':'YN', 'prefer':''}, 
+    'strategy_qa_bigbench_gold_context_2': {'type':'YN', 'prefer':''},
     'nq_hard': {'type':'EX', 'prefer':'EM'},
     'nq_open_od_ans': {'type':'EX', 'prefer':'EM'}, 
     'nq_open_fullwiki_bs60': {'type':'EX', 'prefer':'EM'}, 
@@ -478,6 +481,7 @@ unifiedqa_unseen_4 = [
     'arc_da_od_ans', 'arc_da_expl_ans', 
     'arc_da_od_ans_fullwiki_bs150',
     'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans',
+    'strategy_qa_bigbench_gold_context_0', 'strategy_qa_bigbench_gold_context_1', 'strategy_qa_bigbench_gold_context_2',
     'strategy_qa_bigbench_fullwiki_bs150_noimplrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq', 
     'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
     'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',

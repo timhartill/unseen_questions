@@ -50,6 +50,7 @@ OD_EXPL = '_od_expl'
 EXPL_ANS = '_expl_ans'
 MC_ANS = '_mc_ans'
 OD_ANS = '_od_ans'
+GOLD_ANS = '_gold_context_'
 
 with open(os.path.join(SQA_DIR_IN, SQA_TRAIN_FILE),'r') as f:
     sqa_train = json.load(f)  #2290 questions
@@ -84,7 +85,7 @@ def save_datasets(dev, train):
     print('Finished saving uqa-formatted explanation datasets!')
     return
     
-# strategyQA has no dev split so create one as 10% of train  [actually no longer used, now using full train as eval]
+# strategyQA has no dev split so create one as 10% of train  [update: no longer used, now using full train as eval]
 # Update the paragraph dict with which qids use each paragraph
 num_q = len(sqa_train)
 dev_size = int(num_q*0.1)
@@ -103,6 +104,23 @@ for i in range(num_q):
         if sqa_para.get(e) is not None:
             sqa_para[e]['splits_used'].add(sqa_train[i]['split'])
             sqa_para[e]['qids_used'].append(sqa_train[i]['qid'])
+            
+    # to obtain gold set(s) of paras. Evidence = [[Annotator 1 set], [Annotator 2 set], [Annotator 3 set]]
+    ann_contexts = [] # 1 entry per annotator of "titleABC: Text for titleABC. titleXYZ: Text for titleXYZ. ... "
+    for annotator_set in sqa_train[i]['evidence']:
+        ann_set_flattened = utils.unique_preserve_order(utils.flatten(annotator_set))
+        #print(ann_set_flattened)
+        curr_ann_context = ''
+        for e in ann_set_flattened:
+            if sqa_para.get(e) is not None:  # this drops out 'no_evidence', 'operation' etc..
+                curr_ann_context += ' ' + sqa_para[e]['title'].strip() + ': ' + sqa_para[e]['content'][:600].strip()
+                if curr_ann_context[-1] not in ['.', '?', '!', ':', ';']:
+                    curr_ann_context += '.'
+        ann_contexts.append(text_processing.format_sentence(curr_ann_context.strip()))
+    sqa_train[i]['gold_contexts'] = ann_contexts                    
+        
+
+print(len([s for s in sqa_train if len(s['gold_contexts']) != 3])) # 10 - all these have len 4
 
 traincount = 0
 devcount = 0
@@ -163,6 +181,8 @@ for qa in sqa_train:
     qa[OD_ANS] = utils.create_uqa_example(question_od, None, answer)
     qa[EXPL_ANS] = utils.create_uqa_example(question_od, f, answer)
     qa[OD_EXPL] = utils.create_uqa_example(Q_PREFIX + question_od, None, f)
+    for i in range(3):
+        qa[GOLD_ANS+str(i)] = utils.create_uqa_example(question_od, qa['gold_contexts'][i], answer)
 
 qa_train = []
 qa_dev = []
@@ -172,7 +192,7 @@ for qa in sqa_train:
         qa_train.append(qa)
     else:
         qa_dev.append(qa)
-    qa_bigbench.append(qa)
+    qa_bigbench.append(qa)  # "bigbench" eval set = full sqa train set
         
 print(f"bigbench split count:{len(qa_bigbench)} train count: {len(qa_train)}  dev count: {len(qa_dev)}")    # bigbench split count:2290 train count: 2061  dev count: 229
 
@@ -186,6 +206,9 @@ save_datasets(qa_dev, qa_train)
 save_single(qa_bigbench, SQA_BASE_BB + OD_ANS, OD_ANS, 'dev.tsv')
 save_single(qa_bigbench, SQA_BASE_BB + EXPL_ANS, EXPL_ANS, 'dev.tsv')
 
+save_single(qa_bigbench, SQA_BASE_BB + GOLD_ANS + '0', GOLD_ANS + '0', 'dev.tsv')
+save_single(qa_bigbench, SQA_BASE_BB + GOLD_ANS + '1', GOLD_ANS + '1', 'dev.tsv')
+save_single(qa_bigbench, SQA_BASE_BB + GOLD_ANS + '2', GOLD_ANS + '2', 'dev.tsv')
 
 
 
