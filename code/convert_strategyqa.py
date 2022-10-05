@@ -46,6 +46,8 @@ SQA_BASE = os.path.join(UQA_DIR, UQA_SQA_Q_DIR)
 SQA_BASE_BB = os.path.join(UQA_DIR, UQA_SQA_BIGBENCH)
 
 Q_PREFIX = 'Add Explanation: '
+Q_FORCE_YN = 'Yes or no - '
+DS_FORCE_YN_SUFFIX = '_yn'
 OD_EXPL = '_od_expl'
 EXPL_ANS = '_expl_ans'
 MC_ANS = '_mc_ans'
@@ -179,10 +181,13 @@ for qa in sqa_train:
     #sample = f"{question}\t{answer}"
     qa[MC_ANS] = utils.create_uqa_example(question_od, "(A) yes (B) no", answer)
     qa[OD_ANS] = utils.create_uqa_example(question_od, None, answer)
+    qa[OD_ANS+DS_FORCE_YN_SUFFIX] = utils.create_uqa_example(Q_FORCE_YN + question_od, None, answer)
     qa[EXPL_ANS] = utils.create_uqa_example(question_od, f, answer)
+    qa[EXPL_ANS+DS_FORCE_YN_SUFFIX] = utils.create_uqa_example(Q_FORCE_YN + question_od, f, answer)
     qa[OD_EXPL] = utils.create_uqa_example(Q_PREFIX + question_od, None, f)
     for i in range(3):
         qa[GOLD_ANS+str(i)] = utils.create_uqa_example(question_od, qa['gold_contexts'][i], answer)
+        qa[GOLD_ANS+str(i)+DS_FORCE_YN_SUFFIX] = utils.create_uqa_example(Q_FORCE_YN + question_od, qa['gold_contexts'][i], answer)
 
 qa_train = []
 qa_dev = []
@@ -204,11 +209,16 @@ save_datasets(qa_dev, qa_train)
 ###################################
 
 save_single(qa_bigbench, SQA_BASE_BB + OD_ANS, OD_ANS, 'dev.tsv')
+save_single(qa_bigbench, SQA_BASE_BB + OD_ANS+DS_FORCE_YN_SUFFIX, OD_ANS+DS_FORCE_YN_SUFFIX, 'dev.tsv')
 save_single(qa_bigbench, SQA_BASE_BB + EXPL_ANS, EXPL_ANS, 'dev.tsv')
+save_single(qa_bigbench, SQA_BASE_BB + EXPL_ANS+DS_FORCE_YN_SUFFIX, EXPL_ANS+DS_FORCE_YN_SUFFIX, 'dev.tsv')
 
 save_single(qa_bigbench, SQA_BASE_BB + GOLD_ANS + '0', GOLD_ANS + '0', 'dev.tsv')
+save_single(qa_bigbench, SQA_BASE_BB + GOLD_ANS + '0' + DS_FORCE_YN_SUFFIX, GOLD_ANS + '0' + DS_FORCE_YN_SUFFIX, 'dev.tsv')
 save_single(qa_bigbench, SQA_BASE_BB + GOLD_ANS + '1', GOLD_ANS + '1', 'dev.tsv')
+save_single(qa_bigbench, SQA_BASE_BB + GOLD_ANS + '1' + DS_FORCE_YN_SUFFIX, GOLD_ANS + '1' + DS_FORCE_YN_SUFFIX, 'dev.tsv')
 save_single(qa_bigbench, SQA_BASE_BB + GOLD_ANS + '2', GOLD_ANS + '2', 'dev.tsv')
+save_single(qa_bigbench, SQA_BASE_BB + GOLD_ANS + '2' + DS_FORCE_YN_SUFFIX, GOLD_ANS + '2' + DS_FORCE_YN_SUFFIX, 'dev.tsv')
 
 
 

@@ -811,6 +811,8 @@ def string_to_ids(input_string, tokenizer, indiv_digits=False, norm_numbers=True
     """
     if verbose:
         print(f"Approx word count: {len(input_string.split())}")
+    if prepend_bos and tokenizer.bos_token_id is not None:
+        input_string = tokenizer.bos_token + ' ' + input_string
     if lower:
         input_string = input_string.lower()
     if norm_numbers:
@@ -819,7 +821,7 @@ def string_to_ids(input_string, tokenizer, indiv_digits=False, norm_numbers=True
     if indiv_digits:  #TODO always set to false if using add_special_tokens method of ind digit tokenization
         toks = split_digits_special(toks, special=special)
     ids = tokenizer.convert_tokens_to_ids(toks)
-    if prepend_bos and tokenizer.bos_token_id is not None:
+    if tokenizer.bos_token_id is not None:
         ids = [tokenizer.bos_token_id] + ids
     numtoks = len(ids)
     if verbose:

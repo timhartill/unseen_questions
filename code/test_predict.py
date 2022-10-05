@@ -11,20 +11,53 @@ generate arbitrary predictions from a model
 """
 import numpy as np
 import torch
-from transformers import AutoTokenizer, AutoModelForPreTraining
-from transformers import GPTJForCausalLM
-from bart import MyBart
-from utils import load_model, run_model, get_single_result, normalize_num, split_digits_special
+import utils
+import eval_metrics
+
+#from utils import load_model, run_model, get_single_result, normalize_num, split_digits_special
 
 model_name = "facebook/bart-large"
 #'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'
 # model_name = "EleutherAI/gpt-neo-1.3B"
 # model_name = "EleutherAI/gpt-neo-2.7B"
 # model_name = "EleutherAI/gpt-j-6B"
-# GPTJForCausalLM.from_pretrained("EleutherAI/gpt-j-6B", revision="float16", torch_dtype=torch.float16, low_cpu_mem_usage=True)
+
+# Not used here but if playing with numbers, the 'res' results below will not strip special chars 
+# and you can use this to post process: utils.strip_special_toks( utils.fix_output_spacing(res), special_toks)
+#special_toks = utils.get_original_special_toks(model_name)  #original special tokens before potentially adding digits etc
+
+addspecialtoksdict = eval_metrics.special_tokens_dict  # assume ind dig tok
+
+checkpoint = '/large_data/thar011/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise/best-model.pt'
+
+
+tokenizer, model = utils.load_model(model_name, checkpoint=checkpoint, special_tokens_dict=addspecialtoksdict)
+
+
+tests = ["Is a pound sterling valuable? \\n Pound sterling: At various times, the pound sterling was commodity money or bank notes backed by silver or gold, but it is currently fiat money, with its value determined only by its continued acceptance in the national and international economy. The pound sterling is the world's oldest currency still in use and which has been in continuous use since its inception.",
+         "no or yes - Is a pound sterling valuable? \\n Pound sterling: At various times, the pound sterling was commodity money or bank notes backed by silver or gold, but it is currently fiat money, with its value determined only by its continued acceptance in the national and international economy. The pound sterling is the world's oldest currency still in use and which has been in continuous use since its inception.",
+         "Is a pound sterling valuable? \\n (A) yes (B) no \\n Pound sterling: At various times, the pound sterling was commodity money or bank notes backed by silver or gold, but it is currently fiat money, with its value determined only by its continued acceptance in the national and international economy. The pound sterling is the world's oldest currency still in use and which has been in continuous use since its inception.",
+         "no or yes - Is a pound sterling valuable? \\n ",
+         "Is a pound sterling valuable? \\n ",
+         "Is average number of peas in a pod enough commas for a billion? \\n Pea: The pea is most commonly the small spherical seed or the seed-pod of the pod fruit Pisum sativum. Each pod contains several peas, which can be green or yellow. Botanically, pea pods are fruit, since they contain seeds and develop from the ovary of a (pea) flower. The name is also used to describe other edible seeds from the Fabaceae such as the pigeon pea (Cajanus cajan), the cowpea (Vigna unguiculata), and the seeds from several species of Lathyrus. Billion: 1,000,000,000, i.e. one thousand million, or 109 (ten to the ninth power), as defined on the short scale. This is now the meaning in both British and American English. 1,000,000,000,000, i.e. one million million, or 1012 (ten to the twelfth power), as defined on the long scale. This is one thousand times larger than the short scale billion, and equivalent to the short scale trillion. This is the historic definition of a billion in British English. American English adopted the short scale definition from the French. The United Kingdom used the long scale billion until 1974, when the government.",
+         "no or yes - Is average number of peas in a pod enough commas for a billion? \\n Pea: The pea is most commonly the small spherical seed or the seed-pod of the pod fruit Pisum sativum. Each pod contains several peas, which can be green or yellow. Botanically, pea pods are fruit, since they contain seeds and develop from the ovary of a (pea) flower. The name is also used to describe other edible seeds from the Fabaceae such as the pigeon pea (Cajanus cajan), the cowpea (Vigna unguiculata), and the seeds from several species of Lathyrus. Billion: 1,000,000,000, i.e. one thousand million, or 109 (ten to the ninth power), as defined on the short scale. This is now the meaning in both British and American English. 1,000,000,000,000, i.e. one million million, or 1012 (ten to the twelfth power), as defined on the long scale. This is one thousand times larger than the short scale billion, and equivalent to the short scale trillion. This is the historic definition of a billion in British English. American English adopted the short scale definition from the French. The United Kingdom used the long scale billion until 1974, when the government.",
+         "no or yes - Is average number of peas in a pod enough commas for a billion? \\n ",
+         "Is average number of peas in a pod enough commas for a billion? \\n "]
+
+
+res = utils.run_model(tests, 
+                      model, tokenizer, indiv_digits=False, norm_numbers=False, lower=True, 
+                      append_eos=True, prepend_bos=True,
+                      skip_special_tokens=True,
+                      num_return_sequences=1, num_beams=4, early_stopping=True, min_length=1, max_length=130,
+                      output_scores=False, return_dict_in_generate=False)
+print(res)
+
+
+"""
 #checkpoint = None
 #checkpoint = "/data/thar011/ckpts/unifiedqa-bart-large-allenai/unifiedQA-uncased/best-model.pt" # path to the downloaded checkpoint
-checkpoint = "/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/best-model-150000.pt"
+#checkpoint = "/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/best-model-150000.pt"
 #checkpoint = "/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/best-model-200000.pt"
 special='Ġ'
 indiv_digits = True  # individual digit tokenization
@@ -168,3 +201,4 @@ res = run_model(input_string, model, tokenizer, indiv_digits=False, norm_numbers
                 max_length=512, do_sample=True, top_k=0, top_p=0.92, 
                 output_scores=True, return_dict_in_generate=True)
 res.preds
+"""
