@@ -9,7 +9,7 @@
 
 echo "Update existing BART outputs which use best-model without a particular checkpoint and indiv_digits..."
 
-for out in "/large_data/thar011/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise_COPY_AT810Ksteps" "/large_data/thar011/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise" "/large_data/thar011/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_COPY_AT810Ksteps" "/large_data/thar011/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2"
+for out in "${LDATA}/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise_COPY_AT810Ksteps" "${LDATA}/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise" "${LDATA}/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_COPY_AT810Ksteps" "${LDATA}/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2" "${LDATA}/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds"
 do
     echo "Updating eval for $out ..."
     bash runevalall_v2_bartlarge_pick_bestmodel_indivdigits.sh $out

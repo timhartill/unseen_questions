@@ -20,5 +20,26 @@ python add_prefix_to_questions.py \
         --output_dataset strategy_qa_bigbench_fullwiki_bs150_noimplrel_yn
 
 
+echo "Creating new dataset with YN prepended phrase for SQA (mdr retrieval augmented) impl rels..."
+python add_prefix_to_questions.py \
+        --orig_dataset strategy_qa_bigbench_fullwiki_bs150_implrel_mdr \
+        --output_dataset strategy_qa_bigbench_fullwiki_bs150_implrel_yn_mdr
+
+        
+echo "Creating new dataset with YN prepended phrase for SQA (mdr retrieval augmented) impl rels with orig question..."
+python add_prefix_to_questions.py \
+        --orig_dataset strategy_qa_bigbench_fullwiki_bs150_implrel_origq_mdr \
+        --output_dataset strategy_qa_bigbench_fullwiki_bs150_implrel_origq_yn_mdr
+
+
+echo "Creating new dataset with YN prepended phrase for SQA (mdr retrieval augmented) without impl rels..."
+python add_prefix_to_questions.py \
+        --orig_dataset strategy_qa_bigbench_fullwiki_bs150_noimplrel_mdr \
+        --output_dataset strategy_qa_bigbench_fullwiki_bs150_noimplrel_yn_mdr
+
+
+
+
+
 echo "Finished!"
 

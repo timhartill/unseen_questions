@@ -16,5 +16,17 @@ python replace_implicit_relation_question_with_original.py \
         --output_dataset commonsenseqa_fullwiki_bs150_implrel_origq
 
 
+echo "Creating new dataset without impl rels in question for SQA (MDR orig)..."
+python replace_implicit_relation_question_with_original.py \
+        --orig_dataset strategy_qa_bigbench_od_ans \
+        --iter_dataset strategy_qa_bigbench_fullwiki_bs150_implrel_mdr \
+        --output_dataset strategy_qa_bigbench_fullwiki_bs150_implrel_origq_mdr
+
+        
+echo "Creating new dataset without impl rels in question for CommonsenseQA (MDR orig)..."
+python replace_implicit_relation_question_with_original.py \
+        --orig_dataset commonsenseqa \
+        --iter_dataset commonsenseqa_fullwiki_bs150_implrel_mdr \
+        --output_dataset commonsenseqa_fullwiki_bs150_implrel_origq_mdr
 
 
