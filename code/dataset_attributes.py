@@ -85,7 +85,7 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'commonsenseqa_fullwiki_bs150_noimplrel', 'commonsenseqa_fullwiki_bs150_implrel', 'commonsenseqa_fullwiki_bs150_implrel_origq',
             'commonsenseqa_fullwiki_bs150_noimplrel_mdr', 'commonsenseqa_fullwiki_bs150_implrel_mdr', 'commonsenseqa_fullwiki_bs150_implrel_origq_mdr',
             'musique_mu_dev_odv2', 'musique_mu_dev_parasv2',
-            'musique_mu_dev_odv2_fullwiki_bs150', 'musique_mu_dev_inital_contextv2', 'musique_mu_dev_inital_contextv2_fullwiki_bs150',
+            'musique_mu_dev_odv2_fullwiki_bs150', 'musique_mu_dev_inital_contextv2', 'musique_mu_dev_inital_contextv2_fullwiki_bs150', 'musique_mu_dev_odv2_fullwiki_bs150_mdr',
             'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans', 'strategy_qa_bigbench_gold_context_0', 'strategy_qa_bigbench_gold_context_1', 'strategy_qa_bigbench_gold_context_2',
             'strategy_qa_bigbench_fullwiki_bs150_noimplrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq', 
             'strategy_qa_bigbench_fullwiki_bs150_noimplrel_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_mdr', 
@@ -312,6 +312,7 @@ dataset_attribs = {
     'musique_mu_dev_odv2_fullwiki_bs150': {'type':'EX', 'prefer':''},
     'musique_mu_dev_inital_contextv2': {'type':'EX', 'prefer':''},
     'musique_mu_dev_inital_contextv2_fullwiki_bs150': {'type':'EX', 'prefer':''},
+    'musique_mu_dev_odv2_fullwiki_bs150_mdr': {'type':'EX', 'prefer':''},
     'strategy_qa_od_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_expl_ans': {'type':'YN', 'prefer':''},
     'strategy_qa_bigbench_od_ans': {'type':'YN', 'prefer':''},
@@ -456,9 +457,17 @@ q_mc_paras_train = ["mctest_corrected_the_separator", "race_string", "openbookqa
 q_ret_paras_train = ['csqa2_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel', 'hover_fullwiki_bs60', 
                      'qasc_fullwiki_bs60', 'hpqa_fullwiki_bs60', 'musique_qa_fullwiki_bs60', 'nq_open_fullwiki_bs60', ]
 
+q_ret_paras_train_v2 = ['csqa2_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel', 'hover_fullwiki_bs60', 
+                     'qasc_fullwiki_bs60', 'hpqa_fullwiki_bs60', 'nq_open_fullwiki_bs60', ]
+
+
 #q[+mc]+our retrieved paras with max 4 paras->a
 q_ret_paras_maxp4_train = ['csqa2_fullwiki_bs150_noimplrel_maxp4', 'creak_fullwiki_bs150_noimplrel_maxp4', 'hover_fullwiki_bs60_maxp4', 
                            'qasc_fullwiki_bs60_maxp4', 'hpqa_fullwiki_bs60_maxp4', 'musique_qa_fullwiki_bs60_maxp4', 'nq_open_fullwiki_bs60_maxp4', ]
+
+q_ret_paras_maxp4_train_v2 = ['csqa2_fullwiki_bs150_noimplrel_maxp4', 'creak_fullwiki_bs150_noimplrel_maxp4', 'hover_fullwiki_bs60_maxp4', 
+                           'qasc_fullwiki_bs60_maxp4', 'hpqa_fullwiki_bs60_maxp4', 'nq_open_fullwiki_bs60_maxp4', ]
+
 
 
 ########################################################
@@ -505,6 +514,7 @@ unifiedqa_unseen_4 = [
     'commonsenseqa_fullwiki_bs150_noimplrel_mdr', 'commonsenseqa_fullwiki_bs150_implrel_mdr', 'commonsenseqa_fullwiki_bs150_implrel_origq_mdr',
     'musique_mu_dev_odv2', 'musique_mu_dev_parasv2', 'musique_mu_dev_inital_contextv2',
     'musique_mu_dev_odv2_fullwiki_bs150', 'musique_mu_dev_inital_contextv2_fullwiki_bs150',
+    'musique_mu_dev_odv2_fullwiki_bs150_mdr',
     'arc_da_od_ans', 'arc_da_expl_ans', 
     'arc_da_od_ans_fullwiki_bs150', 'arc_da_od_ans_fullwiki_bs150_mdr',
     'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans', 'strategy_qa_bigbench_gold_context_0', 'strategy_qa_bigbench_gold_context_1', 'strategy_qa_bigbench_gold_context_2',
