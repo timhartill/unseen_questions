@@ -984,6 +984,7 @@ def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', '
                         '/large_data/thar011/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise/eval_metrics.json',
                         '/large_data/thar011/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_COPY_AT810Ksteps/eval_metrics.json',
                         '/large_data/thar011/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/eval_metrics.json',
+                        '/large_data/thar011/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds/eval_metrics.json',
                        ]
 
         

@@ -106,11 +106,11 @@ test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir',
              'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string',  
              'mmlu_elementary_to_college_math_test', 
              'arc_da_expl_ans', 'arc_da_od_ans', 
-             'arc_da_od_ans_fullwiki_bs150',
+             'arc_da_od_ans_fullwiki_bs150', 'arc_da_od_ans_fullwiki_bs150_mdr',
              'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
              'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
+             'iirc_od_ans_fullwiki_bs150_mdr','iirc_initial_context_fullwiki_bs150_mdr',
              ]
-
 
 
 #Map dataset types to relevant metrics to calculate (and specify referred reporting metric)
@@ -345,11 +345,14 @@ dataset_attribs = {
     'arc_da_od_ans': {'type':'EX', 'prefer':''},
     'arc_da_unfiltered_od_ans': {'type':'EX', 'prefer':''},
     'arc_da_od_ans_fullwiki_bs150': {'type':'EX', 'prefer':''},
+    'arc_da_od_ans_fullwiki_bs150_mdr': {'type':'EX', 'prefer':''},
     'iirc_od_ans': {'type':'EX', 'prefer':''},
     'iirc_gold_context': {'type':'EX', 'prefer':''},
     'iirc_initial_context': {'type':'EX', 'prefer':''},
     'iirc_od_ans_fullwiki_bs150': {'type':'EX', 'prefer':''}, 
     'iirc_initial_context_fullwiki_bs150': {'type':'EX', 'prefer':''},
+    'iirc_od_ans_fullwiki_bs150_mdr': {'type':'EX', 'prefer':''},
+    'iirc_initial_context_fullwiki_bs150_mdr': {'type':'EX', 'prefer':''},
     'csqa2': {'type':'YN', 'prefer':''},
     'csqa2_fullwiki_bs150_noimplrel': {'type':'YN', 'prefer':''},
     'csqa2_fullwiki_bs150_noimplrel_maxp4': {'type':'YN', 'prefer':''},
@@ -379,6 +382,7 @@ dataset_attribs = {
     'hpqa_fullwiki_bs60': {'type':'EX', 'prefer':''}, 
     'hpqa_fullwiki_bs60_maxp4': {'type':'EX', 'prefer':''},
     }
+
 
 
 
@@ -502,7 +506,7 @@ unifiedqa_unseen_4 = [
     'musique_mu_dev_odv2', 'musique_mu_dev_parasv2', 'musique_mu_dev_inital_contextv2',
     'musique_mu_dev_odv2_fullwiki_bs150', 'musique_mu_dev_inital_contextv2_fullwiki_bs150',
     'arc_da_od_ans', 'arc_da_expl_ans', 
-    'arc_da_od_ans_fullwiki_bs150',
+    'arc_da_od_ans_fullwiki_bs150', 'arc_da_od_ans_fullwiki_bs150_mdr',
     'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans', 'strategy_qa_bigbench_gold_context_0', 'strategy_qa_bigbench_gold_context_1', 'strategy_qa_bigbench_gold_context_2',
     'strategy_qa_bigbench_fullwiki_bs150_noimplrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq', 
     'strategy_qa_bigbench_fullwiki_bs150_noimplrel_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_mdr', 
@@ -511,8 +515,10 @@ unifiedqa_unseen_4 = [
     'strategy_qa_bigbench_fullwiki_bs150_noimplrel_yn_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_yn_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_yn_mdr',
     'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
     'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
+    'iirc_od_ans_fullwiki_bs150_mdr','iirc_initial_context_fullwiki_bs150_mdr',
     'mmlu_elementary_to_college_math_test',
     ]
+
 
 
 # Note: This is only used in create_least_similar_versions.py and check_least_similar_answer.py
@@ -530,8 +536,12 @@ unifiedqa_unseen_4_map = {
     'iirc_initial_context': 'test.tsv',
     'iirc_od_ans_fullwiki_bs150': 'test.tsv', 
     'iirc_initial_context_fullwiki_bs150': 'test.tsv',
+    'iirc_od_ans_fullwiki_bs150_mdr': 'test.tsv',
+    'iirc_initial_context_fullwiki_bs150_mdr': 'test.tsv',
     'arc_da_od_ans_fullwiki_bs150': 'test.tsv',
+    'arc_da_od_ans_fullwiki_bs150_mdr':'test.tsv',
     }
+
 
 
 # The filtered versions of the 10 unseen datasets used in our paper
