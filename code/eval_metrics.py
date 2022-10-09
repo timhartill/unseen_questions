@@ -34,7 +34,7 @@ import os
 import copy
 import argparse
 
-import datasets
+import datasets  # NOTE: must also pip install rouge_score 
 import eval_drop
 from sari import SARI
 from dataset_attributes import dev_eval, test_eval, metric_groups, dataset_attribs, replace_sim_with
