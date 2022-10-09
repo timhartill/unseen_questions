@@ -8,8 +8,9 @@ Created on Tue Sep 21 13:19:09 2021
 Common parameter definitions
 
 
-Edit this file to add new datasets to evaluation/similarity routines:
+Edit this file to add new datasets to evaluation/similarity routines and/or to update the set of models to run eval for:
     
+Add/Edit datasets:
 - Add to dev_eval to produce preds, metrics for a dataset's dev.tsv - each dataset must be in either dev_eval or test_eval but not both!
 - Add to test_eval to produce preds, metrics for a dataset's test.tsv - each dataset must be in either dev_eval or test_eval but not both!
 - Add to dataset_attribs to include in eval and/or similarity calc plus to configure the set of metrics to be produced for a given dataset
@@ -24,6 +25,7 @@ Edit this file to add new datasets to evaluation/similarity routines:
     Datasets added here must be in dev_eval/test_eval and in dataset_attribs..
     Dynamically created versions i.e /UQA_DIR/qasc_svised_expl_ans_modeloutputdir_timestamp will be added to dev_eval/test_eval and dataset_attribs when this module is loaded..
 
+Run eval:
 After configuring as specified above, to run eval then:
 - Edit/run one of the "runevalall....sh" scripts making sure to include flags: --do_predict_all --calc_metrics_all --add_only_missing
     - do_predict_all: Generates a predictions file with naming convention: dev|test_dataset name_predictions.json
@@ -66,6 +68,13 @@ if os.environ.get('UQA_DIR') is not None:
     UQA_DIR = os.environ.get('UQA_DIR') + '/'  #'/data/thar011/data/unifiedqa/' # datasets base directory
 else:
     assert False, "ERROR: Set the environment variable 'UQA_DIR' to the base directory of tsv-formatted datasets: export UQA_DIR=/parentdir/datasets "
+    
+if os.environ.get('LDATA') is not None:
+    LDATA = os.environ.get('LDATA') + '/'  #'.../logs' # output logs base directory
+else:
+    LDATA = None
+    print("WARNING: If running evaluation, Set the environment variable 'LDATA' to the base directory of model training output logs within which eval_metrics.json for each model can be found: export LDATA=/parentdir/logs ")
+
 
 
 #Add to this list to create predictions/calc metrics for corresponding dev.tsv:
@@ -680,6 +689,31 @@ def get_gt_file_path(file):
     else:                                       # assume /old/uqadir/dataset
         return os.path.join(UQA_DIR, probably_file)        
 
+
+########################################################
+# Edit here to run evaluation on particular model(s) using the datasets specified above
+# LDATA will be prepended to 'output_dir' and each 'models' dir
+########################################################
+
+eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
+                        'models': [ 'out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise_COPY_AT810Ksteps/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_COPY_AT810Ksteps/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_COPY_AT_770Ksteps/eval_metrics.json',
+                                  ]
+                       }
+            # add additional sets in same format as 'default' here..
+            }
+
+if LDATA is not None:
+    for s in eval_set:
+         eval_set[s]['output_dir'] = os.path.join(LDATA, eval_set[s]['output_dir'] )   
+         eval_set[s]['models'] = [os.path.join(LDATA, m) for m in eval_set[s]['models']]
+
+
+        
 
 ########################################################
 # Eval Datasets q[+mc]->a to take as input and output to new dir as q[+mc]+e->a i.e to generate e for

@@ -32,6 +32,7 @@ import collections
 import json
 import os
 import copy
+import argparse
 
 import datasets
 import eval_drop
@@ -43,6 +44,7 @@ from dataset_attributes import q_ret_paras_train, q_ret_paras_maxp4_train, q_ret
 from dataset_attributes import unifiedqa_unseen_1, unifiedqa_unseen_2, unifiedqa_unseen_3, unifiedqa_unseen_4, unifiedqa_unseen_4_map, unifiedqa_unseen_5, unifiedqa_unseen_6, unifiedqa_seen_1, mmlu_unseen_1
 from dataset_attributes import UQA_DIR, SVISED_EXPL_ANS, selfsupervisedkey, add_explanationkey, EXPL_COMP_KEY, special_tokens_dict
 from dataset_attributes import create_datasets_dynamic, get_gt_file_path
+from dataset_attributes import eval_set
 
 
 def replace_sim(datasets, mixture_file_key):
@@ -1014,6 +1016,20 @@ def run_all(logdir, results_list, include_list=['unseen4', 'seen1', 'unseen6', '
     return
 
 
+def run_eval_set(args):
+    """ Run eval for particular eval set ('default' by default)
+    Outputs for 'unseen4' and 'seen1' lists of datasets. To output other lists run run_all(..) manually
+    """
+    logdir = eval_set[args.eval_set]['output_dir']
+    results_list = eval_set[args.eval_set]['models']
+    run_all(logdir, results_list, include_list=['unseen4', 'seen1'])
+    return
 
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--eval_set", default="default", type=str, help="key of eval_set (defined in dataset_attributes.py).")
+    args = parser.parse_args()
+    run_eval_set(args)
 
 
