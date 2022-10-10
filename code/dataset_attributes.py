@@ -26,7 +26,10 @@ Add/Edit datasets:
     Dynamically created versions i.e /UQA_DIR/qasc_svised_expl_ans_modeloutputdir_timestamp will be added to dev_eval/test_eval and dataset_attribs when this module is loaded..
 
 Run eval:
-After configuring as specified above, to run eval then:
+After configuring as specified above: 
+To run generic eval for unseen4 and seen1: bash run_all_eval_output.sh    
+
+To run eval manually:
 - Edit/run one of the "runevalall....sh" scripts making sure to include flags: --do_predict_all --calc_metrics_all --add_only_missing
     - do_predict_all: Generates a predictions file with naming convention: dev|test_dataset name_predictions.json
                       Does so for each dataset specified below in dev_eval (for dev.tsv) and test_eval (for test.tsv)
@@ -74,6 +77,13 @@ if os.environ.get('LDATA') is not None:
 else:
     LDATA = None
     print("WARNING: If running evaluation, Set the environment variable 'LDATA' to the base directory of model training output logs within which eval_metrics.json for each model can be found: export LDATA=/parentdir/logs ")
+
+if os.environ.get('HDATA') is not None:
+    HDATA = os.environ.get('HDATA') + '/'  #'.../logs' # output logs base directory
+else:
+    HDATA = None
+    print("WARNING: Set the environment variable 'HDATA' for consistency over different servers for base directory for unconverted source data subdirectories: export HDATA=/parentdir/source_data ")
+
 
 
 
