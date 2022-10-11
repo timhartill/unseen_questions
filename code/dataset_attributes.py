@@ -405,6 +405,17 @@ dataset_attribs = {
     }
 
 
+########################################################
+# Map answer types file - datasets for answer type analysis
+########################################################
+
+answer_type_map = {'anstypes_drop_dev.jsonl': ['drop'],
+                   'anstypes_iirc_test.jsonl': ['iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
+                                                'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
+                                                'iirc_od_ans_fullwiki_bs150_mdr','iirc_initial_context_fullwiki_bs150_mdr'],
+                   'anstypes_tatqa_dev.jsonl': ['tatqa'],
+                   }
+
 
 
 #################################################
@@ -719,7 +730,7 @@ eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
 
 if LDATA is not None:
     for s in eval_set:
-         eval_set[s]['output_dir'] = os.path.join(LDATA, eval_set[s]['output_dir'] )   
+         eval_set[s]['output_dir'] = os.path.join(LDATA, eval_set[s]['output_dir'] )
          eval_set[s]['models'] = [os.path.join(LDATA, m) for m in eval_set[s]['models']]
 
 

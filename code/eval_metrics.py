@@ -45,7 +45,7 @@ from dataset_attributes import unifiedqa_unseen_1, unifiedqa_unseen_2, unifiedqa
 from dataset_attributes import UQA_DIR, SVISED_EXPL_ANS, selfsupervisedkey, add_explanationkey, EXPL_COMP_KEY, special_tokens_dict
 from dataset_attributes import LDATA, HDATA
 from dataset_attributes import create_datasets_dynamic, get_gt_file_path
-from dataset_attributes import eval_set
+from dataset_attributes import eval_set, answer_type_map
 
 
 def replace_sim(datasets, mixture_file_key):
@@ -657,10 +657,10 @@ class DatasetMetrics:
         dsets: ['dataset1', 'dataset2', ...]
         Returns list of ('datasetname', score, metric name) tuples
         """
-        retvals = []        
+        retvals = []
         for ds in dsets:
             retvals.append( (ds, self.get_pref_value(ds, use_current=use_current), self.get_pref_metric(ds, use_current=use_current) ) )
-        return retvals            
+        return retvals
 
     def get_pref_values_set(self, dsetset):
         """ Return the preferred output metric scores for each dataset 
@@ -1027,10 +1027,77 @@ def run_eval_set(args):
     return
 
 
+def run_answer_type_breakdown(args):
+    """ run breakdown for DROP/IIRC/TATQA by answer type
+    res.dataset_metrics['/large_data/thar011/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise_COPY_AT810Ksteps/eval_metrics.json'].results_dict['drop']['F1']['scores']
+    
+    data = [json.loads(line.strip()) for line in open(data_path).readlines()]
+    """    
+    logdir = eval_set[args.eval_set]['output_dir']
+    if logdir[-1] != '/':
+        logdir += '/'
+    print(f'Report will be output to {logdir} as answer_types_breakdown.txt')
+    os.makedirs(logdir, exist_ok=True)
+    outfile = os.path.join(logdir, 'answer_types_breakdown.txt')
+
+    results_list = eval_set[args.eval_set]['models']
+    res = OutputResults(results_list, logdir)
+    firstmodel = list(res.dataset_metrics.keys())[0] 
+
+    atypedir = os.path.join(UQA_DIR, 'answer_types')
+    atypefiles = list(answer_type_map.keys())
+    atypedict = {}
+    for file in atypefiles:
+        fullpath = os.path.join(atypedir, file)
+        print(f"Loading answer types file: {fullpath}")
+        atypedict[file] = [json.loads(line.strip()) for line in open(fullpath).readlines()]
+
+    xtab = {}  # {'datasetname':{'metric': 'F1', 'ans_type': {'modelshortname1': [scores]}}
+    for file in answer_type_map:
+        ans_types = [a['ans_type'] for a in atypedict[file]]
+        for dataset in answer_type_map[file]:
+            xtab[dataset] = {}
+            prefmetric = res.dataset_metrics[firstmodel].get_pref_metric(dataset)
+            xtab[dataset]['metric'] = prefmetric 
+            xtab[dataset]['ans_types'] = {}
+            for model in res.dataset_metrics.keys():
+                shortname = res.dataset_metrics[model].short_name
+                scores = res.dataset_metrics[model].results_dict[dataset][prefmetric]['scores']
+                assert len(ans_types) == len(scores)
+                for ans_type, score in zip(ans_types, scores):
+                    if xtab[dataset]['ans_types'].get(ans_type) is None:
+                        xtab[dataset]['ans_types'][ans_type] = {}  # {'modelshortname1': [scores]}
+                    if xtab[dataset]['ans_types'][ans_type].get(shortname) is None:
+                        xtab[dataset]['ans_types'][ans_type][shortname] = []
+                    xtab[dataset]['ans_types'][ans_type][shortname].append(score)
+    
+    outlist = []
+    header = 'Eval Dataset,Ans Type,Metric'
+    for shortname in res.shortnames:
+        header = header + ',' + shortname
+    print(header)
+    outlist.append(header)
+
+    for dataset in xtab:
+        for ans_type in xtab[dataset]['ans_types']:
+            outstr = dataset + ',' + ans_type + ',' + xtab[dataset]['metric']
+            for shortname in xtab[dataset]['ans_types'][ans_type]:
+                score = str(np.mean(xtab[dataset]['ans_types'][ans_type][shortname])*100.0)
+                outstr += ',' + score
+            print(outstr)    
+            outlist.append(outstr)
+    with open(outfile, 'w') as f:
+        f.write('\r\n'.join(outlist))
+    print(f"Answer types breakdown out to: {outfile}")    
+    return
+
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--eval_set", default="default", type=str, help="key of eval_set (defined in dataset_attributes.py).")
     args = parser.parse_args()
     run_eval_set(args)
+    run_answer_type_breakdown(args)
 
 
