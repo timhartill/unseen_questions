@@ -719,6 +719,7 @@ def get_gt_file_path(file):
 eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
                         'models': [ 'out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise_COPY_AT810Ksteps/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s11_v4_all_g1_qa_g2_numlit_wikissvise_addretds/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_COPY_AT810Ksteps/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds/eval_metrics.json',
