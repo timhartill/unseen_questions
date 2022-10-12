@@ -18,5 +18,15 @@ do
 done
 
 
+echo "Update existing t5-large outputs which use best-model without a particular checkpoint and indiv_digits..."
+
+for out in "${LDATA}/out/mdr/logs/UQA_s11_v5_all_g1_qa_g2_numlit_wikissvise_addretdst5l_COPY_AT560Ksteps"
+do
+    echo "Updating eval for $out ..."
+    bash runevalall_v2_t5large_pick_bestmodel_indivdigits.sh $out
+done
+
+
+
 echo Finished!
 

@@ -26,8 +26,10 @@ Add/Edit datasets:
     Dynamically created versions i.e /UQA_DIR/qasc_svised_expl_ans_modeloutputdir_timestamp will be added to dev_eval/test_eval and dataset_attribs when this module is loaded..
 
 Run eval:
-After configuring as specified above: 
-To run generic eval for unseen4 and seen1: bash run_all_eval_output.sh    
+After configuring datasets as specified above:
+To run generic eval for unseen4 and seen1: 
+    Configure models to run + output dir in eval_set below   
+    then run: bash run_all_eval_output.sh    
 
 To run eval manually:
 - Edit/run one of the "runevalall....sh" scripts making sure to include flags: --do_predict_all --calc_metrics_all --add_only_missing
@@ -720,6 +722,7 @@ eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
                         'models': [ 'out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise_COPY_AT810Ksteps/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v4_all_g1_qa_g2_numlit_wikissvise_addretds/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s11_v5_all_g1_qa_g2_numlit_wikissvise_addretdst5l_COPY_AT560Ksteps/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_COPY_AT810Ksteps/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds/eval_metrics.json',
