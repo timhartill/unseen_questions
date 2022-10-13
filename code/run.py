@@ -391,17 +391,26 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
 
 
 def inference(model, dev_data, save_predictions=False, return_details=False, return_preds=False):
+
+    use_dtype=torch.float32
+    if dev_data.args.fp16:
+        if 't5' in dev_data.args.model:
+            use_dtype = torch.bfloat16
+        else:
+            use_dtype = torch.float16
+            
     predictions = []
     if dev_data.args.verbose:
         dev_data.dataloader = tqdm(dev_data.dataloader)
     for i, batch in enumerate(dev_data.dataloader):
         batch = move_to_cuda(batch)
-        outputs = model.generate(input_ids=batch['input_ids'],
-                                 attention_mask=batch['attention_mask'],
-                                 num_beams=dev_data.args.num_beams,
-                                 min_length=1,  #TJH: was min_lnegth
-                                 max_length=dev_data.args.max_output_length,
-                                 early_stopping=True,)
+        with torch.cuda.amp.autocast(enabled=dev_data.args.fp16, dtype=use_dtype):
+            outputs = model.generate(input_ids=batch['input_ids'],
+                                     attention_mask=batch['attention_mask'],
+                                     num_beams=dev_data.args.num_beams,
+                                     min_length=1,  #TJH: was min_lnegth
+                                     max_length=dev_data.args.max_output_length,
+                                     early_stopping=True,)
         for input_, output in zip(batch['input_ids'], outputs):
             pred = dev_data.decode(output)
             predictions.append(pred)
