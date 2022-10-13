@@ -18,6 +18,7 @@ python cli.py --output_dir $1 \
         --dont_pretokenize \
         --dont_save_train_token_file \
         --max_output_length 130 \
+        --fp16 \
         --do_predict_all --calc_metrics_all --add_only_missing
 
 
