@@ -24,7 +24,7 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 import torch
 #from transformers import BartTokenizer, BartConfig
 #from transformers import AutoTokenizer, AutoModelForPreTraining  
-from transformers import AdamW, get_linear_schedule_with_warmup
+from transformers import Adafactor, AdamW, get_linear_schedule_with_warmup
 from transformers.trainer_pt_utils import get_parameter_names
 
 from data import QAData
@@ -102,7 +102,21 @@ def run(args, logger):
             },
         ]
     
-        optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
+        if args.use_adafactor:
+            optimizer = Adafactor(  # https://discuss.huggingface.co/t/t5-finetuning-tips/684/3
+                                    optimizer_grouped_parameters, #model.parameters(),  #optimizer_grouped_parameters,
+                                    lr=args.learning_rate,
+                                    eps=(1e-30, 1e-3),
+                                    clip_threshold=1.0,
+                                    decay_rate=-0.8,
+                                    beta1=None,
+                                    weight_decay=0.0,
+                                    relative_step=False,
+                                    scale_parameter=False,
+                                    warmup_init=False
+                                )
+        else:    
+            optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
         scheduler =  get_linear_schedule_with_warmup(optimizer,
                                         num_warmup_steps=args.warmup_steps,
                                         num_training_steps=args.num_scheduler_steps)  #TJH added num_scheduler_steps param default 250k, was 100k

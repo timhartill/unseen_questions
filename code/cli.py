@@ -78,6 +78,8 @@ def main():
                         help="Linear warmup over warmup_steps.")
     parser.add_argument('--wait_step', type=int, default=10,
                         help="Number of steps without improvement before early stopping.")
+
+    parser.add_argument("--use_adafactor", action='store_true', help='Use the AdaFactor optimizer (for T5)')
     
     # Added parameters
     parser.add_argument("--num_scheduler_steps", default=250000, type=int,
