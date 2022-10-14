@@ -11,7 +11,7 @@
 
 cd ../code
 
-python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s11_v5_all_g1_qa_g2_numlit_wikissvise_addretdst5l \
+python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s11_v5_all_g1_qa_g2_numlit_wikissvise_addretdst5lFP32 \
         --is_unifiedqa \
         --train_file $UDATA/data/unifiedqa/train.tsv \
         --predict_file $UDATA/data/unifiedqa/dev.tsv \
