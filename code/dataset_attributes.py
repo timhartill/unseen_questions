@@ -727,6 +727,7 @@ eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
                                     'out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_COPY_AT_770Ksteps/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v6_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretdsv2/eval_metrics.json',
                                   ]
                        }
