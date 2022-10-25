@@ -726,12 +726,12 @@ eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
                                     'out/mdr/logs/UQA_s11_v5_all_g1_qa_g2_numlit_wikissvise_addretdst5l/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_COPY_AT810Ksteps/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s11_v8_all_g1_qa_g2_numlit_wikissvise_from_s9_v5_addretdsV2_t5l/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_COPY_AT_770Ksteps/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v6_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretdsv2/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v7_all_g1_qa_g2_numlit_wikissvise_from_s9_v5_addretdsV2_t5l/eval_metrics.json',
-                                    'out/mdr/logs/UQA_s11_v8_all_g1_qa_g2_numlit_wikissvise_from_s9_v5_addretdsV2_t5l/eval_metrics.json',
                                   ]
                        }
             # add additional sets in same format as 'default' here..
