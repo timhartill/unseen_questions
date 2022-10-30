@@ -20,7 +20,7 @@ done
 
 echo "Update existing t5-large outputs which use best-model without a particular checkpoint and indiv_digits..."
 
-for out in "${LDATA}/out/mdr/logs/UQA_s11_v5_all_g1_qa_g2_numlit_wikissvise_addretdst5l_COPY_AT560Ksteps" "${LDATA}/out/mdr/logs/UQA_s11_v5_all_g1_qa_g2_numlit_wikissvise_addretdst5l" "${LDATA}/out/mdr/logs/UQA_s11_v7_all_g1_qa_g2_numlit_wikissvise_from_s9_v5_addretdsV2_t5l" "${LDATA}/out/mdr/logs/UQA_s11_v8_all_g1_qa_g2_numlit_wikissvise_from_s9_v5_addretdsV2_t5l"
+for out in "${LDATA}/out/mdr/logs/UQA_s11_v5_all_g1_qa_g2_numlit_wikissvise_addretdst5l_COPY_AT560Ksteps" "${LDATA}/out/mdr/logs/UQA_s11_v5_all_g1_qa_g2_numlit_wikissvise_addretdst5l" "${LDATA}/out/mdr/logs/UQA_s11_v9_all_g1_qa_g2_numlit_wikissvise_from_s9_v5_addretds_t5l" "${LDATA}/out/mdr/logs/UQA_s11_v7_all_g1_qa_g2_numlit_wikissvise_from_s9_v5_addretdsV2_t5l" "${LDATA}/out/mdr/logs/UQA_s11_v8_all_g1_qa_g2_numlit_wikissvise_from_s9_v5_addretdsV2_t5l"
 do
     echo "Updating eval for $out ..."
     bash runevalall_v2_t5large_pick_bestmodel_indivdigits.sh $out
