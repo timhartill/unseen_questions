@@ -140,7 +140,7 @@ from transformers import AutoConfig, AutoTokenizer
 
 from mdr_config import eval_args
 from mdr.retrieval.models.mhop_retriever import RobertaRetriever_var
-from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
+#from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer
 
 from reader.reader_model import StageModel, SpanAnswerer
 from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
@@ -937,7 +937,7 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
         all_retrieved = sample['dense_retrieved'] + flatten(sample['dense_retrieved_hist'])
         all_retrieved.sort(key=lambda k: ps_ratio*k['s1_para_score'] + 
                                          (1-ps_ratio)*k.get('s1_sent_score_max', 0.0), 
-                           reverse=True) # rough heuristic to minimise looping time below.. 
+                           reverse=True) # sorting unnecessary but is a rough heuristic to minimise looping time below.. 
         context_dict = {}
         for sent in sample['s2_best']:  # context will be sorted by s2_para_sent_ratio*s1para_score' + (1-s2_para_sent_ratio)*s2_score
             s_idx = sent['s_idx']

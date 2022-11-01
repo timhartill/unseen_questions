@@ -5,18 +5,19 @@ Created on Tue Jan 18 18:35:27 2022
 
 @author: tim hartill
 
-Convert beerqa wiki dump into formatted jsonl file "docs":
+Convert wiki dump from beerqa into formatted jsonl file "docs":
     - Extract hyperlinks and sentence spans
-    - Merge paras that occur in beerqa train/dev as > 1 para supporting the same hop (add any additional para merges where para x needs to be merged with >1 other para due to being in difft samples as "conflicts" at the end of doc['paras'])
     - Remove docs without any paras (eg disambiguation pages)
-    - Load into Elasticsearch with unique key doc['id' + '_' + 0-based contiguous para_idx. 
-Convert beerqa train/dev files into format suitable for MDR:
+    - The following performed to support evaluation against BeerQA version of HPQA (but ultimately NOT used):
+        - Merge paras that occur in beerqa train/dev as > 1 para supporting the same hop (add any additional para merges where para x needs to be merged with >1 other para due to being in difft samples as "conflicts" at the end of doc['paras'])
+        - Load into Elasticsearch with unique key doc['id' + '_' + 0-based contiguous para_idx. ()
+Convert beerqa train/dev files into format suitable for MDR: (Not used)
     - Aggregate multiple paras that support the same hop
     - map to docs paras (based on title: para_idx).
     - For each sample, sequence the support paragraph ordering 
     - Create adversarial negs using ES and also with hyperlinks. Where < 10 adv paras found, pad with random paras to min 10 negs.
 
-wiki: docs format
+Output format:
 docs[0].keys(): dict_keys(['id', 'title', 'paras']) 
  - id is a string containing numbers. 
  - Note title is raw and escaped. Needs to be unescaped for use.
@@ -31,8 +32,7 @@ docs[0].keys(): dict_keys(['id', 'title', 'paras'])
           'Kerala': [{'anchor_text': 'Kerala', 'span': [159, 165]}],
           'South India': [{'anchor_text': 'South India', 'span': [175, 186]}],
           'Protected areas of Kerala': [{'anchor_text': 'protected areas of Kerala', 'span': [239, 264]}]},
-         'hpqa': False,
-         'squad': False }
+     }
 
 
 MDR: Convert HotpotQA abstracts into a jsonl file from the MDR output file to the input format for encoding

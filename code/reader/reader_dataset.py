@@ -1,5 +1,5 @@
 """
-Dataset for stage 1 extractor
+Dataset for stage 1 reranker and stage 2 evidence set scorer
 
 Portions adapted from https://github.com/facebookresearch/multihop_dense_retrieval 
 Two stage approach inspired by https://github.com/stanford-futuredata/Baleen
