@@ -205,7 +205,7 @@ def get_exact_match(prediction, groundtruth):
 
 
 def get_f1(prediction, groundtruth):
-    """ DROP-style f1 where if there is a number in the answer and it doesnt match then F1=0 regardless of other matches
+    """ DROP-style f1 where if there is a number in the gold answer and it doesnt match then F1=0 regardless of other matches, otherwise "normal" F1
     Note: Some Drop samples for encoder models have gold & pred  = [span1, span2] for multispan answers and both spans must be matched. 
           However in seq2seq models these spans are concatenated together into a single string and a gold answer in list form indicates *any* element can match
           In practice this means in seq2seq DROP etc always have both pred and gold as single strings and other datasets may have multiple valid answers in list form.

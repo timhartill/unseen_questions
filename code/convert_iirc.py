@@ -75,9 +75,11 @@ train = json.load(open(file_train))     #4754
 test = json.load(open(file_test))       #514
 dev = json.load(open(file_dev))         #430  # dict_keys(['pid', 'questions', 'links', 'text', 'title'])
 
-context_articles = json.load(open(file_context_articles))  # 56550 dict with key lowercase title -> str of entire article incl href tags, formatting tags etc
+context_articles = json.load(open(file_context_articles))  # 56550 dict with key lowercase title -> str of entire article incl href tags, formatting tags etc with \n delimiting paras
 
 def get_article(title):
+    """ Return full article string including href tags. Paras delimited by \n 
+    """
     article = context_articles.get(title.strip())  # 36 not lowercased..
     if article is None:
         article = context_articles.get(title.strip().lower())
@@ -106,7 +108,7 @@ def get_random_para(exclude=[]):
 def get_para(article_no_tags, sent, key='\n', widen_by=0, max_chars=600):
     """ Try to get a full para demarcated by \n or a full sentence or sentences demarcated by '.'
     """
-    findstart = article_no_tags.find( sent.strip() )
+    findstart = article_no_tags.find( sent.strip() )  # find sentence start offset in article
     if findstart == -1:
         return '#NF#'
     else:
@@ -160,7 +162,28 @@ def consolidate_contexts(title_main, question):
 
 
 def build_golds(title_main, text_main, question):
-    """ context = [{'passage':'title', 'text': 'sentence', 'indices':[start, end]}]
+    """ 
+    question sample:
+        {'answer': {'type': 'span',
+          'answer_spans': [{'start': 141,
+            'end': 152,
+            'text': 'Switzerland',
+            'passage': 'university of geneva'}]},
+         'question': 'In what country did Bain attend doctoral seminars of Wlad Godzich?',
+         'question_links': ['University of Geneva'],
+         'qid': 'q_10839',
+         'context': [{'passage': 'main',
+           'text': 'and later attended the doctoral seminars of Wlad Godzich in the University of Geneva.',
+           'indices': [705, 790]},
+          {'passage': 'main',
+           'text': 'He completed M. Phil at the Geneva-based IUEE (Institute for European Studies), and later attended the doctoral seminars of Wlad Godzich in the University of Geneva.',
+           'indices': [625, 790]},
+          {'passage': 'University of Geneva',
+           'text': 'The University of Geneva (French: Université de Genève) is a public research university located in Geneva, Switzerland.',
+           'indices': [0, 119]}]}
+    
+    
+    context = [{'passage':'title', 'text': 'sentence', 'indices':[start, end]}]
     
     adds 'gold_contexts' key to each question: {'title': {'gold_paras': ['Para 1', 'Para 2', ..]},  #title = 'main' or actual title
                                                          {'neg_paras': ['Para 1']}  # each title has only 'gold_paras' xor 'neg_paras' 
@@ -230,6 +253,54 @@ def build_golds(title_main, text_main, question):
     
 def process_ds_split(split):
     """ Answer preprocessing based on https://github.com/jferguson144/IIRC-baseline/make_drop_style.py
+    
+    split sample:
+    {'pid': 'p_4754',
+     'questions': [{'answer': {'type': 'span',
+        'answer_spans': [{'start': 141,
+          'end': 152,
+          'text': 'Switzerland',
+          'passage': 'university of geneva'}]},
+       'question': 'In what country did Bain attend doctoral seminars of Wlad Godzich?',
+       'question_links': ['University of Geneva'],
+       'qid': 'q_10839',
+       'context': [{'passage': 'main',
+         'text': 'and later attended the doctoral seminars of Wlad Godzich in the University of Geneva.',
+         'indices': [705, 790]},
+        {'passage': 'main',
+         'text': 'He completed M. Phil at the Geneva-based IUEE (Institute for European Studies), and later attended the doctoral seminars of Wlad Godzich in the University of Geneva.',
+         'indices': [625, 790]},
+        {'passage': 'University of Geneva',
+         'text': 'The University of Geneva (French: Université de Genève) is a public research university located in Geneva, Switzerland.',
+         'indices': [0, 119]}]},
+      {'answer': {'type': 'span',
+        'answer_spans': [{'start': 93,
+          'end': 114,
+          'text': 'Province of Salamanca',
+          'passage': 'salamanca'}]},
+       'question': 'In what Spanish province is the city located where Bain took up Hispanic Studies at a small private college?',
+       'question_links': ['Salamanca'],
+       'qid': 'q_10840',
+       'context': [{'passage': 'main',
+         'text': 'In 1982 he moved to Spain, and took up Hispanic Studies in a small private college in Salamanca',
+         'indices': [196, 291]},
+        {'passage': 'Salamanca',
+         'text': 'Salamanca ( , ) is a city in western Spain that is the capital of the Province of Salamanca',
+         'indices': [0, 91]}]}],
+     'links': [{'indices': [17, 23], 'target': 'London'},
+      {'indices': [34, 54], 'target': 'Kingston upon Thames'},
+      {'indices': [98, 105], 'target': 'Liphook'},
+      {'indices': [136, 144], 'target': 'Dyslexia'},
+      {'indices': [282, 291], 'target': 'Salamanca'},
+      {'indices': [324, 333], 'target': 'Golo Mann'},
+      {'indices': [378, 416], 'target': 'Classe préparatoire aux grandes écoles'},
+      {'indices': [458, 469], 'target': 'Jules Ferry'},
+      {'indices': [527, 547], 'target': 'Les Baux-de-Provence'},
+      {'indices': [598, 623], 'target': 'Paris Nanterre University'},
+      {'indices': [749, 761], 'target': 'Wlad Godzich'},
+      {'indices': [769, 789], 'target': 'University of Geneva'}],
+     'text': 'Bain was born in London. He lived Kingston upon Thames attending prep school at Highfield School (Liphook, Hampshire). He suffered from Dyslexia, and made slow progress in the educational system. In 1982 he moved to Spain, and took up Hispanic Studies in a small private college in Salamanca where he met up with friends of Golo Mann. Upon return to France he qualified for the Classe préparatoire aux grandes écoles. He accomplished his Khâgne in the Lyceé Jules Ferry. The same year he discovered a new archeological area at Les Baux-de-Provence. He accomplished his BA Humanities in the radical Paris Nanterre University. He completed M. Phil at the Geneva-based IUEE (Institute for European Studies), and later attended the doctoral seminars of Wlad Godzich in the University of Geneva.\n',
+     'title': 'Thomas Bain (Orange)'}
     """
     
     max_ans_spans = -1
