@@ -24,8 +24,8 @@ python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/pa
 
 python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/paired_bootstrap.txt \
         --gold $UQA_DIR/strategy_qa_bigbench_expl_ans/dev.tsv \
-        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/strategy_qa_bigbench_expl_ans_predictions.json \
-        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/strategy_qa_bigbench_expl_ans_predictions.json \
+        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/dev_strategy_qa_bigbench_expl_ans_predictions.json \
+        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/dev_strategy_qa_bigbench_expl_ans_predictions.json \
         --eval_type yn \
         --num_samples 10000
 
