@@ -83,42 +83,42 @@ python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/pa
 
 echo "IIRC..."
 python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/paired_bootstrap.txt \
-        --gold $UQA_DIR/iirc_initial_context_fullwiki_bs150/dev.tsv \
-        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/dev_iirc_initial_context_fullwiki_bs150_predictions.json \
-        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/dev_iirc_initial_context_fullwiki_bs150_predictions.json \
+        --gold $UQA_DIR/iirc_initial_context_fullwiki_bs150/test.tsv \
+        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/test_iirc_initial_context_fullwiki_bs150_predictions.json \
+        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/test_iirc_initial_context_fullwiki_bs150_predictions.json \
         --eval_type f1 \
         --num_samples 10000
 
 
 python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/paired_bootstrap.txt \
-        --gold $UQA_DIR/iirc_gold_context/dev.tsv \
-        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/dev_iirc_gold_context_predictions.json \
-        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/dev_iirc_gold_context_predictions.json \
+        --gold $UQA_DIR/iirc_gold_context/test.tsv \
+        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/test_iirc_gold_context_predictions.json \
+        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/test_iirc_gold_context_predictions.json \
         --eval_type f1 \
         --num_samples 10000
 
 
 echo "ARC-DA..."
 python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/paired_bootstrap.txt \
-        --gold $UQA_DIR/arc_da_od_ans/dev.tsv \
-        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/dev_arc_da_od_ans_predictions.json \
-        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/dev_arc_da_od_ans_predictions.json \
+        --gold $UQA_DIR/arc_da_od_ans/test.tsv \
+        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/test_arc_da_od_ans_predictions.json \
+        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/test_arc_da_od_ans_predictions.json \
         --eval_type f1 \
         --num_samples 10000
 
 
 python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/paired_bootstrap.txt \
-        --gold $UQA_DIR/arc_da_od_ans_fullwiki_bs150/dev.tsv \
-        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/dev_arc_da_od_ans_fullwiki_bs150_predictions.json \
-        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/dev_arc_da_od_ans_fullwiki_bs150_predictions.json \
+        --gold $UQA_DIR/arc_da_od_ans_fullwiki_bs150/test.tsv \
+        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/test_arc_da_od_ans_fullwiki_bs150_predictions.json \
+        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/test_arc_da_od_ans_fullwiki_bs150_predictions.json \
         --eval_type f1 \
         --num_samples 10000
 
 
 python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/paired_bootstrap.txt \
-        --gold $UQA_DIR/arc_da_expl_ans/dev.tsv \
-        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/dev_arc_da_expl_ans_predictions.json \
-        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/dev_arc_da_expl_ans_predictions.json \
+        --gold $UQA_DIR/arc_da_expl_ans/test.tsv \
+        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/test_arc_da_expl_ans_predictions.json \
+        --sys2 $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/test_arc_da_expl_ans_predictions.json \
         --eval_type f1 \
         --num_samples 10000
 
