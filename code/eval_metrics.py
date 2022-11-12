@@ -299,6 +299,7 @@ class StringSimilarity:
             self.simscores.append(em)
         ss = (100.0 * sum(self.simscores)) / len(self.simscores)
         self.last_scores['ss'] = ss
+        self.all_scores = np.array(self.simscores)
         return ss
                     
     def parse_questions(self, questions):  
@@ -343,6 +344,7 @@ class Sari:
             self.saris.append(s)
         sari_score = sari_scorer.get_metric()['SARI'] * 100.0
         self.last_scores['sari'] = sari_score
+        self.all_scores = np.array(self.saris)
         return sari_score
 
 
@@ -362,6 +364,7 @@ class F1:
             self.f1s.append(f1)
         f1 = (100.0 * sum(self.f1s)) / len(self.f1s)
         self.last_scores['f1'] = f1
+        self.all_scores = np.array(self.f1s)
         return f1
 
 
@@ -381,6 +384,7 @@ class EM:
             self.ems.append(em)
         em = (100.0 * sum(self.ems)) / len(self.ems)
         self.last_scores['em'] = em
+        self.all_scores = np.array(self.em)
         return em
 
 
@@ -453,6 +457,7 @@ class SelfBleu:
             score = self.bleu.compute_metric([prediction], [references], norm=norm)
             self.self_bleus.append(score)
         self.last_scores['selfbleu'] = sum(self.self_bleus) / len(self.self_bleus)
+        self.all_scores = np.array(self.self_bleus)
         return self.last_scores['selfbleu']
     
 
@@ -471,6 +476,7 @@ class YN:
             self.yn.append(yn)
         yn = (100.0 * sum(self.yn)) / len(self.yn)
         self.last_scores['yn'] = yn
+        self.all_scores = np.array(self.yn)
         return yn
 
 
