@@ -7,10 +7,6 @@
 
 cd ../code
 
-echo "Running Eval using ind digit tokenization for best model in $1 ..."
-
-"${LDATA}/out/mdr/logs/UQA_s12_v7__from_s11_v3cont1m_iircg_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v6__from_s11_v3cont1m_drop_ft_bart"
-
 
 python cli.py --output_dir ${LDATA}/out/mdr/logs/UQA_s12_v7__from_s11_v3cont1m_iircg_ft_bart \
         --predict_file $UDATA/data/unifiedqa/dev.tsv \
