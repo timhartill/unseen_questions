@@ -156,7 +156,7 @@ def consolidate_contexts(title_main, question):
             if random.random() < 0.5:
                 finalstr += ' ' + title + ': ' + negs[title]
             else:
-                finalstr = title + ': ' + negs[title] + ' ' + finalstr.strip()                
+                finalstr = title + ': ' + negs[title] + ' ' + finalstr.strip()
     question['final_gold_context'] = finalstr.strip()
     return
 
