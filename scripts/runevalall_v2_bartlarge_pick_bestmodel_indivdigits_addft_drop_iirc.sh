@@ -10,7 +10,7 @@ cd ../code
 
 python cli.py --output_dir ${LDATA}/out/mdr/logs/UQA_s12_v7__from_s11_v3cont1m_iircg_ft_bart \
         --predict_file $UDATA/data/unifiedqa/dev.tsv \
-        --predict_batch_size 4 \
+        --predict_batch_size 32 \
         --append_another_bos --do_lowercase \
         --verbose \
         --model facebook/bart-large \
@@ -22,7 +22,7 @@ python cli.py --output_dir ${LDATA}/out/mdr/logs/UQA_s12_v7__from_s11_v3cont1m_i
 
 python cli.py --output_dir ${LDATA}/out/mdr/logs/UQA_s12_v6__from_s11_v3cont1m_drop_ft_bart \
         --predict_file $UDATA/data/unifiedqa/dev.tsv \
-        --predict_batch_size 4 \
+        --predict_batch_size 32 \
         --append_another_bos --do_lowercase \
         --verbose \
         --model facebook/bart-large \

@@ -34,3 +34,7 @@ iirc_r_preds = json.load(open(file_iirc_r_preds))   #1301
 combo = [{'TYPE': at['ans_type'], 'Q': g['q_only'], 'A': g['answer'], 'GP': gp, 'RP':rp, 'GC': g['context'], 'RC':r['context']} for (at, g, gp, rp, r) in zip(ans_types, iirc_g, iirc_g_preds, iirc_r_preds, iirc_r)]
 
 
+
+
+
+

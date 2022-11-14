@@ -384,7 +384,7 @@ class EM:
             self.ems.append(em)
         em = (100.0 * sum(self.ems)) / len(self.ems)
         self.last_scores['em'] = em
-        self.all_scores = np.array(self.em)
+        self.all_scores = np.array(self.ems)
         return em
 
 
