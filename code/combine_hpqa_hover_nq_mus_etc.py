@@ -74,3 +74,4 @@ utils.saveas_jsonl(hpqa_hover_mu_dev, '/large_data/thar011/out/mdr/encoded_corpo
 utils.saveas_jsonl(hpqa_hover_mu_train, '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_mu_train_with_neg_v0.jsonl')
 
 
+#hpqa_hover_nq_mu_train = utils.load_jsonl('/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_train_with_neg_v0.jsonl') # 197813
