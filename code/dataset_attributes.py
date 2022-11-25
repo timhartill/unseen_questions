@@ -408,7 +408,7 @@ dataset_attribs = {
 
 
 ########################################################
-# Map answer types file - datasets for answer type analysis
+# Map answer types file -> datasets for answer type analysis
 ########################################################
 
 answer_type_map = {'anstypes_drop_dev.jsonl': ['drop'],
@@ -735,6 +735,7 @@ eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
                                     'out/mdr/logs/UQA_s11_v7_all_g1_qa_g2_numlit_wikissvise_from_s9_v5_addretdsV2_t5l/eval_metrics.json',
                                     'out/mdr/logs/UQA_s12_v7__from_s11_v3cont1m_iircg_ft_bart/eval_metrics.json',
                                     'out/mdr/logs/UQA_s12_v6__from_s11_v3cont1m_drop_ft_bart/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s12_v8__from_s11_v3cont1m_iircr_ft_bart/eval_metrics.json',
                                   ]
                        }
             # add additional sets in same format as 'default' here..
