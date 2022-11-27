@@ -736,6 +736,9 @@ eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
                                     'out/mdr/logs/UQA_s12_v7__from_s11_v3cont1m_iircg_ft_bart/eval_metrics.json',
                                     'out/mdr/logs/UQA_s12_v6__from_s11_v3cont1m_drop_ft_bart/eval_metrics.json',
                                     'out/mdr/logs/UQA_s12_v8__from_s11_v3cont1m_iircr_ft_bart/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s12_v9__from_s11_v2_iircg_ft_bart/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s12_v10__from_s11_v2_drop_ft_bart/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s12_v11__from_s11_v2_iircr_ft_bart/eval_metrics.json',
                                   ]
                        }
             # add additional sets in same format as 'default' here..
