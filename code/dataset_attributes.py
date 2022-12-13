@@ -21,7 +21,7 @@ Add/Edit datasets:
     unifiedqa_unseen_6      # filtered versions of unseen eval datasets (not currently used)
     unifiedqa_seen_1        # datasets used in training but that we wish to evaluate for various reasons anyway
 - Edit UQA_DIR to point to base directory for unified-qa formatted datasets.
-- Edit create_datasets_dynamic to add new datasets to dynamically create explations for (i.e from q[+mc]->a make q[+mc]+e->a). 
+- Edit create_datasets_dynamic to add new datasets to dynamically create explations for (i.e from q[+mc]->a make q[+mc]+e->a). (UNUSED)
     Datasets added here must be in dev_eval/test_eval and in dataset_attribs..
     Dynamically created versions i.e /UQA_DIR/qasc_svised_expl_ans_modeloutputdir_timestamp will be added to dev_eval/test_eval and dataset_attribs when this module is loaded..
 
