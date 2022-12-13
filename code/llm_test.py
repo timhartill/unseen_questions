@@ -27,6 +27,8 @@ A: Let’s think step by step.\n"""
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 input_ids = tokenizer(text, return_tensors="pt").input_ids
 
+input_ids = input_ids.cuda()
+
 print(f"MODEL: {model_name}. Loaded and tokenizer and tokenised inputs..")
 
 
