@@ -407,6 +407,21 @@ def unique_preserve_order(seq):
     return [x for x in seq if not (x in seen or seen_add(x))]
 
 
+def create_uqa_from_list(questions, outfile, answers=None, ans_default='NO ANS PROVIDED'):
+    """ Create UQA-formatted file from list of od questions with/without answers
+    questions = ["question 1" , "question 2"]
+    outfile = full path to output file. Directory will be created if doesn't exist
+    """
+    outlist = []
+    if answers is None or answers == []:
+        answers = [ans_default] * len(questions)
+    for q, a in zip(questions, answers): 
+        outlist.append( create_uqa_example(q, answer=a) )
+    out_dir, out_file = os.path.split(outfile)
+    save_uqa(outlist, out_dir, out_file)
+    return
+    
+
 def create_uqa_example(question, context=None, answer=None, append_nl=True, append_q_char='?'):
     """ Returns an example in uqa format
     Notes: 

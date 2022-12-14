@@ -153,13 +153,19 @@ def eval_args():
     parser.add_argument("--output_dataset", default='', type=str, help="Full path to output tsv-formatted files to. Typically /parent/.../unifiedqa/newdatasetname/train|dev|test.tsv ")
     parser.add_argument('--resume_dir', type=str, default=None, help="Path to log dir containing samples_with_context.jsonl to resume adding to.")
     parser.add_argument('--ctx_topk_paras', type=int, default=-1, help="Number of paras to include in final context build. -1 means include all.")
-    parser.add_argument('--ctx_gold_sents_only', action="store_true", help="If set only sentences from s2 included in final context. Otherwise 1 sentence before/after each s2 sent is included.")
-    
-    
+    parser.add_argument('--ctx_gold_sents_only', action="store_true", help="If set only sentences from s2 included in final context. Otherwise 1 sentence before/after each s2 sent is included.")    
     
     return parser.parse_args()
 
 
+def llm_args():
+    parser = common_args()
+    parser.add_argument('--max_new_tokens', type=int, default=128, help="Max number of new tokens to generate exluding input prompt")
+    parser.add_argument('--max_memory', type=int, default=-1, help="Max mem in GB to allocate on each visible GPU. -1=auto.")
+    parser.add_argument("--output_dataset", default='', type=str, help="Full path to output tsv-formatted files to. Typically /parent/.../unifiedqa/newdatasetname/train|dev|test.tsv ")
+    parser.add_argument('--resume_dir', type=str, default=None, help="Path to log dir containing samples_with_context_llm.jsonl to resume adding to.")
+
+    return parser.parse_args()
     
 
 

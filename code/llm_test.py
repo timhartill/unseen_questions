@@ -51,13 +51,13 @@ model = AutoModelForCausalLM.from_pretrained(
 
 print(f"Loaded model {model_name}!")
 
-generated_ids = model.generate(input_ids, max_length=MAX_NEW_TOKENS)
+generated_ids = model.generate(input_ids, max_new_tokens=MAX_NEW_TOKENS)
 print(f"FROM {model_name} Generate: GREEDY: ", tokenizer.decode(generated_ids[0], skip_special_tokens=True))
 
-generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_length=MAX_NEW_TOKENS, early_stopping=True,)
+generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_new_tokens=MAX_NEW_TOKENS, early_stopping=True,)
 print(f"FROM {model_name} Generate: BEAM=4: ", tokenizer.decode(generated_ids[0], skip_special_tokens=True))
 
-generated_ids = model.generate(input_ids, do_sample=True, max_length=MAX_NEW_TOKENS, top_k=50, top_p=0.95, num_return_sequences=1)
+generated_ids = model.generate(input_ids, do_sample=True, max_new_tokens=MAX_NEW_TOKENS, top_k=50, top_p=0.95, num_return_sequences=1)
 print(f"FROM {model_name} Generate: SAMPLE: ", tokenizer.decode(generated_ids[0], skip_special_tokens=True))
 
 print("FINISHED!")
