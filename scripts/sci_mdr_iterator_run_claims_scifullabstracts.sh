@@ -125,7 +125,7 @@ python mdr_searchers.py \
     --init_checkpoint_stage1 $LDATA/out/mdr/logs/stage1_test5_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-05-29-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --init_checkpoint_stage2 $LDATA/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt \
     --gpu_model \
-    --hnsw \
+    --gpu_faiss \
     --hnsw_buffersize 40000000 \
     --save_index \
     --beam_size 150 \
