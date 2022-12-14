@@ -29,7 +29,7 @@ if __name__ == '__main__':
     args = llm_args()
     if args.max_memory < 0:
         free_in_GB = int(torch.cuda.mem_get_info()[0]/1024**3)
-        max_memory = f'{free_in_GB-2}GB'
+        max_memory = f'{free_in_GB-6}GB'
     else:
         max_memory = f'{args.max_memory}GB'
 
