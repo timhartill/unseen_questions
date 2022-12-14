@@ -113,7 +113,7 @@
 cd ../code
 
 python mdr_searchers.py \
-    --prefix SCI_ITER_fullwiki_claimstest \
+    --prefix SCI_ITER_fullwiki_claimstest_test1 \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/claims_test_fullwiki_bs150/test.tsv \
     --predict_file $UQA_DIR/claims_test/test.tsv \
