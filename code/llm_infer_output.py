@@ -29,7 +29,7 @@ if __name__ == '__main__':
     args = llm_args()
     if args.max_memory < 0:
         free_in_GB = int(torch.cuda.mem_get_info()[0]/1024**3)
-        max_memory = f'{free_in_GB-6}GB'
+        max_memory = f'{free_in_GB-4}GB'
     else:
         max_memory = f'{args.max_memory}GB'
 
@@ -100,12 +100,12 @@ if __name__ == '__main__':
 
     
     generated_ids = model.generate(input_ids, max_new_tokens=args.max_new_tokens)
-    logger.info(f"FROM {args.model_name} Generate: GREEDY: ", tokenizer.decode(generated_ids[0], skip_special_tokens=True))
+    logger.info(f"FROM {args.model_name} Generate: GREEDY: {tokenizer.decode(generated_ids[0], skip_special_tokens=True)}")
     
     generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_new_tokens=args.max_new_tokens, early_stopping=True,)
-    logger.info(f"FROM {args.model_name} Generate: BEAM=4: ", tokenizer.decode(generated_ids[0], skip_special_tokens=True))
+    logger.info(f"FROM {args.model_name} Generate: BEAM=4: {tokenizer.decode(generated_ids[0], skip_special_tokens=True)}")
     
     generated_ids = model.generate(input_ids, do_sample=True, max_new_tokens=args.max_new_tokens, top_k=50, top_p=0.95, num_return_sequences=1)
-    logger.info(f"FROM {args.model_name} Generate: SAMPLE: ", tokenizer.decode(generated_ids[0], skip_special_tokens=True))
+    logger.info(f"FROM {args.model_name} Generate: SAMPLE: {tokenizer.decode(generated_ids[0], skip_special_tokens=True)}")
     
     logger.info("FINISHED!")
