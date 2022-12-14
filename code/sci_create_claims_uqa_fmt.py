@@ -33,3 +33,31 @@ utils.saveas_jsonl(sci_abstracts_out, scicorpusfileout)
 
 #sci_abstracts_out[0]
 
+scicorpusfileout_paras = '/home/thar011/data/SCI/sci_corpus_paras_with_sent_spans.jsonl'
+
+max_sents = 5
+
+sci_corpus_paras_out = []
+for sample in sci_corpus:
+    outsents = []
+    i = 0
+    for sent in sample['abstract']:
+        if i < max_sents:
+            outsents.append(sent)
+        else:
+            i = 0
+            text = ' '.join(outsents)
+            spans = create_sentence_spans(outsents)
+            sci_corpus_paras_out.append({'title': sample['title'], 'text': text, 'sentence_spans': spans})
+            outsents = []
+        i += 1
+    if len(outsents) > 0:
+        text = ' '.join(outsents)
+        spans = create_sentence_spans(outsents)
+        sci_corpus_paras_out.append({'title': sample['title'], 'text': text, 'sentence_spans': spans})
+        
+print(f"# chunks: {len(sci_corpus_paras_out)}")       ## chunks: 929650
+utils.saveas_jsonl(sci_corpus_paras_out, scicorpusfileout_paras)
+
+
+
