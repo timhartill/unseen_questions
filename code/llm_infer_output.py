@@ -95,17 +95,78 @@ if __name__ == '__main__':
     Q: On average Joe throws 25 punches per minute. A fight lasts 5 rounds of 3 minutes. 
     How many punches did he throw?\n
     A: Let’s think step by step.\n"""
-    input_ids = tokenizer(text, return_tensors="pt").input_ids    
+    input_ids = tokenizer(text, return_tensors="pt").input_ids
     input_ids = input_ids.cuda()
 
+    logger.info(f"Input shape: {input_ids.shape}")
     
     generated_ids = model.generate(input_ids, max_new_tokens=args.max_new_tokens)
+    logger.info(f"GREEDY generated ids shape: {generated_ids.shape}")
     logger.info(f"FROM {args.model_name} Generate: GREEDY: {tokenizer.decode(generated_ids[0], skip_special_tokens=True)}")
     
     generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_new_tokens=args.max_new_tokens, early_stopping=True,)
+    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")
+    
     logger.info(f"FROM {args.model_name} Generate: BEAM=4: {tokenizer.decode(generated_ids[0], skip_special_tokens=True)}")
     
     generated_ids = model.generate(input_ids, do_sample=True, max_new_tokens=args.max_new_tokens, top_k=50, top_p=0.95, num_return_sequences=1)
+    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")
+
     logger.info(f"FROM {args.model_name} Generate: SAMPLE: {tokenizer.decode(generated_ids[0], skip_special_tokens=True)}")
+
+
+    logger.info("BS 1 NUM_RETURN_SEQS=3 ###########")
+    
+    
+    generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_new_tokens=args.max_new_tokens, early_stopping=True, num_return_sequences=3)
+    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")
+    
+    logger.info(f"FROM {args.model_name} Generate: BEAM=4: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
+    
+    generated_ids = model.generate(input_ids, do_sample=True, max_new_tokens=args.max_new_tokens, top_k=50, top_p=0.95, num_return_sequences=3)
+    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")
+
+    logger.info(f"FROM {args.model_name} Generate: SAMPLE: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
+
+    logger.info("FINISHED NUM_RETURN_SEQS=3 ###########")
+
+
+    logger.info("BATCH SIZE 2 tests NUM_RET_SEQS=1 *****")
+
+    text2 = """
+    Q: On average Joe throws 5 punches per minute. A fight lasts 6 rounds of 2 minutes. 
+    How many punches did he throw?\n
+    A: Let’s think step by step.\n"""
+
+    input_ids = tokenizer([text, text2], return_tensors="pt", padding=True).input_ids
+    input_ids = input_ids.cuda()
+
+    logger.info(f"Input shape: {input_ids.shape}")
+    
+    generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_new_tokens=args.max_new_tokens, early_stopping=True, num_return_sequences=1)
+    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")
+    
+    logger.info(f"FROM {args.model_name} Generate: BEAM=4: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
+    
+    generated_ids = model.generate(input_ids, do_sample=True, max_new_tokens=args.max_new_tokens, top_k=50, top_p=0.95, num_return_sequences=1)
+    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")
+
+    logger.info(f"FROM {args.model_name} Generate: SAMPLE: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
+
+    
+    logger.info("BATCH SIZE 2 tests NUM_RET_SEQS=3 *****")
+    logger.info(f"Input shape: {input_ids.shape}")
+    
+    generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_new_tokens=args.max_new_tokens, early_stopping=True, num_return_sequences=3)
+    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")
+    
+    logger.info(f"FROM {args.model_name} Generate: BEAM=4: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
+    
+    generated_ids = model.generate(input_ids, do_sample=True, max_new_tokens=args.max_new_tokens, top_k=50, top_p=0.95, num_return_sequences=3)
+    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")
+
+    logger.info(f"FROM {args.model_name} Generate: SAMPLE: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
+
+
     
     logger.info("FINISHED!")
