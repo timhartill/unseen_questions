@@ -91,6 +91,16 @@ if __name__ == '__main__':
     
     logger.info(f"Loaded model {args.model_name}!")
 
+    #SUMMARY: Can get BS 2 on 3 gpus with max 128 new toks
+    # Beam search seems better than greedy and sample
+    # BUT when have bs > 1 beam doesnt work any better than greedy!
+    # Safest: Always beam, bs 1 and # ret seqs 1 
+    #TODO try with real data
+    #TODO add templates
+    # param = template set per dataset. generate 1 output/sample/template and store in separate keys - output scores??
+    # for eval - run x templates for each, use reranker to select best,  for train - template set has 1 (best) template...
+    # try galactica before settling on a model
+
     text = """
     Q: On average Joe throws 25 punches per minute. A fight lasts 5 rounds of 3 minutes. 
     How many punches did he throw?\n
@@ -98,19 +108,19 @@ if __name__ == '__main__':
     input_ids = tokenizer(text, return_tensors="pt").input_ids
     input_ids = input_ids.cuda()
 
-    logger.info(f"Input shape: {input_ids.shape}")
+    logger.info(f"Input shape: {input_ids.shape}")  # [1, 41]
     
     generated_ids = model.generate(input_ids, max_new_tokens=args.max_new_tokens)
-    logger.info(f"GREEDY generated ids shape: {generated_ids.shape}")
+    logger.info(f"GREEDY generated ids shape: {generated_ids.shape}")   # [1, 169]
     logger.info(f"FROM {args.model_name} Generate: GREEDY: {tokenizer.decode(generated_ids[0], skip_special_tokens=True)}")
     
     generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_new_tokens=args.max_new_tokens, early_stopping=True,)
-    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")
+    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")  # [1, 169]
     
     logger.info(f"FROM {args.model_name} Generate: BEAM=4: {tokenizer.decode(generated_ids[0], skip_special_tokens=True)}")
     
     generated_ids = model.generate(input_ids, do_sample=True, max_new_tokens=args.max_new_tokens, top_k=50, top_p=0.95, num_return_sequences=1)
-    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")
+    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")   # [1, 169]
 
     logger.info(f"FROM {args.model_name} Generate: SAMPLE: {tokenizer.decode(generated_ids[0], skip_special_tokens=True)}")
 
@@ -119,12 +129,12 @@ if __name__ == '__main__':
     
     
     generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_new_tokens=args.max_new_tokens, early_stopping=True, num_return_sequences=3)
-    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")
+    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")  # [3, 169]
     
     logger.info(f"FROM {args.model_name} Generate: BEAM=4: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
     
     generated_ids = model.generate(input_ids, do_sample=True, max_new_tokens=args.max_new_tokens, top_k=50, top_p=0.95, num_return_sequences=3)
-    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")
+    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")  # [3, 169]
 
     logger.info(f"FROM {args.model_name} Generate: SAMPLE: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
 
@@ -141,29 +151,29 @@ if __name__ == '__main__':
     input_ids = tokenizer([text, text2], return_tensors="pt", padding=True).input_ids
     input_ids = input_ids.cuda()
 
-    logger.info(f"Input shape: {input_ids.shape}")
+    logger.info(f"Input shape: {input_ids.shape}") # [2, 41]
     
     generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_new_tokens=args.max_new_tokens, early_stopping=True, num_return_sequences=1)
-    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")
+    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")   # [2, 169]
     
     logger.info(f"FROM {args.model_name} Generate: BEAM=4: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
     
     generated_ids = model.generate(input_ids, do_sample=True, max_new_tokens=args.max_new_tokens, top_k=50, top_p=0.95, num_return_sequences=1)
-    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")
+    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")   # [2, 169]
 
     logger.info(f"FROM {args.model_name} Generate: SAMPLE: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
 
     
     logger.info("BATCH SIZE 2 tests NUM_RET_SEQS=3 *****")
-    logger.info(f"Input shape: {input_ids.shape}")
+    logger.info(f"Input shape: {input_ids.shape}") # [2, 41]
     
     generated_ids = model.generate(input_ids, num_beams=4, min_length=1, max_new_tokens=args.max_new_tokens, early_stopping=True, num_return_sequences=3)
-    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")
+    logger.info(f"BEAM=4 generated ids shape: {generated_ids.shape}")  # [6, 169]
     
     logger.info(f"FROM {args.model_name} Generate: BEAM=4: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
     
     generated_ids = model.generate(input_ids, do_sample=True, max_new_tokens=args.max_new_tokens, top_k=50, top_p=0.95, num_return_sequences=3)
-    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")
+    logger.info(f"SAMPLE generated ids shape: {generated_ids.shape}")  # [6, 169]
 
     logger.info(f"FROM {args.model_name} Generate: SAMPLE: {tokenizer.batch_decode(generated_ids, skip_special_tokens=True)}")
 

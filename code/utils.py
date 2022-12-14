@@ -151,7 +151,17 @@ def loadas_pickle(file):
     """
     with open(file, 'rb') as fp:
         obj = pickle.load(fp)
-    return obj     
+    return obj   
+
+
+def loadas_txt(file, strip=True):
+    """ Load python list from txt file
+    """
+    with open(file, 'r') as fp:
+        obj = fp.readlines()
+    if strip:    
+        obj = [l.strip() for l in obj]
+    return obj      
 
 
 def convert_pararules(all_json_list):
