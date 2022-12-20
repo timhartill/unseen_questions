@@ -160,10 +160,21 @@ def eval_args():
 
 def llm_args():
     parser = common_args()
-    parser.add_argument('--max_new_tokens', type=int, default=128, help="Max number of new tokens to generate exluding input prompt")
+    parser.add_argument('--max_new_tokens', type=int, default=128, help="Max number of new tokens to generate excluding input prompt")
     parser.add_argument('--max_memory', type=int, default=-1, help="Max mem in GB to allocate on each visible GPU. -1=auto.")
     parser.add_argument("--output_dataset", default='', type=str, help="Full path to output tsv-formatted files to. Typically /parent/.../unifiedqa/newdatasetname/train|dev|test.tsv ")
     parser.add_argument('--resume_dir', type=str, default=None, help="Path to log dir containing samples_with_context_llm.jsonl to resume adding to.")
+    parser.add_argument('--generate_train', action="store_true", help="Generate rationales for train.tsvs specified in TRAIN_SETS.")
+    parser.add_argument('--generate_dev', action="store_true", help="Generate rationales for dev.tsvs specified in TRAIN_SETS.")
+    parser.add_argument('--generate_eval', action="store_true", help="Generate rationales for dev.tsvs and test.tsvs specified in EVAL_SETS_DEV|TEST.")
+    parser.add_argument('--max_samples', type=int, default=-1, help="Max samples to generate rationales for. -1=all.")
+    parser.add_argument('--do_sample', action="store_true", help="If True do topk or top p sampling instead of beam/greedy search")
+    parser.add_argument("--top_k", default=0, type=int, help="If do_sample=True, only sample from the top_k most likely words. 50 is often an ok value")
+    parser.add_argument("--top_p", default=0.0, type=float, help="Nucleus sampling: If do_sample=True, only sample from the top words whose collective prob exceeds p so lower p = fewer but higher prob words to choose from. 0.92 is often an ok value")
+    parser.add_argument("--temperature", default=1.0, type=float, help="If do_sample=True, the lower the temperature the higher the chances of choosing high-prob words. eg 0.7")   
+    parser.add_argument('--num_beams', type=int, default=1, help="Number of beams if do_sample=False (1=greedy, >1 = beam search).")
+    parser.add_argument('--num_return_sequences', type=int, default=1, help="Number of sequences to return. Must be <= num_beams in beam search.")
+    parser.add_argument('--debug', action="store_true", help="If True simply outputs max_samples generations to log for each dataset")
 
     return parser.parse_args()
     

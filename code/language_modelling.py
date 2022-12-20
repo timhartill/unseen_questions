@@ -25,6 +25,14 @@ question_templates = {'who': "Who is {phrase}?",
                         'when': 'When did {phrase} exist?',
                         'size':'What size is {phrase}?',}
 
+# QUESTION could be:
+# Question text only?" or 
+# "Context text.\nQuestion text?" or "Context text. Question text?" or
+# "Question text? Answer Choices:  (A) ground (B) bathroom (C) forest (D) countryside (E) rural area" or
+# "Context text. Question text?  Answer Choices:  (A) ground (B) bathroom (C) forest (D) countryside (E) rural area" or
+# "Question text is Answer Choices: ..."
+ZEROSHOT_COT = "Q: {QUESTION}\nA: Let’s think step by step.\n"  # from Kojima et al 2022
+
 RAND = 'rand'
 F1OVERALL = 'f1overall'
 F1MAX = 'f1max'
@@ -32,11 +40,12 @@ F1MAX = 'f1max'
 
 exclude_ner_types = set(['DATE','TIME','PERCENT','MONEY','QUANTITY','ORDINAL','CARDINAL'])
 
-def load_prompt_template(infile):
+
+def load_prompt_template(infile, strip_final_nl=True):
     """ Load a prompt file """
     with open(infile, 'r') as fp: 
         template = fp.read()
-    if template[-1] == '\n':
+    if strip_final_nl and template[-1] == '\n':
         template = template[:-1]  # strip final \n if exists
     return template
 

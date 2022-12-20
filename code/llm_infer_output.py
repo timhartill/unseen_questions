@@ -18,11 +18,112 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 import utils
+import language_modelling
+import eval_metrics
 from mdr_config import llm_args
 
 
 
+# names of datasets to generate explanatory info for. Train datasets are assumed to have 'train.tsv' and 'dev.tsv':
+TRAIN_SETS = ['creak_od_ans','csqa2', 
+              'hpqa_od_ans', 'hover_od_ans', 'musique_qa', 'nq_open_od_ans', 
+              'tatqa', 
+              'qasc', 'arc_easy', 'arc_hard']
 
+EVAL_SETS_DEV = ['commonsenseqa', 'drop', 'musique_mu_dev_odv2', 'strategy_qa_bigbench_od_ans']
+EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
+
+
+def make_llm_query(sample):
+    """ Make sample components into LLM query
+    # Question text only?" or 
+    # "Context text.\nQuestion text?" or "Context text. Question text?" or
+    # "Question text? Answer Choices:  (A) ground (B) bathroom (C) forest (D) countryside (E) rural area" or
+    # "Context text. Question text?  Answer Choices:  (A) ground (B) bathroom (C) forest (D) countryside (E) rural area" or
+    # "Question text is Answer Choices: ..."
+    """
+    query = sample['q_only'].strip()
+    query = query.replace('.?', '?') # csqa has some questions like Are all apples red.?
+    if query[-1] != '?':
+        query += '?'
+    if sample['mc_options'] != '':
+        query += ' Answer Choices: ' + sample['mc_options']
+    if sample['context'] != '':
+        context = sample['context'].strip()
+        if context[-1] != '.':
+            context += '.'
+        query = context + ' ' + query 
+    return query
+
+
+
+def load_files(ds_set, file_name):
+    """ Load files for each dataset in a set
+    """
+    out_set = {}
+    for ds in ds_set:
+        path = os.path.join(eval_metrics.UQA_DIR, ds, file_name)
+        print(f'Loading input file: {path}...')
+        ds_in = utils.load_uqa_supervised(path, ans_lower=False, return_parsed=True)
+        for sample in ds_in:
+            sample['llm_query'] = make_llm_query(sample)
+        out_set[ds] = {'path': path, 'split': file_name[:-4],
+                       'data': ds_in}
+    return out_set
+    
+
+def tokenize_input(tokenizer, text):
+    """ Tokenise input
+    if text = str, output is [1, #toks]
+    if text = list of n strings, output is [#strings, #maxtoks] but since we arent setting padding=True this will error out
+    Note: don't use text= list since need the attention masks to ignore padding - without these eg beam search will consider padding and return poor results...
+    """
+    input_ids = tokenizer(text, return_tensors="pt").input_ids
+    return input_ids.cuda()
+
+
+
+def generate_simple(args, model, tokenizer, input_ids):
+    """ Simple generation routine, takes in input ids [[0,432, 123, 2]] and generates outputs
+    #    greedy: model.generate(input_ids, max_length=50) 
+    #    beam: model.generate(input_ids, max_length=50, num_beams=5, early_stopping=True,num_return_sequences=2,no_repeat_ngram_size=2)
+    #    sample: model.generate(input_ids, do_sample=True, max_length=50, top_k=0, temperature=0.7) # the lower the temp the greater the chance of picking high prob words
+    #    topk: model.generate(input_ids, do_sample=True, max_length=50, top_k=50) # only sample from the top 50 words by prob each time
+    #    nucleus: model.generate(input_ids, do_sample=True, max_length=50, top_p=0.92, top_k=0) # (also called topP) choose from the top words whose collective prob exceeds p so lower p = fewer but higher prob words to choose from
+    #    combo: model.generate(input_ids,do_sample=True, max_length=50, top_k=50, top_p=0.95, num_return_sequences=3)
+    """
+    start_decode = input_ids.shape[1]
+    if not args.do_sample:
+        generated_ids = model.generate(input_ids, num_beams=args.num_beams, min_length=1, 
+                                       max_new_tokens=args.max_new_tokens, early_stopping=True, 
+                                       num_return_sequences=args.num_return_sequences)
+    else:
+        generated_ids = model.generate(input_ids, do_sample=True, 
+                                       max_new_tokens=args.max_new_tokens, 
+                                       top_k=args.top_k, top_p=args.top_p, temperature=args.temperature,
+                                       num_return_sequences=args.num_return_sequences)
+    
+    return tokenizer.batch_decode(generated_ids[:, start_decode:], skip_special_tokens=True)  # ['rationale 1.', 'rationale 2', ...]
+
+
+def generate_all(args, logger, model, tokenizer, ds_set, template):
+    """ Generate rationales for all datasets
+    """
+    for ds in ds_set:
+        curr_ds = ds_set[ds]
+        logger.info(f'Generating rationales for dataset: {ds}  split:{curr_ds["split"]}')
+        for i, sample in enumerate(curr_ds['data']):
+            prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'])
+            if args.debug:
+                logger.info(f'QUERY {i}: {prompt}')
+            input_ids = tokenize_input(tokenizer, prompt)
+            rationales = generate_simple(args, model, tokenizer, input_ids)
+            if args.debug:
+                logger.info(f"RATIONALE(S) {i}: {rationales}")
+            sample['rationales'] = rationales 
+            if i == args.max_samples-1:
+                break
+    return
 
 
 if __name__ == '__main__':
@@ -76,6 +177,7 @@ if __name__ == '__main__':
     #model_name = 'facebook/opt-66b'
     #model_name = 'bigscience/bloom'
     
+    logger.info('Loading input datasets...')
     
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
@@ -90,7 +192,30 @@ if __name__ == '__main__':
     )
     
     logger.info(f"Loaded model {args.model_name}!")
+    
+    if args.debug:
+        logger.info('Debug mode: outputting to log only')
+        
+    if args.generate_train:
+        train_dict = load_files(TRAIN_SETS, 'train.tsv')
+        generate_all(args, logger, model, tokenizer, train_dict, template=language_modelling.ZEROSHOT_COT)
+    
+    if args.generate_dev:
+        dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
 
+    
+    if args.generate_eval:
+        eval_dev_dict = load_files(EVAL_SETS_DEV, 'dev.tsv')
+        eval_test_dict = load_files(EVAL_SETS_TEST, 'test.tsv')
+        eval_dict = {**eval_dev_dict, **eval_test_dict}
+        generate_all(args, logger, model, tokenizer, eval_dict, template=language_modelling.ZEROSHOT_COT)
+
+    
+    logger.info('Finished!')
+
+
+
+'''
     #SUMMARY: Can get BS 2 on 3 gpus with max 128 new toks
     # Beam search seems better than greedy and sample
     # BUT when have bs > 1 beam doesnt work any better than greedy!
@@ -180,3 +305,4 @@ if __name__ == '__main__':
 
     
     logger.info("FINISHED!")
+'''
