@@ -1,4 +1,5 @@
 # Abduce rationale from LLM
+# run on 3 80GB gpus
 
 
 cd ../code
@@ -10,7 +11,7 @@ python llm_infer_output.py \
     --predict_file $UQA_DIR/musique_mu_dev_inital_contextv2/dev.tsv \
     --model_name bigscience/bloom \
     --max_new_tokens 128 \
-    --generate_train
+    --generate_train \
     --generate_dev \
     --generate_eval \
     --debug \
@@ -26,7 +27,7 @@ python llm_infer_output.py \
     --predict_file $UQA_DIR/musique_mu_dev_inital_contextv2/dev.tsv \
     --model_name bigscience/bloom \
     --max_new_tokens 128 \
-    --generate_train
+    --generate_train \
     --generate_dev \
     --generate_eval \
     --debug \
@@ -42,7 +43,7 @@ python llm_infer_output.py \
     --predict_file $UQA_DIR/musique_mu_dev_inital_contextv2/dev.tsv \
     --model_name bigscience/bloom \
     --max_new_tokens 128 \
-    --generate_train
+    --generate_train \
     --generate_dev \
     --generate_eval \
     --debug \
@@ -60,7 +61,7 @@ python llm_infer_output.py \
     --predict_file $UQA_DIR/musique_mu_dev_inital_contextv2/dev.tsv \
     --model_name bigscience/bloom \
     --max_new_tokens 128 \
-    --generate_train
+    --generate_train \
     --generate_dev \
     --generate_eval \
     --debug \

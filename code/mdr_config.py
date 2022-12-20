@@ -174,7 +174,6 @@ def llm_args():
     parser.add_argument("--temperature", default=1.0, type=float, help="If do_sample=True, the lower the temperature the higher the chances of choosing high-prob words. eg 0.7")   
     parser.add_argument('--num_beams', type=int, default=1, help="Number of beams if do_sample=False (1=greedy, >1 = beam search).")
     parser.add_argument('--num_return_sequences', type=int, default=1, help="Number of sequences to return. Must be <= num_beams in beam search.")
-    parser.add_argument('--debug', action="store_true", help="If True simply outputs max_samples generations to log for each dataset")
 
     return parser.parse_args()
     
