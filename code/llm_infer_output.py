@@ -33,6 +33,15 @@ TRAIN_SETS = ['creak_od_ans','csqa2',
 EVAL_SETS_DEV = ['commonsenseqa', 'drop', 'musique_mu_dev_odv2', 'strategy_qa_bigbench_od_ans']
 EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 
+TEMPLATES = ['generic_kojima_22_0shot_stepbystep.txt',     #generic zero shot COT
+             'generic_csqa2_liu_22_modified.txt',          # modified from liu 2022 'generate some knowledge about the input'
+             'generic_csqa2_weicot_noanswer_modified.txt', # modified from liu 2022 to be cot without "So the answer is.."
+             'generic_csqa2_weicot_modified.txt',          # modified from liu 2022 to be cot with "So the answer is.."
+             'generic_csqa_weicot_from_li_22_noanswer_modified.txt', # modified from Li 2002  to be cot with ans options but without "So the answer is.."
+             'generic_csqa_weicot_from_li_22_modified.txt', # modified from Li 2002  to be cot with ans options and with "So the answer is.."
+             'generic_csqa_weicot_from_li_22_noanswer_noanschoices_modified.txt', # modified from Li 2002 to be cot without ans options & without "So the answer is.."
+            ]
+
 
 def make_llm_query(sample):
     """ Make sample components into LLM query
@@ -85,6 +94,7 @@ def tokenize_input(tokenizer, text):
 
 def generate_simple(args, model, tokenizer, input_ids):
     """ Simple generation routine, takes in input ids [[0,432, 123, 2]] and generates outputs
+    # NOTE: topk=50, temperature=0.7 errored out
     #    greedy: model.generate(input_ids, max_length=50) 
     #    beam: model.generate(input_ids, max_length=50, num_beams=5, early_stopping=True,num_return_sequences=2,no_repeat_ngram_size=2)
     #    sample: model.generate(input_ids, do_sample=True, max_length=50, top_k=0, temperature=0.7) # the lower the temp the greater the chance of picking high prob words
@@ -106,21 +116,25 @@ def generate_simple(args, model, tokenizer, input_ids):
     return tokenizer.batch_decode(generated_ids[:, start_decode:], skip_special_tokens=True)  # ['rationale 1.', 'rationale 2', ...]
 
 
-def generate_all(args, logger, model, tokenizer, ds_set, template):
+def generate_all(args, logger, model, tokenizer, ds_set, templates):
     """ Generate rationales for all datasets
     """
     for ds in ds_set:
         curr_ds = ds_set[ds]
         logger.info(f'Generating rationales for dataset: {ds}  split:{curr_ds["split"]}')
         for i, sample in enumerate(curr_ds['data']):
-            prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'])
-            if args.debug:
-                logger.info(f'QUERY {i}: {prompt}')
-            input_ids = tokenize_input(tokenizer, prompt)
-            rationales = generate_simple(args, model, tokenizer, input_ids)
-            if args.debug:
-                logger.info(f"RATIONALE(S) {i}: {rationales}")
-            sample['rationales'] = rationales 
+            sample['rationales'] = {}
+            for j, template in enumerate(templates):
+                prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'])
+                if args.debug:
+                    logger.info('--------------------------------------')
+                    logger.info(f'QUERY {i} TEMPLATE {j}: {prompt}')
+                input_ids = tokenize_input(tokenizer, prompt)
+                rationales = generate_simple(args, model, tokenizer, input_ids)
+                if args.debug:
+                    logger.info(f"RATIONALE(S) Q:{i} T:{j}: {rationales}")
+                    logger.info('--------------------------------------')
+                sample['rationales'][j] = rationales 
             if i == args.max_samples-1:
                 break
     return
@@ -175,10 +189,7 @@ if __name__ == '__main__':
     
     #MAX_NEW_TOKENS = 128
     #model_name = 'facebook/opt-66b'
-    #model_name = 'bigscience/bloom'
-    
-    logger.info('Loading input datasets...')
-    
+    #model_name = 'bigscience/bloom'  
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     
@@ -194,11 +205,21 @@ if __name__ == '__main__':
     logger.info(f"Loaded model {args.model_name}!")
     
     if args.debug:
-        logger.info('Debug mode: outputting to log only')
+        logger.info('Debug mode: outputting to log only.')
+    logger.info('Max samples per dataset to output: {args.max_samples}')
+    
+    template_paths = [os.path.join(eval_metrics.UQA_DIR, 'prompts', t) for t in TEMPLATES]
+    templates = language_modelling.load_templates(template_paths)
+    logger.info('Template ids and paths:')
+    for i, t in enumerate(template_paths):
+        logger.info(f"Template {i} {t}")
+    logger.info('Template ids and full formats:')
+    for i, t in enumerate(templates):
+        logger.info(f"{i}###{t}###")
         
     if args.generate_train:
         train_dict = load_files(TRAIN_SETS, 'train.tsv')
-        generate_all(args, logger, model, tokenizer, train_dict, template=language_modelling.ZEROSHOT_COT)
+        generate_all(args, logger, model, tokenizer, train_dict, templates=templates)
     
     if args.generate_dev:
         dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
@@ -208,7 +229,7 @@ if __name__ == '__main__':
         eval_dev_dict = load_files(EVAL_SETS_DEV, 'dev.tsv')
         eval_test_dict = load_files(EVAL_SETS_TEST, 'test.tsv')
         eval_dict = {**eval_dev_dict, **eval_test_dict}
-        generate_all(args, logger, model, tokenizer, eval_dict, template=language_modelling.ZEROSHOT_COT)
+        generate_all(args, logger, model, tokenizer, eval_dict, templates=templates)
 
     
     logger.info('Finished!')

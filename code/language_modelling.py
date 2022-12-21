@@ -18,7 +18,7 @@ import utils
 import eval_metrics
 import text_processing
 
-question_templates = {'who': "Who is {phrase}?",
+question_templates = {  'who': "Who is {phrase}?",
                         'what': 'What is {phrase}?',
                         'general':'{phrase}',
                         'where': 'Where is {phrase}?',
