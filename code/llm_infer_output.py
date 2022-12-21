@@ -128,7 +128,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                 prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'])
                 if args.debug:
                     logger.info('--------------------------------------')
-                    logger.info(f'QUERY {i} TEMPLATE {j}: {prompt}')
+                    logger.info(f"QUERY {i} TEMPLATE {j} ANSWER {sample['answer']}: {prompt}")
                 input_ids = tokenize_input(tokenizer, prompt)
                 rationales = generate_simple(args, model, tokenizer, input_ids)
                 if args.debug:
