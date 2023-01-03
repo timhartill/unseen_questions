@@ -10,6 +10,7 @@ Misc utility fns - general on top and Huggingface related below
 """
 import json
 import pickle
+import csv
 import os
 import re
 import numpy as np
@@ -153,6 +154,20 @@ def loadas_pickle(file):
         obj = pickle.load(fp)
     return obj   
 
+
+def write_csv_fromjsonl(outfile, outlist, enc='UTF8', headers=True):
+    """ Output to a csv file from list of dicts
+    dicts must have same keys in same order
+    """
+    cols = list(outlist[0].keys())
+    with open(outfile, 'w', encoding="UTF8") as fp:
+        writer = csv.DictWriter(fp, fieldnames=cols)
+        # Use writerows() not writerow()
+        if headers:
+            writer.writeheader()
+        writer.writerows(outlist)
+    return
+    
 
 def loadas_txt(file, strip=True):
     """ Load python list from txt file
