@@ -100,7 +100,7 @@ class MhopDataset_var(Dataset):
         if sample["type"] == "multi": 
             # eg sample['bridge'] = [['Ossian Elgström', 'Kristian Zahrtmann', 'Peder Severin Krøyer'], ['bananarama'], ['tango']]
             # means all paras from sample['bridge'][0] (but in any order) must come before sample['bridge'][1] which in turn (in any order if > 1 para) must come before sample['bridge'][2] ..
-            para_idxs = get_para_idxs(sample["pos_paras"])
+            para_idxs = get_para_idxs(sample["pos_paras"])  # {'titleA': idx in pos_paras,  'titleB': idx in pos_paras, ..}
             for step_paras_list in sample["bridge"]:
                 if self.random_multi_seq and self.train:
                     random.shuffle(step_paras_list)  

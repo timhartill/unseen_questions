@@ -132,8 +132,7 @@ def get_best_hop(sample):
                         p += '.'
                     para_dict_compressed[t] += ' ' + p
             para_dict_compressed[t] = para_dict_compressed[t].strip()
-            sample['para_dict_compressed'] = para_dict_compressed        
-                    
+            sample['para_dict_compressed'] = para_dict_compressed
                 
             sample['s2_best_preds'] = {'s2_ans_pred': pred_hist[0], 's2_ans_pred_score':pred_hist[1], 
                                        's2_ans_insuff_score': pred_hist[2], 's2_ans_conf_delta': pred_hist[3],
@@ -225,8 +224,9 @@ def output_csv(samples, outfile):
     
 
 annots14file = '/home/thar011/data/SCI/gold_annots_14_claims.csv'
-abstractsfull = '/large_data/thar011/out/mdr/logs/SCI_ITER_scifullabstracts_claimstest_test2-12-14-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
-abstractsparas = '/large_data/thar011/out/mdr/logs/SCI_ITER_sciparas_claimstest_test3-12-14-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
+abstractsfull300 = '/large_data/thar011/out/mdr/logs/SCI_ITER_scifullabstracts_claimstest_test4-01-06-2023-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
+abstractsfull510 = '/large_data/thar011/out/mdr/logs/SCI_ITER_scifullabstracts_claimstest_test5-01-06-2023-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
+abstractsparas = '/large_data/thar011/out/mdr/logs/SCI_ITER_sciparas_claimstest_test6-01-06-2023-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
 
 wikifull = '/large_data/thar011/out/mdr/logs/SCI_ITER_fullwiki_claimstest_test1-12-14-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
 
@@ -242,20 +242,26 @@ for r in df.itertuples():
     
 
 
-full = utils.load_jsonl(abstractsfull)   # list of {}: dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist'])
+full300 = utils.load_jsonl(abstractsfull300)   # list of {}: dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist'])
+full510 = utils.load_jsonl(abstractsfull510)   # list of {}: dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist'])
 paras = utils.load_jsonl(abstractsparas)
 wiki = utils.load_jsonl(wikifull)
 
-join_annots(full) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
+join_annots(full300) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
+join_annots(full510) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
 join_annots(paras)
 join_annots(wiki)
 
-print_titles(full)  # MEAN F1: 0.08714285714285716
-print_titles(paras) # MEAN F1: 0.12714285714285714
+#print_titles(full300)  # MEAN F1: 0.08714285714285716 orig
+print_titles(full300)  # MEAN F1: 0.09285714285714287
+print_titles(full510)  # MEAN F1: 0.0935714285714286
+#print_titles(paras) # MEAN F1: 0.12714285714285714
+print_titles(paras) # MEAN F1: 0.12714285714285717
 
 print_retrieved(paras)
 
-output_csv(full, os.path.join(outfile_base, 'abstracts_full.csv'))
+output_csv(full300, os.path.join(outfile_base, 'abstracts_full300.csv'))
+output_csv(full510, os.path.join(outfile_base, 'abstracts_full510.csv'))
 output_csv(paras, os.path.join(outfile_base, 'abstracts_paras.csv'))
 output_csv(wiki, os.path.join(outfile_base, 'wiki_paras.csv'))
 
