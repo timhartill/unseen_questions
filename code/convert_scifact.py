@@ -116,7 +116,7 @@ def process_data(split):
                 out = {'question': s['claim'], 'answers':[ans], 'src': 'scifact', 'type': 'multi', '_id': str(s['id'])+'_'+str(doc_id),
                        'pos_paras': [para],
                        'neg_paras': [],
-                       'bridge': [para['title']]}
+                       'bridge': [[para['title']]]}
                 curr_out_list.append(out)
             for doc_id in s['cited_doc_ids']:  # add docids cited but deemed insufficient ev as adv negs
                 if int(doc_id) not in doc_id_set:
