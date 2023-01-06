@@ -45,10 +45,10 @@ python mdr_encode_corpus_nativeamp.py \
     --model_name roberta-base \
     --predict_file $HDATA/data/SCI/sci_corpus_with_sent_spans.jsonl \
     --init_checkpoint $LDATA/out/mdr/logs/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250_hgx2-09-02-2022-mom-seed16-bsz250-fp16True-lr1e-05-decay0.0-warm0.1-valbsz100-m0.999-k76800-t1.0-ga1-varTrue-cenone/checkpoint_q_best.pt \
-    --embed_save_path $LDATA/out/mdr/encoded_corpora/sci_full_abstract_c300_test12_mom_6gpubs250 \
+    --embed_save_path $LDATA/out/mdr/encoded_corpora/sci_full_abstract_c512_test12_mom_6gpubs250 \
     --use_var_versions \
     --fp16 \
-    --max_c_len 300 \
+    --max_c_len 510 \
     --num_workers 10
 
 
