@@ -200,7 +200,7 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
             random.shuffle(curr_pos_idxs)
         else:
             divisor = 2
-        if sample['src'] != 'fever':
+        if sample['src'] not in ['fever', 'scifact']:  # scifact sent evidentiality is "or" OR "and" so treat like "fever or"
             firstnegidx = num_pos_initial // divisor
         else:
             firstnegidx = 0  # fever sent evidentiality is "or" not "and" so set all neg sample sents to neg_sents since partially replacing pos sents doesnt work wrt label

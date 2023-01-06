@@ -30,8 +30,10 @@ sci_corpus = utils.load_jsonl(scicorpusfile)  #dict_keys(['doc_id', 'title', 'ab
 #create_sentence_spans(v['abstract'])
 #' '.join(v['abstract'])
 
+for s in sci_corpus:
+    s['abstract'] = [' '+t if i>0 else t for i, t in enumerate(s['abstract'])]
 
-sci_abstracts_out = [{'title': v['title'], 'text': ' '.join(v['abstract']), 
+sci_abstracts_out = [{'title': v['title'], 'text': ''.join(v['abstract']), 
                       'sentence_spans': create_sentence_spans(v['abstract'])} for v in sci_corpus] # 500,000
 utils.saveas_jsonl(sci_abstracts_out, scicorpusfileout)
 
@@ -50,7 +52,7 @@ for sample in sci_corpus:
             outsents.append(sent)
         else:
             i = 0
-            text = ' '.join(outsents)
+            text = ''.join(outsents)
             spans = create_sentence_spans(outsents)
             sci_corpus_paras_out.append({'title': sample['title'], 'text': text, 'sentence_spans': spans})
             outsents = []
