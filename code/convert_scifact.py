@@ -139,8 +139,8 @@ def process_data(split):
                     
                 
 random.seed(42)      
-outlist_dev = process_data(dev)  
-outlist_train = process_data(train)
+outlist_dev = process_data(dev)     #209
+outlist_train = process_data(train) #564
 
 utils.saveas_jsonl(outlist_dev, UPDATED_DEV)
 utils.saveas_jsonl(outlist_train, UPDATED_TRAIN)
