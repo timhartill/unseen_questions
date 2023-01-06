@@ -36,7 +36,7 @@
 
 #    --train_file $LDATA/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_train_with_neg_v0.jsonl \
 #    --predict_file $LDATA/out/mdr/encoded_corpora/hotpot/hpqa_hover_nq_mu_dev_with_neg_v0.jsonl \
-/home/thar011/data/scifact/data/scifact_orig_dev_with_neg_and_sent_annots.jsonl
+# /home/thar011/data/scifact/data/scifact_orig_dev_with_neg_and_sent_annots.jsonl
 
 cd ../code
 
