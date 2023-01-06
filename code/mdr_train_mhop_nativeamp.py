@@ -132,6 +132,7 @@ def main():
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
 
     if args.init_checkpoint != "":
+        logger.info(f"Loading chkpt: {args.init_checkpoint}")
         model = load_saved(model, args.init_checkpoint)
 
     model.to(device)

@@ -42,7 +42,7 @@ cd ../code
 
 python mdr_train_mhop_nativeamp.py \
     --do_train \
-    --prefix scifact_orig_test1_6gpus_bs150 \
+    --prefix scifact_orig_test1_6gpus_bs150_from_hover_hpqa_nq_mu_paras_test12_mom \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --train_batch_size 150 \
@@ -50,6 +50,7 @@ python mdr_train_mhop_nativeamp.py \
     --fp16 \
     --train_file $HDATA/data/scifact/data/scifact_orig_train_with_neg_and_sent_annots.jsonl \
     --predict_file $HDATA/data/scifact/data/scifact_orig_dev_with_neg_and_sent_annots.jsonl \
+    --init_checkpoint $LDATA/out/mdr/logs/hover_hpqa_nq_mu_paras_test12_mom_6gpubs250_hgx2-09-02-2022-mom-seed16-bsz250-fp16True-lr1e-05-decay0.0-warm0.1-valbsz100-m0.999-k76800-t1.0-ga1-varTrue-cenone/checkpoint_q_best.pt \
     --seed 16 \
     --eval-period -1 \
     --max_c_len 435 \
