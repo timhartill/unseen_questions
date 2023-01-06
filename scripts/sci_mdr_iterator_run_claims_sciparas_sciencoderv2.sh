@@ -117,8 +117,8 @@ python mdr_searchers.py \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/claims_test_sciparas_bs150/test.tsv \
     --predict_file $UQA_DIR/claims_test/test.tsv \
-    --index_path $LDATA/out/mdr/encoded_corpora/sci_full_abstract_c512_sciencoderv1_test1_mom_6gpubs250/index.npy \
-    --corpus_dict $LDATA/out/mdr/encoded_corpora/sci_full_abstract_c512_sciencoderv1_test1_mom_6gpubs250/id2doc.json \
+    --index_path $LDATA/out/mdr/encoded_corpora/sci_paras_c300_sciencoderv1_test2_mom_6gpubs250/index.npy \
+    --corpus_dict $LDATA/out/mdr/encoded_corpora/sci_paras_c300_sciencoderv1_test2_mom_6gpubs250/id2doc.json \
     --model_name roberta-base \
     --init_checkpoint $LDATA/out/mdr/logs/scifact_orig_test1_6gpus_bs150_from_hover_hpqa_nq_mu_paras_test12_mom-01-06-2023-nomom-seed16-bsz150-fp16True-lr2e-05-decay0.0-warm0.1-valbsz100-sharedTrue-ga1-varTrue-cenone/checkpoint_best.pt \
     --model_name_stage google/electra-large-discriminator \
