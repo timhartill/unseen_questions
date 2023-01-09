@@ -129,6 +129,53 @@ def load_uqa_supervised(file, ans_lower=True, verbose=True):
     return questions, answers
 
 
+def get_dataset_metric(ds_name):
+    """ Get preferred metric and metric fn for dataset
+    """
+    ds_attribs = dataset_attribs.get(ds_name)
+    if ds_attribs is None:
+        print(f"Error: Dataset {ds_name} needs to be added to dataset_attribs dict in eval_metrics.py. Exiting.")
+        assert ds_attribs is not None, f"Error: Dataset {ds_name} needs to be added to dataset_attribs dict in eval_metrics.py. Exiting."
+    ds_type = ds_attribs['type']
+    pref_metric = metric_groups[ds_type]['prefer']
+    if ds_attribs['prefer'] != '' and ds_attribs['prefer'] is not None:
+        pref_metric = ds_attribs['prefer']
+    metric_fn = None
+    if pref_metric == 'F1':
+        metric_fn = get_f1
+    elif pref_metric == 'YN':
+        metric_fn = get_yn
+    elif pref_metric == 'EM':
+        metric_fn = get_exact_match
+    elif pref_metric == 'SS':
+        metric_fn = get_mc_single
+
+    return pref_metric, metric_fn
+
+
+def split_mc_options(mc_options):
+    """ Split mc options and return option text parts as list
+    Works where there are brackets in the mc option text..
+    Option keys must be uppercase..
+    """
+    choices = []
+    choicestr = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    keylist = ['(' + c + ')' for c in choicestr]
+    mc_options = mc_options.split() # each (A) , (B) etc must be followed by <space> for this to work..
+    currchoice = ''
+    for tok in mc_options:
+        currtok = tok.strip()
+        if currtok not in keylist:
+            currchoice = currchoice + ' ' + currtok
+        else:
+            if currchoice.strip() != '': 
+                choices.append(currchoice.strip())
+                currchoice = '' 
+    if currchoice:
+        choices.append(currchoice.strip())  
+    return choices   
+
+
 # the standard "squad" normalization
 def normalize_answer_squad(s):
     def remove_articles(text):
@@ -189,6 +236,16 @@ def score_string_similarity(str1, str2, usesolver_preproc=False, use_f1=True):
             return 0.0
 
 
+def get_mc_single(prediction, groundtruth, mc_options):
+    """ Score multichoice for single sample
+    """
+    choices = split_mc_options(mc_options)
+    scores = [score_string_similarity(x, prediction, usesolver_preproc=False, use_f1=True) for x in choices]
+    max_idx = np.argmax(scores)
+    em = get_exact_match(choices[max_idx], groundtruth)
+    return em
+    
+
 # from https://github.com/huggingface/datasets/blob/86e66e7be32f96a625314b8e7d4b16d703eba82d/metrics/squad_v2/evaluate.py#L104
 def get_tokens(s):
     if not s:
@@ -222,7 +279,7 @@ def get_f1_squad(prediction, groundtruth):
     if type(groundtruth)==list:
         if len(groundtruth)==0:
             return 0.0
-        return float(np.max([get_f1(prediction, gt) for gt in groundtruth]) )
+        return float(np.max([get_f1_squad(prediction, gt) for gt in groundtruth]) )
     gold_toks = get_tokens(groundtruth)
     pred_toks = get_tokens(prediction)
     common = collections.Counter(gold_toks) & collections.Counter(pred_toks)
@@ -286,7 +343,7 @@ class StringSimilarity:
         self.choices = []  # list of choices parsed from the questions
         self.newpreds = [] # list of the new predictions calculated from the similarity score
 
-    def compute_metric(self, predictions, groundtruths, questions=[], usesolver_preproc=False, use_f1=False):
+    def compute_metric(self, predictions, groundtruths, questions=[], usesolver_preproc=False, use_f1=True):
         if not self.choices:
             self.parse_questions(questions)
         self.newpreds = []
@@ -319,7 +376,7 @@ class StringSimilarity:
                     if currchoice.strip() != '': 
                         currchoices.append(currchoice.strip())
                         currchoice = '' 
-            if currchoice:        
+            if currchoice:
                 currchoices.append(currchoice.strip())  
             self.choices.append(currchoices)                  
 

@@ -43,6 +43,9 @@ TEMPLATES = ['generic_kojima_22_0shot_stepbystep.txt',     #generic zero shot CO
             ]
 
 
+ANSWER_PREFIX = 'So the answer is'
+
+
 def make_llm_query(sample):
     """ Make sample components into LLM query
     # Question text only?" or 
@@ -91,7 +94,6 @@ def tokenize_input(tokenizer, text):
     return input_ids.cuda()
 
 
-
 def generate_simple(args, model, tokenizer, input_ids):
     """ Simple generation routine, takes in input ids [[0,432, 123, 2]] and generates outputs
     # NOTE: topk=50, temperature=0.7 errored out
@@ -116,25 +118,88 @@ def generate_simple(args, model, tokenizer, input_ids):
     return tokenizer.batch_decode(generated_ids[:, start_decode:], skip_special_tokens=True)  # ['rationale 1.', 'rationale 2', ...]
 
 
+def split_rationale(rationales, sample):
+    """ Input: rationales' = list of rationale strings, potentially containing \n and 'So the answer is ...'. 
+                For greedy decode: 1 rationale in list
+        output = [ {'raw': 'raw rationale', 
+                    'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed', 
+                    'answer': 'predicted answer or ""'}, ...] 
+            to reconstruct everything before nl: output['nl_trunc'] + ' So the answer is ' + output['answer'] + '.'
+            
+    sample input format: {'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}
+    """
+    outlist = []
+    for r in rationales:
+        out = {'nl_trunc': '', 'answer': '', 'raw': r}
+        nl_idx = r.find('\n')
+        if nl_idx == -1:
+            nl_trunc = r.strip()
+        else:
+            nl_trunc = r[:nl_idx].strip()
+        ans_idx = nl_trunc.lower().rfind(ANSWER_PREFIX.lower()) 
+        if ans_idx == -1:
+            out['nl_trunc'] = nl_trunc
+        else:
+            out['nl_trunc'] = nl_trunc[:ans_idx].strip()
+            answer = nl_trunc[ans_idx+len(ANSWER_PREFIX):].strip()
+            if answer[-1] == '.':
+                answer = answer[:-1].strip()
+            # can get answers like 'abc', '(C) abc', 'abc (C), 'C' or '(C)':
+            if len(answer) <= 3 and (answer.find('(') != -1 or answer in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']):  #  eg 'C' or '(C)'
+                answer = utils.find_mc_answer(sample['mc_options'], answer.strip('(').strip(')'))
+            else:
+                opt_idx= answer.find('(')
+                if opt_idx != -1:                   # eg 'abc (C)' or '(C) abc'
+                    answer = answer[:opt_idx] + answer[opt_idx+3:]
+            out['answer'] = answer.strip()
+        if out['nl_trunc'][-1] not in ['.','?','!',':',';']:
+            out['nl_trunc'] = out['nl_trunc'] + '.'
+        outlist.append(out)
+    return outlist
+    
+
 def generate_all(args, logger, model, tokenizer, ds_set, templates):
     """ Generate rationales for all datasets
+    sample output format:
+        {'question': 'full q input txt',
+         'answer': 'ans txt',
+         'q_only': 'q only',
+         'mc_options': '(A) opta (B) optb (C) optc',
+         'context': 'context',
+         'rationales': [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
+           'answer': 'answer [with option txt only if mc]',
+           'raw': 'as generated minus query'}]}
     """
     for ds in ds_set:
         curr_ds = ds_set[ds]
         logger.info(f'Generating rationales for dataset: {ds}  split:{curr_ds["split"]}')
+        metric, metric_fn = eval_metrics.get_dataset_metric(ds)
         for i, sample in enumerate(curr_ds['data']):
             sample['rationales'] = {}
+            if args.debug and i <= 2:
+                logger.info('--------------------------------------')
+                logger.info(f"DS: {ds} QUERY {i} Q:{sample['llm_query']}  ANSWER {sample['answer']}")
             for j, template in enumerate(templates):
                 prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'])
-                if args.debug:
-                    logger.info('--------------------------------------')
-                    logger.info(f"QUERY {i} TEMPLATE {j} ANSWER {sample['answer']}: {prompt}")
                 input_ids = tokenize_input(tokenizer, prompt)
-                rationales = generate_simple(args, model, tokenizer, input_ids)
-                if args.debug:
-                    logger.info(f"RATIONALE(S) Q:{i} T:{j}: {rationales}")
+                rationales = generate_simple(args, model, tokenizer, input_ids)   #[rationale] stripped of query but including text after nl and answer if any
+                rationales_processed = split_rationale(rationales, sample)
+                for r in rationales_processed:
+                    r['metric'] = metric
+                    if r['answer'] == '':  # if couldnt extract answer, use nl_trunc as answer as this sometimes happens when it just generates an answer instead of a rationale
+                        ans = r['nl_trunc']
+                    else:
+                        ans = r['answer']
+                    if metric == 'SS':
+                        score = metric_fn(ans, sample['answer'], sample['mc_options'])
+                    else:
+                        score = metric_fn(ans, sample['answer'])
+                    r['ans_score'] = float(score)   
+                        
+                if args.debug and i <= 2:
+                    logger.info(f"RATIONALE(S) Q:{i} T:{j}: R:{rationales_processed[0]['nl_trunc']} A:{rationales_processed[0]['answer']} GOLD:{sample['answer']}")
                     logger.info('--------------------------------------')
-                sample['rationales'][j] = rationales 
+                sample['rationales'][j] = rationales_processed
             if i == args.max_samples-1:
                 break
     return
@@ -208,7 +273,7 @@ if __name__ == '__main__':
         logger.info('Debug mode: outputting to log only.')
     logger.info('Max samples per dataset to output: {args.max_samples}')
     
-    template_paths = [os.path.join(eval_metrics.UQA_DIR, 'prompts', t) for t in TEMPLATES]
+    template_paths = [os.path.join(eval_metrics.UQA_DIR, 'prompts', t) for t in TEMPLATES]  # load prompt files
     templates = language_modelling.load_templates(template_paths)
     logger.info('Template ids and paths:')
     for i, t in enumerate(template_paths):
@@ -223,6 +288,7 @@ if __name__ == '__main__':
     
     if args.generate_dev:
         dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
+        generate_all(args, logger, model, tokenizer, dev_dict, templates=templates)
 
     
     if args.generate_eval:

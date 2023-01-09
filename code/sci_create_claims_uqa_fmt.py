@@ -238,6 +238,7 @@ abstractsfull510 = '/large_data/thar011/out/mdr/logs/SCI_ITER_scifullabstracts_c
 abstractsfull510sciencoderv1 = '/large_data/thar011/out/mdr/logs/SCI_ITER_scifullabstracts_sciencoderv1_claimstest_test7-01-06-2023-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
 abstractsfull510sciencoderv2 = '/large_data/thar011/out/mdr/logs/SCI_ITER_scifullabstracts_sciencoderv2_claimstest_test8-01-06-2023-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
 abstractsparas = '/large_data/thar011/out/mdr/logs/SCI_ITER_sciparas_claimstest_test6-01-06-2023-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
+abstractsparassciencoderv2 = '/large_data/thar011/out/mdr/logs/SCI_ITER_sciparas_sciencoderv2_claimstest_test9-01-06-2023-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
 
 wikifull = '/large_data/thar011/out/mdr/logs/SCI_ITER_fullwiki_claimstest_test1-12-14-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
 
@@ -258,6 +259,7 @@ full510 = utils.load_jsonl(abstractsfull510)   # list of {}: dict_keys(['questio
 full510sciencv1 = utils.load_jsonl(abstractsfull510sciencoderv1)   # list of {}: dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist'])
 full510sciencv2 = utils.load_jsonl(abstractsfull510sciencoderv2)   # list of {}: dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist'])
 paras = utils.load_jsonl(abstractsparas)
+parassciencv2 = utils.load_jsonl(abstractsparassciencoderv2)
 wiki = utils.load_jsonl(wikifull)
 
 join_annots(full300) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
@@ -265,6 +267,7 @@ join_annots(full510) # dict_keys(['question', 'answer', 'mc_options', 'init_cont
 join_annots(full510sciencv1) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
 join_annots(full510sciencv2) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
 join_annots(paras)
+join_annots(parassciencv2)
 join_annots(wiki)
 
 #print_titles(full300)  # MEAN F1: 0.08714285714285716 orig
@@ -274,6 +277,7 @@ print_titles(full510sciencv1)  # MEAN F1: 0.11428571428571431
 print_titles(full510sciencv2)  # MEAN F1: 0.14142857142857146
 #print_titles(paras) # MEAN F1: 0.12714285714285714
 print_titles(paras) # MEAN F1: 0.12714285714285717
+print_titles(parassciencv2) # MEAN F1: 0.14285714285714285
 
 #join_annots(full510sciencv1, uptohop=1) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
 #print_titles(full510sciencv1)  # MEAN F1: 0.11000000000000001
@@ -282,12 +286,12 @@ print_titles(paras) # MEAN F1: 0.12714285714285717
 #join_annots(full510sciencv1, uptohop=3) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
 #print_titles(full510sciencv1)  # MEAN F1: 0.11285714285714286
 
-join_annots(full510sciencv2, uptohop=1) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
-print_titles(full510sciencv2)  # MEAN F1: 0.12999999999999998
-join_annots(full510sciencv2, uptohop=2) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
-print_titles(full510sciencv2)  # MEAN F1: 0.1349999999999999
-join_annots(full510sciencv2, uptohop=3) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
-print_titles(full510sciencv2)  # MEAN F1: 0.1392857142857143
+#join_annots(full510sciencv2, uptohop=1) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
+#print_titles(full510sciencv2)  # MEAN F1: 0.12999999999999998
+#join_annots(full510sciencv2, uptohop=2) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
+#print_titles(full510sciencv2)  # MEAN F1: 0.1349999999999999
+#join_annots(full510sciencv2, uptohop=3) # dict_keys(['question', 'answer', 'mc_options', 'init_context', 'src', 'type', '_id', 'dense_retrieved', 's1', 's2', 's2_full', 's2_ans_pred', 's2_ans_pred_score', 's2_ans_insuff_score', 's2_ans_conf_delta', 's2ev_score', 'stop_reason', 'dense_retrieved_hist', 's1_hist', 's2_hist', 's2_pred_hist', 's2_hist_all', 's2_pred_hist_all', 'best_hop', 'total_hops', 's2_best', 's2_best_preds', 'annots'])
+#print_titles(full510sciencv2)  # MEAN F1: 0.1392857142857143
 
 
 print_retrieved(paras)
@@ -297,6 +301,7 @@ output_csv(full510, os.path.join(outfile_base, 'abstracts_full510.csv'))
 output_csv(full510sciencv1, os.path.join(outfile_base, 'abstracts_full510_sciencoderv1.csv'))
 output_csv(full510sciencv2, os.path.join(outfile_base, 'abstracts_full510_sciencoderv2.csv'))
 output_csv(paras, os.path.join(outfile_base, 'abstracts_paras.csv'))
+output_csv(parassciencv2, os.path.join(outfile_base, 'abstracts_paras_sciencoderv2.csv'))
 output_csv(wiki, os.path.join(outfile_base, 'wiki_paras.csv'))
 
 
