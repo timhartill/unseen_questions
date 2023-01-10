@@ -177,19 +177,19 @@ def split_rationale(rationales, sample):
 def generate_all(args, logger, model, tokenizer, ds_set, templates):
     """ Generate rationales for all datasets. For greedy decode there is 1 rationale generated per prompt template
     sample output format:
-    {'dataset_1': {'path: 'file/path/dev.tsv', 'split': 'dev', 'metric': 'SS', 'ans_score_llm': 0.99, 
+    {'dataset_1': {'path': 'file/path/dev.tsv', 'split': 'dev', 'metric': 'SS', 'ans_score_llm': 0.99, 
                     'data': [
                         {'question': 'full q input txt',
                          'answer': 'ans txt',
                          'q_only': 'q only',
                          'mc_options': '(A) opta (B) optb (C) optc',
                          'context': 'context',
-                         'rationales': {'0': [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
+                         'rationales': {0: [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
                                                'answer': 'answer [with option txt only if mc]',
                                                'raw': 'as generated minus query',
                                                'metric': 'F1 or SS or EM',
                                                'ans_score': 0.99}],
-                                        '1': [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
+                                        1: [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
                                                'answer': 'answer [with option txt only if mc]',
                                                'raw': 'as generated minus query',
                                                'metric': 'F1 or SS or EM',
@@ -197,6 +197,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                                        }
                          } ],
      'dataset_2': {...}, ...}
+     }
     """
     for ds in ds_set:
         curr_ds = ds_set[ds]
@@ -223,14 +224,14 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                     else:
                         score = metric_fn(ans, sample['answer'])
                     r['ans_score'] = float(score)
-                        
+                sample['rationales'][j] = rationales_processed                        
                 if args.debug and i <= 2:
-                    logger.info(f"RATIONALE Q:{i} T:{j}: R:{rationales_processed[0]['nl_trunc']} A:{rationales_processed[0]['answer']} GOLD:{sample['answer']} {rationales_processed[0]['metric']}:{rationales_processed[0]['ans_score']}")
+                    logger.info(f"RATIONALE Q:{i} T:{j}: R:{sample['rationales'][j][0]['nl_trunc']} A:{sample['rationales'][j][0]['answer']} GOLD:{sample['answer']} {sample['rationales'][j][0]['metric']}:{sample['rationales'][j][0]['ans_score']}")
                     logger.info('--------------------------------------')
-                sample['rationales'][j] = rationales_processed
             if i % 5 == 0:
                 print(f"Processed: {i+1} samples..")
             if i == args.max_samples-1:
+                logger.info(f"Stopped at {i} samples..")
                 break
         logger.info(f"DS SUMMARY {metric}: {ds}")
         for j, t_file in enumerate(TEMPLATES):
@@ -238,6 +239,8 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
             for i, sample in enumerate(curr_ds['data']):
                 for r in sample['rationales'][j]:
                     scores.append(r['ans_score'])
+                if i == args.max_samples-1:
+                    break
             mean = np.mean(scores)
             if np.isnan(mean):
                 mean = -1.0
