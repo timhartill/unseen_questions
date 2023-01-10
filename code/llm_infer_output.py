@@ -222,12 +222,14 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                         score = metric_fn(ans, sample['answer'], sample['mc_options'])
                     else:
                         score = metric_fn(ans, sample['answer'])
-                    r['ans_score'] = float(score)   
+                    r['ans_score'] = float(score)
                         
                 if args.debug and i <= 2:
-                    logger.info(f"RATIONALE Q:{i} T:{j}: R:{rationales_processed[0]['nl_trunc']} A:{rationales_processed[0]['answer']} GOLD:{sample['answer']}")
+                    logger.info(f"RATIONALE Q:{i} T:{j}: R:{rationales_processed[0]['nl_trunc']} A:{rationales_processed[0]['answer']} GOLD:{sample['answer']} {rationales_processed[0]['metric']}:{rationales_processed[0]['ans_score']}")
                     logger.info('--------------------------------------')
                 sample['rationales'][j] = rationales_processed
+            if i % 5 == 0:
+                print(f"Processed: {i+1} samples..")
             if i == args.max_samples-1:
                 break
         logger.info(f"DS SUMMARY {metric}: {ds}")
