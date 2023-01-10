@@ -51,6 +51,7 @@ TEMPLATES = ['generic_csqa2_weicot_modified.txt',          # modified from liu 2
              'generic_csqa_weicot_from_li_22_anschoices_choicetextonly.txt',  # modified from Li 2002 to be cot with ans options and with "So the answer is.." without the answer key eg "So the answer is book."
              'generic_csqa2_csqa_weicot_modified.txt',  # cot combo of csqa2 and csqa, the latter with ans choices w/o keys
              'generic_hpqa_csqa2_weicot_modified.txt',  # cot combo of hpqa + csqa2
+             'generic_hpqa_csqa2_csqa_weicot_modified.txt',  # cot combo of hpqa + csqa2 + csqa
             ]
 
 
@@ -176,7 +177,8 @@ def split_rationale(rationales, sample):
 def generate_all(args, logger, model, tokenizer, ds_set, templates):
     """ Generate rationales for all datasets. For greedy decode there is 1 rationale generated per prompt template
     sample output format:
-    {'dataset_1': {'path: 'file/path/dev.tsv', 'split': 'dev', data': [
+    {'dataset_1': {'path: 'file/path/dev.tsv', 'split': 'dev', 'metric': 'SS', 'ans_score_llm': 0.99, 
+                    'data': [
                         {'question': 'full q input txt',
                          'answer': 'ans txt',
                          'q_only': 'q only',
@@ -309,8 +311,8 @@ if __name__ == '__main__':
     logger.info(f"Loaded model {args.model_name}!")
     
     if args.debug:
-        logger.info('Debug mode: outputting to log only.')
-    logger.info('Max samples per dataset to output: {args.max_samples}')
+        logger.info('Debug mode: outputting 1st 3 rationales to log.')
+    logger.info(f'Max samples per dataset to output: {args.max_samples}')
     
     template_paths = [os.path.join(eval_metrics.UQA_DIR, 'prompts', t) for t in TEMPLATES]  # load prompt files
     templates = language_modelling.load_templates(template_paths)
