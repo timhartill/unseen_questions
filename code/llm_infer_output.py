@@ -12,6 +12,7 @@ import os
 import logging
 from datetime import date
 import string
+import numpy as np
 
 
 import torch
@@ -30,16 +31,26 @@ TRAIN_SETS = ['creak_od_ans','csqa2',
               'tatqa', 
               'qasc', 'arc_easy', 'arc_hard']
 
-EVAL_SETS_DEV = ['commonsenseqa', 'drop', 'musique_mu_dev_odv2', 'strategy_qa_bigbench_od_ans']
+EVAL_SETS_DEV = ['commonsenseqa', 'musique_mu_dev_odv2', 'strategy_qa_bigbench_od_ans']  # 'drop'
 EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 
-TEMPLATES = ['generic_kojima_22_0shot_stepbystep.txt',     #generic zero shot COT
-             'generic_csqa2_liu_22_modified.txt',          # modified from liu 2022 'generate some knowledge about the input'
-             'generic_csqa2_weicot_noanswer_modified.txt', # modified from liu 2022 to be cot without "So the answer is.."
-             'generic_csqa2_weicot_modified.txt',          # modified from liu 2022 to be cot with "So the answer is.."
-             'generic_csqa_weicot_from_li_22_noanswer_modified.txt', # modified from Li 2002  to be cot with ans options but without "So the answer is.."
-             'generic_csqa_weicot_from_li_22_modified.txt', # modified from Li 2002  to be cot with ans options and with "So the answer is.."
-             'generic_csqa_weicot_from_li_22_noanswer_noanschoices_modified.txt', # modified from Li 2002 to be cot without ans options & without "So the answer is.."
+#TEMPLATES = ['generic_kojima_22_0shot_stepbystep.txt',     #generic zero shot COT
+#             'generic_csqa2_liu_22_modified.txt',          # modified from liu 2022 'generate some knowledge about the input'
+#             'generic_csqa2_weicot_noanswer_modified.txt', # modified from liu 2022 to be cot without "So the answer is.."
+#             'generic_csqa2_weicot_modified.txt',          # modified from liu 2022 to be cot with "So the answer is.."
+#             'generic_csqa_weicot_from_li_22_noanswer_modified.txt', # modified from Li 2002  to be cot with ans options but without "So the answer is.."
+#             'generic_csqa_weicot_from_li_22_modified.txt', # modified from Li 2002  to be cot with ans options and with "So the answer is.."
+#             'generic_csqa_weicot_from_li_22_noanswer_noanschoices_modified.txt', # modified from Li 2002 to be cot without ans options & without "So the answer is.."
+#            ]
+
+
+TEMPLATES = ['generic_csqa2_weicot_modified.txt',          # modified from liu 2022 to be cot with "So the answer is.."
+             'generic_csqa2_weicot_modified_withinstruction.txt', # modified from liu 2022 to be instruction + cot with "So the answer is.."
+             'generic_hpqa_weicot_modified.txt',            # cot with "So the answer is" created from hpqa train by me
+             'generic_csqa_weicot_from_li_22_modified.txt', # modified from Li 2002  to be cot with ans options and with "So the answer is.." eg "So the answer is book (C)."
+             'generic_csqa_weicot_from_li_22_anschoices_choicetextonly.txt',  # modified from Li 2002 to be cot with ans options and with "So the answer is.." without the answer key eg "So the answer is book."
+             'generic_csqa2_csqa_weicot_modified.txt',  # cot combo of csqa2 and csqa, the latter with ans choices w/o keys
+             'generic_hpqa_csqa2_weicot_modified.txt',  # cot combo of hpqa + csqa2
             ]
 
 
@@ -71,6 +82,10 @@ def make_llm_query(sample):
 
 def load_files(ds_set, file_name):
     """ Load files for each dataset in a set
+    Output: {'dataset_1': {'path: 'file/path/dev.tsv', 'split': 'dev', data': [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}, ...]},
+             'dataset_2': {'path: 'file/path/dev.tsv', 'split': 'dev', data': [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}, ...]},
+             ...
+            }
     """
     out_set = {}
     for ds in ds_set:
@@ -159,16 +174,27 @@ def split_rationale(rationales, sample):
     
 
 def generate_all(args, logger, model, tokenizer, ds_set, templates):
-    """ Generate rationales for all datasets
+    """ Generate rationales for all datasets. For greedy decode there is 1 rationale generated per prompt template
     sample output format:
-        {'question': 'full q input txt',
-         'answer': 'ans txt',
-         'q_only': 'q only',
-         'mc_options': '(A) opta (B) optb (C) optc',
-         'context': 'context',
-         'rationales': [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
-           'answer': 'answer [with option txt only if mc]',
-           'raw': 'as generated minus query'}]}
+    {'dataset_1': {'path: 'file/path/dev.tsv', 'split': 'dev', data': [
+                        {'question': 'full q input txt',
+                         'answer': 'ans txt',
+                         'q_only': 'q only',
+                         'mc_options': '(A) opta (B) optb (C) optc',
+                         'context': 'context',
+                         'rationales': {'0': [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
+                                               'answer': 'answer [with option txt only if mc]',
+                                               'raw': 'as generated minus query',
+                                               'metric': 'F1 or SS or EM',
+                                               'ans_score': 0.99}],
+                                        '1': [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
+                                               'answer': 'answer [with option txt only if mc]',
+                                               'raw': 'as generated minus query',
+                                               'metric': 'F1 or SS or EM',
+                                               'ans_score': 0.99}],
+                                       }
+                         } ],
+     'dataset_2': {...}, ...}
     """
     for ds in ds_set:
         curr_ds = ds_set[ds]
@@ -178,7 +204,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
             sample['rationales'] = {}
             if args.debug and i <= 2:
                 logger.info('--------------------------------------')
-                logger.info(f"DS: {ds} QUERY {i} Q:{sample['llm_query']}  ANSWER {sample['answer']}")
+                logger.info(f"DS: {ds} Q#:{i} Q:{sample['llm_query']}  ANSWER {sample['answer']}")
             for j, template in enumerate(templates):
                 prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'])
                 input_ids = tokenize_input(tokenizer, prompt)
@@ -197,11 +223,24 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                     r['ans_score'] = float(score)   
                         
                 if args.debug and i <= 2:
-                    logger.info(f"RATIONALE(S) Q:{i} T:{j}: R:{rationales_processed[0]['nl_trunc']} A:{rationales_processed[0]['answer']} GOLD:{sample['answer']}")
+                    logger.info(f"RATIONALE Q:{i} T:{j}: R:{rationales_processed[0]['nl_trunc']} A:{rationales_processed[0]['answer']} GOLD:{sample['answer']}")
                     logger.info('--------------------------------------')
                 sample['rationales'][j] = rationales_processed
             if i == args.max_samples-1:
                 break
+        logger.info(f"DS SUMMARY {metric}: {ds}")
+        for j, t_file in enumerate(TEMPLATES):
+            scores = []
+            for i, sample in enumerate(curr_ds['data']):
+                for r in sample['rationales'][j]:
+                    scores.append(r['ans_score'])
+            mean = np.mean(scores)
+            if np.isnan(mean):
+                mean = -1.0
+            mean = float(mean)
+            logger.info(f"T:{j} {metric}:{mean} ({t_file})")
+            curr_ds['metric'] = metric
+            curr_ds['ans_score_llm'] = mean
     return
 
 
@@ -280,22 +319,24 @@ if __name__ == '__main__':
         logger.info(f"Template {i} {t}")
     logger.info('Template ids and full formats:')
     for i, t in enumerate(templates):
-        logger.info(f"{i}###{t}###")
+        logger.info(f"T:{i}###{t}###")
         
     if args.generate_train:
         train_dict = load_files(TRAIN_SETS, 'train.tsv')
         generate_all(args, logger, model, tokenizer, train_dict, templates=templates)
+        utils.saveas_jsonl(train_dict, os.path.join(args.output_dir, 'llm_samples_with_context_train.jsonl'))
     
     if args.generate_dev:
         dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
         generate_all(args, logger, model, tokenizer, dev_dict, templates=templates)
-
+        utils.saveas_jsonl(dev_dict, os.path.join(args.output_dir, 'llm_samples_with_context_dev.jsonl'))
     
     if args.generate_eval:
         eval_dev_dict = load_files(EVAL_SETS_DEV, 'dev.tsv')
         eval_test_dict = load_files(EVAL_SETS_TEST, 'test.tsv')
         eval_dict = {**eval_dev_dict, **eval_test_dict}
         generate_all(args, logger, model, tokenizer, eval_dict, templates=templates)
+        utils.saveas_jsonl(eval_dict, os.path.join(args.output_dir, 'llm_samples_with_context_eval.jsonl'))
 
     
     logger.info('Finished!')
