@@ -26,12 +26,12 @@ from mdr_config import llm_args
 
 
 # names of datasets to generate explanatory info for. Train datasets are assumed to have 'train.tsv' and 'dev.tsv':
-TRAIN_SETS = ['creak_od_ans','csqa2', 
-              'hpqa_od_ans', 'hover_od_ans', 'musique_qa', 'nq_open_od_ans', 
+TRAIN_SETS = [#'creak_od_ans','csqa2', 
+              #'hpqa_od_ans', 'hover_od_ans', 'musique_qa', 'nq_open_od_ans', 
               'tatqa', 
               'qasc', 'arc_easy', 'arc_hard']
 
-EVAL_SETS_DEV = ['commonsenseqa', 'musique_mu_dev_odv2', 'strategy_qa_bigbench_od_ans']  # 'drop'
+EVAL_SETS_DEV = ['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
 EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 
 #TEMPLATES = ['generic_kojima_22_0shot_stepbystep.txt',     #generic zero shot COT
@@ -158,7 +158,7 @@ def split_rationale(rationales, sample):
         else:
             out['nl_trunc'] = nl_trunc[:ans_idx].strip()
             answer = nl_trunc[ans_idx+len(ANSWER_PREFIX):].strip()
-            if answer[-1] == '.':
+            if answer != '' and answer[-1] == '.':
                 answer = answer[:-1].strip()
             # can get answers like 'abc', '(C) abc', 'abc (C), 'C' or '(C)':
             if len(answer) <= 3 and (answer.find('(') != -1 or answer in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']):  #  eg 'C' or '(C)'
@@ -168,7 +168,7 @@ def split_rationale(rationales, sample):
                 if opt_idx != -1:                   # eg 'abc (C)' or '(C) abc'
                     answer = answer[:opt_idx] + answer[opt_idx+3:]
             out['answer'] = answer.strip()
-        if out['nl_trunc'][-1] not in ['.','?','!',':',';']:
+        if out['nl_trunc'] != '' and out['nl_trunc'][-1] not in ['.','?','!',':',';']:
             out['nl_trunc'] = out['nl_trunc'] + '.'
         outlist.append(out)
     return outlist
@@ -196,7 +196,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                                                'ans_score': 0.99}],
                                        }
                          } ],
-     'dataset_2': {...}, ...}
+     'dataset_2': {...}, ... }
      }
     """
     for ds in ds_set:
