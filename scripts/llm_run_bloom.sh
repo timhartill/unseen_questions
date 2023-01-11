@@ -12,12 +12,14 @@ python llm_infer_output.py \
     --predict_file $UQA_DIR/musique_mu_dev_inital_contextv2/dev.tsv \
     --model_name bigscience/bloom \
     --max_new_tokens 128 \
+    --max_seq_len_in 1024 \
     --generate_dev \
     --generate_eval \
     --debug \
     --max_samples 30 \
     --num_beams 1 \
     --num_return_sequences 1 \
+    --max_memory_buffer 6 \
     --max_memory -1
 
 

@@ -161,7 +161,9 @@ def eval_args():
 def llm_args():
     parser = common_args()
     parser.add_argument('--max_new_tokens', type=int, default=128, help="Max number of new tokens to generate excluding input prompt")
+    parser.add_argument('--max_seq_len_in', type=int, default=1024, help="Max number of input tokens.")
     parser.add_argument('--max_memory', type=int, default=-1, help="Max mem in GB to allocate on each visible GPU. -1=auto.")
+    parser.add_argument('--max_memory_buffer', type=int, default=6, help="#GB to subtract from max mem on each gpu if max_memory=auto.")
     parser.add_argument("--output_dataset", default='', type=str, help="Full path to output tsv-formatted files to. Typically /parent/.../unifiedqa/newdatasetname/train|dev|test.tsv ")
     parser.add_argument('--resume_dir', type=str, default=None, help="Path to log dir containing samples_with_context_llm.jsonl to resume adding to.")
     parser.add_argument('--generate_train', action="store_true", help="Generate rationales for train.tsvs specified in TRAIN_SETS.")
@@ -174,7 +176,6 @@ def llm_args():
     parser.add_argument("--temperature", default=1.0, type=float, help="If do_sample=True, the lower the temperature the higher the chances of choosing high-prob words. eg 0.7")   
     parser.add_argument('--num_beams', type=int, default=1, help="Number of beams if do_sample=False (1=greedy, >1 = beam search).")
     parser.add_argument('--num_return_sequences', type=int, default=1, help="Number of sequences to return. Must be <= num_beams in beam search.")
-
     return parser.parse_args()
     
 

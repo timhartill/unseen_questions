@@ -100,13 +100,13 @@ def load_files(ds_set, file_name):
     return out_set
     
 
-def tokenize_input(tokenizer, text):
+def tokenize_input(tokenizer, text, max_seq_len=1024):  # got oom on seq len of ~1600
     """ Tokenise input
     if text = str, output is [1, #toks]
     if text = list of n strings, output is [#strings, #maxtoks] but since we arent setting padding=True this will error out
     Note: don't use text= list since need the attention masks to ignore padding - without these eg beam search will consider padding and return poor results...
     """
-    input_ids = tokenizer(text, return_tensors="pt").input_ids
+    input_ids = tokenizer(text, return_tensors="pt", max_length=max_seq_len, truncation=True).input_ids
     return input_ids.cuda()
 
 
@@ -180,7 +180,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
     {'dataset_1': {'path': 'file/path/dev.tsv', 'split': 'dev', 'metric': 'SS', 'ans_score_llm': 0.99, 
                     'data': [
                         {'question': 'full q input txt',
-                         'answer': 'ans txt',
+                         'answer': 'ans txt', #or ['ans text 1', 'ans text 2']
                          'q_only': 'q only',
                          'mc_options': '(A) opta (B) optb (C) optc',
                          'context': 'context',
@@ -210,7 +210,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                 logger.info(f"DS: {ds} Q#:{i} Q:{sample['llm_query']}  ANSWER {sample['answer']}")
             for j, template in enumerate(templates):
                 prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'])
-                input_ids = tokenize_input(tokenizer, prompt)
+                input_ids = tokenize_input(tokenizer, prompt, args.max_seq_len_in)
                 rationales = generate_simple(args, model, tokenizer, input_ids)   #[rationale] stripped of query but including text after nl and answer if any
                 rationales_processed = split_rationale(rationales, sample)
                 for r in rationales_processed:
@@ -229,7 +229,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                     logger.info(f"RATIONALE Q:{i} T:{j}: R:{sample['rationales'][j][0]['nl_trunc']} A:{sample['rationales'][j][0]['answer']} GOLD:{sample['answer']} {sample['rationales'][j][0]['metric']}:{sample['rationales'][j][0]['ans_score']}")
                     logger.info('--------------------------------------')
             if i % 5 == 0:
-                print(f"Processed: {i+1} samples..")
+                logger.info(f"Processed: {i+1} samples..")
             if i == args.max_samples-1:
                 logger.info(f"Stopped at {i} samples..")
                 break
@@ -255,7 +255,7 @@ if __name__ == '__main__':
     args = llm_args()
     if args.max_memory < 0:
         free_in_GB = int(torch.cuda.mem_get_info()[0]/1024**3)
-        max_memory = f'{free_in_GB-4}GB'
+        max_memory = f'{free_in_GB - args.max_memory_buffer}GB'
     else:
         max_memory = f'{args.max_memory}GB'
 
