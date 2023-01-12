@@ -13,6 +13,7 @@ import logging
 from datetime import date
 import string
 import numpy as np
+import json
 
 
 import torch
@@ -28,11 +29,11 @@ from mdr_config import llm_args
 # names of datasets to generate explanatory info for. Train datasets are assumed to have 'train.tsv' and 'dev.tsv':
 TRAIN_SETS = [#'creak_od_ans','csqa2', 
               #'hpqa_od_ans', 'hover_od_ans', 'musique_qa', 'nq_open_od_ans', 
-              'tatqa', 
+              #'tatqa', 
               'qasc', 'arc_easy', 'arc_hard']
 
-EVAL_SETS_DEV = ['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
-EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
+EVAL_SETS_DEV = ['commonsenseqa'] #['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
+EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
 
 #TEMPLATES = ['generic_kojima_22_0shot_stepbystep.txt',     #generic zero shot COT
 #             'generic_csqa2_liu_22_modified.txt',          # modified from liu 2022 'generate some knowledge about the input'
@@ -44,15 +45,19 @@ EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 #            ]
 
 
-TEMPLATES = ['generic_csqa2_weicot_modified.txt',          # modified from liu 2022 to be cot with "So the answer is.."
-             'generic_csqa2_weicot_modified_withinstruction.txt', # modified from liu 2022 to be instruction + cot with "So the answer is.."
-             'generic_hpqa_weicot_modified.txt',            # cot with "So the answer is" created from hpqa train by me
-             'generic_csqa_weicot_from_li_22_modified.txt', # modified from Li 2002  to be cot with ans options and with "So the answer is.." eg "So the answer is book (C)."
-             'generic_csqa_weicot_from_li_22_anschoices_choicetextonly.txt',  # modified from Li 2002 to be cot with ans options and with "So the answer is.." without the answer key eg "So the answer is book."
-             'generic_csqa2_csqa_weicot_modified.txt',  # cot combo of csqa2 and csqa, the latter with ans choices w/o keys
-             'generic_hpqa_csqa2_weicot_modified.txt',  # cot combo of hpqa + csqa2
-             'generic_hpqa_csqa2_csqa_weicot_modified.txt',  # cot combo of hpqa + csqa2 + csqa
-            ]
+#TEMPLATES = ['generic_csqa2_weicot_modified.txt',          # modified from liu 2022 to be cot with "So the answer is.."
+#             'generic_csqa2_weicot_modified_withinstruction.txt', # modified from liu 2022 to be instruction + cot with "So the answer is.."
+#             'generic_hpqa_weicot_modified.txt',            # cot with "So the answer is" created from hpqa train by me
+#             'generic_csqa_weicot_from_li_22_modified.txt', # modified from Li 2002  to be cot with ans options and with "So the answer is.." eg "So the answer is book (C)."
+#             'generic_csqa_weicot_from_li_22_anschoices_choicetextonly.txt',  # modified from Li 2002 to be cot with ans options and with "So the answer is.." without the answer key eg "So the answer is book."
+#             'generic_csqa2_csqa_weicot_modified.txt',  # cot combo of csqa2 and csqa, the latter with ans choices w/o keys
+#             'generic_hpqa_csqa2_weicot_modified.txt',  # cot combo of hpqa + csqa2
+#             'generic_hpqa_csqa2_csqa_weicot_modified.txt',  # cot combo of hpqa + csqa2 + csqa
+#            ]
+
+TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonly.txt', # my made up mc template with answer as option text only. Also changing to options separated by \nl
+             'generic_csmadeup_weicot_anschoices_choicekeyonly.txt', # my made up mc template with answer as option key only. Also changing to options separated by \nl
+    ]
 
 
 ANSWER_PREFIX = 'So the answer is'
@@ -62,8 +67,7 @@ def make_llm_query(sample):
     """ Make sample components into LLM query
     # Question text only?" or 
     # "Context text.\nQuestion text?" or "Context text. Question text?" or
-    # "Question text? Answer Choices:  (A) ground (B) bathroom (C) forest (D) countryside (E) rural area" or
-    # "Context text. Question text?  Answer Choices:  (A) ground (B) bathroom (C) forest (D) countryside (E) rural area" or
+    # "[Context text. ]Question text?\nAnswer Choices: (A) ground\n(B)bathroom\n(C) forest\n(D) countryside\n(E) rural area\n" or
     # "Question text is Answer Choices: ..."
     """
     query = sample['q_only'].strip()
@@ -71,7 +75,7 @@ def make_llm_query(sample):
     if query[-1] != '?':
         query += '?'
     if sample['mc_options'] != '':
-        query += ' Answer Choices: ' + sample['mc_options']
+        query += '\nAnswer Choices:\n' + sample['mc_options'].replace(' (','\n(')
     if sample['context'] != '':
         context = sample['context'].strip()
         if context[-1] != '.':
@@ -331,19 +335,19 @@ if __name__ == '__main__':
     if args.generate_train:
         train_dict = load_files(TRAIN_SETS, 'train.tsv')
         generate_all(args, logger, model, tokenizer, train_dict, templates=templates)
-        utils.saveas_jsonl(train_dict, os.path.join(args.output_dir, 'llm_samples_with_context_train.jsonl'))
+        json.dump(train_dict, os.path.join(args.output_dir, 'llm_samples_with_context_train.jsonl'))
     
     if args.generate_dev:
         dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
         generate_all(args, logger, model, tokenizer, dev_dict, templates=templates)
-        utils.saveas_jsonl(dev_dict, os.path.join(args.output_dir, 'llm_samples_with_context_dev.jsonl'))
+        json.dump(dev_dict, os.path.join(args.output_dir, 'llm_samples_with_context_dev.jsonl'))
     
     if args.generate_eval:
         eval_dev_dict = load_files(EVAL_SETS_DEV, 'dev.tsv')
         eval_test_dict = load_files(EVAL_SETS_TEST, 'test.tsv')
         eval_dict = {**eval_dev_dict, **eval_test_dict}
         generate_all(args, logger, model, tokenizer, eval_dict, templates=templates)
-        utils.saveas_jsonl(eval_dict, os.path.join(args.output_dir, 'llm_samples_with_context_eval.jsonl'))
+        json.dump(eval_dict, os.path.join(args.output_dir, 'llm_samples_with_context_eval.jsonl'))
 
     
     logger.info('Finished!')
