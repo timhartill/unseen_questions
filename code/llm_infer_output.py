@@ -55,10 +55,14 @@ EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
 #             'generic_hpqa_csqa2_csqa_weicot_modified.txt',  # cot combo of hpqa + csqa2 + csqa
 #            ]
 
-TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonly.txt', # my made up mc template with answer as option text only. Also changing to options separated by \nl
-             'generic_csmadeup_weicot_anschoices_choicekeyonly.txt', # my made up mc template with answer as option key only. Also changing to options separated by \nl
-    ]
+#TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonly.txt', # my made up mc template with answer as option text only. Also changing to options separated by \nl
+#             'generic_csmadeup_weicot_anschoices_choicekeyonly.txt', # my made up mc template with answer as option key only. Also changing to options separated by \nl
+#    ]
 
+
+TEMPLATES = ['generic_csmadeup_weicot_anschoices_answeronly.txt', # made up mc. answer only without rationales
+             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle.txt',  # made up mc. sqa-style deductive rationale rather than 'the answer must..' style
+    ]
 
 ANSWER_PREFIX = 'So the answer is'
 
@@ -335,19 +339,19 @@ if __name__ == '__main__':
     if args.generate_train:
         train_dict = load_files(TRAIN_SETS, 'train.tsv')
         generate_all(args, logger, model, tokenizer, train_dict, templates=templates)
-        json.dump(train_dict, os.path.join(args.output_dir, 'llm_samples_with_context_train.jsonl'))
+        #json.dump(train_dict, os.path.join(args.output_dir, 'llm_samples_with_context_train.jsonl'))
     
     if args.generate_dev:
         dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
         generate_all(args, logger, model, tokenizer, dev_dict, templates=templates)
-        json.dump(dev_dict, os.path.join(args.output_dir, 'llm_samples_with_context_dev.jsonl'))
+        #json.dump(dev_dict, os.path.join(args.output_dir, 'llm_samples_with_context_dev.jsonl'))
     
     if args.generate_eval:
         eval_dev_dict = load_files(EVAL_SETS_DEV, 'dev.tsv')
         eval_test_dict = load_files(EVAL_SETS_TEST, 'test.tsv')
         eval_dict = {**eval_dev_dict, **eval_test_dict}
         generate_all(args, logger, model, tokenizer, eval_dict, templates=templates)
-        json.dump(eval_dict, os.path.join(args.output_dir, 'llm_samples_with_context_eval.jsonl'))
+        #json.dump(eval_dict, os.path.join(args.output_dir, 'llm_samples_with_context_eval.jsonl'))
 
     
     logger.info('Finished!')

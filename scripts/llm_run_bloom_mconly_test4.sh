@@ -6,13 +6,14 @@
 cd ../code
 
 python llm_infer_output.py \
-    --prefix LLM_TEST3_MCONLY \
+    --prefix LLM_TEST4_MCONLY \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/musique_mu_dev_inital_contextv2_fullwiki_bs150/dev.tsv \
     --predict_file $UQA_DIR/musique_mu_dev_inital_contextv2/dev.tsv \
     --model_name bigscience/bloom \
     --max_new_tokens 128 \
     --max_seq_len_in 1024 \
+    --generate_dev \
     --generate_eval \
     --debug \
     --max_samples 30 \
