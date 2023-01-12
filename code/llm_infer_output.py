@@ -60,9 +60,15 @@ EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
 #    ]
 
 
-TEMPLATES = ['generic_csmadeup_weicot_anschoices_answeronly.txt', # made up mc. answer only without rationales
-             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle.txt',  # made up mc. sqa-style deductive rationale rather than 'the answer must..' style
+#TEMPLATES = ['generic_csmadeup_weicot_anschoices_answeronly.txt', # made up mc. answer only without rationales
+#             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle.txt',  # made up mc. sqa-style deductive rationale rather than 'the answer must..' style
+#    ]
+
+
+TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2v1.txt', # made up mc + 1 each hpqa csqa2
+             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2v2.txt',  # made up mc + 2 each hpqa csqa2
     ]
+
 
 ANSWER_PREFIX = 'So the answer is'
 
