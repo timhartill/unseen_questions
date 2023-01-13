@@ -64,11 +64,14 @@ EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
 #             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle.txt',  # made up mc. sqa-style deductive rationale rather than 'the answer must..' style
 #    ]
 
+#TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2v1.txt', # made up mc + 1 each hpqa csqa2
+#             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2v2.txt',  # made up mc + 2 each hpqa csqa2
+#    ]
 
-TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2v1.txt', # made up mc + 1 each hpqa csqa2
-             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2v2.txt',  # made up mc + 2 each hpqa csqa2
+TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv3.txt',  # made up mc + 2 each hpqa csqa2 + instruction
+             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv4.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up + instruction
+             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionremovedv5.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up without instruction
     ]
-
 
 ANSWER_PREFIX = 'So the answer is'
 
@@ -223,6 +226,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                 logger.info('--------------------------------------')
                 logger.info(f"DS: {ds} Q#:{i} Q:{sample['llm_query']}  ANSWER {sample['answer']}")
             for j, template in enumerate(templates):
+                jkey = str(j)
                 prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'])
                 input_ids = tokenize_input(tokenizer, prompt, args.max_seq_len_in)
                 rationales = generate_simple(args, model, tokenizer, input_ids)   #[rationale] stripped of query but including text after nl and answer if any
@@ -238,20 +242,21 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                     else:
                         score = metric_fn(ans, sample['answer'])
                     r['ans_score'] = float(score)
-                sample['rationales'][j] = rationales_processed                        
+                sample['rationales'][jkey] = rationales_processed
                 if args.debug and i <= 2:
-                    logger.info(f"RATIONALE Q:{i} T:{j}: R:{sample['rationales'][j][0]['nl_trunc']} A:{sample['rationales'][j][0]['answer']} GOLD:{sample['answer']} {sample['rationales'][j][0]['metric']}:{sample['rationales'][j][0]['ans_score']}")
+                    logger.info(f"RATIONALE Q:{i} T:{jkey}: R:{sample['rationales'][jkey][0]['nl_trunc']} A:{sample['rationales'][jkey][0]['answer']} GOLD:{sample['answer']} {sample['rationales'][jkey][0]['metric']}:{sample['rationales'][jkey][0]['ans_score']}")
                     logger.info('--------------------------------------')
-            if i % 5 == 0:
+            if i % 5 == 0 and i != 0:
                 logger.info(f"Processed: {i+1} samples..")
             if i == args.max_samples-1:
                 logger.info(f"Stopped at {i} samples..")
                 break
         logger.info(f"DS SUMMARY {metric}: {ds}")
         for j, t_file in enumerate(TEMPLATES):
+            jkey = str(j)
             scores = []
             for i, sample in enumerate(curr_ds['data']):
-                for r in sample['rationales'][j]:
+                for r in sample['rationales'][jkey]:
                     scores.append(r['ans_score'])
                 if i == args.max_samples-1:
                     break
@@ -259,7 +264,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
             if np.isnan(mean):
                 mean = -1.0
             mean = float(mean)
-            logger.info(f"T:{j} {metric}:{mean} ({t_file})")
+            logger.info(f"T:{jkey} {metric}:{mean} ({t_file})")
             curr_ds['metric'] = metric
             curr_ds['ans_score_llm'] = mean
     return
@@ -345,20 +350,19 @@ if __name__ == '__main__':
     if args.generate_train:
         train_dict = load_files(TRAIN_SETS, 'train.tsv')
         generate_all(args, logger, model, tokenizer, train_dict, templates=templates)
-        #json.dump(train_dict, os.path.join(args.output_dir, 'llm_samples_with_context_train.jsonl'))
+        json.dump(train_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_train.jsonl', 'w')))
     
     if args.generate_dev:
         dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
         generate_all(args, logger, model, tokenizer, dev_dict, templates=templates)
-        #json.dump(dev_dict, os.path.join(args.output_dir, 'llm_samples_with_context_dev.jsonl'))
+        json.dump(dev_dict, os.path.join(args.output_dir, open('llm_samples_with_context_dev.jsonl', 'w')))
     
     if args.generate_eval:
         eval_dev_dict = load_files(EVAL_SETS_DEV, 'dev.tsv')
         eval_test_dict = load_files(EVAL_SETS_TEST, 'test.tsv')
         eval_dict = {**eval_dev_dict, **eval_test_dict}
         generate_all(args, logger, model, tokenizer, eval_dict, templates=templates)
-        #json.dump(eval_dict, os.path.join(args.output_dir, 'llm_samples_with_context_eval.jsonl'))
-
+        json.dump(eval_dict, os.path.join(args.output_dir, open('llm_samples_with_context_eval.jsonl', 'w')))
     
     logger.info('Finished!')
 
