@@ -6,7 +6,7 @@
 cd ../code
 
 python llm_infer_output.py \
-    --prefix LLM_TEST7_MCONLY_csqa_dev_on_finalv4 \
+    --prefix LLM_TEST7_MCONLY_csqa_dev_all_on_finalv4 \
     --output_dir $LDATA/out/mdr/logs \
     --output_dataset $UQA_DIR/musique_mu_dev_inital_contextv2_fullwiki_bs150/dev.tsv \
     --predict_file $UQA_DIR/musique_mu_dev_inital_contextv2/dev.tsv \
@@ -15,7 +15,7 @@ python llm_infer_output.py \
     --max_seq_len_in 1152 \
     --generate_eval \
     --debug \
-    --max_samples 30 \
+    --max_samples -1 \
     --num_beams 1 \
     --num_return_sequences 1 \
     --max_memory_buffer 6 \

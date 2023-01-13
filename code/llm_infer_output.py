@@ -68,11 +68,15 @@ EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
 #             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2v2.txt',  # made up mc + 2 each hpqa csqa2
 #    ]
 
-TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv3.txt',  # made up mc + 2 each hpqa csqa2 + instruction
-             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv4.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up + instruction
-             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionremovedv5.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up without instruction
-             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionreorderedv6.txt',  # v4 reordered made up mc + 2 each hpqa csqa2 + 1 more made up without instruction
+#TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv3.txt',  # made up mc + 2 each hpqa csqa2 + instruction
+#             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv4.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up + instruction
+#             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionremovedv5.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up without instruction
+#             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionreorderedv6.txt',  # v4 reordered made up mc + 2 each hpqa csqa2 + 1 more made up without instruction
+#    ]
+
+TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv4.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up + instruction
     ]
+
 
 ANSWER_PREFIX = 'So the answer is'
 
