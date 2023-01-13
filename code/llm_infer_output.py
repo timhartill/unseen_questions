@@ -71,6 +71,7 @@ EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
 TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv3.txt',  # made up mc + 2 each hpqa csqa2 + instruction
              'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv4.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up + instruction
              'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionremovedv5.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up without instruction
+             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionreorderedv6.txt',  # v4 reordered made up mc + 2 each hpqa csqa2 + 1 more made up without instruction
     ]
 
 ANSWER_PREFIX = 'So the answer is'
@@ -350,19 +351,19 @@ if __name__ == '__main__':
     if args.generate_train:
         train_dict = load_files(TRAIN_SETS, 'train.tsv')
         generate_all(args, logger, model, tokenizer, train_dict, templates=templates)
-        json.dump(train_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_train.jsonl', 'w')))
+        json.dump(train_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_train.jsonl'), 'w'))
     
     if args.generate_dev:
         dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
         generate_all(args, logger, model, tokenizer, dev_dict, templates=templates)
-        json.dump(dev_dict, os.path.join(args.output_dir, open('llm_samples_with_context_dev.jsonl', 'w')))
+        json.dump(dev_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_dev.jsonl'), 'w'))
     
     if args.generate_eval:
         eval_dev_dict = load_files(EVAL_SETS_DEV, 'dev.tsv')
         eval_test_dict = load_files(EVAL_SETS_TEST, 'test.tsv')
         eval_dict = {**eval_dev_dict, **eval_test_dict}
         generate_all(args, logger, model, tokenizer, eval_dict, templates=templates)
-        json.dump(eval_dict, os.path.join(args.output_dir, open('llm_samples_with_context_eval.jsonl', 'w')))
+        json.dump(eval_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_eval.jsonl'), 'w'))
     
     logger.info('Finished!')
 
