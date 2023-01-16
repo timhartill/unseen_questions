@@ -391,8 +391,8 @@ if __name__ == '__main__':
         for sample in pred_dict[ds]['data']:
             q = sample['question'].strip()
             a = sample['answer'][0] if len(sample['answer']) <= 1 else sample['answer']
-            rationale = sample['rationales']['0']['nl_trunc']
-            rat_ans = sample['rationales']['0']['answer']
+            rationale = sample['rationales']['0'][0]['nl_trunc']
+            rat_ans = sample['rationales']['0'][0]['answer']
             c = sample['context'].strip()
             if c != '':  # if there is an initial context make new context that + 'Further Explanation: ' + llm rationale so can distinguish it later if needed
                 if c [-1] not in ['.', '?', '!', ':', ';']:
