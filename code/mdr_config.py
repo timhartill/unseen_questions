@@ -10,8 +10,8 @@ def common_args():
     parser = argparse.ArgumentParser()
 
     # task
-    parser.add_argument("--train_file", type=str, default="../data/nq-with-neg-train.txt")
-    parser.add_argument("--predict_file", type=str, default="../data/nq-with-neg-dev.txt")
+    parser.add_argument("--train_file", type=str, default="")
+    parser.add_argument("--predict_file", type=str, default="")
     parser.add_argument("--num_workers", default=10, type=int, help="number of dataloader processes. 0 means run on main thread.")
     parser.add_argument("--do_train", default=False, action='store_true', help="Whether to run training.")
     parser.add_argument("--do_predict", default=False, action='store_true', help="Whether to run eval on the dev set.")
@@ -165,10 +165,11 @@ def llm_args():
     parser.add_argument('--max_memory', type=int, default=-1, help="Max mem in GB to allocate on each visible GPU. -1=auto.")
     parser.add_argument('--max_memory_buffer', type=int, default=6, help="#GB to subtract from max mem on each gpu if max_memory=auto.")
     parser.add_argument("--output_dataset", default='', type=str, help="Full path to output tsv-formatted files to. Typically /parent/.../unifiedqa/newdatasetname/train|dev|test.tsv ")
+    parser.add_argument("--template_file", default='', type=str, help="template file name without path (if specified will enable single mode). UQA_DIR/prompts/ will be prepended.")
     parser.add_argument('--resume_dir', type=str, default=None, help="Path to log dir containing samples_with_context_llm.jsonl to resume adding to.")
-    parser.add_argument('--generate_train', action="store_true", help="Generate rationales for train.tsvs specified in TRAIN_SETS.")
-    parser.add_argument('--generate_dev', action="store_true", help="Generate rationales for dev.tsvs specified in TRAIN_SETS.")
-    parser.add_argument('--generate_eval', action="store_true", help="Generate rationales for dev.tsvs and test.tsvs specified in EVAL_SETS_DEV|TEST.")
+    parser.add_argument('--generate_train', action="store_true", help="Eval mode: Generate rationales for train.tsvs specified in TRAIN_SETS.")
+    parser.add_argument('--generate_dev', action="store_true", help="Eval mode: Generate rationales for dev.tsvs specified in TRAIN_SETS.")
+    parser.add_argument('--generate_eval', action="store_true", help="Eval mode: Generate rationales for dev.tsvs and test.tsvs specified in EVAL_SETS_DEV|TEST.")
     parser.add_argument('--max_samples', type=int, default=-1, help="Max samples to generate rationales for. -1=all.")
     parser.add_argument('--do_sample', action="store_true", help="If True do topk or top p sampling instead of beam/greedy search")
     parser.add_argument("--top_k", default=0, type=int, help="If do_sample=True, only sample from the top_k most likely words. 50 is often an ok value")
@@ -176,6 +177,7 @@ def llm_args():
     parser.add_argument("--temperature", default=1.0, type=float, help="If do_sample=True, the lower the temperature the higher the chances of choosing high-prob words. eg 0.7")   
     parser.add_argument('--num_beams', type=int, default=1, help="Number of beams if do_sample=False (1=greedy, >1 = beam search).")
     parser.add_argument('--num_return_sequences', type=int, default=1, help="Number of sequences to return. Must be <= num_beams in beam search.")
+    
     return parser.parse_args()
     
 

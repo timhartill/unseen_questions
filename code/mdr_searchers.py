@@ -993,7 +993,7 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
         outlist.append( utils.create_uqa_example(q, 
                                                  utils.create_uqa_context(sample['mc_options'], sample['final_context_fitted']),
                                                  a, append_q_char='?') 
-                      ) #TODO add init context or put into 's2' initially?
+                      )
     out_dir, out_file = os.path.split(args.output_dataset)    
     utils.save_uqa(outlist, out_dir, out_file)
     logger.info(f"Saved into {args.output_dataset}")

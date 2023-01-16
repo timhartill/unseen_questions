@@ -7,6 +7,10 @@ Created on Tue Dec 13 14:52:45 2022
 
 Large LM Inference
 
+Called in two modes - eval mode: Processes a set of datasets for eval/prompt search without outputting tsv dataset(s) and not resumable
+                      single: if outputting a single dataset. resumable and outputs tsv dataset
+
+
 """
 import os
 import logging
@@ -196,7 +200,8 @@ def split_rationale(rationales, sample):
     return outlist
     
 
-def generate_all(args, logger, model, tokenizer, ds_set, templates):
+
+def generate_all(args, logger, model, tokenizer, ds_set, templates, num_already_processed=0):
     """ Generate rationales for all datasets. For greedy decode there is 1 rationale generated per prompt template
     sample output format:
     {'dataset_1': {'path': 'file/path/dev.tsv', 'split': 'dev', 'metric': 'SS', 'ans_score_llm': 0.99, 
@@ -221,16 +226,18 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
      'dataset_2': {...}, ... }
      }
     """
-    for ds in ds_set:
+    for k, ds in enumerate(ds_set):
         curr_ds = ds_set[ds]
         logger.info(f'Generating rationales for dataset: {ds}  split:{curr_ds["split"]}')
         metric, metric_fn = eval_metrics.get_dataset_metric(ds)
         for i, sample in enumerate(curr_ds['data']):
+            if  args.resume_dir is not None and args.resume_dir.strip() != '' and i < num_already_processed:  # only resumable in single mode
+                continue
             sample['rationales'] = {}
             if args.debug and i <= 2:
                 logger.info('--------------------------------------')
                 logger.info(f"DS: {ds} Q#:{i} Q:{sample['llm_query']}  ANSWER {sample['answer']}")
-            for j, template in enumerate(templates):
+            for j, template in enumerate(templates):  # only ever 1 template in single mode
                 jkey = str(j)
                 prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'])
                 input_ids = tokenize_input(tokenizer, prompt, args.max_seq_len_in)
@@ -253,6 +260,10 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates):
                     logger.info('--------------------------------------')
             if i % 5 == 0 and i != 0:
                 logger.info(f"Processed: {i+1} samples..")
+            if args.resume_dir is not None and args.resume_dir.strip() != '' and i % 500 == 0:
+                logger.info(f"Processed {i+1+num_already_processed} of {len(curr_ds['data'])} samples. Saving partially completed file..")
+                json.dump(ds_set, open(os.path.join(args.output_dir, 'llm_samples_with_context.json'), 'w'))
+                logger.info(f"Saved partially completed json file to {os.path.join(args.output_dir, 'llm_samples_with_context.json')}")
             if i == args.max_samples-1:
                 logger.info(f"Stopped at {i} samples..")
                 break
@@ -286,20 +297,23 @@ if __name__ == '__main__':
     n_gpus = torch.cuda.device_count()
     max_memory = {i: max_memory for i in range(n_gpus)}
 
-    samples = None
+    predict_dict = None
     num_already_processed = 0
     if args.resume_dir is not None and args.resume_dir.strip() != '':
+        predict_file = args.predict_file.strip()
+        ds, split_file = os.path.split(predict_file)
+        ds = os.path.split(ds)[-1]
         args.output_dir = args.resume_dir
-        resume_file = os.path.join(args.output_dir, 'samples_with_context_llm.jsonl')
+        resume_file = os.path.join(args.output_dir, 'llm_samples_with_context.json')
         if os.path.exists(resume_file):
-            samples = utils.load_jsonl(resume_file)
+            pred_dict = json.load(resume_file)
             num_already_processed = -1
-            for i, sample in enumerate(samples):
-                if sample['llm_retrieved'] == []:  # no retrieved paras in dense_retrieved key = unprocessed sample
+            for i, sample in enumerate(pred_dict[ds]['data']):
+                if sample.get('rationales') is None:  # no key = unprocessed sample
                     num_already_processed = i
                     break
             if num_already_processed == -1:
-                num_already_processed = len(samples)  # all samples already processed, loading so can output using alternative context-building params
+                num_already_processed = len(pred_dict[ds]['data'])  # all samples already processed
         else:
             print(f"Processed samples file not found: {resume_file}. Did you intend to set --resume_dir?")
             assert os.path.exists(resume_file)
@@ -319,6 +333,17 @@ if __name__ == '__main__':
     logger = logging.getLogger(__name__)
     logger.info(args)    
     logger.info(f"Output log eval_log.txt will be written to: {args.output_dir}")
+    if args.template_file.strip() != '':
+        logger.info(f"SINGLE mode enabled. Using prompt template:{args.template_file}")
+        TEMPLATES = [args.template_file.strip()]
+        predict_file = args.predict_file.strip()
+        if args.predict_dict is not None:
+            logger.info(f"Resuming job. Number already processed: {num_already_processed} of {len(pred_dict[ds]['data'])}.")
+
+    else:
+        logger.info(f"EVAL mode. Train: {args.generate_train} dev: {args.generate_dev} ds:{TRAIN_SETS}")
+        logger.info(f" eval: {args.generate_eval} ds dev:{EVAL_SETS_DEV}  ds test:{EVAL_SETS_TEST}")
+        predict_file = ''
 
     logger.info(f"MODEL: {args.model_name}. n_gpus:{n_gpus}  max_memory:{max_memory}")
     
@@ -343,6 +368,7 @@ if __name__ == '__main__':
         logger.info('Debug mode: outputting 1st 3 rationales to log.')
     logger.info(f'Max samples per dataset to output: {args.max_samples}')
     
+    
     template_paths = [os.path.join(eval_metrics.UQA_DIR, 'prompts', t) for t in TEMPLATES]  # load prompt files
     templates = language_modelling.load_templates(template_paths)
     logger.info('Template ids and paths:')
@@ -351,23 +377,61 @@ if __name__ == '__main__':
     logger.info('Template ids and full formats:')
     for i, t in enumerate(templates):
         logger.info(f"T:{i}###{t}###")
+    
+    if args.template_file.strip() != '':
+        ds, split_file = os.path.split(predict_file)
+        ds = os.path.split(ds)[-1]
+        if pred_dict is None:
+            pred_dict = load_files([ds], split_file)
+        generate_all(args, logger, model, tokenizer, pred_dict, templates=templates, num_already_processed=num_already_processed)
+        json.dump(pred_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context.json'), 'w'))
+        logger.info(f"Saved fully processed file as {os.path.join(args.output_dir, 'llm_samples_with_context.json')}")
+        outlist = []
+        outlist_with_ans = []
+        for sample in pred_dict[ds]['data']:
+            q = sample['question'].strip()
+            a = sample['answer'][0] if len(sample['answer']) <= 1 else sample['answer']
+            rationale = sample['rationales']['0']['nl_trunc']
+            rat_ans = sample['rationales']['0']['answer']
+            c = sample['context'].strip()
+            if c != '':  # if there is an initial context make new context that + 'Further Explanation: ' + llm rationale so can distinguish it later if needed
+                if c [-1] not in ['.', '?', '!', ':', ';']:
+                    c += '.'
+                rationale = c + ' Further Explanation: ' + rationale
+            rationale_with_ans = rationale
+            if rat_ans != '':
+                rationale_with_ans += ' So the answer is ' + rat_ans
+            outlist.append( utils.create_uqa_example(q, 
+                                                     utils.create_uqa_context(sample['mc_options'], rationale),
+                                                     a, append_q_char='?') 
+                          )
+            outlist_with_ans.append( utils.create_uqa_example(q, 
+                                                     utils.create_uqa_context(sample['mc_options'], rationale_with_ans),
+                                                     a, append_q_char='?') 
+                          )
+        out_dir, out_file = os.path.split(args.output_dataset)    
+        utils.save_uqa(outlist, out_dir, out_file)
+        logger.info(f"Saved into {args.output_dataset}")
+        utils.save_uqa(outlist_with_ans, out_dir + '_with_llm_ans', out_file)
+        logger.info(f"Saved {out_dir}_with_llm_ans version also..")
+            
+    else:  # eval mode
+        if args.generate_train:
+            train_dict = load_files(TRAIN_SETS, 'train.tsv')
+            generate_all(args, logger, model, tokenizer, train_dict, templates=templates)
+            json.dump(train_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_train.json'), 'w'))
         
-    if args.generate_train:
-        train_dict = load_files(TRAIN_SETS, 'train.tsv')
-        generate_all(args, logger, model, tokenizer, train_dict, templates=templates)
-        json.dump(train_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_train.jsonl'), 'w'))
-    
-    if args.generate_dev:
-        dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
-        generate_all(args, logger, model, tokenizer, dev_dict, templates=templates)
-        json.dump(dev_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_dev.jsonl'), 'w'))
-    
-    if args.generate_eval:
-        eval_dev_dict = load_files(EVAL_SETS_DEV, 'dev.tsv')
-        eval_test_dict = load_files(EVAL_SETS_TEST, 'test.tsv')
-        eval_dict = {**eval_dev_dict, **eval_test_dict}
-        generate_all(args, logger, model, tokenizer, eval_dict, templates=templates)
-        json.dump(eval_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_eval.jsonl'), 'w'))
+        if args.generate_dev:
+            dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
+            generate_all(args, logger, model, tokenizer, dev_dict, templates=templates)
+            json.dump(dev_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_dev.json'), 'w'))
+        
+        if args.generate_eval:
+            eval_dev_dict = load_files(EVAL_SETS_DEV, 'dev.tsv')
+            eval_test_dict = load_files(EVAL_SETS_TEST, 'test.tsv')
+            eval_dict = {**eval_dev_dict, **eval_test_dict}
+            generate_all(args, logger, model, tokenizer, eval_dict, templates=templates)
+            json.dump(eval_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_eval.json'), 'w'))
     
     logger.info('Finished!')
 
