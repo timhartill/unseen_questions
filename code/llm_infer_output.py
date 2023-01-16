@@ -337,7 +337,7 @@ if __name__ == '__main__':
         logger.info(f"SINGLE mode enabled. Using prompt template:{args.template_file}")
         TEMPLATES = [args.template_file.strip()]
         predict_file = args.predict_file.strip()
-        if args.predict_dict is not None:
+        if pred_dict is not None:
             logger.info(f"Resuming job. Number already processed: {num_already_processed} of {len(pred_dict[ds]['data'])}.")
 
     else:
