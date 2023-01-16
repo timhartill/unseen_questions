@@ -389,7 +389,7 @@ if __name__ == '__main__':
         outlist = []
         outlist_with_ans = []
         for sample in pred_dict[ds]['data']:
-            q = sample['question'].strip()
+            q = sample['q_only'].strip()
             a = sample['answer'][0] if len(sample['answer']) <= 1 else sample['answer']
             rationale = sample['rationales']['0'][0]['nl_trunc']
             rat_ans = sample['rationales']['0'][0]['answer']
