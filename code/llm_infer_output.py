@@ -306,7 +306,7 @@ if __name__ == '__main__':
         args.output_dir = args.resume_dir
         resume_file = os.path.join(args.output_dir, 'llm_samples_with_context.json')
         if os.path.exists(resume_file):
-            pred_dict = json.load(resume_file)
+            pred_dict = json.load(open(resume_file))
             num_already_processed = -1
             for i, sample in enumerate(pred_dict[ds]['data']):
                 if sample.get('rationales') is None:  # no key = unprocessed sample
