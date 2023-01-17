@@ -31,12 +31,12 @@ from mdr_config import llm_args
 
 
 # names of datasets to generate explanatory info for. Train datasets are assumed to have 'train.tsv' and 'dev.tsv':
-TRAIN_SETS = [#'creak_od_ans','csqa2', 
-              #'hpqa_od_ans', 'hover_od_ans', 'musique_qa', 'nq_open_od_ans', 
+TRAIN_SETS = ['creak_od_ans','csqa2',  'hover_od_ans', ]
+              #'hpqa_od_ans', 'musique_qa', 'nq_open_od_ans', 
               #'tatqa', 
-              'qasc', 'arc_easy', 'arc_hard']
+              #'qasc', 'arc_easy', 'arc_hard']
 
-EVAL_SETS_DEV = ['commonsenseqa'] #['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
+EVAL_SETS_DEV = ['commonsenseqa', 'strategy_qa_bigbench_od_ans'] #['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
 EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
 
 #TEMPLATES = ['generic_kojima_22_0shot_stepbystep.txt',     #generic zero shot COT
@@ -78,8 +78,13 @@ EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
 #             'generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionreorderedv6.txt',  # v4 reordered made up mc + 2 each hpqa csqa2 + 1 more made up without instruction
 #    ]
 
-TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv4.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up + instruction
+#TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv4.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up + instruction
+#    ]
+
+TEMPLATES = ['generic_csqa2_ynmadeup_weicot.txt',  # modified from liu 2022 csqa2 plus some hpqa and other made up to be cot with "So the answer is.."
+             'generic_csqa2_ynmadeup_weicot_withinstruction.txt', # modified from liu 2022 csqa2 plus some hpqa and other made up to be cot with "So the answer is.." plus an instruction
     ]
+
 
 
 ANSWER_PREFIX = 'So the answer is'
