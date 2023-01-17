@@ -85,6 +85,11 @@ TEMPLATES = ['generic_csqa2_ynmadeup_weicot.txt',  # modified from liu 2022 csqa
              'generic_csqa2_ynmadeup_weicot_withinstruction.txt', # modified from liu 2022 csqa2 plus some hpqa and other made up to be cot with "So the answer is.." plus an instruction
     ]
 
+TEMPLATES = ['generic_csqa2_ynmadeup_weicot_answeronly.txt',  # modified from liu 2022 csqa2 plus some hpqa and other made up to be answer only"
+             'generic_csqa2_ynmadeup_weicot_answeronly_withinstruction.txt', # modified from liu 2022 csqa2 plus some hpqa and other made up to be answer only plus an instruction
+             'generic_csqa2_weicot_modified_answeronly.txt',  # answer only version of generic_csqa2_weicot_modified.txt
+             'generic_csqa2_ynmadeup_weicot_withinstructionv2.txt',  # generic_csqa2_ynmadeup_weicot_withinstruction.txt with 2 extra csqa2 examples
+    ]
 
 
 ANSWER_PREFIX = 'So the answer is'
