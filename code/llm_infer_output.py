@@ -166,14 +166,16 @@ def generate_simple(args, model, tokenizer, input_ids):
     if not args.do_sample:
         generated_ids = model.generate(input_ids, num_beams=args.num_beams, min_length=1, 
                                        max_new_tokens=args.max_new_tokens, early_stopping=True, 
-                                       num_return_sequences=args.num_return_sequences)
+                                       num_return_sequences=args.num_return_sequences,
+                                       return_dict_in_generate=True)
     else:
         generated_ids = model.generate(input_ids, do_sample=True, 
                                        max_new_tokens=args.max_new_tokens, 
                                        top_k=args.top_k, top_p=args.top_p, temperature=args.temperature,
-                                       num_return_sequences=args.num_return_sequences)
+                                       num_return_sequences=args.num_return_sequences,
+                                       return_dict_in_generate=True)
     
-    return tokenizer.batch_decode(generated_ids[:, start_decode:], skip_special_tokens=True)  # ['rationale 1.', 'rationale 2', ...]
+    return tokenizer.batch_decode(generated_ids['sequences'][:, start_decode:], skip_special_tokens=True)  # ['rationale 1.', 'rationale 2', ...]
 
 
 def split_rationale(rationales, sample):

@@ -914,7 +914,7 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
     #res.scores is tuple of output num_toks entries of [#beams*#samples, vocab size] if input_string is a list of #samples
     #   see https://huggingface.co/docs/transformers/internal/generation_utils
             https://discuss.huggingface.co/t/generation-probabilities-how-to-compute-probabilities-of-output-scores-for-gpt2/3175
-    pred, score = get_single_result(res, idx=0)        
+    pred, score = get_single_result(res, idx=0)
     """
     ids = []
     start_decode = 99999999
@@ -945,7 +945,7 @@ def run_model(input_string, model, tokenizer, skip_special_tokens=True, clean_up
         res = model.generate(input_ids, **generator_args)
     else:
         res = model.module.generate(input_ids, **generator_args)
-    if isinstance(res, dict):     
+    if isinstance(res, dict):     # if not dict, only sequences output regardless of other flags
         if only_decode_new:  #LMs output orig input + preds, skip orig input decode
             res['preds'] = decode_ids(res['sequences'][:, start_decode:], tokenizer, skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
             res['start_decode'] = start_decode
