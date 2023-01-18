@@ -81,15 +81,21 @@ EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
 #TEMPLATES = ['generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv4.txt',  # made up mc + 2 each hpqa csqa2 + 1 more made up + instruction
 #    ]
 
-TEMPLATES = ['generic_csqa2_ynmadeup_weicot.txt',  # modified from liu 2022 csqa2 plus some hpqa and other made up to be cot with "So the answer is.."
-             'generic_csqa2_ynmadeup_weicot_withinstruction.txt', # modified from liu 2022 csqa2 plus some hpqa and other made up to be cot with "So the answer is.." plus an instruction
+#TEMPLATES = ['generic_csqa2_ynmadeup_weicot.txt',  # modified from liu 2022 csqa2 plus some hpqa and other made up to be cot with "So the answer is.."
+#             'generic_csqa2_ynmadeup_weicot_withinstruction.txt', # modified from liu 2022 csqa2 plus some hpqa and other made up to be cot with "So the answer is.." plus an instruction
+#    ]
+
+#TEMPLATES = ['generic_csqa2_ynmadeup_weicot_answeronly.txt',  # modified from liu 2022 csqa2 plus some hpqa and other made up to be answer only"
+#             'generic_csqa2_ynmadeup_weicot_answeronly_withinstruction.txt', # modified from liu 2022 csqa2 plus some hpqa and other made up to be answer only plus an instruction
+#             'generic_csqa2_weicot_modified_answeronly.txt',  # answer only version of generic_csqa2_weicot_modified.txt
+#             'generic_csqa2_ynmadeup_weicot_withinstructionv2.txt',  # generic_csqa2_ynmadeup_weicot_withinstruction.txt with 2 extra csqa2 examples
+#    ]
+
+TEMPLATES = ['generic_csqa2_ynmadeup_weicot_withinstructionv3.txt',  # generic_csqa2_ynmadeup_weicot_withinstructionv2.txt minus the factual hpqa examples
+             'generic_csqa2_ynmadeup_weicot_withinstructionv4.txt',  # generic_csqa2_ynmadeup_weicot_withinstructionv3.txt minus the 8x5 area sample
     ]
 
-TEMPLATES = ['generic_csqa2_ynmadeup_weicot_answeronly.txt',  # modified from liu 2022 csqa2 plus some hpqa and other made up to be answer only"
-             'generic_csqa2_ynmadeup_weicot_answeronly_withinstruction.txt', # modified from liu 2022 csqa2 plus some hpqa and other made up to be answer only plus an instruction
-             'generic_csqa2_weicot_modified_answeronly.txt',  # answer only version of generic_csqa2_weicot_modified.txt
-             'generic_csqa2_ynmadeup_weicot_withinstructionv2.txt',  # generic_csqa2_ynmadeup_weicot_withinstruction.txt with 2 extra csqa2 examples
-    ]
+
 
 
 ANSWER_PREFIX = 'So the answer is'
@@ -174,7 +180,7 @@ def split_rationale(rationales, sample):
     """ Input: rationales' = list of rationale strings, potentially containing \n and 'So the answer is ...'. 
                 For greedy decode: 1 rationale in list
         output = [ {'raw': 'raw rationale', 
-                    'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed', 
+                    'nl_trunc': 'rationale truncated at 1st \n and answer potentially removed', 
                     'answer': 'predicted answer or ""'}, ...] 
             to reconstruct everything before nl: output['nl_trunc'] + ' So the answer is ' + output['answer'] + '.'
             
