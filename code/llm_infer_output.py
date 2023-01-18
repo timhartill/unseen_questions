@@ -315,7 +315,7 @@ if __name__ == '__main__':
     n_gpus = torch.cuda.device_count()
     max_memory = {i: max_memory for i in range(n_gpus)}
 
-    predict_dict = None
+    pred_dict = None
     num_already_processed = 0
     if args.resume_dir is not None and args.resume_dir.strip() != '':
         predict_file = args.predict_file.strip()
