@@ -280,7 +280,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates, num_already_
                     logger.info('--------------------------------------')
             if i % 5 == 0 and i != 0:
                 logger.info(f"Processed: {i+1} samples..")
-            if args.resume_dir is not None and args.resume_dir.strip() != '' and i % 500 == 0:
+            if args.template_file.strip() != '' and i != 0 and i % 500 == 0:
                 logger.info(f"Processed {i+1+num_already_processed} of {len(curr_ds['data'])} samples. Saving partially completed file..")
                 json.dump(ds_set, open(os.path.join(args.output_dir, 'llm_samples_with_context.json'), 'w'))
                 logger.info(f"Saved partially completed json file to {os.path.join(args.output_dir, 'llm_samples_with_context.json')}")
@@ -398,7 +398,7 @@ if __name__ == '__main__':
     for i, t in enumerate(templates):
         logger.info(f"T:{i}###{t}###")
     
-    if args.template_file.strip() != '':
+    if args.template_file.strip() != '':  # run rationale generation for entire input file using single template 
         ds, split_file = os.path.split(predict_file)
         ds = os.path.split(ds)[-1]
         if pred_dict is None:
