@@ -31,13 +31,13 @@ from mdr_config import llm_args
 
 
 # names of datasets to generate explanatory info for. Train datasets are assumed to have 'train.tsv' and 'dev.tsv':
-TRAIN_SETS = ['creak_od_ans','csqa2',  'hover_od_ans', ]
-              #'hpqa_od_ans', 'musique_qa', 'nq_open_od_ans', 
+TRAIN_SETS = [#'creak_od_ans','csqa2',  'hover_od_ans', ]
+              'hpqa_od_ans', 'musique_qa', 'nq_open_od_ans', ]
               #'tatqa', 
               #'qasc', 'arc_easy', 'arc_hard']
 
-EVAL_SETS_DEV = ['commonsenseqa', 'strategy_qa_bigbench_od_ans'] #['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
-EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
+EVAL_SETS_DEV = ['musique_mu_dev_odv2']  #['commonsenseqa', 'strategy_qa_bigbench_od_ans'] #['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
+EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 
 #TEMPLATES = ['generic_kojima_22_0shot_stepbystep.txt',     #generic zero shot COT
 #             'generic_csqa2_liu_22_modified.txt',          # modified from liu 2022 'generate some knowledge about the input'
@@ -91,11 +91,13 @@ EVAL_SETS_TEST = [] #['arc_da_od_ans', 'iirc_initial_context']
 #             'generic_csqa2_ynmadeup_weicot_withinstructionv2.txt',  # generic_csqa2_ynmadeup_weicot_withinstruction.txt with 2 extra csqa2 examples
 #    ]
 
-TEMPLATES = ['generic_csqa2_ynmadeup_weicot_withinstructionv3.txt',  # generic_csqa2_ynmadeup_weicot_withinstructionv2.txt minus the factual hpqa examples
-             'generic_csqa2_ynmadeup_weicot_withinstructionv4.txt',  # generic_csqa2_ynmadeup_weicot_withinstructionv3.txt minus the 8x5 area sample
+#TEMPLATES = ['generic_csqa2_ynmadeup_weicot_withinstructionv3.txt',  # generic_csqa2_ynmadeup_weicot_withinstructionv2.txt minus the factual hpqa examples
+#             'generic_csqa2_ynmadeup_weicot_withinstructionv4.txt',  # generic_csqa2_ynmadeup_weicot_withinstructionv3.txt minus the 8x5 area sample
+#    ]
+
+TEMPLATES = ['generic_spanmadeup_hpqa_csqa2_weicot.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up
+             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction
     ]
-
-
 
 
 ANSWER_PREFIX = 'So the answer is'
