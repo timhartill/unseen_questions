@@ -95,9 +95,15 @@ EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 #             'generic_csqa2_ynmadeup_weicot_withinstructionv4.txt',  # generic_csqa2_ynmadeup_weicot_withinstructionv3.txt minus the 8x5 area sample
 #    ]
 
-TEMPLATES = ['generic_spanmadeup_hpqa_csqa2_weicot.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up
-             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction
+#TEMPLATES = ['generic_spanmadeup_hpqa_csqa2_weicot.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up
+#             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction
+#    ]
+
+TEMPLATES = ['generic_spanmadeup_hpqa_csqa2_answeronly.txt',  # baseline answer only prompt for spanyn with same examples as generic_spanmadeup_hpqa_csqa2_weicot.txt
+             '',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction
     ]
+
+
 
 
 ANSWER_PREFIX = 'So the answer is'
