@@ -71,9 +71,9 @@ def main():
             iter_context = iter_context[len(initial_context):].strip()  # remove initial context if any from retrieved sample
             if initial_context != '' and initial_context[-1] not in ['.', '!', '?', ':', ';']:
                 initial_context += '.'
-            if rationale[-1] not in ['.', '!', '?', ':', ';']:
+            if rationale != '' and rationale[-1] not in ['.', '!', '?', ':', ';']:
                 rationale += '.'
-            if iter_context[-1] not in ['.', '!', '?', ':', ';']:
+            if iter_context != '' and iter_context[-1] not in ['.', '!', '?', ':', ';']:
                 iter_context += '.'
             
             new_context = (initial_context + ' ' + rationale + ' ' + iter_context).strip()
