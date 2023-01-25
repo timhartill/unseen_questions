@@ -100,7 +100,8 @@ EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 #    ]
 
 TEMPLATES = ['generic_spanmadeup_hpqa_csqa2_answeronly.txt',  # baseline answer only prompt for spanyn with same examples as generic_spanmadeup_hpqa_csqa2_weicot.txt
-             '',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction
+             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction_muv2.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction + 2 musique train examples
+             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction_mu_iirclikev3.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction + 2 musique train examples + 2 iirc-like madeup examples
     ]
 
 
