@@ -36,7 +36,7 @@ def main():
     args.output_dataset = 'creak_fullwiki_bs150_implrel_origq'
     """
     
-    origdir = os.path.join(UQA_DIR, args.llm_dataset)  # treat as original ie tsv files in this dataset are considered matchable
+    origdir = os.path.join(UQA_DIR, args.llm_dataset)  # treat llm as original ie tsv files in this dataset are considered matchable
     origfiles = utils.list_files_pattern(origdir, '*.tsv')
     origfiles = [f for f in origfiles if f in VALID_FILES]
     print(f"LLM Question Files from {origdir} : {origfiles}")
@@ -50,12 +50,31 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     
     for file in origfiles:
+        print(f"Processing: {file} ...")
         infile = os.path.join(origdir, file)
         origdset = utils.load_uqa_supervised(infile, ans_lower=False, verbose=True, return_parsed=True) # [{'question': 'full input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
         infile = os.path.join(iterdir, file)
         iterdset = utils.load_uqa_supervised(infile, ans_lower=False, verbose=True, return_parsed=True) # [{'question': 'full input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}]
-        
-        assert len(iterdset) == len(origdset)
+        len_iter = len(iterdset)
+        len_orig = len(origdset)
+        print(f"Sample counts: LLM: {len_orig}  Iter: {len_iter}")
+        if len_iter == len_orig and origdset[0]['q_only'] == iterdset[0]['q_only']:
+            print(f"{len_orig} samples in both iter and llm files and sample[0] questions match. Matching by idx..")
+        elif len_iter >= len_orig:
+            print("Iter has more samples or sample[0] questions dont match - matching by looking up each llm question in iter")
+            lookup_dict = {s['q_only']: s for s in iterdset}
+            new_iterdset = []
+            for origsample in origdset:
+                q = origsample['q_only'] 
+                itersample = lookup_dict.get(q)
+                if itersample is None:
+                    print(f"ERROR: LLM q_only: '{q}' not found in iterdset")
+                    assert q in lookup_dict
+                new_iterdset.append(itersample)
+            iterdset = new_iterdset
+        else:
+            print("Iter has less samples - ERROR! No matching strategy available")
+            assert len_iter >= len_orig
         
         out_list = []
         for origsample, itersample in zip(origdset, iterdset ):

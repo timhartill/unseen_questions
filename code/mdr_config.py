@@ -171,6 +171,7 @@ def llm_args():
     parser.add_argument('--generate_dev', action="store_true", help="Eval mode: Generate rationales for dev.tsvs specified in TRAIN_SETS.")
     parser.add_argument('--generate_eval', action="store_true", help="Eval mode: Generate rationales for dev.tsvs and test.tsvs specified in EVAL_SETS_DEV|TEST.")
     parser.add_argument('--max_samples', type=int, default=-1, help="Max samples to generate rationales for. -1=all.")
+    parser.add_argument('--rand_order', action="store_true", help="If True randomize order of input samples. Use with max_samples to load n samples from random idxs")
     parser.add_argument('--do_sample', action="store_true", help="If True do topk or top p sampling instead of beam/greedy search")
     parser.add_argument("--top_k", default=0, type=int, help="If do_sample=True, only sample from the top_k most likely words. 50 is often an ok value")
     parser.add_argument("--top_p", default=0.0, type=float, help="Nucleus sampling: If do_sample=True, only sample from the top words whose collective prob exceeds p so lower p = fewer but higher prob words to choose from. 0.92 is often an ok value")

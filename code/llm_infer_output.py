@@ -18,6 +18,7 @@ from datetime import date
 import string
 import numpy as np
 import json
+import random
 
 
 import torch
@@ -132,7 +133,7 @@ def make_llm_query(sample):
 
 
 
-def load_files(ds_set, file_name):
+def load_files(args, logger, ds_set, file_name):
     """ Load files for each dataset in a set
     Output: {'dataset_1': {'path: 'file/path/dev.tsv', 'split': 'dev', data': [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}, ...]},
              'dataset_2': {'path: 'file/path/dev.tsv', 'split': 'dev', data': [{'question': 'full q input txt', 'answer': 'ans txt', 'q_only', 'q only', 'mc_options': 'mc options', 'context': 'context'}, ...]},
@@ -142,9 +143,16 @@ def load_files(ds_set, file_name):
     out_set = {}
     for ds in ds_set:
         path = os.path.join(eval_metrics.UQA_DIR, ds, file_name)
-        print(f'Loading input file: {path}...')
+        logger.info(f'Loading input file: {path}...')
         ds_in = utils.load_uqa_supervised(path, ans_lower=False, return_parsed=True)
-        for sample in ds_in:
+        logger.info(f"{ds} {file_name} Sample Count: {len(ds_in)}")
+        if args.rand_order:
+            logger.info('Randomised sample order.')
+            random.shuffle(ds_in)
+        if args.max_samples > 0:
+            logger.info(f'Truncating to max {args.max_samples} samples.')
+            ds_in = ds_in[:args.max_samples]
+        for i, sample in enumerate(ds_in):
             sample['llm_query'] = make_llm_query(sample)
         out_set[ds] = {'path': path, 'split': file_name[:-4],
                        'data': ds_in}
@@ -292,8 +300,8 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates, num_already_
                 json.dump(ds_set, open(os.path.join(args.output_dir, 'llm_samples_with_context.json'), 'w'))
                 logger.info(f"Saved partially completed json file to {os.path.join(args.output_dir, 'llm_samples_with_context.json')}")
             if i == args.max_samples-1:
-                logger.info(f"Stopped at {i} samples..")
-                break
+                logger.info(f"Stopped at {i+1} samples..")
+                #break
         logger.info(f"DS SUMMARY {metric}: {ds}")
         for j, t_file in enumerate(TEMPLATES):
             jkey = str(j)
@@ -314,6 +322,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates, num_already_
 
 
 if __name__ == '__main__':
+    random.seed(42)
     args = llm_args()
     if args.max_memory < 0:
         free_in_GB = int(torch.cuda.mem_get_info()[0]/1024**3)
@@ -358,7 +367,7 @@ if __name__ == '__main__':
                         handlers=[logging.FileHandler(os.path.join(args.output_dir, "eval_log.txt")),
                                   logging.StreamHandler()])
     logger = logging.getLogger(__name__)
-    logger.info(args)    
+    logger.info(args)
     logger.info(f"Output log eval_log.txt will be written to: {args.output_dir}")
     if args.template_file.strip() != '':
         logger.info(f"SINGLE mode enabled. Using prompt template:{args.template_file}")
@@ -409,7 +418,7 @@ if __name__ == '__main__':
         ds, split_file = os.path.split(predict_file)
         ds = os.path.split(ds)[-1]
         if pred_dict is None:
-            pred_dict = load_files([ds], split_file)
+            pred_dict = load_files(args, logger, [ds], split_file)
         generate_all(args, logger, model, tokenizer, pred_dict, templates=templates, num_already_processed=num_already_processed)
         json.dump(pred_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context.json'), 'w'))
         logger.info(f"Saved fully processed file as {os.path.join(args.output_dir, 'llm_samples_with_context.json')}")
@@ -444,18 +453,18 @@ if __name__ == '__main__':
             
     else:  # eval mode
         if args.generate_train:
-            train_dict = load_files(TRAIN_SETS, 'train.tsv')
+            train_dict = load_files(args, logger, TRAIN_SETS, 'train.tsv')
             generate_all(args, logger, model, tokenizer, train_dict, templates=templates)
             json.dump(train_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_train.json'), 'w'))
         
         if args.generate_dev:
-            dev_dict = load_files(TRAIN_SETS, 'dev.tsv')
+            dev_dict = load_files(args, logger, TRAIN_SETS, 'dev.tsv')
             generate_all(args, logger, model, tokenizer, dev_dict, templates=templates)
             json.dump(dev_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_dev.json'), 'w'))
         
         if args.generate_eval:
-            eval_dev_dict = load_files(EVAL_SETS_DEV, 'dev.tsv')
-            eval_test_dict = load_files(EVAL_SETS_TEST, 'test.tsv')
+            eval_dev_dict = load_files(args, logger, EVAL_SETS_DEV, 'dev.tsv')
+            eval_test_dict = load_files(args, logger, EVAL_SETS_TEST, 'test.tsv')
             eval_dict = {**eval_dev_dict, **eval_test_dict}
             generate_all(args, logger, model, tokenizer, eval_dict, templates=templates)
             json.dump(eval_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context_eval.json'), 'w'))
