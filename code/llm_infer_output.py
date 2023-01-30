@@ -354,10 +354,10 @@ if __name__ == '__main__':
             print(f"Processed samples file not found: {resume_file}. Did you intend to set --resume_dir?")
             assert os.path.exists(resume_file)
             
-    else:
+    else:  # not resuming
         date_curr = date.today().strftime("%m-%d-%Y")
         mstrip = ''.join(c if c not in string.punctuation else '-' for c in args.model_name )
-        run_name = f"{args.prefix}-{date_curr}-LLM-{mstrip}-"
+        run_name = f"{args.prefix}-{date_curr}-LLM-{mstrip}-maxsmpls{args.max_samples}-rand{args.rand_order}"
         args.output_dir = os.path.join(args.output_dir, run_name)
     
     os.makedirs(args.output_dir, exist_ok=True)
