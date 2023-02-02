@@ -37,7 +37,7 @@ python llm_infer_output.py \
     --generate_dev \
     --generate_eval \
     --debug \
-    --max_samples 1000 \
+    --max_samples 10000 \
     --rand_order \
     --num_beams 1 \
     --num_return_sequences 1 \
