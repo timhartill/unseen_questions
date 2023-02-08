@@ -125,6 +125,7 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'qasc_llm_expl', 'qasc_llm_expl_with_llm_ans', 'qasc_llm_expl_fullwiki_bs60',
             'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
             'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
+            'musique_qa_full',
             'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
             ]
 
@@ -335,6 +336,7 @@ dataset_attribs = {
     'cskg': {'type':'MC', 'prefer':''},
     'atomic': {'type':'MC', 'prefer':''},
     'musique_qa': {'type':'EX', 'prefer':''},
+    'musique_qa_full': {'type':'EX', 'prefer':''},
     'musique_qa_paras': {'type':'EX', 'prefer':''},
     'musique_mu_dev_qa': {'type':'EX', 'prefer':''},
     'musique_mu_dev_qa_paras': {'type':'EX', 'prefer':''},
@@ -674,6 +676,7 @@ unifiedqa_seen_1 = [
     'hover_llm_expl', 'hover_llm_expl_with_llm_ans', 'hover_llm_expl_fullwiki_bs60',
     'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
     'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
+    'musique_qa_full',
     'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
     ]
 
