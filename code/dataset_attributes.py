@@ -124,6 +124,7 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'qasc', 'qasc_with_ir', 'qasc_fullwiki_bs60', 'qasc_fullwiki_bs60_maxp4',
             'qasc_llm_expl', 'qasc_llm_expl_with_llm_ans', 'qasc_llm_expl_fullwiki_bs60',
             'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
+            'hpqa_llm_expl', 'hpqa_llm_expl_with_llm_ans', 'hpqa_llm_expl_fullwiki_bs60',
             'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
             'musique_qa_full',
             'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
@@ -443,6 +444,9 @@ dataset_attribs = {
     'hpqa_hard': {'type':'EX', 'prefer':''}, 
     'hpqa_fullwiki_bs60': {'type':'EX', 'prefer':''}, 
     'hpqa_fullwiki_bs60_maxp4': {'type':'EX', 'prefer':''},
+    'hpqa_llm_expl': {'type':'EX', 'prefer':''},
+    'hpqa_llm_expl_with_llm_ans': {'type':'EX', 'prefer':''},
+    'hpqa_llm_expl_fullwiki_bs60': {'type':'EX', 'prefer':''},
     }
 
           
@@ -675,6 +679,7 @@ unifiedqa_seen_1 = [
     'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
     'hover_llm_expl', 'hover_llm_expl_with_llm_ans', 'hover_llm_expl_fullwiki_bs60',
     'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
+    'hpqa_llm_expl', 'hpqa_llm_expl_with_llm_ans', 'hpqa_llm_expl_fullwiki_bs60',
     'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
     'musique_qa_full',
     'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
