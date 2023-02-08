@@ -65,8 +65,17 @@ def main():
             lookup_dict = {s['q_only']: s for s in iterdset}
             new_iterdset = []
             for origsample in origdset:
-                q = origsample['q_only'] 
+                q = origsample['q_only']
                 itersample = lookup_dict.get(q)
+                if itersample is None:  # occasionally original ends in eg '... ?' and iter ends in '...?'
+                    q = q.rstrip('?!. ')
+                    q += '?'
+                    itersample = lookup_dict.get(q)
+                    if itersample is None:
+                        print('ERROR: tried adjusting query ending but still cant find match.')
+                    else:
+                        origsample['q_only'] = q
+
                 if itersample is None:
                     print(f"ERROR: LLM q_only: '{q}' not found in iterdset")
                     assert q in lookup_dict

@@ -120,15 +120,22 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'strategy_qa_bigbench_llm_expl', 'strategy_qa_bigbench_llm_expl_with_llm_ans', 'strategy_qa_bigbench_llm_expl_fullwiki_bs150_noimplrel',
             'fever_hard',
             'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
+            'hover_llm_expl', 'hover_llm_expl_with_llm_ans', 'hover_llm_expl_fullwiki_bs60',
             'qasc', 'qasc_with_ir', 'qasc_fullwiki_bs60', 'qasc_fullwiki_bs60_maxp4',
+            'qasc_llm_expl', 'qasc_llm_expl_with_llm_ans', 'qasc_llm_expl_fullwiki_bs60',
             'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
             'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
             'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
             ]
 
 #Add to this list to create predictions/calc metrics for corresponding test.tsv:
-test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir', 'arc_hard', 
-             'arc_hard_with_ir', 'ai2_science_elementary', 'ai2_science_middle', 'race_string',  
+test_eval = ['openbookqa', 'openbookqa_with_ir', 
+             'arc_easy', 'arc_easy_with_ir', 
+             'arc_easy_llm_expl', 'arc_easy_llm_expl_with_llm_ans',  
+             'arc_hard', 'arc_hard_with_ir', 
+             'arc_hard_llm_expl', 'arc_hard_llm_expl_with_llm_ans',
+             'ai2_science_elementary', 'ai2_science_middle', 
+             'race_string',  
              'mmlu_elementary_to_college_math_test', 
              'arc_da_expl_ans', 'arc_da_od_ans', 
              'arc_da_od_ans_fullwiki_bs150', 'arc_da_od_ans_fullwiki_bs150_mdr',
@@ -136,6 +143,8 @@ test_eval = ['openbookqa', 'openbookqa_with_ir', 'arc_easy', 'arc_easy_with_ir',
              'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
              'iirc_od_ans_fullwiki_bs150_mdr','iirc_initial_context_fullwiki_bs150_mdr',
              ]
+
+
 
 
 #Map dataset types to relevant metrics to calculate (and specify referred reporting metric)
@@ -161,10 +170,14 @@ dataset_attribs = {
     'arc_easy_dev': {'type':'MC', 'prefer':''},
     'arc_easy_with_ir': {'type':'MC', 'prefer':''},
     'arc_easy_with_ir_dev': {'type':'MC', 'prefer':''},
+    'arc_easy_llm_expl': {'type':'MC', 'prefer':''},
+    'arc_easy_llm_expl_with_llm_ans': {'type':'MC', 'prefer':''},
     'arc_hard': {'type':'MC', 'prefer':''},
     'arc_hard_dev': {'type':'MC', 'prefer':''},
     'arc_hard_with_ir': {'type':'MC', 'prefer':''},
     'arc_hard_with_ir_dev': {'type':'MC', 'prefer':''},
+    'arc_hard_llm_expl': {'type':'MC', 'prefer':''},
+    'arc_hard_llm_expl_with_llm_ans': {'type':'MC', 'prefer':''},
     'worldtree_mc_ans': {'type':'MC', 'prefer':''},        
     'boolq': {'type':'YN', 'prefer':''},
     'boolq_np': {'type':'YN', 'prefer':''},
@@ -213,6 +226,9 @@ dataset_attribs = {
     'qasc_with_ir_test': {'type':'MC', 'prefer':''},
     'qasc_fullwiki_bs60': {'type':'MC', 'prefer':''}, 
     'qasc_fullwiki_bs60_maxp4': {'type':'MC', 'prefer':''},
+    'qasc_llm_expl': {'type':'MC', 'prefer':''},
+    'qasc_llm_expl_with_llm_ans': {'type':'MC', 'prefer':''},
+    'qasc_llm_expl_fullwiki_bs60': {'type':'MC', 'prefer':''},
     'quoref': {'type':'EX', 'prefer':''},
     'quoref_dedup': {'type':'EX', 'prefer':''},
     'race_string': {'type':'MC', 'prefer':''},
@@ -418,11 +434,16 @@ dataset_attribs = {
     'hover_hard': {'type':'YN', 'prefer':''}, 
     'hover_fullwiki_bs60': {'type':'YN', 'prefer':''}, 
     'hover_fullwiki_bs60_maxp4': {'type':'YN', 'prefer':''},
+    'hover_llm_expl': {'type':'YN', 'prefer':''},
+    'hover_llm_expl_with_llm_ans': {'type':'YN', 'prefer':''},
+    'hover_llm_expl_fullwiki_bs60': {'type':'YN', 'prefer':''},
     'hpqa_od_ans': {'type':'EX', 'prefer':''}, 
     'hpqa_hard': {'type':'EX', 'prefer':''}, 
     'hpqa_fullwiki_bs60': {'type':'EX', 'prefer':''}, 
     'hpqa_fullwiki_bs60_maxp4': {'type':'EX', 'prefer':''},
     }
+
+          
 
 
 ########################################################
@@ -628,11 +649,14 @@ unifiedqa_seen_1 = [
     'openbookqa_with_ir',
     'arc_easy',
     'arc_easy_with_ir',
+    'arc_easy_llm_expl', 'arc_easy_llm_expl_with_llm_ans',
     'arc_hard',
     'arc_hard_with_ir',
+    'arc_hard_llm_expl', 'arc_hard_llm_expl_with_llm_ans',
     'ai2_science_elementary',
     'ai2_science_middle',
     'qasc', 'qasc_with_ir', 'qasc_fullwiki_bs60', 'qasc_fullwiki_bs60_maxp4',
+    'qasc_llm_expl', 'qasc_llm_expl_with_llm_ans', 'qasc_llm_expl_fullwiki_bs60',
     'race_string',
     'tatqa', 'newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
     'boolq_np', 'contrast_sets_boolq', 'physical_iqa', 
@@ -647,11 +671,15 @@ unifiedqa_seen_1 = [
     'creak_contrast_set_od_ans', 'creak_contrast_set_hard', 'creak_contrast_set_initial_context',
     'fever_hard',
     'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
+    'hover_llm_expl', 'hover_llm_expl_with_llm_ans', 'hover_llm_expl_fullwiki_bs60',
     'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
     'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
     'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
     ]
 
+            
+              
+            
 
 
 # The 57 mmlu datasets. 
