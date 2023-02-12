@@ -36,6 +36,8 @@ TRAIN_SETS = [#'creak_od_ans','csqa2',  'hover_od_ans', ]
               'hpqa_od_ans', 'musique_qa_full', 'nq_open_od_ans', ]
               #'tatqa', 
               #'qasc', 'arc_easy', 'arc_hard']
+              
+TRAIN_SETS = ['qasc_mc_expl_ans', 'creak_expl_ans', 'worldtree_mc_expl_ans', 'arc_da_expl_ans', 'strategy_qa_bigbench_expl_ans']
 
 EVAL_SETS_DEV = ['musique_mu_dev_odv2']  #['commonsenseqa', 'strategy_qa_bigbench_od_ans'] #['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
 EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
@@ -100,18 +102,18 @@ EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 #             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction
 #    ]
 
-TEMPLATES = ['generic_spanmadeup_hpqa_csqa2_answeronly.txt',  # baseline answer only prompt for spanyn with same examples as generic_spanmadeup_hpqa_csqa2_weicot.txt
-             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction_muv2.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction + 2 musique train examples
-             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction_mu_iirclikev3.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction + 2 musique train examples + 2 iirc-like madeup examples
-    ]
+#TEMPLATES = ['generic_spanmadeup_hpqa_csqa2_answeronly.txt',  # baseline answer only prompt for spanyn with same examples as generic_spanmadeup_hpqa_csqa2_weicot.txt
+#             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction_muv2.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction + 2 musique train examples
+#             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction_mu_iirclikev3.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction + 2 musique train examples + 2 iirc-like madeup examples
+#    ]
 
-
+TEMPLATES = ['neg_rationale_qasc_multi_fact_sameliuquestions_v1.txt']
 
 
 ANSWER_PREFIX = 'So the answer is'
 
 
-def make_llm_query(sample):
+def make_llm_query(args, sample):
     """ Make sample components into LLM query
     # Question text only?" or 
     # "Context text.\nQuestion text?" or "Context text. Question text?" or
@@ -119,12 +121,12 @@ def make_llm_query(sample):
     # "Question text is Answer Choices: ..."
     """
     query = sample['q_only'].strip()
-    query = query.replace('.?', '?') # csqa has some questions like Are all apples red.?
+    query = query.replace('.?', '?') # csqa2 has some questions like Are all apples red.?
     if query[-1] != '?':
         query += '?'
-    if sample['mc_options'] != '':
+    if sample['mc_options'] != '' and not args.query_no_mc:
         query += '\nAnswer Choices:\n' + sample['mc_options'].replace(' (','\n(')
-    if sample['context'] != '':
+    if sample['context'] != '' and not args.query_no_context:
         context = sample['context'].strip()
         if context[-1] != '.':
             context += '.'
@@ -153,7 +155,7 @@ def load_files(args, logger, ds_set, file_name):
             logger.info(f'Truncating to max {args.max_samples} samples.')
             ds_in = ds_in[:args.max_samples]
         for i, sample in enumerate(ds_in):
-            sample['llm_query'] = make_llm_query(sample)
+            sample['llm_query'] = make_llm_query(args, sample)
         out_set[ds] = {'path': path, 'split': file_name[:-4],
                        'data': ds_in}
     return out_set
@@ -264,17 +266,17 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates, num_already_
     for k, ds in enumerate(ds_set):
         curr_ds = ds_set[ds]
         logger.info(f'Generating rationales for dataset: {ds}  split:{curr_ds["split"]}')
-        metric, metric_fn = eval_metrics.get_dataset_metric(ds)
+        metric, metric_fn = eval_metrics.get_dataset_metric(ds)  #metric = 'NA' if not applicable
         for i, sample in enumerate(curr_ds['data']):
             if  args.resume_dir is not None and args.resume_dir.strip() != '' and i < num_already_processed:  # only resumable in single mode
                 continue
             sample['rationales'] = {}
-            if args.debug and i <= 2:
+            if args.debug and i <= args.debug_count-1:
                 logger.info('--------------------------------------')
                 logger.info(f"DS: {ds} Q#:{i} Q:{sample['llm_query']}  ANSWER {sample['answer']}")
             for j, template in enumerate(templates):  # only ever 1 template in single mode
                 jkey = str(j)
-                prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'])
+                prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'], context=sample['context'])
                 input_ids = tokenize_input(tokenizer, prompt, args.max_seq_len_in)
                 rationales = generate_simple(args, model, tokenizer, input_ids)   #[rationale] stripped of query but including text after nl and answer if any
                 rationales_processed = split_rationale(rationales, sample)
@@ -284,13 +286,15 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates, num_already_
                         ans = r['nl_trunc']
                     else:
                         ans = r['answer']
-                    if metric == 'SS':
+                    if metric == 'NA':
+                        score = -1.0
+                    elif metric == 'SS':
                         score = metric_fn(ans, sample['answer'], sample['mc_options'])
                     else:
                         score = metric_fn(ans, sample['answer'])
                     r['ans_score'] = float(score)
                 sample['rationales'][jkey] = rationales_processed
-                if args.debug and i <= 2:
+                if args.debug and i <= args.debug_count-1:
                     logger.info(f"RATIONALE Q:{i} T:{jkey}: R:{sample['rationales'][jkey][0]['nl_trunc']} A:{sample['rationales'][jkey][0]['answer']} GOLD:{sample['answer']} {sample['rationales'][jkey][0]['metric']}:{sample['rationales'][jkey][0]['ans_score']}")
                     logger.info('--------------------------------------')
             if i % 5 == 0 and i != 0:
@@ -401,7 +405,7 @@ if __name__ == '__main__':
     logger.info(f"Loaded model {args.model_name}!")
     
     if args.debug:
-        logger.info('Debug mode: outputting 1st 3 rationales to log.')
+        logger.info(f'Debug mode: outputting 1st {args.debug_count} rationales to log.')
     logger.info(f'Max samples per dataset to output: {args.max_samples}')
     
     

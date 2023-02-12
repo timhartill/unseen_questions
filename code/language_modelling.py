@@ -75,11 +75,12 @@ def get_prompt_samples_and_eval_samples(train_samples, select_total=100, select_
     return prompt_indices, test_indices, rand_indices
 
 
-def fill_prompt_template(template, query=None, taskprompt=None, example_inputs=[], example_outputs=[],
+def fill_prompt_template(template, query=None, context=None, taskprompt=None, example_inputs=[], example_outputs=[],
                          saveas=None):
     """ Fill slots in a template and optionally save template to a prompt file called 'saveas'
     Will replace all:
         {question} or {QUESTION} with query
+        {context} or {CONTEXT} with context
         {taskprompt} or {TASKPROMPT} with taskprompt
         {EXAMPLE}Input '{EXAMPLENUM}: {EXAMPLEINPUT}
         Knowledge: {EXAMPLEOUTPUT} with k examples. Assumes {EXAMPLEOUTPUT} is the end of the example template and this and {EXAMPLE} only occur once.
@@ -89,6 +90,8 @@ def fill_prompt_template(template, query=None, taskprompt=None, example_inputs=[
         prompt = prompt.replace('{taskprompt}', taskprompt, 1).replace('{TASKPROMPT}', taskprompt, 1)
     if query is not None:
         prompt = prompt.replace('{question}', query).replace('{QUESTION}', query)
+    if context is not None:    
+        prompt = prompt.replace('{context}', context).replace('{CONTEXT}', context)
     start_example = prompt.find('{EXAMPLE}')
     if start_example != -1:
         end_example = prompt.find('{EXAMPLEOUTPUT}')

@@ -25,7 +25,7 @@ QASC_DIR = '/home/thar011/data/qasc/QASC_Dataset/'
 UQA_DIR = '/data/thar011/data/unifiedqa/qasc_'
 MC_COMPLETION = 'mc_expl'
 OD_COMPLETION = 'od_expl'
-MC_ANS = 'mc_ans'
+MC_ANS = 'mc_expl_ans'
 OD_ANS = 'od_ans'
 Q_PREFIX = 'Add Explanation: '
 

@@ -178,6 +178,10 @@ def llm_args():
     parser.add_argument("--temperature", default=1.0, type=float, help="If do_sample=True, the lower the temperature the higher the chances of choosing high-prob words. eg 0.7")   
     parser.add_argument('--num_beams', type=int, default=1, help="Number of beams if do_sample=False (1=greedy, >1 = beam search).")
     parser.add_argument('--num_return_sequences', type=int, default=1, help="Number of sequences to return. Must be <= num_beams in beam search.")
+    parser.add_argument('--query_no_mc', action="store_true", help="If True DONT add mc options to query irrespective of whether there are any.")
+    parser.add_argument('--query_no_context', action="store_true", help="If True DONT add context to query irrespective of whether there is one.")
+    parser.add_argument('--debug_count', type=int, default=3, help="Number of samples to output to log if --debug is set.")
+    
     
     return parser.parse_args()
     

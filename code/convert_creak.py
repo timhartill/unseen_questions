@@ -48,6 +48,29 @@ train = utils.load_jsonl(file_train)  #10176
 cs = utils.load_jsonl(file_contrast_set)  #500  # No explanation or en_wiki_pageid but there is 'entity'
 
 
+def make_expl_ans_format(split, out_dir, out_file):
+    """ Output tsv formatted dataset q \n explanation \t yes/no
+    """
+    outlist = []
+    for s in split:
+        q = s['sentence'].strip()
+        if q[-1] in ['.', '?', '!', ':', ';']:
+            q = q[:-1]
+        q = q + '?'
+        if s['label'] == 'true':
+            a = 'yes'
+        else:
+            a = 'no'
+        c = s['explanation'].strip()
+        if c[-1] not in ['.', '?', '!', ':', ';']:
+            c = c + '.'
+        outlist.append(utils.create_uqa_example(q, c, a))
+    utils.save_uqa(outlist, out_dir, out_file)
+    return        
+
+make_expl_ans_format(dev, os.path.join(UQA_DIR, 'creak_expl_ans'), 'dev.tsv')
+make_expl_ans_format(train, os.path.join(UQA_DIR, 'creak_expl_ans'), 'train.tsv')
+
 
 # Add hyperlinked negative paras where title match in corpus found  WARNING: TAKES ~30 mins to load
 docs = utils.load_jsonl(BQA_CORPUS)

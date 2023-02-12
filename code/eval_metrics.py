@@ -129,13 +129,16 @@ def load_uqa_supervised(file, ans_lower=True, verbose=True):
     return questions, answers
 
 
-def get_dataset_metric(ds_name):
+def get_dataset_metric(ds_name, allow_error=True):
     """ Get preferred metric and metric fn for dataset
     """
     ds_attribs = dataset_attribs.get(ds_name)
     if ds_attribs is None:
-        print(f"Error: Dataset {ds_name} needs to be added to dataset_attribs dict in eval_metrics.py. Exiting.")
-        assert ds_attribs is not None, f"Error: Dataset {ds_name} needs to be added to dataset_attribs dict in eval_metrics.py. Exiting."
+        if not allow_error:
+            print(f"Error: Dataset {ds_name} needs to be added to dataset_attribs dict in eval_metrics.py. Exiting.")
+            assert ds_attribs is not None, f"Error: Dataset {ds_name} needs to be added to dataset_attribs dict in eval_metrics.py. Exiting."
+        else:
+            return 'NA', None
     ds_type = ds_attribs['type']
     pref_metric = metric_groups[ds_type]['prefer']
     if ds_attribs['prefer'] != '' and ds_attribs['prefer'] is not None:
