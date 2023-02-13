@@ -37,7 +37,7 @@ TRAIN_SETS = [#'creak_od_ans','csqa2',  'hover_od_ans', ]
               #'tatqa', 
               #'qasc', 'arc_easy', 'arc_hard']
               
-TRAIN_SETS = ['qasc_mc_expl_ans', 'creak_expl_ans', 'worldtree_mc_expl_ans', 'arc_da_expl_ans', 'strategy_qa_bigbench_expl_ans']
+TRAIN_SETS = ['qasc_mc_expl_ans', 'worldtree_mc_expl_ans', 'arc_da_expl_ans', 'strategy_qa_bigbench_expl_ans', 'creak_expl_ans']
 
 EVAL_SETS_DEV = ['musique_mu_dev_odv2']  #['commonsenseqa', 'strategy_qa_bigbench_od_ans'] #['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
 EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
@@ -107,8 +107,11 @@ EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 #             'generic_spanmadeup_hpqa_csqa2_weicot_withinstruction_mu_iirclikev3.txt',  # generic span + y/n prompt from csqa2, hpqa plus some made up + instruction + 2 musique train examples + 2 iirc-like madeup examples
 #    ]
 
-TEMPLATES = ['neg_rationale_qasc_multi_fact_sameliuquestions_v1.txt']
+#TEMPLATES = ['neg_rationale_qasc_multi_fact_sameliuquestions_v1.txt']  # initial neg rationalale test
 
+TEMPLATES = ['neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v2.txt',  #  Q + Ans choices + gold contxt + false contxt
+             'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v3_onlyneg.txt',  #  Q + Ans choices + false contxt
+             ]
 
 ANSWER_PREFIX = 'So the answer is'
 
@@ -125,7 +128,10 @@ def make_llm_query(args, sample):
     if query[-1] != '?':
         query += '?'
     if sample['mc_options'] != '' and not args.query_no_mc:
-        query += '\nAnswer Choices:\n' + sample['mc_options'].replace(' (','\n(')
+        if not args.query_no_nl_mc_options:  # nl between each ans option in prompt
+            query += '\nAnswer Choices:\n' + sample['mc_options'].replace(' (','\n(')
+        else:
+            query += ' Answer Choices: ' + sample['mc_options']
     if sample['context'] != '' and not args.query_no_context:
         context = sample['context'].strip()
         if context[-1] != '.':
@@ -276,6 +282,7 @@ def generate_all(args, logger, model, tokenizer, ds_set, templates, num_already_
                 logger.info(f"DS: {ds} Q#:{i} Q:{sample['llm_query']}  ANSWER {sample['answer']}")
             for j, template in enumerate(templates):  # only ever 1 template in single mode
                 jkey = str(j)
+                # fill template with query and/or context. Note if {context} and/or {query} spans not in template then this part won't be instantiated so it is safe to pass a context in that isnt intended to be used in this position (eg if context already prepended to question in s['llm_query'] key)
                 prompt = language_modelling.fill_prompt_template(template, query=sample['llm_query'], context=sample['context'])
                 input_ids = tokenize_input(tokenizer, prompt, args.max_seq_len_in)
                 rationales = generate_simple(args, model, tokenizer, input_ids)   #[rationale] stripped of query but including text after nl and answer if any
