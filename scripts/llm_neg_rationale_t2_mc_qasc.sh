@@ -8,7 +8,7 @@
 cd ../code
 
 python llm_infer_output.py \
-    --prefix LLM_NEGRAT_T1_MCFOCUS \
+    --prefix LLM_NEGRAT_T2_MCFOCUS_QASC_ONLY_debug10onv2v3v4 \
     --output_dir $LDATA/out/mdr/logs \
     --model_name bigscience/bloom \
     --max_new_tokens 128 \
@@ -18,8 +18,8 @@ python llm_infer_output.py \
     --query_no_nl_mc_options \
     --rand_order \
     --debug \
-    --debug_count 5 \
-    --max_samples 5 \
+    --debug_count 10 \
+    --max_samples 10 \
     --num_beams 1 \
     --num_return_sequences 1 \
     --max_memory_buffer 12 \
