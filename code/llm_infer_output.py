@@ -116,6 +116,7 @@ EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 TEMPLATES = ['neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v2.txt',  #  Q + Ans choices + gold contxt + false contxt
              'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v3_onlyneg.txt',  #  Q + Ans choices + false contxt
              'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v4_onlyneg_theanswermust.txt',  #  Q + Ans choices + false contxt using "the answer must be .... thus of the choices ..." style rationales
+             'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v5_onlyneg_theanswermusteverythingfalse.txt',  #  Q + Ans choices + false contxt using "the answer must be .... thus of the choices ..." style rationales with more assertions falsified
              ]
 
 
