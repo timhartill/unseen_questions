@@ -117,6 +117,8 @@ TEMPLATES = ['neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v
              'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v3_onlyneg.txt',  #  Q + Ans choices + false contxt
              'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v4_onlyneg_theanswermust.txt',  #  Q + Ans choices + false contxt using "the answer must be .... thus of the choices ..." style rationales
              'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v5_onlyneg_theanswermusteverythingfalse.txt',  #  Q + Ans choices + false contxt using "the answer must be .... thus of the choices ..." style rationales with more assertions falsified
+             'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v6_onlyneg_theanswermusteverythingfalse.txt',  #  Q + Ans choices + false contxt using "the answer must be .... thus of the choices ..." style rationales with even more assertions falsified
+             'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v7_onlyneg_madelike_theanswermust.txt',  # v3 Q + Ans choices + false contxt with "the answer must be" and "Thus, of the choices .." added to make it look more like generated rationales
              ]
 
 

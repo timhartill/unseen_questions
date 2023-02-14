@@ -61,7 +61,7 @@ def encode_query(sample, tokenizer, train, max_q_len, index, stage=1):
         build_to_hop = sample['num_hops']  # comparatively few 3+ hops so always use full seq. Note there a a tiny number of fever examples > 4 hops
 
     para_list = []
-    para_idxs = get_para_idxs(sample["pos_paras"])
+    para_idxs = get_para_idxs(sample["pos_paras"])  # dict of {title: {idx: [idx in pos_paras]}} idx is a list to allow for possibility of same title duplicated in pos paras either for same title/difft paras or in case of FEVER same title, same para but difft sentence annotation
     sample['para_idxs'] = para_idxs  #save recalculating these in encode_context_stage2
     for step_paras_list in sample["bridge"]:
         if train and encode_pos:  # don't shuffle if a neg; use order last used for corresponding positive
@@ -249,6 +249,8 @@ def encode_context_stage2(sample, tokenizer, rerank_para, train, special_toks=["
 class Stage1Dataset(Dataset):
 
     def __init__(self, args, tokenizer, data_path, train=False):
+        """ Set up dataset as alternating pos-corresponding neg samples. Neg samples have insuff evidence label
+        """
         self.data_path = data_path
         print(f"Train:{train} Loading from: {data_path}..")
         samples = [json.loads(l) for l in tqdm(open(data_path).readlines())]
