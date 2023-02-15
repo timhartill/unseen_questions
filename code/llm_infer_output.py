@@ -121,6 +121,10 @@ TEMPLATES = ['neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v
              'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v7_onlyneg_madelike_theanswermust.txt',  # v3 Q + Ans choices + false contxt with "the answer must be" and "Thus, of the choices .." added to make it look more like generated rationales
              ]
 
+TEMPLATES = ['neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v8_negatepositive.txt',  #Q + Ans Choices + false context made of naively negated gold context
+             ]
+
+
 
 ANSWER_PREFIX = 'So the answer is'
 
