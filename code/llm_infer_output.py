@@ -439,6 +439,8 @@ if __name__ == '__main__':
         logger.info(f"T:{i}###{t}###")
     
     if args.template_file.strip() != '':  # run rationale generation for entire input file using single template 
+        if args.output_dataset.strip() == '':
+            logger.info("--output_dataset not specified so tsv-formatted datasets won't be output, only llm_samples_with_context.json.")
         ds, split_file = os.path.split(predict_file)
         ds = os.path.split(ds)[-1]
         if pred_dict is None:
@@ -446,34 +448,38 @@ if __name__ == '__main__':
         generate_all(args, logger, model, tokenizer, pred_dict, templates=templates, num_already_processed=num_already_processed)
         json.dump(pred_dict, open(os.path.join(args.output_dir, 'llm_samples_with_context.json'), 'w'))
         logger.info(f"Saved fully processed file as {os.path.join(args.output_dir, 'llm_samples_with_context.json')}")
-        outlist = []
-        outlist_with_ans = []
-        for sample in pred_dict[ds]['data']:
-            q = sample['q_only'].strip()
-            a = sample['answer'][0] if len(sample['answer']) <= 1 else sample['answer']
-            rationale = sample['rationales']['0'][0]['nl_trunc']
-            rat_ans = sample['rationales']['0'][0]['answer']
-            c = sample['context'].strip()
-            if c != '':  # if there is an initial context make new context that + 'Further Explanation: ' + llm rationale so can distinguish it later if needed
-                if c [-1] not in ['.', '?', '!', ':', ';']:
-                    c += '.'
-                rationale = c + ' Further Explanation: ' + rationale
-            rationale_with_ans = rationale
-            if rat_ans != '':
-                rationale_with_ans += ' So the answer is ' + rat_ans
-            outlist.append( utils.create_uqa_example(q, 
-                                                     utils.create_uqa_context(sample['mc_options'], rationale),
-                                                     a, append_q_char='?') 
-                          )
-            outlist_with_ans.append( utils.create_uqa_example(q, 
-                                                     utils.create_uqa_context(sample['mc_options'], rationale_with_ans),
-                                                     a, append_q_char='?') 
-                          )
-        out_dir, out_file = os.path.split(args.output_dataset)    
-        utils.save_uqa(outlist, out_dir, out_file)
-        logger.info(f"Saved into {args.output_dataset}")
-        utils.save_uqa(outlist_with_ans, out_dir + '_with_llm_ans', out_file)
-        logger.info(f"Saved {out_dir}_with_llm_ans version also..")
+        if args.output_dataset.strip() != '': 
+            outlist = []
+            outlist_with_ans = []
+            for sample in pred_dict[ds]['data']:
+                q = sample['q_only'].strip()
+                a = sample['answer'][0] if len(sample['answer']) <= 1 else sample['answer']
+                rationale = sample['rationales']['0'][0]['nl_trunc']
+                rat_ans = sample['rationales']['0'][0]['answer']
+                c = sample['context'].strip()
+                if c != '':  # if there is an initial context make new context that + 'Further Explanation: ' + llm rationale so can distinguish it later if needed
+                    if c [-1] not in ['.', '?', '!', ':', ';']:
+                        c += '.'
+                    rationale = c + ' Further Explanation: ' + rationale
+                rationale_with_ans = rationale
+                if rat_ans != '':
+                    rationale_with_ans += ' So the answer is ' + rat_ans
+                outlist.append( utils.create_uqa_example(q, 
+                                                         utils.create_uqa_context(sample['mc_options'], rationale),
+                                                         a, append_q_char='?') 
+                              )
+                outlist_with_ans.append( utils.create_uqa_example(q, 
+                                                         utils.create_uqa_context(sample['mc_options'], rationale_with_ans),
+                                                         a, append_q_char='?') 
+                              )
+            out_dir, out_file = os.path.split(args.output_dataset)    
+            utils.save_uqa(outlist, out_dir, out_file)
+            logger.info(f"Saved into {args.output_dataset}")
+            utils.save_uqa(outlist_with_ans, out_dir + '_with_llm_ans', out_file)
+            logger.info(f"Saved {out_dir}_with_llm_ans version also..")
+        else:         #args.output_dataset.strip() = '':
+            logger.info("--output_dataset not specified so tsv-formatted datasets not output. Create from llm_samples_with_context.json if needed.")
+
             
     else:  # eval mode
         if args.generate_train:
