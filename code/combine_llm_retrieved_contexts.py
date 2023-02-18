@@ -72,7 +72,13 @@ def main():
                     q += '?'
                     itersample = lookup_dict.get(q)
                     if itersample is None:
-                        print('ERROR: tried adjusting query ending but still cant find match.')
+                        for iter_q in lookup_dict:  # eg musique: 'The movie "Songs of My Motherland" was made by members of the ethnic group protected by Asayiah. The movie is set... [SEE COMMENT SECTION] ...?'
+                            if q == iter_q.rstrip('?!. ')+'?':
+                                itersample = lookup_dict.get(iter_q)
+                                origsample['q_only'] = iter_q
+                                break
+                        if itersample is None:
+                            print('ERROR: tried adjusting query ending but still cant find match.')
                     else:
                         origsample['q_only'] = q
 

@@ -127,7 +127,9 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'hpqa_llm_expl', 'hpqa_llm_expl_with_llm_ans', 'hpqa_llm_expl_fullwiki_bs60',
             'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
             'musique_qa_full',
+            'musique_qa_full_llm_expl', 'musique_qa_full_llm_expl_with_llm_ans', 'musique_qa_full_llm_expl_fullwiki_bs60',
             'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
+            'nq_open_llm_expl', 'nq_open_llm_expl_with_llm_ans', 'nq_open_llm_expl_fullwiki_bs60',
             ]
 
 #Add to this list to create predictions/calc metrics for corresponding test.tsv:
@@ -356,6 +358,9 @@ dataset_attribs = {
     'musique_hard': {'type':'EX', 'prefer':''}, 
     'musique_qa_fullwiki_bs60': {'type':'EX', 'prefer':''}, 
     'musique_qa_fullwiki_bs60_maxp4': {'type':'EX', 'prefer':''},
+    'musique_qa_full_llm_expl': {'type':'EX', 'prefer':''},
+    'musique_qa_full_llm_expl_with_llm_ans': {'type':'EX', 'prefer':''},
+    'musique_qa_full_llm_expl_fullwiki_bs60': {'type':'EX', 'prefer':''},
     'musique_mu_dev_odv2': {'type':'EX', 'prefer':''}, 
     'musique_mu_dev_parasv2': {'type':'EX', 'prefer':''},
     'musique_mu_dev_odv2_fullwiki_bs150': {'type':'EX', 'prefer':''},
@@ -397,6 +402,9 @@ dataset_attribs = {
     'nq_open_od_ans': {'type':'EX', 'prefer':'EM'}, 
     'nq_open_fullwiki_bs60': {'type':'EX', 'prefer':'EM'}, 
     'nq_open_fullwiki_bs60_maxp4': {'type':'EX', 'prefer':'EM'},
+    'nq_open_llm_expl': {'type':'EX', 'prefer':'EM'},
+    'nq_open_llm_expl_with_llm_ans': {'type':'EX', 'prefer':'EM'},
+    'nq_open_llm_expl_fullwiki_bs60': {'type':'EX', 'prefer':'EM'},
     'tatqa': {'type':'EX', 'prefer':''},
     'arc_da_expl_ans': {'type':'EX', 'prefer':''}, 
     'arc_da_od_ans': {'type':'EX', 'prefer':''},
@@ -702,7 +710,9 @@ unifiedqa_seen_1 = [
     'hpqa_llm_expl', 'hpqa_llm_expl_with_llm_ans', 'hpqa_llm_expl_fullwiki_bs60',
     'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
     'musique_qa_full',
+    'musique_qa_full_llm_expl', 'musique_qa_full_llm_expl_with_llm_ans', 'musique_qa_full_llm_expl_fullwiki_bs60',
     'nq_hard', 'nq_open_od_ans', 'nq_open_fullwiki_bs60', 'nq_open_fullwiki_bs60_maxp4',
+    'nq_open_llm_expl', 'nq_open_llm_expl_with_llm_ans', 'nq_open_llm_expl_fullwiki_bs60',
     ]
 
             
