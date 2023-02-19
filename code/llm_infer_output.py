@@ -37,7 +37,8 @@ TRAIN_SETS = [#'creak_od_ans','csqa2',  'hover_od_ans', ]
               #'tatqa', 
               #'qasc', 'arc_easy', 'arc_hard']
               
-TRAIN_SETS = ['qasc_mc_expl_ans', ] # 'worldtree_mc_expl_ans', 'arc_da_expl_ans', 'strategy_qa_bigbench_expl_ans', 'creak_expl_ans']
+TRAIN_SETS = [#'qasc_mc_expl_ans',  
+              'worldtree_mc_expl_ans', ]#'arc_da_expl_ans', 'strategy_qa_bigbench_expl_ans', 'creak_expl_ans']
 
 EVAL_SETS_DEV = ['musique_mu_dev_odv2']  #['commonsenseqa', 'strategy_qa_bigbench_od_ans'] #['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
 EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
@@ -124,6 +125,13 @@ TEMPLATES = ['neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v
 TEMPLATES = ['neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v8_negatepositive.txt',  #Q + Ans Choices + false context made of naively negated gold context
              ]
 
+TEMPLATES = ['neg_rationale_worldtree_mconly_anschoices_v3_onlyneg.txt',  #  Q + Ans choices + false contxt
+             'neg_rationale_worldtree_mconly_anschoices_v6_theanswermusteverythingfalse.txt',   #  Q + Ans choices + false contxt using "the answer must be .... thus of the choices ..." style rationales with even more assertions falsified
+             'neg_rationale_worldtree_mconly_anschoices_v8_negatepositive.txt',   #Q + Ans Choices + false context made of naively negated gold context
+             'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v3_onlyneg.txt',  #  Q + Ans choices + false contxt
+             'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v6_onlyneg_theanswermusteverythingfalse.txt',  #  Q + Ans choices + false contxt using "the answer must be .... thus of the choices ..." style rationales with even more assertions falsified
+             'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v8_negatepositive.txt',  #Q + Ans Choices + false context made of naively negated gold context
+             ]
 
 
 ANSWER_PREFIX = 'So the answer is'
