@@ -138,7 +138,11 @@ TEMPLATES = ['neg_rationale_worldtree_mconly_anschoices_v3_mod2_onlyneg.txt',  #
              'neg_rationale_worldtree_mconly_anschoices_v8_mod2_negatepositive.txt',   #Q + Ans Choices + false context made of naively negated gold context
              ]
 
-
+TEMPLATES = [
+             'neg_rationale_worldtree_mconly_anschoices_v3_mod3_onlyneg.txt', #  Q + Ans choices + false contxt
+             'neg_rationale_worldtree_mconly_anschoices_v6_mod3_theanswermusteverythingfalse.txt', #  Q + Ans choices + false contxt using "the answer must be .... thus of the choices ..." style rationales with even more assertions falsified
+             'neg_rationale_worldtree_mconly_anschoices_v8_mod3_negatepositive.txt',  #Q + Ans Choices + false context made of naively negated gold context
+             ]
 
 
 ANSWER_PREFIX = 'So the answer is'
