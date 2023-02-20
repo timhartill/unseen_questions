@@ -133,10 +133,10 @@ EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
 #             'neg_rationale_qasc_multi_fact_sameliuquestions_mconly_anschoices_v8_negatepositive.txt',  #Q + Ans Choices + false context made of naively negated gold context
 #             ]
 
-TEMPLATES = ['neg_rationale_worldtree_mconly_anschoices_v3_mod2_onlyneg.txt',  #  Q + Ans choices + false contxt
-             'neg_rationale_worldtree_mconly_anschoices_v6_mod2_theanswermusteverythingfalse.txt',   #  Q + Ans choices + false contxt using "the answer must be .... thus of the choices ..." style rationales with even more assertions falsified
-             'neg_rationale_worldtree_mconly_anschoices_v8_mod2_negatepositive.txt',   #Q + Ans Choices + false context made of naively negated gold context
-             ]
+#TEMPLATES = ['neg_rationale_worldtree_mconly_anschoices_v3_mod2_onlyneg.txt',  #  Q + Ans choices + false contxt
+#             'neg_rationale_worldtree_mconly_anschoices_v6_mod2_theanswermusteverythingfalse.txt',   #  Q + Ans choices + false contxt using "the answer must be .... thus of the choices ..." style rationales with even more assertions falsified
+#             'neg_rationale_worldtree_mconly_anschoices_v8_mod2_negatepositive.txt',   #Q + Ans Choices + false context made of naively negated gold context
+#             ]
 
 TEMPLATES = [
              'neg_rationale_worldtree_mconly_anschoices_v3_mod3_onlyneg.txt', #  Q + Ans choices + false contxt
