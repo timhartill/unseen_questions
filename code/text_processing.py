@@ -30,6 +30,9 @@ STOPWORDS2 = set(nltk_stopwords.words('english') + [',', '.', ';', '?', '"', '\'
 from nltk.stem.porter import PorterStemmer
 STEMMER = PorterStemmer()  # Usage: STEMMER.stem('having') -> 'have'
 
+from nltk.stem.snowball import SnowballStemmer
+STEMMER_SNOW_ENG = SnowballStemmer(language="english")
+
 from w2n import word_to_num   # from https://github.com/ag1988/injecting_numeracy/blob/master/pre_training/gen_bert/create_examples_n_features.py
 
 import spacy
@@ -721,7 +724,7 @@ def ner(instr, add_nphrases = True, add_dot=True, verbose=False, return_types=Fa
     return ner_list
 
 
-def pos(instr, nlpmodel):
+def pos(instr, nlpmodel, return_zipped=False):
     """ Extract and return POS tags.
     Returns: toks = ['word1 without whitespace', 'word2', ...]
              tags = ['NOUN', 'VERB', ...]  # |tags| = |toks|
@@ -732,7 +735,35 @@ def pos(instr, nlpmodel):
     for tok in doc:
         toks.append(tok.text)
         tags.append(tok.pos_)
+    if return_zipped:
+        return [*zip(toks, tags)]
     return tags, toks
+
+
+def lemmas(instr, nlpmodel, return_zipped=False):
+    toks = []
+    lemmas = []
+    doc = nlpmodel(instr)
+    for tok in doc:
+        toks.append(tok.text)
+        lemmas.append(tok.lemma_)
+    if return_zipped:
+        return [*zip(toks, lemmas)]
+    return lemmas, toks
+    
+
+def stems(instr, stemmer, return_zipped=False):
+    """ stemmer = STEMMER for PorterStemmer or STEMMER_SNOW_ENG for snowball('english')
+    """
+    toks = []
+    stems = []
+    doc = word_tokenize(instr)
+    for tok in doc:
+        toks.append(tok)
+        stems.append(stemmer.stem(tok))
+    if return_zipped:
+        return [*zip(toks, stems)]
+    return stems, toks
 
 
 def filter_stopwords(text):
