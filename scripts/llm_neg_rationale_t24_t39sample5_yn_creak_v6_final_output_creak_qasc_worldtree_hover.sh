@@ -26,7 +26,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -48,7 +48,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -70,7 +70,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -92,7 +92,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -116,7 +116,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -138,7 +138,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -160,7 +160,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -182,7 +182,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -206,7 +206,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -228,7 +228,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -250,7 +250,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -272,7 +272,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -297,7 +297,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -320,7 +320,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -343,7 +343,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
@@ -366,7 +366,7 @@ python llm_infer_output.py \
     --temperature 0.95 \
     --top_p 0.96 \
     --top_k 0 \
-    --num_return_sequences 5 \
+    --num_return_sequences 4 \
     --max_memory_buffer 12 \
     --max_memory -1
 
