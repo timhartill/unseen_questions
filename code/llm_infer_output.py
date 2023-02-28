@@ -32,7 +32,7 @@ from mdr_config import llm_args
 
 
 # names of datasets to generate explanatory info for. Train datasets are assumed to have 'train.tsv' and 'dev.tsv':
-TRAIN_SETS = ['creak_od_ans','csqa2', ]  # 'hover_od_ans', ]
+#TRAIN_SETS = ['creak_od_ans','csqa2', ]  # 'hover_od_ans', ]
               #'hpqa_od_ans', 'musique_qa_full', 'nq_open_od_ans', ]
               #'tatqa', 
               #'qasc', 'arc_easy', 'arc_hard']
