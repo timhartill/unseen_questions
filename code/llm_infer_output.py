@@ -40,7 +40,9 @@ from mdr_config import llm_args
 #TRAIN_SETS = [#'qasc_mc_expl_ans',  
 #              'worldtree_mc_expl_ans', ]#'arc_da_expl_ans', 'strategy_qa_bigbench_expl_ans', 'creak_expl_ans']
 
-TRAIN_SETS = ['creak_expl_ans','csqa2', 'qasc_mc_expl_ans', 'worldtree_mc_expl_ans', 'hover_od_ans', 'hpqa_od_ans', ]
+#TRAIN_SETS = ['creak_expl_ans','csqa2', 'qasc_mc_expl_ans', 'worldtree_mc_expl_ans', 'hover_od_ans', 'hpqa_od_ans', ]
+
+TRAIN_SETS = ['hpqa_r4c_expl_ans_0']
 
 EVAL_SETS_DEV = ['musique_mu_dev_odv2']  #['commonsenseqa', 'strategy_qa_bigbench_od_ans'] #['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
 EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
@@ -148,17 +150,23 @@ TEMPLATES = [
 
 
 TEMPLATES = [ 
-                'neg_rationale_creak_yn_v3_onlyneg.txt', #   Q + Ans choices + false contxt
-                'neg_rationale_creak_yn_v3_2_onlynegimaginarystory.txt', #   Q + Ans choices + false contxt imaginary story instruction
-                'neg_rationale_creak_yn_v6_onlyneg_theanswermustbe.txt', # Q + Ans choices + false contxt using actual generated rationales
-                'neg_rationale_creak_yn_v8_negatepositive.txt',  #  Q + Ans Choices + false context made of naively negated gold context
-                'neg_rationale_creak_yn_v8_2_negatepositive2sentence.txt',  #  Q + Ans Choices + false context made of naively negated gold context with 2 sentences instead of 1
+                'neg_rationale_creak_yn_v3_onlyneg.txt', #   Q + false contxt
+                'neg_rationale_creak_yn_v3_2_onlynegimaginarystory.txt', #   Q + false contxt imaginary story instruction
+                'neg_rationale_creak_yn_v6_onlyneg_theanswermustbe.txt', # Q + false contxt using actual generated rationales
+                'neg_rationale_creak_yn_v8_negatepositive.txt',  #  Q + false context made of naively negated gold context
+                'neg_rationale_creak_yn_v8_2_negatepositive2sentence.txt',  #  Q + false context made of naively negated gold context with 2 sentences instead of 1
              ]
 
 TEMPLATES = [
-                'neg_rationale_creak_yn_v6_onlyneg_theanswermustbe.txt', # Q + Ans choices + false contxt using actual generated rationales
-                'neg_rationale_creak_yn_v6_2_onlyneg_theanswermustbe_singlesentence.txt', # Q + Ans choices + false contxt using actual generated rationales reduced to a single sentence to match creak gold rationales
+                'neg_rationale_creak_yn_v6_onlyneg_theanswermustbe.txt', # Q + false contxt using actual generated rationales
+                'neg_rationale_creak_yn_v6_2_onlyneg_theanswermustbe_singlesentence.txt', # Q + false contxt using actual generated rationales reduced to a single sentence to match creak gold rationales
             ]
+
+
+TEMPLATES = [
+                'neg_rationale_hpqa_r4c_v6_onlyneg_theanswermustbe.txt',  # Q + false context based on actual generated rationales
+            ]
+
 
 ANSWER_PREFIX = 'So the answer is'
 
