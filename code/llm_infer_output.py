@@ -164,8 +164,10 @@ TEMPLATES = [
 
 
 TEMPLATES = [
-                'neg_rationale_hpqa_r4c_v6_onlyneg_theanswermustbe.txt',  # Q + false context based on actual generated rationales
+                'neg_rationale_hpqa_r4c_v6_onlyneg_theanswermustbe.txt',  # Q + false context based on actual generated rationales. Note typo corrected - 1952 removed.
+                'neg_rationale_hpqa_r4c_v6_2_onlyneg_theanswermustbe_multisentence.txt', #  Q + false context based on actual generated rationales exapanded to more sentences
             ]
+
 
 
 ANSWER_PREFIX = 'So the answer is'
