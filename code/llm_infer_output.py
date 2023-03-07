@@ -42,7 +42,8 @@ from mdr_config import llm_args
 
 #TRAIN_SETS = ['creak_expl_ans','csqa2', 'qasc_mc_expl_ans', 'worldtree_mc_expl_ans', 'hover_od_ans', 'hpqa_od_ans', ]
 
-TRAIN_SETS = ['hpqa_r4c_expl_ans_0']
+#TRAIN_SETS = ['hpqa_r4c_expl_ans_0']
+TRAIN_SETS = ['fever_expl_ans']
 
 EVAL_SETS_DEV = ['musique_mu_dev_odv2']  #['commonsenseqa', 'strategy_qa_bigbench_od_ans'] #['commonsenseqa', 'strategy_qa_bigbench_od_ans', 'musique_mu_dev_odv2', 'drop']  # 
 EVAL_SETS_TEST = ['arc_da_od_ans', 'iirc_initial_context']
@@ -168,7 +169,9 @@ TEMPLATES = [
                 'neg_rationale_hpqa_r4c_v6_2_onlyneg_theanswermustbe_multisentence.txt', #  Q + false context based on actual generated rationales exapanded to more sentences
             ]
 
-
+TEMPLATES = [
+                'neg_rationale_fever_v6_onlyneg.txt',  # Q + false context based on gold sentence rationales.
+            ]
 
 ANSWER_PREFIX = 'So the answer is'
 

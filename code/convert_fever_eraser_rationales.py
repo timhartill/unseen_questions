@@ -93,4 +93,12 @@ train_out = process(train_in)
 utils.saveas_jsonl(dev_out, os.path.join(BASE_DIR, 'fever_dev_rationales.jsonl'))
 utils.saveas_jsonl(train_out, os.path.join(BASE_DIR, 'fever_train_rationales.jsonl'))
 
+dev_out = utils.load_jsonl(os.path.join(BASE_DIR, 'fever_dev_rationales.jsonl'))
+train_out = utils.load_jsonl(os.path.join(BASE_DIR, 'fever_train_rationales.jsonl'))
+
+dev_expl_ans = [utils.create_uqa_example(s['question'], s['pos_paras'][0]['text'], s['answers'][0]) for s in dev_out]
+utils.save_uqa(dev_expl_ans, os.path.join(eval_metrics.UQA_DIR, 'fever_expl_ans'), 'dev.tsv')
+train_expl_ans = [utils.create_uqa_example(s['question'], s['pos_paras'][0]['text'], s['answers'][0]) for s in train_out]
+utils.save_uqa(train_expl_ans, os.path.join(eval_metrics.UQA_DIR, 'fever_expl_ans'), 'train.tsv')
+
 
