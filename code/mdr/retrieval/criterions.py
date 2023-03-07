@@ -20,7 +20,8 @@ def mhop_loss_var(model, batch, args):
         
     """
     outstr=''
-    outputs = model(batch)  # {'q': [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spn], 'c': [sp1, sp2, .., spn], "neg": [neg1, neg2, ... negx], "act_hops":[sample1hops, ..,samplenhops], "stop_logits:[[bs, 2], [bs, 2]]"} 
+    outputs = model(batch)  # {'q': [q, q_sp1, q_sp1_sp2, ..., q_sp1_.._spn], 
+                            #  'c': [sp1, sp2, .., spn], "neg": [neg1, neg2, ... negx], "act_hops":[sample1hops, ..,samplenhops], "stop_logits:[[bs, 2], [bs, 2]]"} 
                             # each dict element a max_hops len list of tensors shape [bs, hidden_size=hs] 
                             # except act_hops which is a bs len list of integer hop counts
                             # and stop_logits which is max_hops length list of [bs,2]

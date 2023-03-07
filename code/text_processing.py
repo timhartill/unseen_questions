@@ -266,6 +266,7 @@ def white_space_fix(text):
 def replace_chars(instr): 
     """ Very basic text preprocessing """
     outstr = instr.replace("’", "'").replace("‘", "'").replace(" .", ".").replace(" ?", "?").replace(" !", "!").replace(" ,", ",").replace(" ;", ";").replace(" :", ":")
+    outstr = outstr.replace("`` ", "'").replace(" ''", "'").replace(" 's", "'s")
     return outstr.replace('“', '"').replace('”','"').replace("\t", " ").replace("\n", "")
 
 
@@ -281,7 +282,7 @@ def format_sentence(sentence, capitalize=True, add_endchar=True, endchar='.', st
             sentence = sentence.replace(s, '')        
     sentence = replace_chars(white_space_fix(sentence))
     if sentence != '':
-        if add_endchar and sentence[-1] not in ['.', '?', '!']:
+        if add_endchar and sentence[-1] not in ['.', '?', '!', ':', ';']:
             sentence += endchar
         if capitalize:
             sentence = sentence[0].upper() + sentence[1:]            

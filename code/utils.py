@@ -1584,3 +1584,57 @@ def make_unanswerable_uqa_from_mdr_format(split, tokenizer, max_toks=507, includ
     return out_list
 
 
+def make_rationale(split, src):
+    """ Make rationales from mdr-style positive paras with sentence labels
+    
+    Output format:
+        [ {'question': 'full question text incl MC options and preceding initial ctxt',
+           'answers': ['answer1', ...],
+           '_id': 'id string',
+           'src': 'fever',
+           pos_paras: [{'text': 'sentence 1. sentence 2. ..', "sentence_spans": [[0, 104], [104, 225], [225, 325]]}, ...],
+           neg_paras: [], #filled in later
+          },
+         
+        ]    
+    """
+    out_list = []
+    for i, s in enumerate(split):
+        sentence_spans = []
+        new_start, new_end = 0, 0
+        text = ''
+        for para in s['pos_paras']:
+            for j, (start, end) in enumerate(para['sentence_spans']):
+                if j in para['sentence_labels']:
+                    sent = para['text'][start:end].strip()
+                    if sent != '':
+                        sent = sent.replace(" '", "'")
+                        if sent[-1] not in ['.', '!', '?', ':', ';']:
+                            sent += '.'
+                        if len(sentence_spans) > 0:
+                            sent = ' ' + sent
+                        new_end = new_start + len(sent)
+                        sentence_spans.append( [new_start, new_end] )
+                        new_start = new_end
+                        text += sent
+        if text != '':
+            out = {}
+            q = s['question'].strip()
+            if q[-1] in ['.', '!', '?', ':', ';']:
+                q = q[:-1]
+            out['question'] = q + '?'
+            out['answers'] = s['answers']
+            if s.get('_id') is not None:
+                out['_id'] = str(s['_id'])
+            elif s.get('id') is not None:
+                out['_id'] = str(s['id'])
+            else:
+                out['_id'] = str(i)
+            out['src'] = src
+            out['pos_paras'] = [ {'text': text, 'sentence_spans': sentence_spans} ]
+            out['neg_paras'] = []                
+            out_list.append( out )       
+        if i % 10000 == 0:
+            print(f"Processed {i} samples of {len(split)}...")
+    return out_list
+

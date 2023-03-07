@@ -44,7 +44,7 @@ import random
 
 import eval_metrics
 import utils
-from text_processing import normalize_unicode, convert_brc, replace_chars, create_sentence_spans, strip_accents
+from text_processing import normalize_unicode, convert_brc, replace_chars, create_sentence_spans, strip_accents, split_into_sentences
 
 
 DEV = '/home/thar011/data/fever/shared_task_dev.jsonl'
@@ -303,5 +303,17 @@ print(f"Outputting: {outfile}")
 with open(outfile, 'w') as f:
     f.write(''.join(train_out))
 print('Finished outputting fever_hard!')
+
+
+################################
+#output fever rationales - run lines 273-287 first - not used, using ERASER version...
+################################
+dev_out = utils.make_rationale(fever_dev_out, src='fever')
+train_out = utils.make_rationale(fever_train_out, src='fever')
+
+
+
+
+
 
 
