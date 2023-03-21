@@ -1585,9 +1585,9 @@ def make_unanswerable_uqa_from_mdr_format(split, tokenizer, max_toks=507, includ
 
 
 def make_rationale(split, src):
-    """ Make rationales from mdr-style positive paras with sentence labels
+    """ Make rationales from mdr-style positive paras with sentence spans and sentence labels
     
-    Output format:
+    Output 'rr' format:
         [ {'question': 'full question text incl MC options and preceding initial ctxt',
            'answers': ['answer1', ...],
            '_id': 'id string',
@@ -1638,3 +1638,130 @@ def make_rationale(split, src):
             print(f"Processed {i} samples of {len(split)}...")
     return out_list
 
+
+def make_rr_para(text, sentence_spans=None):
+    """ create pos or neg 'para' in rr format: [{'text': text, 'sentence_spans': sentence_spans}]
+    text = 'Sentence one. Sentence two.' 
+        or [{'text': 'Rationale 1, Sentence one. Sentence two.'}, {'text': 'R2 sentence one.'}] 
+        or ['Rationale 1, Sentence one. Sentence two.', 'R2 sentence one.']
+    if sentence_spans provided, assume they are correct.
+    returns [], or [{'text': text, 'sentence_spans': sentence_spans}, ...]
+    """
+    entry = []
+    if text is None or (type(text)==str and text.strip() == ''):
+        pass
+    elif type(text) == str:
+        text = text.strip()
+        if text[-1] not in ['.', '?', '!', ':', ';']:
+            text += '.'
+            if sentence_spans is not None and sentence_spans != []:
+                sentence_spans[-1][-1] += 1
+        if sentence_spans is None or sentence_spans == []:
+            sentence_spans = create_sentence_spans(split_into_sentences(text))
+        entry.append({'text': text, 'sentence_spans': sentence_spans})
+    elif type(text) == list:  # assume minimally has 'text' key
+        for e in text:
+            if type(e) == str:
+                e = {'text': e.strip()}
+            if e['text'][-1] not in ['.', '?', '!', ':', ';']:
+                e['text'] += '.'
+                if e.get('sentence_spans') is not None and e['sentence_spans'] != []:
+                    e['sentence_spans'][-1][-1] += 1
+            if e.get('sentence_spans') is None or e['sentence_spans'] == []:
+                e['sentence_spans'] = create_sentence_spans(split_into_sentences(e['text']))
+            entry.append({'text': e['text'], 'sentence_spans': e['sentence_spans']})
+    else: 
+        assert type(text) in [str, list], f"ERROR: make_rr_para(): text type not implemented: {text}"
+    return entry
+    
+
+def create_rr_format(question, text=None, answer=None, sentence_spans=None, _id=None, src=None, append_q_char='?',
+                     mc_options=None, context=None):
+    """ Make single 'rationale reranker training format' sample:
+    {'question': 'question text EXCLUDING MC options and preceding initial ctxt if any',
+       'answers': ['answer1', ...],
+       '_id': 'id string',
+       'src': 'fever',
+       'pos_paras': [{'text': 'sentence 1. sentence 2. ..', "sentence_spans": [[0, 104], [104, 225], [225, 325]]}, ...],
+       'neg_paras': [], #filled in later
+       'mc_options':  '(A) Banana (B) ...'  #key only present if multichocie options exist...
+       'context': 'An initial para or other necessary context if exists'  #key only present if initial para exists...
+    """
+    question = question.strip()
+    if append_q_char is not None and append_q_char != '':
+        if question[-1] in ['.', '?', '!', ':', ';']:
+            question = question[:-1]
+        question += append_q_char
+    if type(answer) != list:
+        if type(answer) == str:
+            answer = answer.strip()
+        answer = [str(answer)]
+    pos_paras =  make_rr_para(text, sentence_spans)
+    _id = str(_id)
+    src = str(src)
+    sample = {'question': question, 'answers': answer, '_id': _id, 'src': src, 'pos_paras': pos_paras, 'neg_paras': []}
+    if mc_options is not None:
+        sample['mc_options'] = mc_options.strip()
+    if context is not None:
+        sample['context'] = context.strip()
+    return sample
+    
+
+def load_llm_generations_singlemode(infile):       
+    """ Load json file of format:
+
+        {'dataset_1': {'path': 'file/path/dev.tsv', 'split': 'dev', 'metric': 'SS', 'ans_score_llm': 0.99, 
+                'data': [
+                    {'question': 'full q input txt',
+                     'answer': 'ans txt', #or ['ans text 1', 'ans text 2']
+                     'q_only': 'q only',
+                     'mc_options': '(A) opta (B) optb (C) optc',
+                     'context': 'context',
+                     'rationales': {'0': [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
+                                           'answer': 'answer [with option txt only if mc]',
+                                           'raw': 'as generated minus query',
+                                           'metric': 'F1 or SS or EM or NA',
+                                           'ans_score': 0.99}],
+                                    '1': [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
+                                           'answer': 'answer [with option txt only if mc]',
+                                           'raw': 'as generated minus query',
+                                           'metric': 'F1 or SS or EM or NA',
+                                           'ans_score': 0.99}],
+                                   }
+                             } ],
+         'dataset_2': {...}, ... }
+        }
+      
+    This file can be generated in either 'eval' mode where multiple datasets and multiple prompt templates ('0', '1', ..) may be contained 
+    or in 'single' mode which is where a full or partial set of results in fixed or random order for
+    one split of one dataset for one prompt template may be loaded. This function ONLY loads and processes for 'single' mode...
+    Also note that there will only be one 'nl_trunc' for greedy decoding but generally 4 or so for a sampling decoding strategy
+    
+    returns list of:
+        {'question': 'full q input txt',
+        'answer': 'ans txt', #or ['ans text 1', 'ans text 2']
+        'q_only': 'q only',
+        'mc_options': '(A) opta (B) optb (C) optc',
+        'context': 'context',
+        'metric': 'F1 or SS or EM or NA', 
+        'rationales': [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
+                        'answer': 'answer [with option txt only if mc]', # generally unused outside of eval mode
+                        'ans_score': 0.99 # these generally unused outside of eval mode
+                       }]
+    """
+    outlist = []
+    with open(infile) as f:
+        gens = json.load(f)
+    ds = list(gens.keys())[0]
+    print(f"Loading for dataset: {ds} split:{gens[ds]['split']}  sample count:{len(gens[ds]['data'])}...")
+    for sample in gens[ds]['data']:
+        r_list = []
+        for prompt_key in sample['rationales']:  # typically just '0' but will take and flatten all rationales from all prompts
+            for r in sample['rationales'][prompt_key]:
+                r_list.append({'nl_trunc': r['nl_trunc'], 'llm_answer': r['answer'], 'llm_ans_score': r['ans_score'], 'prompt_key': prompt_key})
+        out = {'q_only': sample['q_only'], 'answer': sample['answer'], 'mc_options': sample['mc_options'], 'context': sample['context'],
+               'rationales': r_list, 'llm_input': sample['question'], 'metric': gens[ds]['metric']}
+        outlist.append(out)        
+    return outlist
+
+    

@@ -15,7 +15,7 @@ Input format:
      "query": "Ireland does not have relatively low-lying mountains.", "query_type": null}
 
 
-Output format:
+Output 'rr' format:
     [ {'question': 'full question text incl MC options and preceding initial ctxt',
        'answers': ['answer1', ...],
        '_id': 'id string',

@@ -7,12 +7,28 @@ Convert CREAK (https://github.com/yasumasaonoe/creak) to std formats:
     
     q->y/n
     q+seed entity paras->y/n
+    q+expl->a
+
++ rationale reranker 'rr' training format:
+
+    Output format:
+    [ {'question': 'full question text incl MC options and preceding initial ctxt if any',
+       'answers': ['answer1', ...],
+       '_id': 'id string',
+       'src': 'fever',
+       pos_paras: [{'text': 'sentence 1. sentence 2. ..', "sentence_spans": [[0, 104], [104, 225], [225, 325]]}, ...],
+       neg_paras: [], #filled in later
+      },
+     
+    ]
+
 
 @author: tim hartill
 
 
 """
 import os
+import json
 import copy
 import random
 from tqdm import tqdm
@@ -20,6 +36,7 @@ from html import unescape
 
 import eval_metrics
 import utils
+
 
 UQA_DIR = eval_metrics.UQA_DIR
 
@@ -38,6 +55,17 @@ file_dev = '/home/thar011/data/creak/dev.json'
 file_train = '/home/thar011/data/creak/train.json'
 file_contrast_set = '/home/thar011/data/creak/contrast_set.json'
 
+rr_dev = '/home/thar011/data/creak/creak_dev_rr_pos_only.jsonl'
+rr_train = '/home/thar011/data/creak/creak_train_rr_pos_only.jsonl'
+
+rr_dev_negs = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T24_YN_CREAK_DEV_onv6_sample-02-28-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json', 
+               '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T25_YN_CREAK_DEV_onv6mod2_sample-03-01-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+               ]
+rr_train_negs = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T26_YN_CREAK_TRAIN_onv6_sample-03-01-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                 '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T27_YN_CREAK_TRAIN_onv6mod2_sample-03-07-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                 ]
+
+
 mdr_dev = '/home/thar011/data/creak/creak_dev_with_negs.json'
 mdr_train = '/home/thar011/data/creak/creak_train_with_negs.json'
 mdr_cs = '/home/thar011/data/creak/creak_cs_with_negs.json'
@@ -47,9 +75,13 @@ dev = utils.load_jsonl(file_dev)  #1371  # dict_keys(['ex_id', 'sentence', 'expl
 train = utils.load_jsonl(file_train)  #10176
 cs = utils.load_jsonl(file_contrast_set)  #500  # No explanation or en_wiki_pageid but there is 'entity'
 
+################################
+# Rationales-orientated code here (para-orientated below)
+#################################
 
 def make_expl_ans_format(split, out_dir, out_file):
     """ Output tsv formatted dataset q \n explanation \t yes/no
+    AND return 'rationale reranker format' list
     """
     outlist = []
     for s in split:
@@ -70,6 +102,23 @@ def make_expl_ans_format(split, out_dir, out_file):
 
 make_expl_ans_format(dev, os.path.join(UQA_DIR, 'creak_expl_ans'), 'dev.tsv')
 make_expl_ans_format(train, os.path.join(UQA_DIR, 'creak_expl_ans'), 'train.tsv')
+
+dev_rr_format = [utils.create_rr_format(s['sentence'], s['explanation'], 'yes' if s['label'] == 'true' else 'no',
+                                        sentence_spans=None, _id=s['ex_id'], src='creak', append_q_char='?') for s in dev]
+utils.saveas_jsonl(dev_rr_format, rr_dev)
+train_rr_format = [utils.create_rr_format(s['sentence'], s['explanation'], 'yes' if s['label'] == 'true' else 'no',
+                                        sentence_spans=None, _id=s['ex_id'], src='creak', append_q_char='?') for s in train]
+utils.saveas_jsonl(train_rr_format, rr_train)
+
+dev_negs = utils.load_llm_generations_singlemode(rr_dev_negs[0])   #json.load(open(rr_dev_negs[0]))
+
+#TODO - write merge routine to align pos and negs
+#TODO - merge into 1 pos + neg jsonl
+#TODO - output in "1 pos + many negs format"
+
+################################
+# Rationales-orientated code above (para-orientated below)
+#################################
 
 
 # Add hyperlinked negative paras where title match in corpus found  WARNING: TAKES ~30 mins to load
