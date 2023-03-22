@@ -1659,7 +1659,7 @@ def make_rr_para(text, sentence_spans=None):
         if sentence_spans is None or sentence_spans == []:
             sentence_spans = create_sentence_spans(split_into_sentences(text))
         entry.append({'text': text, 'sentence_spans': sentence_spans})
-    elif type(text) == list:  # assume minimally has 'text' key
+    elif type(text) == list:  # if jsonl assume minimally has 'text' key otherwise list of str
         for e in text:
             if type(e) == str:
                 e = {'text': e.strip()}
@@ -1683,7 +1683,7 @@ def create_rr_format(question, text=None, answer=None, sentence_spans=None, _id=
        '_id': 'id string',
        'src': 'fever',
        'pos_paras': [{'text': 'sentence 1. sentence 2. ..', "sentence_spans": [[0, 104], [104, 225], [225, 325]]}, ...],
-       'neg_paras': [], #filled in later
+       'neg_paras': [], #Same format as pos_paras but filled in later
        'mc_options':  '(A) Banana (B) ...'  #key only present if multichocie options exist...
        'context': 'An initial para or other necessary context if exists'  #key only present if initial para exists...
     """
@@ -1744,24 +1744,56 @@ def load_llm_generations_singlemode(infile):
         'mc_options': '(A) opta (B) optb (C) optc',
         'context': 'context',
         'metric': 'F1 or SS or EM or NA', 
-        'rationales': [{'nl_trunc': 'rationale truncated at 1st nl and answer potentially removed',
+        'rationales': [{'text': 'rationale truncated at 1st nl and answer potentially removed where preceded by "so the answer is"',
                         'answer': 'answer [with option txt only if mc]', # generally unused outside of eval mode
-                        'ans_score': 0.99 # these generally unused outside of eval mode
+                        'llm_ans_score': 0.99, # these generally unused outside of eval mode
+                        'prompt_key': '0'  # id of prompt template, typically '0'
                        }]
     """
     outlist = []
     with open(infile) as f:
         gens = json.load(f)
     ds = list(gens.keys())[0]
-    print(f"Loading for dataset: {ds} split:{gens[ds]['split']}  sample count:{len(gens[ds]['data'])}...")
+    print(f"Loading for dataset: {ds} split:{gens[ds]['split']}  sample count:{len(gens[ds]['data'])} from {infile}...")
     for sample in gens[ds]['data']:
         r_list = []
         for prompt_key in sample['rationales']:  # typically just '0' but will take and flatten all rationales from all prompts
             for r in sample['rationales'][prompt_key]:
-                r_list.append({'nl_trunc': r['nl_trunc'], 'llm_answer': r['answer'], 'llm_ans_score': r['ans_score'], 'prompt_key': prompt_key})
+                r_list.append({'text': r['nl_trunc'], 'llm_answer': r['answer'], 'llm_ans_score': r['ans_score'], 'prompt_key': prompt_key})
         out = {'q_only': sample['q_only'], 'answer': sample['answer'], 'mc_options': sample['mc_options'], 'context': sample['context'],
                'rationales': r_list, 'llm_input': sample['question'], 'metric': gens[ds]['metric']}
         outlist.append(out)        
     return outlist
 
+
+def merge_negs_into_rr(rr_format, negs, verbose=True):
+    """ Match and Merge neg rationales into rr format. 
+    rr format is as created by create_rr_format above.
+    negs format is as created by load_llm_generations_singlemode above
+    Assumes all negs samples exist in rr format but rr_format may be a superset.
+    """
+    rr_dict = {s['question'].rstrip('?!. '): s for s in rr_format}  # occasionally ending punctuation differences cause mismatches so strip all ending punctuation
+    for i, neg in enumerate(negs):
+        q = neg['q_only'].rstrip('?!. ')
+        rr_sample = rr_dict.get(q)
+        if rr_sample is None:
+            print(f"ERROR: Neg idx:{i}  Neg q:{q}: Unable to match in rr_dict [merge_negs_into_rr()]")
+        else:
+            new_negs = make_rr_para(neg['rationales'])
+            rr_sample['neg_paras'].extend(new_negs)
+        if verbose and i % 1000 == 0:
+            print(f"Processed: {i}")
+    rr_format_new = [rr_dict[q] for q in rr_dict.keys()]
+    return rr_format_new
+
+
+def load_merge_negs(rr_format, negs_list, verbose=True):
+    """ Load multipe files of neg rationales and merge in an rr-formatted file
+    """
+    for negs_file in negs_list:
+        negs = load_llm_generations_singlemode(negs_file)
+        rr_format = merge_negs_into_rr(rr_format, negs, verbose=verbose)
+    return rr_format
+
+    
     
