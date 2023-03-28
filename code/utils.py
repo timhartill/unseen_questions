@@ -1632,10 +1632,11 @@ def make_rationale(split, src):
                 out['_id'] = str(i)
             out['src'] = src
             out['pos_paras'] = [ {'text': text, 'sentence_spans': sentence_spans} ]
-            out['neg_paras'] = []                
-            out_list.append( out )       
+            out['neg_paras'] = []
+            out_list.append( out )
         if i % 10000 == 0:
             print(f"Processed {i} samples of {len(split)}...")
+    print(f'Returning {len(out_list)} rr samples of {len(split)} orig samples.')
     return out_list
 
 
@@ -1684,8 +1685,9 @@ def create_rr_format(question, text=None, answer=None, sentence_spans=None, _id=
        'src': 'fever',
        'pos_paras': [{'text': 'sentence 1. sentence 2. ..', "sentence_spans": [[0, 104], [104, 225], [225, 325]]}, ...],
        'neg_paras': [], #Same format as pos_paras but filled in later
-       'mc_options':  '(A) Banana (B) ...'  #key only present if multichocie options exist...
+       'mc_options':  '(A) banana (B) ...'  #key only present if multichoice options exist...
        'context': 'An initial para or other necessary context if exists'  #key only present if initial para exists...
+       }
     """
     question = question.strip()
     if append_q_char is not None and append_q_char != '':
@@ -1707,7 +1709,7 @@ def create_rr_format(question, text=None, answer=None, sentence_spans=None, _id=
     return sample
     
 
-def load_llm_generations_singlemode(infile):       
+def load_llm_generations_singlemode(infile):
     """ Load json file of format:
 
         {'dataset_1': {'path': 'file/path/dev.tsv', 'split': 'dev', 'metric': 'SS', 'ans_score_llm': 0.99, 
@@ -1762,9 +1764,25 @@ def load_llm_generations_singlemode(infile):
                 r_list.append({'text': r['nl_trunc'], 'llm_answer': r['answer'], 'llm_ans_score': r['ans_score'], 'prompt_key': prompt_key})
         out = {'q_only': sample['q_only'], 'answer': sample['answer'], 'mc_options': sample['mc_options'], 'context': sample['context'],
                'rationales': r_list, 'llm_input': sample['question'], 'metric': gens[ds]['metric']}
-        outlist.append(out)        
+        outlist.append(out)
     return outlist
 
+
+def merge_pos_into_rr(rr_format, poslist):
+    """ Merge pos list (in rr format incl sent spans) into base rr format list 
+    """
+    rr_dict = {s['question'].rstrip().rstrip('?!:. ').lstrip(): s for s in rr_format}  # occasionally ending punctuation differences cause mismatches so strip all ending punctuation
+    for i, pos in enumerate(poslist):
+        q = pos['question'].rstrip().rstrip('?!:. ').lstrip()
+        rr_sample = rr_dict.get(q)
+        if rr_sample is None:
+            print(f"ERROR: Pos idx:{i}  Pos q:{q}: Unable to match in rr_dict [merge_pos_into_rr()]")
+        else:
+            rr_sample['pos_paras'].extend(pos['pos_paras'])
+    rr_format_new = [rr_dict[q] for q in rr_dict.keys()]        
+    return rr_format_new
+
+    
 
 def merge_negs_into_rr(rr_format, negs, verbose=True):
     """ Match and Merge neg rationales into rr format. 
@@ -1795,5 +1813,34 @@ def load_merge_negs(rr_format, negs_list, verbose=True):
         rr_format = merge_negs_into_rr(rr_format, negs, verbose=verbose)
     return rr_format
 
+
+def output_neg_tsv(rr_format, out_dset_dir=None, file=None):
+    """ Output a tsv-formated dataset of q+neg rationale->a form
+    """
+    outlist = []
+    for s in rr_format:
+        if len(s['neg_paras']) > 0:
+            m = s.get('mc_options')
+            c = random.choice(s['neg_paras'])['text']
+            q = s['question']
+            a = s['answers'][0] if len(s['answers']) == 1 else s['answers']
+            outlist.append( create_uqa_example(q, create_uqa_context(m, c), a) )
+    print(f"Found {len(outlist)} samples with negs.")
+    if out_dset_dir is not None and file is not None:
+        save_uqa(outlist, out_dset_dir, file)
+        return
+    return outlist
+
+
+def output_rr_where_negs_exist(rr_format, outfile=None):
+    """ Only output samples for rr training where we have negatives
+    """
+    outlist = [s for s in rr_format if len(s['neg_paras']) > 0]
+    print(f"Identified {len(outlist)} samples that have negs..")
+    if outfile is not None:
+        saveas_jsonl(outlist, outfile)
+        return
+    return outlist
     
+
     

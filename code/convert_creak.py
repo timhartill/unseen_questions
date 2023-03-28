@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Aug 22 16:18:40 2022
+@author: tim hartill
 
 Convert CREAK (https://github.com/yasumasaonoe/creak) to std formats:
     
@@ -12,18 +13,20 @@ Convert CREAK (https://github.com/yasumasaonoe/creak) to std formats:
 + rationale reranker 'rr' training format:
 
     Output format:
-    [ {'question': 'full question text incl MC options and preceding initial ctxt if any',
+    [ {'question': 'question text EXCLUDING MC options and preceding initial ctxt if any',
        'answers': ['answer1', ...],
        '_id': 'id string',
-       'src': 'fever',
-       pos_paras: [{'text': 'sentence 1. sentence 2. ..', "sentence_spans": [[0, 104], [104, 225], [225, 325]]}, ...],
-       neg_paras: [], #filled in later
-      },
+       'src': 'creak',
+       'pos_paras': [{'text': 'sentence 1. sentence 2. ..', "sentence_spans": [[0, 104], [104, 225], [225, 325]]}, ...],
+       'neg_paras': [], #Same format as pos_paras but filled in later
+       'mc_options':  '(A) banana (B) ...'  #key only present if multichoice options exist...
+       'context': 'An initial para or other necessary context if exists'  #key only present if initial para exists...
+       }
+
      
     ]
 
 
-@author: tim hartill
 
 
 """
@@ -55,8 +58,12 @@ file_dev = '/home/thar011/data/creak/dev.json'
 file_train = '/home/thar011/data/creak/train.json'
 file_contrast_set = '/home/thar011/data/creak/contrast_set.json'
 
+# the full final sample files with potentially multiple pos and negs including samples without negs:
 rr_dev = '/home/thar011/data/creak/creak_dev_rr_all_pos_neg.jsonl'
 rr_train = '/home/thar011/data/creak/creak_train_rr_all_pos_neg.jsonl'
+# the full final sample files with potentially multiple pos and negs excluding samples without negs:
+rr_dev_exclposonly = '/home/thar011/data/creak/creak_dev_rr_all_pos_neg_exclposonly.jsonl'
+rr_train_exclposonly = '/home/thar011/data/creak/creak_train_rr_all_pos_neg_exclposonly.jsonl'
 
 file_rr_dev_negs = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T24_YN_CREAK_DEV_onv6_sample-02-28-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json', 
                '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T25_YN_CREAK_DEV_onv6mod2_sample-03-01-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
@@ -105,10 +112,10 @@ make_expl_ans_format(train, os.path.join(UQA_DIR, 'creak_expl_ans'), 'train.tsv'
 
 dev_rr_format = [utils.create_rr_format(s['sentence'], s['explanation'], 'yes' if s['label'] == 'true' else 'no',
                                         sentence_spans=None, _id=s['ex_id'], src='creak', append_q_char='?') for s in dev]
-#utils.saveas_jsonl(dev_rr_format, rr_dev)
 train_rr_format = [utils.create_rr_format(s['sentence'], s['explanation'], 'yes' if s['label'] == 'true' else 'no',
                                         sentence_spans=None, _id=s['ex_id'], src='creak', append_q_char='?') for s in train]
-utils.saveas_jsonl(train_rr_format, rr_train)
+#utils.saveas_jsonl(dev_rr_format, rr_dev)
+#utils.saveas_jsonl(train_rr_format, rr_train)
 
 # merge routine to align pos and negs
 dev_rr_format = utils.load_merge_negs(dev_rr_format, file_rr_dev_negs)
@@ -117,9 +124,21 @@ utils.saveas_jsonl(dev_rr_format, rr_dev)
 train_rr_format = utils.load_merge_negs(train_rr_format, file_rr_train_negs)
 utils.saveas_jsonl(train_rr_format, rr_train)
 
+utils.output_neg_tsv(dev_rr_format, os.path.join(UQA_DIR, 'creak_neg_expl_ans'), 'dev.tsv')
+utils.output_neg_tsv(train_rr_format, os.path.join(UQA_DIR, 'creak_neg_expl_ans'), 'train.tsv')
 
-#TODO - merge into 1 pos + neg jsonl
-#TODO - output in "1 pos + many negs format"
+dev_rr_format = utils.load_jsonl(rr_dev)
+train_rr_format = utils.load_jsonl(rr_train)
+
+# save final rr model creak training dataset - only output where negs exist which is all of them in this case but for consistency and debug..
+utils.output_rr_where_negs_exist(dev_rr_format, outfile=rr_dev_exclposonly)
+utils.output_rr_where_negs_exist(train_rr_format, outfile=rr_train_exclposonly)
+
+
+#TODO for other datasets - eliminate negs which contain the stemmed answer string - do this PER PROMPT since ans in prompt is ok for negation prompts
+#TODO for MC datasets - augment pos paras with "the answer must be" and 'thus of the choices'? QA model llm_expl datsets have these forms so do for pos_paras and neg_paras. Do sampled pos & negs give these - NOT enough?
+#TODO for MC datasets - input with and without MC options into rr reranker - but no other variations identified so do dynamically in the rr model dataloader
+
 
 ################################
 # Rationales-orientated code above (para-orientated below)

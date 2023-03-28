@@ -60,6 +60,9 @@ MDR_UPDATED_TRAIN = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_t
 MDR_UPDATED_QAS_VAL = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_qas_val_with_spfacts.jsonl'
 MDR_UPDATED_CORPUS = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_with_sent_spans.jsonl'
 
+RR_DEV = '/home/thar011/data/hpqa/hotpot_dev_fullwiki_v1_rr_pos.jsonl'
+RR_TRAIN = '/home/thar011/data/hpqa/hotpot_train_fullwiki_v1_rr_pos.jsonl'
+
 HPQA_GENERICSKB_UPDATED_CORPUS = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hpqa_abstracts_generic_kb_with_sent_spans.jsonl'
 GENERICSKB = '/home/thar011/data/genericskb/GenericsKB/GenericsKB-Best.tsv'
 
@@ -227,6 +230,22 @@ train_out = [utils.create_uqa_example(h['question'], None, h['answers'][0]) for 
 utils.save_uqa(train_out, out_dir, 'train.tsv')
 print('Finished outputting hpqa_od_ans!')
 
+
+######
+# Create rr-style files with gold sentences as pos rationales
+#####
+dev_out = utils.make_rationale(mdr_dev, src='hpqa')  # 7405 of 7405
+train_out = utils.make_rationale(mdr_train, src='hpqa')  # 90447 rr samples of 90447 orig
+
+utils.saveas_jsonl(dev_out, RR_DEV)
+utils.saveas_jsonl(train_out, RR_TRAIN)
+
+# output expl_ans dataset
+out_dir = os.path.join(UQA_DIR, "hpqa_expl_ans")
+tsv_dev_out = [utils.create_uqa_example(h['question'], h['pos_paras'][0]['text'], h['answers'][0]) for h in dev_out]
+utils.save_uqa(tsv_dev_out, out_dir, 'dev.tsv')
+tsv_train_out = [utils.create_uqa_example(h['question'], h['pos_paras'][0]['text'], h['answers'][0]) for h in train_out]
+utils.save_uqa(tsv_train_out, out_dir, 'train.tsv')
 
 
 ###################

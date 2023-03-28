@@ -8,12 +8,12 @@ Created on Wed Mar  1 15:13:33 2023
 Create gold rationales from the r4c (Inoue et al 2020) derived subset of HPQA.
 
 Output 'rr' format:
-    [ {'question': 'full question text incl MC options and preceding initial ctxt',
+    [ {'question': 'question text',
        'answers': ['answer1', ...],
        '_id': 'id string',
        'src': 'r4c',
        pos_paras: [{'text': 'sentence 1. sentence 2. ..', "sentence_spans": [[0, 104], [104, 225], [225, 325]]}, ...],
-       neg_paras: [], #filled in later
+       neg_paras: [], #same format as pos_paras
       },
      
     ]
