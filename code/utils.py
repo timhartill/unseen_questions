@@ -24,7 +24,8 @@ from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoTokenizer, AutoModelForPreTraining
 from transformers import GPTJForCausalLM, AutoModelForCausalLM
 from bart import MyBart
-from text_processing import normalize_num, split_digits_special, is_whitespace, create_sentence_spans, split_into_sentences
+from text_processing import normalize_num, split_digits_special, is_whitespace, create_sentence_spans, split_into_sentences, simple_filter_stopwords, stems
+from eval_metrics import get_f1
 
 MULTI_ANS_SEP = '#!#'
 
@@ -1664,13 +1665,14 @@ def make_rr_para(text, sentence_spans=None):
         for e in text:
             if type(e) == str:
                 e = {'text': e.strip()}
-            if e['text'][-1] not in ['.', '?', '!', ':', ';']:
-                e['text'] += '.'
-                if e.get('sentence_spans') is not None and e['sentence_spans'] != []:
-                    e['sentence_spans'][-1][-1] += 1
-            if e.get('sentence_spans') is None or e['sentence_spans'] == []:
-                e['sentence_spans'] = create_sentence_spans(split_into_sentences(e['text']))
-            entry.append({'text': e['text'], 'sentence_spans': e['sentence_spans']})
+            if e['text'].strip() != '':
+                if e['text'][-1] not in ['.', '?', '!', ':', ';']:
+                    e['text'] += '.'
+                    if e.get('sentence_spans') is not None and e['sentence_spans'] != []:
+                        e['sentence_spans'][-1][-1] += 1
+                if e.get('sentence_spans') is None or e['sentence_spans'] == []:
+                    e['sentence_spans'] = create_sentence_spans(split_into_sentences(e['text']))
+                entry.append({'text': e['text'], 'sentence_spans': e['sentence_spans']})
     else: 
         assert type(text) in [str, list], f"ERROR: make_rr_para(): text type not implemented: {text}"
     return entry
@@ -1790,9 +1792,9 @@ def merge_negs_into_rr(rr_format, negs, verbose=True):
     negs format is as created by load_llm_generations_singlemode above
     Assumes all negs samples exist in rr format but rr_format may be a superset.
     """
-    rr_dict = {s['question'].rstrip('?!. '): s for s in rr_format}  # occasionally ending punctuation differences cause mismatches so strip all ending punctuation
+    rr_dict = {s['question'].rstrip().rstrip('?!:. ').lstrip(): s for s in rr_format}  # occasionally ending punctuation differences cause mismatches so strip all ending punctuation
     for i, neg in enumerate(negs):
-        q = neg['q_only'].rstrip('?!. ')
+        q = neg['q_only'].rstrip().rstrip('?!:. ').lstrip()
         rr_sample = rr_dict.get(q)
         if rr_sample is None:
             print(f"ERROR: Neg idx:{i}  Neg q:{q}: Unable to match in rr_dict [merge_negs_into_rr()]")
@@ -1805,11 +1807,52 @@ def merge_negs_into_rr(rr_format, negs, verbose=True):
     return rr_format_new
 
 
-def load_merge_negs(rr_format, negs_list, verbose=True):
-    """ Load multipe files of neg rationales and merge in an rr-formatted file
+def strip_neg_ans_overlap(neglist, ans, thresh=0.0, overlap_method='f1'):
+    """ Strip a 'neg' rationale if it contains all or part of the gold answer
+    overlap determination methods: 'f1': any overlap in any order over thresh (generally 0.0): reject.
+                                   'em': if stemmed ans minus stopwords is a substring of stemmed neg rationale minus stopwords: reject
+    input/return is list of:
+        [{'text': 'rationale truncated at 1st nl and answer potentially removed where preceded by "so the answer is"',
+         'answer': 'answer [with option txt only if mc]', # generally unused outside of eval mode
+         'llm_ans_score': 0.99, # these generally unused outside of eval mode
+         'prompt_key': '0'  # id of prompt template, typically '0'
+        }]
+
     """
+    if ans.lower().strip() in ['yes','no', '']:
+        return neglist
+
+    overlap_method = overlap_method.lower()
+    ans_stripped = stems(simple_filter_stopwords(ans))
+    if ans_stripped == '':
+        ans_stripped = stems(ans)
+        if ans_stripped == '':
+            print(f'Answer contained only stopwords or stemming error. Orig answer:{ans}')
+            ans_stripped = ans
+        
+    new_neglist = []
+    for neg in neglist:
+        neg_stems = stems(simple_filter_stopwords(neg['text'].strip()))
+        if overlap_method == 'f1':
+            overlap = get_f1(neg_stems, ans_stripped)
+        else:
+            overlap = float(ans_stripped in neg_stems)
+        if overlap <= thresh:  #typically thresh=0.0
+            new_neglist.append(neg)
+
+    return new_neglist
+    
+    
+
+def load_merge_negs(rr_format, negs_list, verbose=True, thresh=0.0, overlap_method=None):
+    """ Load multiple files of neg rationales and merge in an rr-formatted file
+    """
+    assert overlap_method in ['f1', 'em', None]
     for negs_file in negs_list:
         negs = load_llm_generations_singlemode(negs_file)
+        if overlap_method is not None:
+            for neg in negs:
+                neg['rationales'] = strip_neg_ans_overlap(neg['rationales'], neg['answer'], thresh=thresh, overlap_method=overlap_method)
         rr_format = merge_negs_into_rr(rr_format, negs, verbose=verbose)
     return rr_format
 
@@ -1825,7 +1868,7 @@ def output_neg_tsv(rr_format, out_dset_dir=None, file=None):
             q = s['question']
             a = s['answers'][0] if len(s['answers']) == 1 else s['answers']
             outlist.append( create_uqa_example(q, create_uqa_context(m, c), a) )
-    print(f"Found {len(outlist)} samples with negs.")
+    print(f"Found {len(outlist)} samples with negs of original {len(rr_format)}.")
     if out_dset_dir is not None and file is not None:
         save_uqa(outlist, out_dset_dir, file)
         return
@@ -1836,7 +1879,7 @@ def output_rr_where_negs_exist(rr_format, outfile=None):
     """ Only output samples for rr training where we have negatives
     """
     outlist = [s for s in rr_format if len(s['neg_paras']) > 0]
-    print(f"Identified {len(outlist)} samples that have negs..")
+    print(f"Identified {len(outlist)} samples that have negs or original {len(rr_format)}..")
     if outfile is not None:
         saveas_jsonl(outlist, outfile)
         return

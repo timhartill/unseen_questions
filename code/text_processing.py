@@ -753,18 +753,30 @@ def lemmas(instr, nlpmodel, return_zipped=False):
     return lemmas, toks
     
 
-def stems(instr, stemmer, return_zipped=False):
+def stems(instr, stemmer=None, return_type='j'):
     """ stemmer = STEMMER for PorterStemmer or STEMMER_SNOW_ENG for snowball('english')
     """
+    if stemmer is None:
+        stemmer = STEMMER_SNOW_ENG
     toks = []
     stems = []
     doc = word_tokenize(instr)
     for tok in doc:
         toks.append(tok)
         stems.append(stemmer.stem(tok))
-    if return_zipped:
+    if return_type == 'z':
         return [*zip(toks, stems)]
-    return stems, toks
+    elif return_type == 'j':
+        return ' '.join(stems)
+    return stems
+
+
+def simple_filter_stopwords(text):
+    """ filter stopwords from text string and return as string.
+    """
+    textlist = text.split(' ')
+    textlist = [x for x in textlist if x.lower() not in STOPWORDS]
+    return ' '.join(textlist)
 
 
 def filter_stopwords(text):
@@ -775,6 +787,7 @@ def filter_stopwords(text):
         return [], []
         #res = [(x, i) for i, x in enumerate(text)]
     return map(list, zip(*res))
+
 
 def filter_stopwords2(text):
     """ t, i = filter_stopwords2(["The", "rain", "in", "Spain", "."]) -> t=['The', 'rain', 'Spain'], i=[0, 1, 3]
@@ -832,7 +845,7 @@ def LCSubStr(X, Y):
 def LCS(a, b):
     """ LCS("the rain in spain", "rain in mexico") -> (9, ['e', 'a', 'i', 'n', ' ', 'i', 'n', ' ', 'i'], (2, 16))
         LCS(["the", "rain", "in", "spain"], ["rain", "in", "mexico"]) -> (2, ['rain', 'in'], (1, 3))
-        LCS(["the", "rain", "in", "spain"], ["in", "rain", "mexico"]) -> (1, ['rain'], (1, 2))
+        LCS(["the", "rain", "in", "spain"], ["in", "rain", "mexico"]) -> (1, ['rain'], (1, 2)) # since order matters
         LCS(["the", "rain", "in", "spain"], ["rain", "mexico", "in"]) -> (2, ['rain', 'in'], (1, 3))
         LCS(["the", "rain", "in", "spain"], ["rain", "mexico",  "spain"]) -> (2, ['rain', 'spain'], (1, 4))
     """
