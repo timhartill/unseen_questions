@@ -33,7 +33,22 @@ import eval_metrics
 import utils
 from text_processing import normalize_unicode, convert_brc, replace_chars, format_sentence, create_sentence_spans, strip_accents, split_into_sentences
 
+UQA_DIR = eval_metrics.UQA_DIR
 BASE_DIR = '/home/thar011/data/eraser/fever/'
+
+rr_dev = os.path.join(BASE_DIR, 'fever_dev_rationales.jsonl')
+rr_train = os.path.join(BASE_DIR, 'fever_train_rationales.jsonl')
+
+rr_dev_exclposonly = BASE_DIR + 'fever_dev_rr_all_pos_neg_exclposonly.jsonl'
+rr_train_exclposonly = BASE_DIR + 'fever_train_rr_all_pos_neg_exclposonly.jsonl'
+
+file_rr_dev_negs = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T48_FEVER_DEV_onv6_sample-03-07-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json', 
+               ]
+file_rr_train_negs = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T49_FEVER_TRAIN_onv6_sample_1st20K-03-10-2023-LLM-bigscience-bloom-maxsmpls20000-randFalse/llm_samples_with_context.json',
+                 ]
+
+
+
 dev_in = utils.load_jsonl( os.path.join(BASE_DIR, 'dev.jsonl') )
 train_in = utils.load_jsonl( os.path.join(BASE_DIR, 'train.jsonl') )
 
@@ -90,15 +105,45 @@ def process(split):
 dev_out = process(dev_in)
 train_out = process(train_in)
 
-utils.saveas_jsonl(dev_out, os.path.join(BASE_DIR, 'fever_dev_rationales.jsonl'))
-utils.saveas_jsonl(train_out, os.path.join(BASE_DIR, 'fever_train_rationales.jsonl'))
-
-dev_out = utils.load_jsonl(os.path.join(BASE_DIR, 'fever_dev_rationales.jsonl'))
-train_out = utils.load_jsonl(os.path.join(BASE_DIR, 'fever_train_rationales.jsonl'))
+utils.saveas_jsonl(dev_out, rr_dev)
+utils.saveas_jsonl(train_out, rr_train)
 
 dev_expl_ans = [utils.create_uqa_example(s['question'], s['pos_paras'][0]['text'], s['answers'][0]) for s in dev_out]
 utils.save_uqa(dev_expl_ans, os.path.join(eval_metrics.UQA_DIR, 'fever_expl_ans'), 'dev.tsv')
 train_expl_ans = [utils.create_uqa_example(s['question'], s['pos_paras'][0]['text'], s['answers'][0]) for s in train_out]
 utils.save_uqa(train_expl_ans, os.path.join(eval_metrics.UQA_DIR, 'fever_expl_ans'), 'train.tsv')
+
+#############################
+# Create RR model training data below
+#############################
+
+dev_rr_format = utils.load_jsonl(rr_dev)      #6122 -> 6000
+train_rr_format = utils.load_jsonl(rr_train)  #97957 -> 91274 after de-dup questions in load_merge_negs(..)
+
+# merge routine to align pos and negs
+dev_rr_format = utils.load_merge_negs(dev_rr_format, file_rr_dev_negs)
+utils.saveas_jsonl(dev_rr_format, rr_dev)
+
+train_rr_format = utils.load_merge_negs(train_rr_format, file_rr_train_negs)
+utils.saveas_jsonl(train_rr_format, rr_train)
+
+utils.output_neg_tsv(dev_rr_format, os.path.join(UQA_DIR, 'fever_neg_expl_ans'), 'dev.tsv')
+utils.output_neg_tsv(train_rr_format, os.path.join(UQA_DIR, 'fever_neg_expl_ans'), 'train.tsv')
+
+#dev_rr_format = utils.load_jsonl(rr_dev)
+#train_rr_format = utils.load_jsonl(rr_train)
+
+# save final rr model creak training dataset - only output where negs exist which is all of them in this case but for consistency and debug..
+utils.output_rr_where_negs_exist(dev_rr_format, outfile=rr_dev_exclposonly)   #6000
+utils.output_rr_where_negs_exist(train_rr_format, outfile=rr_train_exclposonly) #91274
+
+dev_rr_format_exclposonly = utils.load_jsonl(rr_dev_exclposonly) # 2472
+train_rr_format_exclposonly = utils.load_jsonl(rr_train_exclposonly)  #8896
+
+
+
+
+
+
 
 

@@ -1820,7 +1820,7 @@ def strip_neg_ans_overlap(neglist, ans, thresh=0.0, overlap_method='f1'):
 
     """
     if ans.lower().strip() in ['yes','no', '']:
-        return neglist
+        return []
 
     overlap_method = overlap_method.lower()
     ans_stripped = stems(simple_filter_stopwords(ans))
@@ -1879,7 +1879,7 @@ def output_rr_where_negs_exist(rr_format, outfile=None):
     """ Only output samples for rr training where we have negatives
     """
     outlist = [s for s in rr_format if len(s['neg_paras']) > 0]
-    print(f"Identified {len(outlist)} samples that have negs or original {len(rr_format)}..")
+    print(f"Identified {len(outlist)} samples that have negs of original {len(rr_format)}..")
     if outfile is not None:
         saveas_jsonl(outlist, outfile)
         return
