@@ -22,13 +22,12 @@ rationale reranker 'rr' training format:
     [ {'question': 'question text EXCLUDING MC options and preceding initial ctxt if any',
        'answers': ['answer1', ...],
        '_id': 'id string',
-       'src': 'creak',
+       'src': 'hpqa',
        'pos_paras': [{'text': 'sentence 1. sentence 2. ..', "sentence_spans": [[0, 104], [104, 225], [225, 325]]}, ...],
        'neg_paras': [], #Same format as pos_paras but filled in later
        'mc_options':  '(A) banana (B) ...'  #key only present if multichoice options exist...
        'context': 'An initial para or other necessary context if exists'  #key only present if initial para exists...
-       }
-
+       }, {...}, ..
      
     ]
 
