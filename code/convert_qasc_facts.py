@@ -51,6 +51,14 @@ import text_processing
 
 #MAX_OUTPUT_TOKENS = 127 #max token size of total explanation text excl BOS & EOS tokens
 
+# Note preceding/trailing spaces.. Should be the same as in utils.create_additional_pos_for_mc(..)
+prepend_list = ['The answer must be ****. ', 'The answer is ****. ', 'The answer must be something like ****. ', 'The answer must be something that involves ****. ']
+append_list = [' Thus, of the choices **** is the best answer.', ' Thus, of the choices, **** is the best answer.', ' Thus of the choices **** is the best answer.', ' Thus, of the choices, **** is the answer.', ' Thus, of the choices **** is the correct answer.',
+               ' Of the choices, **** is the best answer.', ' Of the choices **** is the best answer.', ' Of the choices **** is the correct answer.', ' Of the choices, **** is the answer.',
+               ' Of the above choices, **** is the best answer.', ' Of the above choices **** is the best answer.',
+               ]
+
+
 UQA_DIR = eval_metrics.UQA_DIR
 
 
@@ -69,14 +77,21 @@ EQASC_TRAIN_FILE = EQASC_DIR_IN + 'eqasc_train_grc.json'
 
 
 # LLM neg rationales
-file_rr_dev_negs = ['/large_data/thar011/out/mdr/logs/LLM_TEST28_SPANYN_hpqa_dev_using_muv2_1krandord-02-02-2023-LLM-bigscience-bloom-maxsmpls1000-randTrue/llm_samples_with_context.json', 
-                    '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T43_HPQA_R4C_DEV_onv6_sample-03-02-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
-                    '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T44_HPQA_R4C_DEV_onv6mod2_sample-03-03-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+file_rr_dev_negs = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T6_MCFOCUS_QASC_DEV_all_onv3-02-15-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json', 
+                    '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T8_MCFOCUS_QASC_DEV_all_onv6-02-19-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                    '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T28_YN_QASC_DEV_onv6_sample-03-12-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                    '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T29_YN_QASC_DEV_onv6mod2_sample-03-12-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
                ]
-file_rr_train_negs = ['/large_data/thar011/out/mdr/logs/LLM_TEST29_SPANYN_hpqa_train_using_muv2_10krandord-02-03-2023-LLM-bigscience-bloom-maxsmpls10000-randTrue/llm_samples_with_context.json',
-                      '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T45_HPQA_R4C_TRAIN_onv6_sample-03-04-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
-                      '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T46_HPQA_R4C_TRAIN_onv6mod2_sample-03-05-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+
+file_rr_dev_negs_nofilter = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T10_MCFOCUS_QASC_DEV_all_onv8-02-23-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json']
+
+file_rr_train_negs = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T7_MCFOCUS_QASC_TRAIN_all_onv3-02-15-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                      '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T9_MCFOCUS_QASC_TRAIN_all_onv6-02-19-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                      '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T30_YN_QASC_TRAIN_onv6_sample-03-13-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                      '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T31_YN_QASC_TRAIN_onv6mod2_sample-03-17-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
                  ]
+
+file_rr_train_negs_nofilter = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T11_MCFOCUS_QASC_TRAIN_all_onv8-02-23-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json']
 
 # the full final sample files with potentially multiple pos and negs including samples without negs:
 rr_dev = QASC_DIR + 'qasc_dev_rr_all_pos_neg.jsonl'
@@ -143,7 +158,7 @@ def simplify(eqasc):
     num_valid = 0
     num_invalid = 0
     out = []
-    for row in eqasc:
+    for i, row in enumerate(eqasc):
         out_dict = {'question': row['question']['stem'], 'id': row['id'], 'fact1': row['fact1'], 'fact2': row['fact2'],
                     }
         facts = set([row['fact1'].strip().lower(), row['fact2'].strip().lower()])
@@ -182,18 +197,48 @@ def simplify(eqasc):
                     invalid_facts.add(f1.lower())
                     invalid_facts.add(f2.lower())
                     num_invalid += 1
+        out_dict['pos_paras'] = []
+        for c in out_dict['valid_chains']:
+            f = [text_processing.format_sentence(c['fact1']), text_processing.format_sentence(c['fact2'])]
+            random.shuffle(f)
+            new_rat = ' '.join(f)
+            sentence_spans = text_processing.create_sentence_spans(text_processing.split_into_sentences(new_rat))
+            out_dict['pos_paras'].append( {'text': new_rat, 'sentence_spans': sentence_spans} )
+            
+        out_dict['neg_paras'] = []
+        for c in out_dict['invalid_chains']:
+            f = [text_processing.format_sentence(c['fact1']), text_processing.format_sentence(c['fact2'])]
+            random.shuffle(f)
+            new_rat = ' '.join(f)
+            augment_prob = random.random()
+            if augment_prob > 0.3 and c['choice'].strip('. ').lower() != out_dict['choice_text'].strip('. ').lower():  # augment with probs: None: 0.3, Prepend: 0.25, Append 0.3, both: 0.15
+                if augment_prob > 0.75:
+                    new_sent = random.choice(prepend_list).replace('****', c['choice'].strip('. ').lower())
+                    new_rat = new_sent + new_rat
+                elif augment_prob > 0.4:
+                    new_sent = random.choice(append_list).replace('****', c['choice'].strip('. ').lower())
+                    new_rat = new_rat + new_sent
+                else:
+                    new_sent = random.choice(prepend_list).replace('****', c['choice'].strip('. ').lower())
+                    new_rat = new_sent + new_rat
+                    new_sent = random.choice(append_list).replace('****', c['choice'].strip('. ').lower())
+                    new_rat = new_rat + new_sent  
+            sentence_spans = text_processing.create_sentence_spans(text_processing.split_into_sentences(new_rat))
+            out_dict['neg_paras'].append( {'text': new_rat, 'sentence_spans': sentence_spans} )
         out.append(out_dict)
+        if i % 1000 == 0:
+            print(f"Processed {i} of {len(eqasc)}..")
         
     print(f'Num valid chains={num_valid}  Num invalid chains={num_invalid}')
     return out
 
 
 random.seed(42)
-create_explanation(qasc_dev)
-create_explanation(qasc_train)
+create_explanation(qasc_dev)  #926
+create_explanation(qasc_train) 
 
 # Below code outputs qasc_mc_expl_ans tsv formatted datasets
-save_datasets(qasc_dev, qasc_train)
+save_datasets(qasc_dev, qasc_train)  #8134
 
 #################################
 # Create rr formats below
@@ -207,6 +252,26 @@ train_rr_format = [utils.create_rr_format(s['question']['stem'], s['explanation'
                                         sentence_spans=None, _id=s['id'], src='qasc', append_q_char='?',
                                         mc_options=s['mc_options']) for s in qasc_train]
 
+# add combinedfact sentence as 2nd pos rationale
+dev_rr_format_combo = [utils.create_rr_format(s['question']['stem'], text_processing.format_sentence(s['combinedfact']), s['answer'],
+                                        sentence_spans=None, _id=s['id'], src='qasc', append_q_char='?',
+                                        mc_options=s['mc_options']) for s in qasc_dev]
+
+train_rr_format_combo = [utils.create_rr_format(s['question']['stem'], text_processing.format_sentence(s['combinedfact']), s['answer'],
+                                        sentence_spans=None, _id=s['id'], src='qasc', append_q_char='?',
+                                        mc_options=s['mc_options']) for s in qasc_train]
+
+dev_rr_format = utils.merge_pos_into_rr(dev_rr_format, dev_rr_format_combo)
+train_rr_format = utils.merge_pos_into_rr(train_rr_format, train_rr_format_combo)
+
+#dev_rr_format = utils.load_jsonl(rr_dev) #901 after dups gone
+#train_rr_format = utils.load_jsonl(rr_train)  #7729 after dups gone
+
+# add "the answer must be ..." and "Thus, of the choices ..." forms of pos rationale since bias towards these wordings are introduced by the LLM prompts for MC questions
+random.seed(42)
+utils.create_additional_pos_for_mc(dev_rr_format, include_prepend=0.8, include_append=0.9, include_both=0.35)
+utils.create_additional_pos_for_mc(train_rr_format, include_prepend=0.8, include_append=0.9, include_both=0.35)
+
 utils.saveas_jsonl(dev_rr_format, rr_dev)
 utils.saveas_jsonl(train_rr_format, rr_train)
 
@@ -218,6 +283,9 @@ with open(EQASC_TRAIN_FILE, 'r') as f:
 
 eqasc_dev_simplified = simplify(eqasc_dev) #Num valid chains=1559  Num invalid chains=14173
 eqasc_train_simplified = simplify(eqasc_train) #Num valid chains=16161  Num invalid chains=118742
+
+dev_rr_format = utils.merge_pos_into_rr(dev_rr_format, eqasc_dev_simplified, include_negs=True)
+train_rr_format = utils.merge_pos_into_rr(train_rr_format, eqasc_dev_simplified, include_negs=True)
 
 
 

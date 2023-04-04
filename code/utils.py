@@ -1770,8 +1770,8 @@ def load_llm_generations_singlemode(infile):
     return outlist
 
 
-def merge_pos_into_rr(rr_format, poslist):
-    """ Merge pos list (in rr format incl sent spans) into base rr format list 
+def merge_pos_into_rr(rr_format, poslist, include_negs=False):
+    """ Merge pos list (in rr format incl sent spans) into base rr format list and optionally neg_paras also
     """
     rr_dict = {s['question'].rstrip().rstrip('?!:. ').lstrip(): s for s in rr_format}  # occasionally ending punctuation differences cause mismatches so strip all ending punctuation
     for i, pos in enumerate(poslist):
@@ -1781,6 +1781,8 @@ def merge_pos_into_rr(rr_format, poslist):
             print(f"ERROR: Pos idx:{i}  Pos q:{q}: Unable to match in rr_dict [merge_pos_into_rr()]")
         else:
             rr_sample['pos_paras'].extend(pos['pos_paras'])
+            if include_negs:
+                rr_sample['neg_paras'].extend(pos['neg_paras'])    
     rr_format_new = [rr_dict[q] for q in rr_dict.keys()]        
     return rr_format_new
 
@@ -1885,5 +1887,74 @@ def output_rr_where_negs_exist(rr_format, outfile=None):
         return
     return outlist
     
+
+def create_additional_pos_for_mc(rr_format, include_prepend=0.8, include_append=0.95, include_both=0.35, ans_lower=True,
+                                 key='pos_paras'):
+    """ add additional positive or negative rationales to mitigate bias that LLM prompts for multichoice introduce towards rationales
+    that begin with "The answer must be X..." and/or end with "Thus, of the choices X is the best answer".
+        
+    """
+    # Note preceding/trailing spaces..
+    prepend_list = ['The answer must be ****. ', 'The answer is ****. ', 'The answer must be something like ****. ', 'The answer must be something that involves ****. ']
+    append_list = [' Thus, of the choices **** is the best answer.', ' Thus, of the choices, **** is the best answer.', ' Thus of the choices **** is the best answer.', ' Thus, of the choices, **** is the answer.', ' Thus, of the choices **** is the correct answer.',
+                   ' Of the choices, **** is the best answer.', ' Of the choices **** is the best answer.', ' Of the choices **** is the correct answer.', ' Of the choices, **** is the answer.',
+                   ' Of the above choices, **** is the best answer.', ' Of the above choices **** is the best answer.',
+                   ]
+
+    for s in rr_format:
+        pos_orig = copy.deepcopy(s[key])
+        a = s['answers'][0].strip('. ')
+        if ans_lower:
+            a = a.lower()
+        if random.random() <= include_prepend:
+            new_pos = copy.deepcopy(random.choice(pos_orig))
+            new_sent = random.choice(prepend_list).replace('****', a)
+            new_s, new_e = 0, len(new_sent)-1
+            new_rat = new_sent + new_pos['text']
+            new_sentence_spans = [ [new_s, new_e] ]
+            for i, (st,e) in enumerate(new_pos['sentence_spans']):
+                if i == 0: # space at start of now-second sentence
+                    st += new_e
+                else:    
+                    st += new_e + 1
+                e += new_e + 1
+                new_sentence_spans.append([st,e])
+            s[key].append( {'text': new_rat, 'sentence_spans': new_sentence_spans} )
+            
+        if random.random() <= include_append:
+            new_pos = copy.deepcopy(random.choice(pos_orig))
+            new_sent = random.choice(append_list).replace('****', a)
+            new_rat = new_pos['text'] + new_sent
+            new_s = new_pos['sentence_spans'][-1][-1]
+            new_e = new_s + len(new_sent)
+            new_sentence_spans = new_pos['sentence_spans'] + [ [new_s, new_e] ]
+            s[key].append( {'text': new_rat, 'sentence_spans': new_sentence_spans} )
+            
+        if random.random() <= include_both:
+            new_pos = copy.deepcopy(random.choice(pos_orig))
+            new_sent = random.choice(prepend_list).replace('****', a)
+            new_s, new_e = 0, len(new_sent)-1
+            new_rat = new_sent + new_pos['text']
+            new_sentence_spans = [ [new_s, new_e] ]
+            for i, (st,e) in enumerate(new_pos['sentence_spans']):
+                if i == 0: # space at start of now-second sentence
+                    st += new_e
+                else:    
+                    st += new_e + 1
+                e += new_e + 1
+                new_sentence_spans.append([st,e])
+
+            new_sent = random.choice(append_list).replace('****', a)
+            new_rat += new_sent
+            new_s = new_sentence_spans[-1][-1]
+            new_e = new_s + len(new_sent)
+            new_sentence_spans = new_sentence_spans + [ [new_s, new_e] ]
+            s[key].append( {'text': new_rat, 'sentence_spans': new_sentence_spans} )
+    
+    return
+
+
+
+
 
     
