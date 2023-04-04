@@ -285,7 +285,7 @@ eqasc_dev_simplified = simplify(eqasc_dev) #Num valid chains=1559  Num invalid c
 eqasc_train_simplified = simplify(eqasc_train) #Num valid chains=16161  Num invalid chains=118742
 
 dev_rr_format = utils.merge_pos_into_rr(dev_rr_format, eqasc_dev_simplified, include_negs=True)
-train_rr_format = utils.merge_pos_into_rr(train_rr_format, eqasc_dev_simplified, include_negs=True)
+train_rr_format = utils.merge_pos_into_rr(train_rr_format, eqasc_train_simplified, include_negs=True)
 
 
 
