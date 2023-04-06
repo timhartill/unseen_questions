@@ -10,6 +10,7 @@
 #         --add_mask_char NONE \  made this the default so excluding here
 
 # This trains the BASE+RATD+EXP model
+#         --do_compile \ 
 
 cd ../code
 
@@ -32,7 +33,6 @@ python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s14_v2_from_s9_v2_
         --add_mask_char NONE \
         --max_output_length 130 \
         --fp16 \
-        --do_compile \
         --dont_pretokenize \
         --dont_save_train_token_file \
         --indiv_digits \

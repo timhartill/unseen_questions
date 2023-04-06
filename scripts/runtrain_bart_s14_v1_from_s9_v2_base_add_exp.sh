@@ -11,6 +11,8 @@
 
 # THIS TRAINS THE BASE+EXP MODEL v1
 
+#         --do_compile \  crashed so removed
+
 cd ../code
 
 python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s14_v1_from_s9_v2_base_add_exp \
@@ -32,7 +34,6 @@ python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s14_v1_from_s9_v2_
         --add_mask_char NONE \
         --max_output_length 130 \
         --fp16 \
-        --do_compile \
         --dont_pretokenize \
         --dont_save_train_token_file \
         --indiv_digits \
