@@ -100,7 +100,7 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'creak_od_ans', 'creak_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel_maxp4', 
             'creak_od_ans_impl_rels', 'creak_fullwiki_bs150_implrel', 'creak_fullwiki_bs150_implrel_origq', 
             'creak_fullwiki_bs150_implrel_bestsentsonly_origq', 'creak_fullwiki_bs150_implrel_bestsents_maxp4_origq', 'creak_fullwiki_bs150_implrel_maxp4_origq',
-            'creak_llm_expl', 'creak_llm_expl_with_llm_ans', 'creak_llm_expl_fullwiki_bs150_noimplrel',
+            'creak_llm_expl', 'creak_llm_expl_with_llm_ans', 'creak_llm_expl_fullwiki_bs150_noimplrel', 'creak_expl_ans',
             'creak_contrast_set_od_ans', 'creak_contrast_set_hard', 'creak_contrast_set_initial_context',
             'drop', 'contrast_sets_drop',
             'commonsenseqa',
@@ -118,13 +118,13 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'strategy_qa_bigbench_fullwiki_bs150_noimplrel_yn', 'strategy_qa_bigbench_fullwiki_bs150_implrel_yn', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_yn',
             'strategy_qa_bigbench_fullwiki_bs150_noimplrel_yn_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_yn_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_yn_mdr',
             'strategy_qa_bigbench_llm_expl', 'strategy_qa_bigbench_llm_expl_with_llm_ans', 'strategy_qa_bigbench_llm_expl_fullwiki_bs150_noimplrel',
-            'fever_hard',
+            'fever_hard', 'fever_expl_ans',
             'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
             'hover_llm_expl', 'hover_llm_expl_with_llm_ans', 'hover_llm_expl_fullwiki_bs60',
             'qasc', 'qasc_with_ir', 'qasc_fullwiki_bs60', 'qasc_fullwiki_bs60_maxp4',
-            'qasc_llm_expl', 'qasc_llm_expl_with_llm_ans', 'qasc_llm_expl_fullwiki_bs60',
+            'qasc_llm_expl', 'qasc_llm_expl_with_llm_ans', 'qasc_llm_expl_fullwiki_bs60', 'qasc_mc_expl_ans', 'qasc_od_ans',
             'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
-            'hpqa_llm_expl', 'hpqa_llm_expl_with_llm_ans', 'hpqa_llm_expl_fullwiki_bs60',
+            'hpqa_llm_expl', 'hpqa_llm_expl_with_llm_ans', 'hpqa_llm_expl_fullwiki_bs60', 'hpqa_expl_ans', 'hpqa_r4c_expl_ans_0', 'hpqa_r4c_expl_ans_1', 'hpqa_r4c_expl_ans_2',
             'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
             'musique_qa_full',
             'musique_qa_full_llm_expl', 'musique_qa_full_llm_expl_with_llm_ans', 'musique_qa_full_llm_expl_fullwiki_bs60',
@@ -148,6 +148,7 @@ test_eval = ['openbookqa', 'openbookqa_with_ir',
              'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
              'iirc_od_ans_fullwiki_bs150_mdr','iirc_initial_context_fullwiki_bs150_mdr',
              'iirc_initial_context_llm_expl', 'iirc_initial_context_llm_expl_with_llm_ans', 'iirc_initial_context_llm_expl_fullwiki_bs150',
+             'worldtree_mc_expl_ans', 'worldtree_od_ans',
              ]
 
 
@@ -184,7 +185,9 @@ dataset_attribs = {
     'arc_hard_with_ir_dev': {'type':'MC', 'prefer':''},
     'arc_hard_llm_expl': {'type':'MC', 'prefer':''},
     'arc_hard_llm_expl_with_llm_ans': {'type':'MC', 'prefer':''},
-    'worldtree_mc_ans': {'type':'MC', 'prefer':''},        
+    'worldtree_mc_ans': {'type':'MC', 'prefer':''}, 
+    'worldtree_mc_expl_ans':  {'type':'MC', 'prefer':''},
+    'worldtree_od_ans':   {'type':'EX', 'prefer':''},
     'boolq': {'type':'YN', 'prefer':''},
     'boolq_np': {'type':'YN', 'prefer':''},
     'boolq_np_dedup': {'type':'YN', 'prefer':''},
@@ -235,6 +238,8 @@ dataset_attribs = {
     'qasc_llm_expl': {'type':'MC', 'prefer':''},
     'qasc_llm_expl_with_llm_ans': {'type':'MC', 'prefer':''},
     'qasc_llm_expl_fullwiki_bs60': {'type':'MC', 'prefer':''},
+    'qasc_mc_expl_ans': {'type':'MC', 'prefer':''},
+    'qasc_od_ans': {'type':'EX', 'prefer':''},
     'quoref': {'type':'EX', 'prefer':''},
     'quoref_dedup': {'type':'EX', 'prefer':''},
     'race_string': {'type':'MC', 'prefer':''},
@@ -448,10 +453,12 @@ dataset_attribs = {
     'creak_llm_expl': {'type':'YN', 'prefer':''},
     'creak_llm_expl_with_llm_ans': {'type':'YN', 'prefer':''},
     'creak_llm_expl_fullwiki_bs150_noimplrel': {'type':'YN', 'prefer':''},
+    'creak_expl_ans': {'type':'YN', 'prefer':''},
     'creak_contrast_set_od_ans': {'type':'YN', 'prefer':''},
     'creak_contrast_set_hard': {'type':'YN', 'prefer':''},
     'creak_contrast_set_initial_context': {'type':'YN', 'prefer':''},
     'fever_hard': {'type':'YN', 'prefer':''},
+    'fever_expl_ans': {'type':'YN', 'prefer':''},
     'hover_od_ans': {'type':'YN', 'prefer':''}, 
     'hover_hard': {'type':'YN', 'prefer':''}, 
     'hover_fullwiki_bs60': {'type':'YN', 'prefer':''}, 
@@ -466,6 +473,10 @@ dataset_attribs = {
     'hpqa_llm_expl': {'type':'EX', 'prefer':''},
     'hpqa_llm_expl_with_llm_ans': {'type':'EX', 'prefer':''},
     'hpqa_llm_expl_fullwiki_bs60': {'type':'EX', 'prefer':''},
+    'hpqa_expl_ans': {'type':'EX', 'prefer':''},
+    'hpqa_r4c_expl_ans_0': {'type':'EX', 'prefer':''}, 
+    'hpqa_r4c_expl_ans_1': {'type':'EX', 'prefer':''}, 
+    'hpqa_r4c_expl_ans_2': {'type':'EX', 'prefer':''},
     }
 
           
@@ -564,6 +575,20 @@ q_ret_paras_maxp4_train = ['csqa2_fullwiki_bs150_noimplrel_maxp4', 'creak_fullwi
 
 q_ret_paras_maxp4_train_v2 = ['csqa2_fullwiki_bs150_noimplrel_maxp4', 'creak_fullwiki_bs150_noimplrel_maxp4', 'hover_fullwiki_bs60_maxp4', 
                            'qasc_fullwiki_bs60_maxp4', 'hpqa_fullwiki_bs60_maxp4', 'nq_open_fullwiki_bs60_maxp4', ]
+
+# q[+mc]+llm-generated rationale->a
+q_llm_expl_train = ['nq_open_llm_expl', 'hpqa_llm_expl', 'musique_qa_full_llm_expl', 'hover_llm_expl', 'csqa2_llm_expl', 'creak_llm_expl',
+              'arc_easy_llm_expl', 'arc_hard_llm_expl', 'qasc_llm_expl']
+
+# q[+mc]+llm-generated rationale+retrievd paras->a
+q_llm_expl_paras_train = ['nq_open_llm_expl_fullwiki_bs60', 'hpqa_llm_expl_fullwiki_bs60', 'musique_qa_full_llm_expl_fullwiki_bs60', 
+                          'hover_llm_expl_fullwiki_bs60', 'csqa2_llm_expl_fullwiki_bs150_noimplrel', 'creak_llm_expl_fullwiki_bs150_noimplrel',
+                          'qasc_llm_expl_fullwiki_bs60']
+
+#q[+mc]+gold rationale->a   Note: qasc_od_ans & wt_od_ans are actually q+gold rational->a without mc
+q_expl_train = ['fever_expl_ans', 'creak_expl_ans', 'qasc_mc_expl_ans', 'worldtree_mc_expl_ans', 
+                'hpqa_expl_ans', 'hpqa_r4c_expl_ans_0', 'hpqa_r4c_expl_ans_1', 'hpqa_r4c_expl_ans_2',
+                'qasc_od_ans', 'worldtree_od_ans']
 
 
 
@@ -689,8 +714,9 @@ unifiedqa_seen_1 = [
     'arc_hard_llm_expl', 'arc_hard_llm_expl_with_llm_ans',
     'ai2_science_elementary',
     'ai2_science_middle',
+    'worldtree_mc_expl_ans', 'worldtree_od_ans',
     'qasc', 'qasc_with_ir', 'qasc_fullwiki_bs60', 'qasc_fullwiki_bs60_maxp4',
-    'qasc_llm_expl', 'qasc_llm_expl_with_llm_ans', 'qasc_llm_expl_fullwiki_bs60',
+    'qasc_llm_expl', 'qasc_llm_expl_with_llm_ans', 'qasc_llm_expl_fullwiki_bs60', 'qasc_mc_expl_ans', 'qasc_od_ans',
     'race_string',
     'tatqa', 'newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
     'boolq_np', 'contrast_sets_boolq', 'physical_iqa', 
@@ -701,13 +727,13 @@ unifiedqa_seen_1 = [
     'creak_hard', 'creak_initial_context', 'creak_fullwiki_bs150_frominitctx', 
     'creak_od_ans', 'creak_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel_maxp4', 
     'creak_od_ans_impl_rels', 'creak_fullwiki_bs150_implrel', 'creak_fullwiki_bs150_implrel_origq', 'creak_fullwiki_bs150_implrel_bestsentsonly_origq', 'creak_fullwiki_bs150_implrel_bestsents_maxp4_origq', 'creak_fullwiki_bs150_implrel_maxp4_origq',
-    'creak_llm_expl', 'creak_llm_expl_with_llm_ans', 'creak_llm_expl_fullwiki_bs150_noimplrel',
+    'creak_llm_expl', 'creak_llm_expl_with_llm_ans', 'creak_llm_expl_fullwiki_bs150_noimplrel', 'creak_expl_ans',
     'creak_contrast_set_od_ans', 'creak_contrast_set_hard', 'creak_contrast_set_initial_context',
-    'fever_hard',
+    'fever_hard', 'fever_expl_ans'
     'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
     'hover_llm_expl', 'hover_llm_expl_with_llm_ans', 'hover_llm_expl_fullwiki_bs60',
     'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
-    'hpqa_llm_expl', 'hpqa_llm_expl_with_llm_ans', 'hpqa_llm_expl_fullwiki_bs60',
+    'hpqa_llm_expl', 'hpqa_llm_expl_with_llm_ans', 'hpqa_llm_expl_fullwiki_bs60', 'hpqa_expl_ans', 'hpqa_r4c_expl_ans_0', 'hpqa_r4c_expl_ans_1', 'hpqa_r4c_expl_ans_2',
     'musique_hard', 'musique_qa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_maxp4', 
     'musique_qa_full',
     'musique_qa_full_llm_expl', 'musique_qa_full_llm_expl_with_llm_ans', 'musique_qa_full_llm_expl_fullwiki_bs60',

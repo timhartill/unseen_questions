@@ -1,4 +1,4 @@
-# resume training at 770000 steps
+# training command
 
 #        --train_batch_size 32 \
 #        --fp16 \
@@ -9,22 +9,21 @@
 #         --num_workers 0 \    default is 0 so no need to include
 #         --add_mask_char NONE \  made this the default so excluding here
 
-# THIS TRAINS THE BASE+RATD MODEL 
+# THIS TRAINS THE BASE+EXP MODEL v1
 
 cd ../code
 
-python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m \
+python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s14_v1_from_s9_v2_base_add_exp \
         --is_unifiedqa \
         --train_file $UDATA/data/unifiedqa/train.tsv \
         --predict_file $UDATA/data/unifiedqa/dev.tsv \
-        --checkpoint $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m/current-model.pt \
-        --checkpoint_step 770000 \
+        --checkpoint $LDATA/out/mdr/logs/UQA_s9_v2_numlit_wikissvise_idt_errsamp_fixdecode/best-model.pt \
         --train_batch_size 32 \
         --predict_batch_size 32 \
         --append_another_bos --do_lowercase \
         --eval_period 10000 --verbose \
         --gradient_accumulation_steps 4 \
-        --wait_step 100 \
+        --wait_step 1000 \
         --num_scheduler_steps 250000 \
         --learning_rate 2e-5 \
         --model facebook/bart-large \
@@ -33,6 +32,7 @@ python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g
         --add_mask_char NONE \
         --max_output_length 130 \
         --fp16 \
+        --do_compile \
         --dont_pretokenize \
         --dont_save_train_token_file \
         --indiv_digits \
@@ -42,6 +42,6 @@ python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s11_v3_all_g1_qa_g
         --g1_type err \
         --g2_type uni \
         --g2_datasets q_od_all,tt_all,poet_all,synth_num_all,synthetic_textual,enwiki_20200801_selfsvised \
-        --mixture q_paras_all,q_paras_noanswer_all,q_mc_all,q_mc_paras_all,q_od_all,tt_all,poet_all,synth_num_all,synthetic_textual,enwiki_20200801_selfsvised,q_ret_paras_all,q_ret_paras_maxp4_all
+        --mixture q_paras_all,q_paras_noanswer_all,q_mc_all,q_mc_paras_all,q_od_all,tt_all,poet_all,synth_num_all,synthetic_textual,enwiki_20200801_selfsvised,q_llm_expl_all,q_llm_expl_paras_all,q_expl_all
         
 

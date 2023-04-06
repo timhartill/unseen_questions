@@ -41,6 +41,7 @@ from dataset_attributes import dev_eval, test_eval, metric_groups, dataset_attri
 from dataset_attributes import unifiedqa_base_train, synth_num_base_train, poet_base_train, tt_base_train
 from dataset_attributes import q_paras_train, q_paras_noanswer_train, q_od_train, q_mc_train, q_mc_paras_train
 from dataset_attributes import q_ret_paras_train, q_ret_paras_maxp4_train, q_ret_paras_train_v2, q_ret_paras_maxp4_train_v2
+from dataset_attributes import q_llm_expl_train, q_llm_expl_paras_train, q_expl_train
 from dataset_attributes import unifiedqa_unseen_1, unifiedqa_unseen_2, unifiedqa_unseen_3, unifiedqa_unseen_4, unifiedqa_unseen_4_map, unifiedqa_unseen_5, unifiedqa_unseen_6, unifiedqa_seen_1, mmlu_unseen_1
 from dataset_attributes import UQA_DIR, SVISED_EXPL_ANS, selfsupervisedkey, add_explanationkey, EXPL_COMP_KEY, special_tokens_dict
 from dataset_attributes import LDATA, HDATA
@@ -100,6 +101,12 @@ def parse_mixture(mixture):
             unified_dataset.extend(q_ret_paras_train_v2)
         elif ds == 'q_ret_paras_maxp4_all_v2':
             unified_dataset.extend(q_ret_paras_maxp4_train_v2)
+        elif ds == 'q_llm_expl_all':
+            unified_dataset.extend(q_llm_expl_train)    
+        elif ds == 'q_llm_expl_paras_all':
+            unified_dataset.extend(q_llm_expl_paras_train)    
+        elif ds == 'q_expl_all':
+            unified_dataset.extend(q_expl_train)    
         else:
             unified_dataset.append(ds)
     return unified_dataset, mixture_file_key
