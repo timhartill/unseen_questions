@@ -26,7 +26,25 @@ outputs:
     arc_da_expl_ans: q+explanation->a   # FILTERED to only those samples for which a matching explanation can be found in Worldtree
     arc_da_od_ans: q->a                 # NOT FILTERED - MATCHES ORIG ARCDA SAMPLES
     arc_da_od_expl: q->explanation      # FILTERED to only those samples for which a matching explanation can be found in Worldtree
+
+
+Added rationale processing for rr model training:
     
+    Output format:
+    [ {'question': 'question text EXCLUDING MC options and preceding initial ctxt if any',
+       'answers': ['answer1', ...],
+       '_id': 'id string',
+       'src': 'worldtree',
+       'pos_paras': [{'text': 'sentence 1. sentence 2. ..', "sentence_spans": [[0, 104], [104, 225], [225, 325]], 'mc_only': False}, ...],
+       'neg_paras': [], #Same format as pos_paras but filled in later
+       'mc_options':  '(A) banana (B) ...'  #key only present if multichoice options exist...
+       'context': 'An initial para or other necessary context if exists'  #key only present if initial para exists...
+       }, {...}, ..
+     
+    ]
+
+
+
 """
 
 import os
@@ -35,8 +53,10 @@ import copy
 import random
 import numpy as np
 
+import eval_metrics
 import utils
 import text_processing
+
 
 MAX_OUTPUT_TOKENS = 127 #max token size of total explanation text excl BOS & EOS tokens
 
@@ -59,6 +79,54 @@ q_prefix= 'Add Explanation: '
 selfsupervisedkey = '_selfsvised'
 
 tokenizer = utils.load_model(model_name="facebook/bart-large", loadwhat='tokenizer_only')
+
+
+### Rationale processing file names and vars below:
+
+# Note preceding/trailing spaces.. Should be the same as in utils.create_additional_pos_for_mc(..)
+prepend_list = ['The answer must be ****. ', 'The answer is ****. ', 'The answer must be something like ****. ', 'The answer must be something that involves ****. ']
+append_list = [' Thus, of the choices **** is the best answer.', ' Thus, of the choices, **** is the best answer.', ' Thus of the choices **** is the best answer.', ' Thus, of the choices, **** is the answer.', ' Thus, of the choices **** is the correct answer.',
+               ' Of the choices, **** is the best answer.', ' Of the choices **** is the best answer.', ' Of the choices **** is the correct answer.', ' Of the choices, **** is the answer.',
+               ' Of the above choices, **** is the best answer.', ' Of the above choices **** is the best answer.',
+               ]
+
+
+UQA_DIR = eval_metrics.UQA_DIR  # different to uqa_dir above...
+WT_INPUT_DIR = os.path.join(UQA_DIR, 'worldtree_mc_expl_ans')  # For simplicity we reload the already processed worldtree explanations from the tsv formatted dataset 
+
+# LLM neg rationales - augmentable means can add "Thus of the choices.." etc augmented samples, the others already have this text
+file_rr_dev_negs_augmentable = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T15_MCFOCUS_WORLDTREE_DEV_all_onv3-02-20-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json', 
+                    '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T32v2_YN_WORLDTREE_DEV_onv6_sample-03-22-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                    '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T33v2_YN_WORLDTREE_DEV_onv6mod2_sample-03-22-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+               ]
+file_rr_dev_negs = [
+                    '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T17_MCFOCUS_WORLDTREE_DEV_all_onv6-02-21-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                    '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T19_MCFOCUS_WORLDTREE_DEV_all_onv8-02-22-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+               ]
+
+file_rr_dev_negs_nofilter = []  # unlike QASC, WT on v8 prompt sometimes leaks the answer so apply em filter as with other prompt results
+
+file_rr_train_negs_augmentable = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T16_MCFOCUS_WORLDTREE_TRAIN_all_onv3-02-20-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                      '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T34v2_YN_WORLDTREE_TRAIN_onv6_sample-03-20-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                      '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T35v2_YN_WORLDTREE_TRAIN_onv6mod2_sample-03-22-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                 ]
+file_rr_train_negs = [
+                      '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T18_MCFOCUS_WORLDTREE_TRAIN_all_onv6-02-21-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                      '/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T20_MCFOCUS_WORLDTREE_TRAIN_all_onv8-02-22-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json',
+                 ]
+
+file_rr_train_negs_nofilter = []
+
+# the full final sample files with potentially multiple pos and negs including samples without negs:
+rr_dev = worldtree_dir + 'worldtree_dev_rr_all_pos_neg.jsonl'
+rr_train = worldtree_dir + 'worldtree_train_rr_all_pos_neg.jsonl'
+# the full final sample files with potentially multiple pos and negs excluding samples without negs:
+rr_dev_exclposonly = worldtree_dir + 'worldtree_dev_rr_all_pos_neg_exclposonly.jsonl'
+rr_train_exclposonly = worldtree_dir + 'worldtree_train_rr_all_pos_neg_exclposonly.jsonl'
+
+
+
+
 random.seed(42)
 
 def load_facts(explanation_dir, verbose=False):
@@ -351,13 +419,54 @@ save_datasets(arcda_dev, arcda_test, arcda_train, dir_ = arcda_uqa_dir,
               ds_list=[wt_od_completion, wt_expl_ans, wt_od_ans])  # save arc-da datasets
 
 
-#TODO: FORMAT FOR GPT-J
-#TODO: GENERATE PROMPT TEMPLATES WITH/WITHOUT TASK PROMPT  WITH/WITHOUT NUMBERING 
-#TODO: FOR DIFFERENT K-SHOTS - GENERATE EG 100 and randomly sample from? Maybe can just load the dataset and use template on the fly!
-#TODO: FOR GENERATING SINGLE FACT AT A TIME OR SETS?
-#TODO: FOR GENERATING FROM DIFFT TEMPLATES FOR THE SAME QUESTION eg TEMPORAL, QUANTITY etc
-#TODO: TAKE N MOST DIVERSE.
-#TODO: USE EXISTING UQA MODEL as critic if judging by answer. - use this to compare supervised vs gpt-j generated versions
-#TODO: Could score for plausibility and/or relevance - need to train a model to do this..
+########################################################
+# Below is processing LLM rationales "rr formats"
+########################################################
+
+wt_dev = utils.load_uqa_supervised(os.path.join(WT_INPUT_DIR, 'dev.tsv'), ans_lower=False, return_parsed=True) # 496
+wt_train = utils.load_uqa_supervised(os.path.join(WT_INPUT_DIR, 'train.tsv'), ans_lower=False, return_parsed=True)  #2206
+
+
+dev_rr_format = [utils.create_rr_format(s['q_only'], s['context'], s['answer'],
+                                        sentence_spans=None, _id=str(i), src='worldtree', append_q_char='?',
+                                        mc_options=s['mc_options']) for i,s in enumerate(wt_dev)]
+train_rr_format = [utils.create_rr_format(s['q_only'], s['context'], s['answer'],
+                                        sentence_spans=None, _id=str(i), src='worldtree', append_q_char='?',
+                                        mc_options=s['mc_options']) for i,s in enumerate(wt_train)]
+
+random.seed(42)
+utils.create_additional_rat_for_mc(dev_rr_format, include_prepend=0.7, include_append=0.9, include_both=0.35)
+utils.create_additional_rat_for_mc(train_rr_format, include_prepend=0.7, include_append=0.9, include_both=0.35)
+
+# load and filter augmentable negs
+dev_rr_format = utils.load_merge_negs(dev_rr_format, file_rr_dev_negs_augmentable, overlap_method='em')  # 'f1' more restrictive but found em worked well and yields more samples
+train_rr_format = utils.load_merge_negs(train_rr_format, file_rr_train_negs_augmentable, overlap_method='em')  # 'f1' more restrictive but found em worked well and yields more samples
+
+#utils.saveas_jsonl(dev_rr_format, rr_dev)
+#utils.saveas_jsonl(train_rr_format, rr_train)
+
+#dev_rr_format = utils.load_jsonl(rr_dev) #496
+#train_rr_format = utils.load_jsonl(rr_train) #2199
+
+#augment
+random.seed(42)
+utils.create_additional_rat_for_mc(dev_rr_format, include_prepend=1.0, include_append=1.0, include_both=0.25, key='neg_paras')
+utils.create_additional_rat_for_mc(train_rr_format, include_prepend=1.0, include_append=1.0, include_both=0.25, key='neg_paras')
+
+#load and filter non-augmentable negs
+dev_rr_format = utils.load_merge_negs(dev_rr_format, file_rr_dev_negs, overlap_method='em')  # 'f1' more restrictive but found em worked well and yields more samples
+train_rr_format = utils.load_merge_negs(train_rr_format, file_rr_train_negs, overlap_method='em')  # 'f1' more restrictive but found em worked well and yields more samples
+
+utils.saveas_jsonl(dev_rr_format, rr_dev)       #496
+utils.saveas_jsonl(train_rr_format, rr_train)   #2199
+
+utils.output_neg_tsv(dev_rr_format, os.path.join(UQA_DIR, 'worldtree_neg_expl_ans'), 'dev.tsv')
+utils.output_neg_tsv(train_rr_format, os.path.join(UQA_DIR, 'worldtree_neg_expl_ans'), 'train.tsv')
+
+# save final rr model creak training dataset - only output where negs exist which is all of them in this case but for consistency and debug..
+utils.output_rr_where_negs_exist(dev_rr_format, outfile=rr_dev_exclposonly)   #496
+utils.output_rr_where_negs_exist(train_rr_format, outfile=rr_train_exclposonly) #2199
+
+
 
 

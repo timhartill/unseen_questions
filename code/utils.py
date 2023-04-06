@@ -292,6 +292,16 @@ def parse_uqa_supervised(questions, answers):
     return uqa_parsed
 
 
+def parse_mc_options(mc_options):
+    """ Parse string of form '(A) The sun revolves around Earth. (B) Earth rotates around the sun. (C) The sun revolves on its axis. (D) Earth rotates on its axis.'
+    Returns ['The sun revolves around Earth.', ...]
+    """
+    for key in ['(A) ', '(B) ', '(C) ', '(D) ', '(E) ', '(F) ', '(G) ', '(H) ']:
+        mc_options = mc_options.replace(key,'#!$')
+    choices = mc_options.split('#!$')
+    return [c.strip() for c in choices if c.strip() != '']
+    
+
 def return_sublist(sample_list, indices, key=None):
     """ Return sublist of list entries matching the list of indices. 
     If key is specified assumes sample_list in jsonl format and returns a simple list of values from that key
@@ -785,7 +795,7 @@ def decode_new(tokenizer, tokens, special_tokens_list):
     
 
 def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both', 
-               to_cuda=True, use_fp16=False, cuda_device=None, special_tokens_dict={}, special_tokens_list=[]):
+               to_cuda=True, use_fp16=False, cuda_device=None, special_tokens_dict={}, special_tokens_list=[], do_compile=False):
     """ Load a tokenizer and model and set for eval
     Usage: tokenizer, model = load_model(model_name, checkpoint)
     or tokenizer = load_model(model_name, loadwhat='tokenizer_only')
@@ -839,6 +849,8 @@ def load_model(model_name="facebook/bart-large", checkpoint=None, loadwhat='both
             if cuda_device is None:  # else typically cuda_device = 0-based int id of particular device
                 cuda_device = "cuda"
             model.to(torch.device(cuda_device))
+        if do_compile:
+            model = torch.compile(model)    
         model.eval()
         print("Model loaded!")
     return tokenizer, model
@@ -1888,7 +1900,21 @@ def output_rr_where_negs_exist(rr_format, outfile=None):
     return outlist
     
 
-def create_additional_pos_for_mc(rr_format, include_prepend=0.8, include_append=0.95, include_both=0.35, ans_lower=True,
+def find_relevant_false_choice(mc_list, text):
+    """ find a relevant choice to substitute based on the selected text or random if no matches  
+    """
+    t = text.lower()
+    a = ""
+    for c in mc_list:
+        if c in t:
+            a = c
+            break
+    if a == '':
+        a = random.choice(mc_list)
+    return a
+    
+
+def create_additional_rat_for_mc(rr_format, include_prepend=0.8, include_append=0.95, include_both=0.35,
                                  key='pos_paras'):
     """ add additional positive or negative rationales to mitigate bias that LLM prompts for multichoice introduce towards rationales
     that begin with "The answer must be X..." and/or end with "Thus, of the choices X is the best answer".
@@ -1903,11 +1929,19 @@ def create_additional_pos_for_mc(rr_format, include_prepend=0.8, include_append=
 
     for s in rr_format:
         pos_orig = copy.deepcopy(s[key])
-        a = s['answers'][0].strip('. ')
-        if ans_lower:
-            a = a.lower()
+        if len(pos_orig) == 0:
+            continue
+        if key == 'pos_paras':
+            a = s['answers'][0].strip('. ').lower()
+        else:
+            a = s['answers'][0].lower().strip('. ')
+            mc_list = parse_mc_options(s['mc_options'])
+            mc_list = [c.strip('.').lower() for c in mc_list if c.strip('.').lower() != a]
+            random.shuffle(mc_list)
         if random.random() <= include_prepend:
             new_pos = copy.deepcopy(random.choice(pos_orig))
+            if key != 'pos_paras':
+                a = find_relevant_false_choice(mc_list, new_pos['text'])
             new_sent = random.choice(prepend_list).replace('****', a)
             new_s, new_e = 0, len(new_sent)-1
             new_rat = new_sent + new_pos['text']
@@ -1923,6 +1957,8 @@ def create_additional_pos_for_mc(rr_format, include_prepend=0.8, include_append=
             
         if random.random() <= include_append:
             new_pos = copy.deepcopy(random.choice(pos_orig))
+            if key != 'pos_paras':
+                a = find_relevant_false_choice(mc_list, new_pos['text'])
             new_sent = random.choice(append_list).replace('****', a)
             new_rat = new_pos['text'] + new_sent
             new_s = new_pos['sentence_spans'][-1][-1]
@@ -1932,6 +1968,8 @@ def create_additional_pos_for_mc(rr_format, include_prepend=0.8, include_append=
             
         if random.random() <= include_both:
             new_pos = copy.deepcopy(random.choice(pos_orig))
+            if key != 'pos_paras':
+                a = find_relevant_false_choice(mc_list, new_pos['text'])
             new_sent = random.choice(prepend_list).replace('****', a)
             new_s, new_e = 0, len(new_sent)-1
             new_rat = new_sent + new_pos['text']

@@ -75,6 +75,9 @@ EQASC_DIR_IN = '/home/thar011/data/eqasc/'
 EQASC_DEV_FILE = EQASC_DIR_IN + 'eqasc_dev_grc.json'
 EQASC_TRAIN_FILE = EQASC_DIR_IN + 'eqasc_train_grc.json'
 
+EQASC_DEV_FILE_PROCESSED = EQASC_DIR_IN + 'eqasc_dev_processed_pos_neg.json'
+EQASC_TRAIN_FILE_PROCESSED = EQASC_DIR_IN + 'eqasc_train_processed_pos_neg.json'
+
 
 # LLM neg rationales
 file_rr_dev_negs = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T6_MCFOCUS_QASC_DEV_all_onv3-02-15-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json', 
@@ -269,11 +272,9 @@ train_rr_format = utils.merge_pos_into_rr(train_rr_format, train_rr_format_combo
 
 # add "the answer must be ..." and "Thus, of the choices ..." forms of pos rationale since bias towards these wordings are introduced by the LLM prompts for MC questions
 random.seed(42)
-utils.create_additional_pos_for_mc(dev_rr_format, include_prepend=0.8, include_append=0.9, include_both=0.35)
-utils.create_additional_pos_for_mc(train_rr_format, include_prepend=0.8, include_append=0.9, include_both=0.35)
+utils.create_additional_rat_for_mc(dev_rr_format, include_prepend=0.8, include_append=0.9, include_both=0.35)
+utils.create_additional_rat_for_mc(train_rr_format, include_prepend=0.8, include_append=0.9, include_both=0.35)
 
-utils.saveas_jsonl(dev_rr_format, rr_dev)
-utils.saveas_jsonl(train_rr_format, rr_train)
 
 with open(EQASC_DEV_FILE, 'r') as f:
     eqasc_dev = json.load(f)  #926
@@ -284,9 +285,37 @@ with open(EQASC_TRAIN_FILE, 'r') as f:
 eqasc_dev_simplified = simplify(eqasc_dev) #Num valid chains=1559  Num invalid chains=14173
 eqasc_train_simplified = simplify(eqasc_train) #Num valid chains=16161  Num invalid chains=118742
 
+utils.saveas_jsonl(eqasc_dev_simplified, EQASC_DEV_FILE_PROCESSED)
+utils.saveas_jsonl(eqasc_train_simplified, EQASC_TRAIN_FILE_PROCESSED)
+
 dev_rr_format = utils.merge_pos_into_rr(dev_rr_format, eqasc_dev_simplified, include_negs=True)
 train_rr_format = utils.merge_pos_into_rr(train_rr_format, eqasc_train_simplified, include_negs=True)
 
+utils.saveas_jsonl(dev_rr_format, rr_dev)
+utils.saveas_jsonl(train_rr_format, rr_train)
+
+# load merge v8's that dont need filtering
+dev_rr_format = utils.load_merge_negs(dev_rr_format, file_rr_dev_negs_nofilter, overlap_method=None)  # 'f1' more restrictive but found em worked well and yields more samples
+train_rr_format = utils.load_merge_negs(train_rr_format, file_rr_train_negs_nofilter, overlap_method=None)  # 'f1' more restrictive but found em worked well and yields more samples
+
+
+
+# load merge all the rest that do..
+dev_rr_format = utils.load_merge_negs(dev_rr_format, file_rr_dev_negs, overlap_method='em')  # 'f1' more restrictive but found em worked well and yields more samples
+train_rr_format = utils.load_merge_negs(train_rr_format, file_rr_train_negs, overlap_method='em')  # 'f1' more restrictive but found em worked well and yields more samples
+
+utils.saveas_jsonl(dev_rr_format, rr_dev)
+utils.saveas_jsonl(train_rr_format, rr_train)
+
+utils.output_neg_tsv(dev_rr_format, os.path.join(UQA_DIR, 'qasc_neg_expl_ans'), 'dev.tsv')
+utils.output_neg_tsv(train_rr_format, os.path.join(UQA_DIR, 'qasc_neg_expl_ans'), 'train.tsv')
+
+#dev_rr_format = utils.load_jsonl(rr_dev)
+#train_rr_format = utils.load_jsonl(rr_train)
+
+# save final rr model creak training dataset - only output where negs exist which is all of them in this case but for consistency and debug..
+utils.output_rr_where_negs_exist(dev_rr_format, outfile=rr_dev_exclposonly)
+utils.output_rr_where_negs_exist(train_rr_format, outfile=rr_train_exclposonly)
 
 
 

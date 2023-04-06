@@ -61,7 +61,7 @@ def run(args, logger):
         else:
             logger.info("No checkpoint specified. Using base pretrained model.")
         #tokenizer = load_model(model_name=args.model, loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)
-        tokenizer, model = load_model(model_name=args.model, checkpoint=args.checkpoint, special_tokens_dict=addspecialtoksdict)
+        tokenizer, model = load_model(model_name=args.model, checkpoint=args.checkpoint, special_tokens_dict=addspecialtoksdict, do_compile=args.do_compile)
         if args.is_unifiedqa:
             #dev_data = UnifiedQAData(logger, args, args.predict_file, True)
             dev_data = UnifiedQAData(logger, args, args.predict_file, False)
@@ -127,21 +127,21 @@ def run(args, logger):
         if model is None:
             checkpoint = get_checkpoint(args, logger)
             logger.info(f"Running Explanation Generation. Checkpoint={checkpoint}")    
-            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint, special_tokens_dict=addspecialtoksdict)
+            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint, special_tokens_dict=addspecialtoksdict, do_compile=args.do_compile)
         gen_explanations_all(tokenizer, model, args, logger)
 
     if args.do_predict:
         if model is None:
             checkpoint = get_checkpoint(args, logger)
             logger.info(f"Running Predict. Checkpoint={checkpoint}")    
-            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint, special_tokens_dict=addspecialtoksdict)
+            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint, special_tokens_dict=addspecialtoksdict, do_compile=args.do_compile)
         inference_wrapper(tokenizer, model, args, logger, predict_file=args.predict_file)
 
     if args.do_predict_all:
         if model is None:
             checkpoint = get_checkpoint(args, logger)
             logger.info(f"Running Predict All. Checkpoint={checkpoint}")    
-            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint, special_tokens_dict=addspecialtoksdict)
+            tokenizer, model = load_model(model_name=args.model, checkpoint=checkpoint, special_tokens_dict=addspecialtoksdict, do_compile=args.do_compile)
         uqa_dir = args.predict_file
         if uqa_dir[-4:] == '.tsv':  # eg specified as '/data/thar011/data/unifiedqa/dev.tsv' like uqa train format
             uqa_dir = os.path.split(uqa_dir)[0]  # base uqa directory

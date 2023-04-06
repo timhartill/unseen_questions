@@ -44,6 +44,7 @@ def main():
     parser.add_argument("--skip_inference", action='store_true')
 
     ## Model parameters
+    parser.add_argument("--do_compile", action='store_true',  help="Compile model (torch >= 2.0 only.")
     parser.add_argument("--checkpoint", type=str,
                         help="Model checkpoint to load.")
     parser.add_argument('--checkpoint_step', type=int, default=0)
