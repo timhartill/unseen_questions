@@ -109,11 +109,7 @@ yn_train = [s for s in train_rr_format_exclposonly if s['answers'][0] in ['yes',
 
 multipos_train = [s for s in train_rr_format_exclposonly if len( s['pos_paras']) > 1]
 
-# how many yes/nos have VALID neg rationales?
-# could I get more if look at exact match?
 
-#TODO for MC datasets - augment pos paras with "the answer must be" and 'thus of the choices'? QA model llm_expl datsets have these forms so do for pos_paras and neg_paras. Do sampled pos & negs give these - NOT enough?
-#TODO for MC datasets - input with and without MC options into rr reranker - but no other variations identified so do dynamically in the rr model dataloader
 
 
 

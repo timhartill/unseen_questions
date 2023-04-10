@@ -1,8 +1,7 @@
 """
 @author: Tim Hartill
 
-Adapted from MDR train_mhop.py and train_momentum.py
-Description: train a stage 2 reader from pretrained ELECTRA encoder
+Description: train a rationale reranker model from pretrained ELECTRA encoder
 
 Usage: Run from base/scripts dir: 
     mdr_train_stage2_reader_nativeamp.sh
@@ -46,11 +45,8 @@ args.save_prediction = 'stage2_dev_predictions_TEST.jsonl'
 import logging
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-import json
 import collections
 import random
-import time
-import copy
 from datetime import date
 from functools import partial
 
@@ -66,11 +62,9 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer,
                           get_linear_schedule_with_warmup)
 
 from mdr_config import train_args
-from reader.reader_dataset import Stage2Dataset, stage_collate, AlternateSampler
-from reader.reader_model import StageModel, SpanAnswerer
+from rr_model_dataset import Stage2Dataset, batch_collate, AlternateSampler
+from reader.rr_model_dataset import RRModel
 
-from reader.hotpot_evaluate_v1 import f1_score, exact_match_score, update_sp
-from mdr_basic_tokenizer_and_utils import get_final_text
 from utils import move_to_cuda, load_saved, AverageMeter, saveas_jsonl, create_grouped_metrics
 
 ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']
@@ -121,9 +115,9 @@ def main():
     if args.do_train and args.max_c_len > bert_config.max_position_embeddings:
         raise ValueError( "Cannot use sequence length %d because the model was only trained up to sequence length %d" % (args.max_c_len, bert_config.max_position_embeddings))
     
-    model = StageModel(bert_config, args)  
+    model = RRModel(bert_config, args)  
     eval_dataset = Stage2Dataset(args, tokenizer, args.predict_file, train=False)
-    collate_fc = partial(stage_collate, pad_id=tokenizer.pad_token_id)  
+    collate_fc = partial(batch_collate, pad_id=tokenizer.pad_token_id)  
 
     # turned off num_workers for eval after too many open files error
     eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, 
@@ -258,30 +252,22 @@ def main():
     elif args.do_predict:
         metrics = predict(args, model, eval_dataloader, device, logger, use_fixed_thresh=False)
         logger.info(f"eval performance summary {metrics}")
-    elif args.do_test:
-        print("do_test not implemented..")  #TJH NOT UPDATED
+    else:
+        print("arg not implemented. Use do_train or do_predict.")  #TJH NOT UPDATED
     return
 
 
 def predict(args, model, eval_dataloader, device, logger, 
-            sp_thresh=[0.00001, 0.0001, 0.001, 0.003125, 0.00625, 0.0125, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7],
             ev_thresh=[0.003125, 0.00625, 0.0125, 0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.475, 0.4875, 0.5, 0.5125, 0.525, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
             use_fixed_thresh=True):
     """      model returns {
-            'start_logits': start_logits,   # [bs, seq_len]
-            'end_logits': end_logits,       # [bs, seq_len]
-            'rank_score': rank_score,       # [bs,1] is para evidential 0<->1
-            "sp_score": sp_score            # [bs, num_sentences] is sentence evidential [0.2,0.1,0.99..]
+            'rank_score': rank_score,       # [bs,1] is rationale evidential 0<->1
             }
     
-        batch.keys(): dict_keys(['qids', 'passages', 'gold_answer', 'sp_gold', 'para_offsets', 
-                                 'net_inputs', 'index', 'doc_tokens', 'tok_to_orig_index', 'wp_tokens', 'full'])
-        batch['net_inputs'].keys(): dict_keys(['input_ids', 'attention_mask', 'paragraph_mask', 'label', 
-                                               'sent_offsets', 'sent_labels', 'token_type_ids'])
-        sp_thresh and ev_thresh must contain 0.5 or error..
-        Calculates the sp threshold as the highest sp_recall returning less than sp_percent_thresh of the sentences in the para
+        batch.keys(): dict_keys(['qids', 'passages', 'para_offsets', 'net_inputs', 'index'])
+        batch['net_inputs'].keys(): dict_keys(['input_ids', 'attention_mask', 'paragraph_mask', 'label', 'token_type_ids'])
+        ev_thresh must contain 0.5 or error..
     """
-    sp_percent_thresh = args.sp_percent_thresh # default 1.0 in stage 2:  percentage of sentences to reduce to
     model.eval()
     id2result = collections.defaultdict(list)  #  inputs / golds
     id2answer = collections.defaultdict(list)   # corresponding predictions
@@ -292,39 +278,20 @@ def predict(args, model, eval_dataloader, device, logger,
         batch_to_feed = move_to_cuda(batch["net_inputs"])
         batch_qids = batch["qids"]
         batch_labels = batch["net_inputs"]["label"].view(-1).tolist() # list [bs] = 1/0
-        batch_sp_labels = batch['net_inputs']['sent_labels'].tolist()
-        batch_sp_offsets = batch['net_inputs']['sent_offsets'].tolist()
         with torch.inference_mode():
-            outputs = model(batch_to_feed)  # dict_keys(['start_logits', 'end_logits', 'rank_score', 'sp_score'])
+            outputs = model(batch_to_feed)  # dict_keys(['rank_score'])
             scores = outputs["rank_score"]
-            scores = scores.sigmoid().view(-1).tolist()  # added .sigmoid()  list [bs] = 0.46923
-            sp_scores = outputs["sp_score"]    # [bs, max#sentsinbatch]
-            sp_scores = sp_scores.float().masked_fill(batch_to_feed["sent_offsets"].eq(0), float("-inf")).type_as(sp_scores)  #mask scores past end of # sents in sample
-            batch_sp_scores = sp_scores.sigmoid()  # [bs, max#sentsinbatch]  [0.678, 0.5531, 0.0, 0.0, ...]
-            outs = [outputs["start_logits"], outputs["end_logits"]]  # [ [bs, maxseqleninbatch], [bs, maxseqleninbatch] ]
-            if args.ev_combiner:
-                ev_scores = outputs["ev_logits"]
+            scores = scores.sigmoid().view(-1).tolist()  
 
-        for idx, (qid, label, sp_labels) in enumerate(zip(batch_qids, batch_labels, batch_sp_labels)):
-            # full: 1 = query+para = full path (to neg or pos), 0 = partial path
-            # index into eval_dataloader.dataset.data[idx] list
-            # sp_gold from sp_gold_single = [ possentidx1, possentidx2, ...] s2: [idxs of pos sents]  s1: [ [title, possentidx1] , ...]
-            # act_hops = number of hops the query + next para cover eg 1=q_only->sp1, 2=q+sp1->sp2  if act_hops=orig num_hops then query + next para is fully evidential
-            # sp_num = # sentences in this sample
-            sp_num = len([o for o in batch_sp_offsets[idx] if o != 0])
-            if sp_num == 0:
-                logger.info(f"Warning: Sentence Offsets for idx {idx}  qid {qid} are all zero: {batch_sp_offsets[idx]}. The query may have filled entire sequence len and caused para truncation.")
-            golds = {'para_label': label, 'sp_labels': sp_labels, 
-                     'full': int(batch['full'][idx]), 'index': batch['index'][idx], 
-                     'gold_answer': batch['gold_answer'][idx], 'sp_gold': batch['sp_gold'][idx],
-                     'act_hops': int(batch['act_hops'][idx]), 'sp_num': sp_num, 
+        for idx, (qid, label) in enumerate(zip(batch_qids, batch_labels)):
+            # index = index into eval_dataloader.dataset.data[idx] list
+            golds = {'para_label': label,
+                     'index': batch['index'][idx], 
+                     'gold_answer': batch['gold_answer'][idx],
                      'question': batch['question'][idx], 'context': batch['context'][idx]}
             id2result[qid] = golds                    #.append( (label, score) )   #[ (para label, para score) ] - originally appended pos + 5 negs...
 
-        span_answerer = SpanAnswerer(batch, outs, batch['para_offsets'], batch['net_inputs']['insuff_offset'].tolist(), args.max_ans_len)
-
         for idx, qid in enumerate(batch_qids):
-
             # get the context full evidentiality accuracy at different ev score thresholds
             rank_score = scores[idx]
             para_pred_dict = {}
@@ -335,34 +302,9 @@ def predict(args, model, eval_dataloader, device, logger,
                     para_pred = 0
                 para_pred_dict[thresh] = para_pred
                 
-            if args.ev_combiner:
-                ev_score = ev_scores[idx]
-                ev_pred = int(ev_score.argmax())
-                ev_score = ev_score.tolist()
-            else:
-                ev_score = [0.0, 0.0]
-                ev_pred = -1                
-
-            # get the positive sp sentences at difft sp score thresholds {thresh: [ sentidx1, sentidx4, ..]}
-            sp_score = batch_sp_scores[idx].tolist()
-            pred_sp_dict = {}
-            for thresh in sp_thresh:
-                pred_sp = []
-                for sent_idx, sent_score in enumerate(sp_score):
-                    if sent_score >= thresh and sent_idx < id2result[qid]['sp_num']:  # sp_scores past max sent offset already forced to zero above so probably extraneous
-                        pred_sp.append(sent_idx)
-                pred_sp_dict[thresh] = pred_sp
-
             id2answer[qid] = {
-                "rank_score": rank_score,               # context evidentiality score
-                "para_pred_dict": para_pred_dict,       # 0/1 decision on whether context is fully evidential  {thresh: 1/0}
-                "pred_str": span_answerer.pred_strs[idx],             # predicted answer span string
-                "span_score": span_answerer.span_scores[idx],         # answer "confidence" score 
-                "insuff_score": span_answerer.insuff_scores[idx],     # insuff/[unused0] "confidence" score
-                "pred_sp_dict": pred_sp_dict,           # {threshold val: predicted sentences [ sentidx1, sentidx4, ..] }
-                "pred_sp_scores": sp_score,             # evidentiality score of each sentence marker
-                "ev_pred": ev_pred,                     # 0/1 decision on fully evidential using evidence combiner head
-                "ev_scores": ev_score                   # the raw ev logits [no-score, yes-score]
+                "rank_score": rank_score,               # context evidentiality raw score
+                "para_pred_dict": para_pred_dict,       # 0/1 decision on whether rationale is fully evidential at each threshold  {thresh: 1/0}
             }
 
 
@@ -390,160 +332,47 @@ def predict(args, model, eval_dataloader, device, logger,
         best_ev_acc = ev_metrics[best_ev_thresh]
         logger.info(f"Using fixed context evidence threshold: {best_ev_thresh} with para_acc: {best_ev_acc}")
 
-        
-    #Calc best sp threshold, copy corresponding pred_sp at thresh -> pred sp
-    sp_metrics = {}
-    for thresh in sp_thresh:
-        metrics = {'sp_em': 0.0, 'sp_f1': 0.0, 'sp_prec': 0.0, 'sp_recall': 0.0, 'sp_percent': 0.0}
-        for qid, res in id2result.items():
-            ans_res = id2answer[qid]
-            sp_gold = [str(s) for s in res['sp_gold']] if res['sp_gold'] != [] else [''] # update_sp dislikes ints
-            sp_pred = [str(s) for s in ans_res['pred_sp_dict'][thresh]] if ans_res['pred_sp_dict'][thresh] != [] else ['']
-            em, prec, recall = update_sp(metrics, sp_pred, sp_gold)
-            if res['sp_num'] > 0:
-                metrics['sp_percent'] += ( len(ans_res['pred_sp_dict'][thresh]) / res['sp_num'] )
-            else:
-                metrics['sp_percent'] += 1.0
-        metrics['sp_em'] /= num_results
-        metrics['sp_f1'] /= num_results
-        metrics['sp_prec'] /= num_results
-        metrics['sp_recall'] /= num_results
-        metrics['sp_percent'] /= num_results
-        sp_metrics[thresh] = copy.deepcopy(metrics)
-        logger.info(f"sp threshold: {thresh} metrics: {metrics}")
-
-    best_thresh = -1.0
-    best_sp_recall = -1.0
-    for thresh in sp_thresh:
-        if sp_metrics[thresh]['sp_percent'] >= sp_percent_thresh:
-            continue
-        if sp_metrics[thresh]['sp_recall'] > best_sp_recall:  # take lowest thresh with same recall that is over the sentence % threshold
-            best_thresh = thresh
-            best_sp_recall = sp_metrics[thresh]['sp_recall']
-    if best_thresh == -1:
-        logger.info(f"Unable to determine best threshold selecting less than {sp_percent_thresh} of sentences. Setting theshold to 0.5")
-        best_thresh = 0.5
-        best_sp_recall = sp_metrics[best_thresh]['sp_recall']
-
-    logger.info(f"Determined best sentence score thresh as {best_thresh} yielding mean sp_recall of {best_sp_recall} and selecting mean {sp_metrics[best_thresh]['sp_percent']} of sentences.")        
-    if use_fixed_thresh:  #during training use fixed threshold 0.5 and determine best ckpt base on para_acc
-        best_thresh = 0.5
-        best_sp_recall = sp_metrics[best_thresh]['sp_recall']
-        logger.info(f"Using fixed sp threshold: {best_thresh} with sp_recall: {best_sp_recall}")
     
     out_list = []
-    ems, f1s, sp_ems, sp_f1s, sp_precs, sp_recalls, joint_ems, joint_f1s, para_acc, ev_acc = [], [], [], [], [], [], [], [], [], []
+    para_acc = []
     for qid, res in id2result.items():
         index = res['index']
-        pos = res['para_label'] == 1  #was index % 2 == 0 in stage 1
+        pos = res['para_label'] == 1  # sample with positive rationale = 1, neg = 0 
         sample = eval_dataloader.dataset.data[index]  # retrieve some extra info for output file
         ans_res = id2answer[qid]
-        ans_res['pred_sp'] = ans_res['pred_sp_dict'][best_thresh]  # select the sp pred from best sp thresh found
-        ans_res['para_pred'] = ans_res['para_pred_dict'][best_ev_thresh]  # select the ev pred from best ev thresh found
-        para_acc.append(int(ans_res['para_pred'] == res['para_label']))  # context evidentiality eval (accuracy)
-        ev_acc.append(int(ans_res['ev_pred'] == res['para_label']))  # context evidentiality eval (accuracy) using evidence combiner head
-        # answer eval
-        ems.append(exact_match_score(ans_res['pred_str'], res['gold_answer'][0])) # not using multi-answer versions of exact match, f1
-        f1, prec, recall = f1_score(ans_res['pred_str'], res['gold_answer'][0])
-        f1s.append(f1)
-        # sentence eval incl para
-        metrics = {'sp_em': 0, 'sp_f1': 0, 'sp_prec': 0, 'sp_recall': 0}
-        sp_gold = [str(s) for s in res['sp_gold']] if res['sp_gold'] != [] else [''] # update_sp dislikes ints
-        sp_pred = [str(s) for s in ans_res['pred_sp']] if ans_res['pred_sp'] != [] else ['']
-        update_sp(metrics, sp_pred, sp_gold)
-        sp_ems.append(metrics['sp_em'])
-        sp_f1s.append(metrics['sp_f1'])
-        sp_precs.append(metrics['sp_prec'])
-        sp_recalls.append(metrics['sp_recall'])
-        # joint metrics
-        joint_prec = prec * metrics['sp_prec']
-        joint_recall = recall * metrics['sp_recall']
-        if joint_prec + joint_recall > 0:
-            joint_f1 = 2 * joint_prec * joint_recall / (joint_prec + joint_recall)
-        else:
-            joint_f1 = 0.
-        joint_em = ems[-1] * sp_ems[-1]
-        joint_ems.append(joint_em)
-        joint_f1s.append(joint_f1)
+        ans_res['para_pred'] = ans_res['para_pred_dict'][best_ev_thresh]  # select the ev pred from best ev thresh found or 0.5 if training
+        para_acc.append(int(ans_res['para_pred'] == res['para_label']))  # rationale evidentiality eval (accuracy)
         
         out_sample = {}
         out_sample['question'] = res['question'] 
         out_sample['context'] = res['context']  # question + context = full untokenised input not incorporating truncation of q or c
         out_sample['ans'] = res["gold_answer"]
-        out_sample['ans_pred'] = ans_res['pred_str']
-        out_sample['ans_pred_score'] = ans_res['span_score']
-        out_sample['ans_insuff_score'] = ans_res['insuff_score']
-        out_sample['sp'] = res['sp_gold']
-        out_sample['sp_pred'] = ans_res['pred_sp']
-        out_sample['sp_labels'] = res['sp_labels']
-        out_sample['sp_scores'] = ans_res['pred_sp_scores']
-        out_sample['sp_thresh'] = best_thresh
-        out_sample['sp_pred_dict'] = ans_res['pred_sp_dict']
         out_sample['para_gold'] = res['para_label']
-        out_sample['para_pred'] = ans_res['para_pred']
-        out_sample['para_score'] = ans_res['rank_score']
+        out_sample['para_pred'] = ans_res['para_pred']            # 0/1 decision at best thresh (or 0.5 if training)
+        out_sample['para_score'] = ans_res['rank_score']          # raw score
         out_sample['para_thresh'] = best_ev_thresh
-        out_sample['para_pred_dict'] = ans_res['para_pred_dict']
-        out_sample['ev_pred'] = ans_res['ev_pred']
-        out_sample['ev_scores'] = ans_res['ev_scores']
+        out_sample['para_pred_dict'] = ans_res['para_pred_dict']  # 0/1 decision at each threshold
         out_sample['src'] = sample['src']
         out_sample['pos'] = pos
-        out_sample['full'] = res['full']
-        out_sample['act_hops'] = res['act_hops']
         out_sample['_id'] = qid
-        out_sample['answer_em'] = int(ems[-1])
-        out_sample['answer_f1'] = f1s[-1]
-        out_sample.update(metrics)
-        out_sample['joint_em'] = joint_em
-        out_sample['joint_f1'] = joint_f1
-        out_sample['para_acc'] = para_acc[-1]
-        out_sample['ev_acc'] = ev_acc[-1]
-        
+        out_sample['para_acc'] = para_acc[-1]       
         out_list.append(out_sample)
 
-    best_joint_f1 = np.mean(joint_f1s)
-    best_joint_em = np.mean(joint_ems)
-    best_sp_f1 = np.mean(sp_f1s)
-    best_sp_em = np.mean(sp_ems)
-    best_sp_prec = np.mean(sp_precs)
-    best_sp_recall = np.mean(sp_recalls)
-    best_f1 = np.mean(f1s)
-    best_em = np.mean(ems)
     best_para_acc = np.mean(para_acc)
-    if args.ev_combiner:
-        best_ev_acc = np.mean(ev_acc)
-    else:
-        best_ev_acc = -1.0
 
     logger.info("------------------------------------------------")
-    logger.info(f"Metrics over total eval set. n={len(ems)}")
-    logger.info(f'answer em: {best_em}')
-    logger.info(f'answer f1: {best_f1}')
-    logger.info(f'At sp threshold {best_thresh}:')
-    logger.info(f'sp em: {best_sp_em}')
-    logger.info(f'sp f1: {best_sp_f1}')
-    logger.info(f'sp prec: {best_sp_prec}')
-    logger.info(f'sp recall: {best_sp_recall}')
-    logger.info(f'joint em: {best_joint_em}')
-    logger.info(f'joint f1: {best_joint_f1}')
+    logger.info(f"Metrics over total eval set. n={len(para_acc)}")
     logger.info(f'At ev threshold {best_ev_thresh}:')
     logger.info(f'para acc: {best_para_acc}')
-    if args.ev_combiner:
-        logger.info(f'ev combiner acc: {best_ev_acc}')
     
-    create_grouped_metrics(logger, out_list, group_key='src', metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc'])
-    create_grouped_metrics(logger, out_list, group_key='pos', metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc'])
-    #create_grouped_metrics(logger, out_list, group_key='act_hops', metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc'])
-    #create_grouped_metrics(logger, out_list, group_key='full', metric_keys = ['answer_em', 'answer_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall', 'joint_em', 'joint_f1', 'para_acc'])
-
+    create_grouped_metrics(logger, out_list, group_key='src', metric_keys = ['para_acc'])
+    create_grouped_metrics(logger, out_list, group_key='pos', metric_keys = ['para_acc'])
     
     if args.save_prediction != "":
         saveas_jsonl(out_list, os.path.join(args.output_dir, args.save_prediction), update=25000)
 
     model.train()
-    return {"em": best_em, "f1": best_f1, "joint_em": best_joint_em, "joint_f1": best_joint_f1, 
-            "sp_em": best_sp_em, "sp_f1": best_sp_f1, "sp_prec": best_sp_prec, "sp_recall": best_sp_recall, 
-            "para_acc": best_para_acc, "ev_acc": best_ev_acc}
+    return {"para_acc": best_para_acc}
 
 
   

@@ -1,8 +1,6 @@
 """
-Dataset for stage 1 reranker and stage 2 evidence set scorer
+Model and Dataset for rr model
 
-Portions adapted from https://github.com/facebookresearch/multihop_dense_retrieval 
-Two stage approach inspired by https://github.com/stanford-futuredata/Baleen
 
 @author Tim Hartill
 
@@ -15,13 +13,67 @@ import copy
 import numpy as np
 
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import Dataset, Sampler
 from tqdm import tqdm
+
+from transformers import AutoModel
+
 
 from mdr_basic_tokenizer_and_utils import SimpleTokenizer, para_has_answer, match_answer_span, find_ans_span_with_char_offsets
 from text_processing import is_whitespace, get_sentence_list, split_into_sentences, create_sentence_spans
 
 from utils import collate_tokens, get_para_idxs, consistent_bridge_format, encode_query_paras, encode_title_sents, context_toks_to_ids, flatten
+
+
+class BertPooler(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.activation = nn.Tanh()
+
+    def forward(self, hidden_states):
+        # We "pool" the model by simply taking the hidden state corresponding
+        # to the first token.
+        first_token_tensor = hidden_states[:, 0]
+        pooled_output = self.dense(first_token_tensor)
+        pooled_output = self.activation(pooled_output)
+        return pooled_output
+
+
+class RRModel(nn.Module):
+    def __init__(self, config, args):
+        super().__init__()
+        if args.__dict__.get('model_name_stage') is not None:
+            self.model_name = args.model_name_stage
+        else:    
+            self.model_name = args.model_name
+        self.debug = args.debug
+        self.debug_count = 3
+        self.encoder = AutoModel.from_pretrained(self.model_name)
+        if "electra" in self.model_name:
+            self.pooler = BertPooler(config)
+        self.rank = nn.Linear(config.hidden_size, 1) 
+
+        
+    def forward(self, batch):
+        outputs = self.encoder(batch['input_ids'], batch['attention_mask'], batch.get('token_type_ids', None))
+        if "electra" in self.model_name:
+            sequence_output = outputs[0]  # [0]=raw seq output [bs, seq_len, hs]
+            pooled_output = self.pooler(sequence_output) # [bs, hs]
+        else:
+            sequence_output, pooled_output = outputs[0], outputs[1]
+        rank_score = self.rank(pooled_output)  # [bs, 1]
+                
+        if self.training:
+            rank_target = batch["label"]
+            rank_loss = F.binary_cross_entropy_with_logits(rank_score, rank_target.float(), reduction="sum")                           
+            if self.debug and self.debug_count > 0:
+                print(f"LOSSES: rank_loss:{rank_loss}")
+                self.debug_count -= 1
+            return rank_loss.unsqueeze(0)        
+        return { 'rank_score': rank_score }      # [bs,1] is para evidential 0<->1
 
 
 def encode_query(sample, tokenizer, train, max_q_len, index, stage=1):
@@ -557,41 +609,8 @@ class AlternateSampler(Sampler):
 
 
 
-class MhopSampler(Sampler):
-    """
-    Shuffle QA pairs not context, make sure data within the batch are from the same QA pair
-    """
 
-    def __init__(self, data_source, num_neg=9, n_gpu=8):
-        # for each QA pair, sample negative paragraphs
-        self.qid2gold = data_source.qid2gold
-        self.qid2neg = data_source.qid2neg
-        self.neg_num = num_neg
-        self.n_gpu = n_gpu
-        self.all_qids = list(self.qid2gold.keys())
-        assert len(self.qid2gold) == len(self.qid2neg)
-
-        self.q_num_per_epoch = len(self.qid2gold) - len(self.qid2gold) % self.n_gpu
-        self._num_samples = self.q_num_per_epoch * (self.neg_num + 1)
-
-    def __len__(self):
-        return self._num_samples
-
-    def __iter__(self):
-        sample_indice = []
-        random.shuffle(self.all_qids)
-        
-        # when use shared-normalization, passages for each question should be on the same GPU
-        qids_to_use = self.all_qids[:self.q_num_per_epoch]
-        for qid in qids_to_use:
-            neg_samples = self.qid2neg[qid]
-            random.shuffle(neg_samples)
-            sample_indice += self.qid2gold[qid]
-            sample_indice += neg_samples[:self.neg_num]
-        return iter(sample_indice)
-
-
-def stage_collate(samples, pad_id=0):
+def batch_collate(samples, pad_id=0):
     if len(samples) == 0:
         return {}
     
