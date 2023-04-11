@@ -218,9 +218,9 @@ def batch_collate(samples, pad_id=0):
     if "question" in samples[0]:  
         batched["question"] = [s["question"] for s in samples]
         batched["context"] = [s["context"] for s in samples]
-        batched["gold_answer"] = [s["answers"] for s in samples],
         batched["index"] = [s["index"] for s in samples]
-        batched["qids"] = [s["_id"] for s in samples],
-        batched["para_offsets"] = [s["para_offset"] for s in samples],
+        batched["qids"] = [s["_id"] for s in samples]
+        batched["para_offsets"] = [s["para_offset"] for s in samples]
+        batched["gold_answer"] = [s["answers"] for s in samples]
 
     return batched

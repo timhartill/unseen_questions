@@ -12,7 +12,7 @@ python rr_train.py \
     --prefix RR_test1_mcstrip0.0_notsinglepossplit_withsharednormal \
     --predict_batch_size 100 \
     --model_name google/electra-large-discriminator \
-    --train_batch_size 12 \
+    --train_batch_size 24 \
     --learning_rate 5e-5 \
     --fp16 \
     --train_file $HDATA/data/rationale_reranker/rr_train.jsonl \
