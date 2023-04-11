@@ -4,7 +4,7 @@
 Description: train a rationale reranker model from pretrained ELECTRA encoder
 
 Usage: Run from base/scripts dir: 
-    mdr_train_stage2_reader_nativeamp.sh
+    rr_train_vXX.sh
     or
     mdr_eval_stage2_reader_nativeamp.sh
 
@@ -59,7 +59,7 @@ from transformers import (AdamW, AutoConfig, AutoTokenizer,
 
 from mdr_config import train_args
 from rr_model_dataset import RRDataset, batch_collate, AlternateSampler
-from reader.rr_model_dataset import RRModel
+from rr_model_dataset import RRModel
 
 from utils import move_to_cuda, load_saved, AverageMeter, saveas_jsonl, create_grouped_metrics
 
