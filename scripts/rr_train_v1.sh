@@ -24,6 +24,7 @@ python rr_train.py \
     --mc_strip_prob 0.0 \
     --gradient_accumulation_steps 8 \
     --use-adam \
+    --debug \
     --output_dir $LDATA/out/mdr/logs \
     --save_prediction rr_dev_predictions.jsonl \
     --num_train_epochs 12 \
