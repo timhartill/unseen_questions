@@ -143,7 +143,7 @@ class RRDataset(Dataset):
             
         para_offset = len(q_toks) + 1 #  cls
         q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
-        max_toks_for_doc = self.max_c_len - para_offset - 1
+        max_toks_for_doc = self.max_seq_len - para_offset - 1
         
         # encode rationale
         if sample['label'] == 1:
