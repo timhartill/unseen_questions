@@ -11,7 +11,7 @@ cd ../code
 
 python rr_train.py \
     --do_train \
-    --prefix RR_test1_mcstrip0.0_notsinglepossplit_withsharednormal \
+    --prefix RR_test3_mcstrip0.0_WITHsinglepossplit_withsharednormal \
     --predict_batch_size 100 \
     --model_name google/electra-large-discriminator \
     --train_batch_size 24 \
@@ -24,6 +24,7 @@ python rr_train.py \
     --max_c_len 512 \
     --max_q_len 70 \
     --mc_strip_prob 0.0 \
+    --single_pos_samples \
     --gradient_accumulation_steps 8 \
     --use-adam \
     --output_dir $LDATA/out/mdr/logs \
