@@ -27,6 +27,7 @@ rationale reranker 'rr' training format:
 import os
 import json
 import utils
+import random
 
 RR_OUT_BASE = '/home/thar011/data/rationale_reranker/'
 
@@ -82,12 +83,15 @@ def load_print_stats_combine(split_list, outfile):
         outlist.extend(currlist)
     print("########### TOTALS ###########################")
     print(stats['TOTAL'])
+    for s in outlist:
+        random.shuffle(s['pos_paras'])
+        random.shuffle(s['neg_paras'])
     utils.saveas_jsonl(outlist, outfile)
     json.dump(stats, open(outstatsfile, 'w'))
     print(f"Counts saved to {outstatsfile}")
     return outlist
 
-
+random.seed(42)
 dev_out = load_print_stats_combine(RR_IN_DEV, 'rr_dev')
 train_out = load_print_stats_combine(RR_IN_TRAIN, 'rr_train')
 

@@ -107,6 +107,13 @@ def train_args():
                         help="type of reduction to apply in cross-entropy loss - 'sum', 'mean' or 'none' gives sum over mean per hop.")
     parser.add_argument("--retrieve_loss_multiplier", default=1.0, type=float,
                         help="Retrieve loss multiplier. Final loss will be stop_loss + retrieve_loss_multiplier*retrieve_loss")
+    parser.add_argument("--mc_strip_prob", default=0.0, type=float,
+                        help="RR Model only: Probability of stripping multichoice options in query encoding where these exist.")
+    parser.add_argument("--single_pos_samples", action="store_true", 
+                        help="RR Model only: change sampling to favour datasets with more pos_paras eg QASC. If set the training dataset will be split such that there will be one pos para per question where multiple exist.")
+    parser.add_argument("--no_pos_neg_pairing", action="store_true", 
+                        help="RR Model only: Change Sampler from one that selects matching pos & neg samples in same batch to random selection.")
+    
 
     return parser.parse_args()
 

@@ -26,12 +26,8 @@ args.warmup_ratio=0.1
 args.output_dir = '/large_data/thar011/out/mdr/logs'
 args.gradient_accumulation_steps = 1
 args.use_adam=True
-args.sp_weight = 1.0
-args.sent_score_force_zero = True
 args.debug = True
-args.sp_percent_thresh = 1.0
 args.num_workers_dev = 10
-args.ev_combiner = False
 
 # for eval only:
 args.do_train=False
@@ -55,25 +51,25 @@ import torch
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 from torch.optim import Adam
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.tensorboard import SummaryWriter  # tensorboard --logdir=runs
 from tqdm import tqdm
 from transformers import (AdamW, AutoConfig, AutoTokenizer,
                           get_linear_schedule_with_warmup)
 
 from mdr_config import train_args
-from rr_model_dataset import Stage2Dataset, batch_collate, AlternateSampler
+from rr_model_dataset import RRDataset, batch_collate, AlternateSampler
 from reader.rr_model_dataset import RRModel
 
 from utils import move_to_cuda, load_saved, AverageMeter, saveas_jsonl, create_grouped_metrics
 
-ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']
+ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]'] # Actually unused. Only using: [CLS] query [SEP] Rationale [SEP]
 
 def main():
     args = train_args()
 
     date_curr = date.today().strftime("%m-%d-%Y")
-    model_name = f"{args.prefix}-{date_curr}-rstage2-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-ga{args.gradient_accumulation_steps}"
+    model_name = f"{args.prefix}-{date_curr}-RR-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-valbsz{args.predict_batch_size}-ga{args.gradient_accumulation_steps}-nopair{args.no_pos_neg_pairing}-singlepos{args.single_pos_samples}-mcstrip{args.mc_strip_prob}"
     args.output_dir = os.path.join(args.output_dir, model_name)
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
@@ -103,7 +99,6 @@ def main():
     if args.gradient_accumulation_steps < 1:
         raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(args.gradient_accumulation_steps))
 
-    #args.train_batch_size = int(args.train_batch_size / args.gradient_accumulation_steps)
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -116,10 +111,9 @@ def main():
         raise ValueError( "Cannot use sequence length %d because the model was only trained up to sequence length %d" % (args.max_c_len, bert_config.max_position_embeddings))
     
     model = RRModel(bert_config, args)  
-    eval_dataset = Stage2Dataset(args, tokenizer, args.predict_file, train=False)
+    eval_dataset = RRDataset(args, tokenizer, args.predict_file, train=False)
     collate_fc = partial(batch_collate, pad_id=tokenizer.pad_token_id)  
 
-    # turned off num_workers for eval after too many open files error
     eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, 
                                  pin_memory=True, num_workers=args.num_workers_dev)
     logger.info(f"Num of dev batches: {len(eval_dataloader)}")
@@ -158,8 +152,13 @@ def main():
         best_main_metric = 0
         train_loss_meter = AverageMeter()
         model.train() #TJH model_nv.train()
-        train_dataset = Stage2Dataset(args, tokenizer, args.train_file, train=True)
-        train_sampler = AlternateSampler(train_dataset)
+        train_dataset = RRDataset(args, tokenizer, args.train_file, train=True)
+        if args.no_pos_neg_pairing:
+            logger.info("Using Random Sampling Strategy.")
+            train_sampler = RandomSampler(train_dataset)
+        else:
+            logger.info("Using Paired Sampling Strategy.")
+            train_sampler = AlternateSampler(train_dataset)
         train_dataloader = DataLoader(train_dataset, batch_size=args.train_batch_size, pin_memory=True, 
                                       collate_fn=collate_fc, num_workers=args.num_workers, sampler=train_sampler)
         #train_dataloader = DataLoader(train_dataset, pin_memory=True, collate_fn=collate_fc, num_workers=0, batch_sampler=torch.utils.data.BatchSampler(train_sampler, batch_size=args.train_batch_size, drop_last=False))
@@ -264,8 +263,8 @@ def predict(args, model, eval_dataloader, device, logger,
             'rank_score': rank_score,       # [bs,1] is rationale evidential 0<->1
             }
     
-        batch.keys(): dict_keys(['qids', 'passages', 'para_offsets', 'net_inputs', 'index'])
-        batch['net_inputs'].keys(): dict_keys(['input_ids', 'attention_mask', 'paragraph_mask', 'label', 'token_type_ids'])
+        batch.keys(): dict_keys(['net_inputs', 'question', 'context', 'gold_answer', 'qids', 'para_offsets', 'index'])
+        batch['net_inputs'].keys(): dict_keys(['input_ids', 'attention_mask', 'label', 'token_type_ids'])
         ev_thresh must contain 0.5 or error..
     """
     model.eval()

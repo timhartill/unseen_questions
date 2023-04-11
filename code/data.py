@@ -14,7 +14,7 @@ import numpy as np
 from functools import partial
 
 import torch
-from torch.utils.data import Dataset, TensorDataset, DataLoader, RandomSampler, SequentialSampler
+from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
 
 import utils
 from eval_metrics import get_exact_match, selfsupervisedkey
