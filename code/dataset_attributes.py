@@ -729,7 +729,7 @@ unifiedqa_seen_1 = [
     'creak_od_ans_impl_rels', 'creak_fullwiki_bs150_implrel', 'creak_fullwiki_bs150_implrel_origq', 'creak_fullwiki_bs150_implrel_bestsentsonly_origq', 'creak_fullwiki_bs150_implrel_bestsents_maxp4_origq', 'creak_fullwiki_bs150_implrel_maxp4_origq',
     'creak_llm_expl', 'creak_llm_expl_with_llm_ans', 'creak_llm_expl_fullwiki_bs150_noimplrel', 'creak_expl_ans',
     'creak_contrast_set_od_ans', 'creak_contrast_set_hard', 'creak_contrast_set_initial_context',
-    'fever_hard', 'fever_expl_ans'
+    'fever_hard', 'fever_expl_ans',
     'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
     'hover_llm_expl', 'hover_llm_expl_with_llm_ans', 'hover_llm_expl_fullwiki_bs60',
     'hpqa_hard', 'hpqa_fullwiki_bs60', 'hpqa_fullwiki_bs60_maxp4', 
