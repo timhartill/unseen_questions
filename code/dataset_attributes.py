@@ -565,6 +565,7 @@ q_mc_paras_train = ["mctest_corrected_the_separator", "race_string", "openbookqa
 q_ret_paras_train = ['csqa2_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel', 'hover_fullwiki_bs60', 
                      'qasc_fullwiki_bs60', 'hpqa_fullwiki_bs60', 'musique_qa_fullwiki_bs60', 'nq_open_fullwiki_bs60', ]
 
+# minus musique:
 q_ret_paras_train_v2 = ['csqa2_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel', 'hover_fullwiki_bs60', 
                      'qasc_fullwiki_bs60', 'hpqa_fullwiki_bs60', 'nq_open_fullwiki_bs60', ]
 
@@ -576,6 +577,7 @@ q_ret_paras_maxp4_train = ['csqa2_fullwiki_bs150_noimplrel_maxp4', 'creak_fullwi
 q_ret_paras_maxp4_train_v2 = ['csqa2_fullwiki_bs150_noimplrel_maxp4', 'creak_fullwiki_bs150_noimplrel_maxp4', 'hover_fullwiki_bs60_maxp4', 
                            'qasc_fullwiki_bs60_maxp4', 'hpqa_fullwiki_bs60_maxp4', 'nq_open_fullwiki_bs60_maxp4', ]
 
+# added for LLM tests below:
 # q[+mc]+llm-generated rationale->a
 q_llm_expl_train = ['nq_open_llm_expl', 'hpqa_llm_expl', 'musique_qa_full_llm_expl', 'hover_llm_expl', 'csqa2_llm_expl', 'creak_llm_expl',
               'arc_easy_llm_expl', 'arc_hard_llm_expl', 'qasc_llm_expl']

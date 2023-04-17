@@ -252,7 +252,7 @@ def main():
         metrics = predict(args, model, eval_dataloader, device, logger, use_fixed_thresh=False)
         logger.info(f"eval performance summary {metrics}")
     else:
-        print("arg not implemented. Use do_train or do_predict.")  #TJH NOT UPDATED
+        print("arg not implemented. Must specify do_train or do_predict.")  #TJH NOT UPDATED
     return
 
 

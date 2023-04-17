@@ -896,7 +896,7 @@ def eval_samples(args, logger, samples):
     return 
 
 
-def build_context(args, logger, samples, tokenizer, max_toks=507):
+def build_context(args, logger, samples, tokenizer, max_toks=507, output_tsv=True):
     """ Build context from samples using info in 's2_best' key which is the best hop in s2_full as measured by s2 ev score.
 
     's2_best' is list of:    
@@ -931,7 +931,8 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
     Note: Must call eval_samples(...) first as it builds prerequisite keys..
     """
     ps_ratio = 0.5
-    logger.info("Building context for each sample from best hop...")
+    if logger is not None:
+        logger.info("Building context for each sample from best hop...")
     outlist = []
     for sample in tqdm(samples):
         all_retrieved = sample['dense_retrieved'] + flatten(sample['dense_retrieved_hist'])
@@ -994,9 +995,11 @@ def build_context(args, logger, samples, tokenizer, max_toks=507):
                                                  utils.create_uqa_context(sample['mc_options'], sample['final_context_fitted']),
                                                  a, append_q_char='?') 
                       )
-    out_dir, out_file = os.path.split(args.output_dataset)    
-    utils.save_uqa(outlist, out_dir, out_file)
-    logger.info(f"Saved into {args.output_dataset}")
+    if output_tsv:
+        out_dir, out_file = os.path.split(args.output_dataset)
+        utils.save_uqa(outlist, out_dir, out_file)
+        if logger is not None:
+            logger.info(f"Saved into {args.output_dataset}")
     return        
 
 
