@@ -18,7 +18,7 @@ from tqdm import tqdm
 
 from transformers import AutoModel
 
-from utils import collate_tokens
+from utils import collate_tokens, move_to_cuda
 
 
 class BertPooler(nn.Module):
@@ -134,14 +134,11 @@ class RRDataset(Dataset):
                 m = ' ' + m
         q = q + m
         q_toks = self.tokenizer.tokenize(q)[:self.max_q_len]
-        c = sample['context'][:600].strip()
+        c = sample['context'][:600].strip()  # initial context. IIRC only. Not present in training...
         if c != '':
             if c[-1] != '.':
                 c += '.'
             c += ' '
-            c_toks = self.tokenizer.tokenize(c)
-            q_toks = c_toks + q_toks
-            q = c + q
             
         para_offset = len(q_toks) + 1 #  cls
         q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
@@ -159,7 +156,7 @@ class RRDataset(Dataset):
             para = random.choice(sample[key])
         else:
             para = sample[key][0]  # make dev deterministic. Note pos & neg paras were shuffled during preprocessing
-        rat = " [SEP] " + para['text'].strip()
+        rat = " [SEP] " + c + para['text'].strip()
         r_toks = self.tokenizer.tokenize(rat)
         if len(r_toks) > max_toks_for_doc:
             if self.debug and self.debug_count > 0:
@@ -185,6 +182,97 @@ class RRDataset(Dataset):
             item["para_offset"] = para_offset  # 1st tok after query ie [SEP]
 
         return item
+
+
+class RREvalDataset(Dataset):
+    """ RR Model simplified Eval dataset
+    input samples: list of dict_keys(['question', 'answer', 'q_only', 'mc_options', 'context', 'iter_context', 'iter_context_ev_score'])
+    q_only key contains the base question minus mc options or other context
+    """
+    def __init__(self, args, tokenizer, samples, score_llm=True):
+        self.score_llm = score_llm
+        if score_llm:
+            self.expl_key = 'context'       # llm-generated explanation/rationale/context including initial para for iirc
+        else:
+            self.expl_key = 'iter_context'  # iterator-generated context including init para for iirc            
+        self.tokenizer = tokenizer
+        self.max_seq_len = args.max_c_len # overall max seq len not max len of context portion..
+        self.max_q_len = args.max_q_len
+        self.debug = args.debug
+        self.debug_count = 3
+        self.data = samples
+        print(f"Data size: {len(self.data)}")
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        sample = self.data[index]
+        # encode query [c+]q[+mc]
+        q = sample['q_only'].strip()
+        m = sample['mc_options'].strip()
+        if m != '':
+            m = ' ' + m
+        q = q + m
+        q_toks = self.tokenizer.tokenize(q)[:self.max_q_len]
+        c = sample[self.expl_key].strip()  # context to score
+        if c != '':
+            if c[-1] != '.':
+                c += '.'
+           
+        para_offset = len(q_toks) + 1 #  cls
+        q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
+        max_toks_for_doc = self.max_seq_len - para_offset - 1
+        if max_toks_for_doc <= 2 and self.debug and self.debug_count > 0:
+            print(f"Query too long: _id:{sample['_id']}")
+            self.debug_count -= 1
+        
+        rat = " [SEP] " + c
+        r_toks = self.tokenizer.tokenize(rat)
+        if len(r_toks) > max_toks_for_doc:
+            if self.debug and self.debug_count > 0:
+                if len(r_toks) > 511:
+                    print(f"RAT > 511 toks: index:{index}")
+                print(f"Rat truncated. index:{index} _id:{sample['_id']}")
+                self.debug_count -= 1
+            r_toks = r_toks[:max_toks_for_doc]
+        r_ids = self.tokenizer.convert_tokens_to_ids(r_toks)
+
+        input_ids = torch.tensor([q_ids + r_ids + [self.tokenizer.sep_token_id]], dtype=torch.int64)
+        attention_mask = torch.tensor([[1] * input_ids.shape[1]], dtype=torch.int64)
+        token_type_ids = torch.tensor([[0] * para_offset + [1] * (input_ids.shape[1]-para_offset)], dtype=torch.int64)
+        item = {}
+        item["encodings"] = {'input_ids': input_ids, 'token_type_ids': token_type_ids, 'attention_mask': attention_mask}
+        item["label"] = torch.LongTensor([-1])
+        item["question"] = q
+        item["context"] = c
+        item["answers"] = sample["answer"]
+        item["index"] = index
+        item["_id"] = str(index)
+        item["para_offset"] = para_offset  # 1st tok after query ie [SEP]
+
+        return item
+
+
+def predict_simple(eval_dataloader, model):
+    """ Simple predict routine for scoring rationales
+    """
+    out_qids = []
+    out_scores = []
+    for batch in tqdm(eval_dataloader):
+        #TJH batch = next(iter(eval_dataloader))
+        # batch_to_feed = batch["net_inputs"]
+        #batch = copy.deepcopy(batch_orig)
+        batch_to_feed = move_to_cuda(batch["net_inputs"])
+        batch_qids = batch["qids"]
+        with torch.inference_mode():
+            outputs = model(batch_to_feed)  # dict_keys(['rank_score'])
+            scores = outputs["rank_score"]
+            scores = scores.sigmoid().view(-1).tolist()  
+        out_qids.extend(batch_qids)
+        out_scores.extend(scores)
+    return out_scores, out_qids
+
 
 
 class AlternateSampler(Sampler):

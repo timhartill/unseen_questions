@@ -43,7 +43,7 @@ def main():
     
     iterdir = os.path.join(UQA_DIR, args.iter_dataset)
     iterfiles = utils.list_files_pattern(iterdir, '*.tsv')
-    print(f"New context Files from {iterdir} : {iterfiles}")    
+    print(f"New context Files from {iterdir} : {iterfiles}")
     
     outdir = os.path.join(UQA_DIR, args.output_dataset)
     print(f"Output to: {outdir}")
