@@ -317,7 +317,7 @@ if __name__ == "__main__":
                                           s['answer']) )
             utils.save_uqa(out_list, outdir, file)
         
-    
+    logger.info("Finished!")
     #- q[+mc][+LLM expls that score over a threshold] -> a                           (LLM if good else nothing)
     # 10 per dataset
     #- q[+mc][+Iterator contexts with ev score over a threshold] -> a                (Iterator if good else nothing)
