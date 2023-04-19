@@ -14,7 +14,7 @@
 
 cd ../code
 
-python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s14_v2_from_s9_v2_base_ratd_add_exp \
+python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s14_v4_from_s9_v2_base_ratd_add_exp_gold_only \
         --is_unifiedqa \
         --train_file $UDATA/data/unifiedqa/train.tsv \
         --predict_file $UDATA/data/unifiedqa/dev.tsv \
