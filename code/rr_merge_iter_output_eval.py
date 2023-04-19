@@ -27,6 +27,7 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import json
 import copy
+import numpy as np
 from datetime import date
 from functools import partial
 from tqdm import tqdm
@@ -51,7 +52,26 @@ ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]']
 UQA_DIR = eval_metrics.UQA_DIR
 
 
-    
+def answer_in_expl(samples):
+    """ Very Rough analysis of scoring by looking at whether the answer is in the expl
+    CSQA: 
+    LLM Mean:0.21302189518758627 (1221) Answer IN LLM Expl:0.2573089889034759 (584)  Answer NOT in LLM Expl:0.17241959890802655 (637)
+    ITER rr Mean:0.44225340958100795  ITER using rr_score: Answer IN Iter:0.525674262189266 (301)  Answer NOT in Iter:0.41496028280374087 (920)
+    ITER ev Mean:0.0960430557541431  ITER using ev_score: Answer IN Iter:0.11044974461626385 (301)  Answer NOT in Iter:0.09132956298512315 (920)
+    """
+    scores_ans_in_llm = [s['llm_rr_score'] for s in samples if s['answer'] in s['context']]
+    scores_ans_not_in_llm = [s['llm_rr_score'] for s in samples if s['answer'] not in s['context']]
+    print(f"LLM Mean:{np.mean(scores_ans_in_llm+scores_ans_not_in_llm)} ({len(samples)}) Answer IN LLM Expl:{np.mean(scores_ans_in_llm)} ({len(scores_ans_in_llm)})  Answer NOT in LLM Expl:{np.mean(scores_ans_not_in_llm)} ({len(scores_ans_not_in_llm)})")
+
+    scores_ans_in_iter = [s['iter_context_rr_score'] for s in samples if s['answer'] in s['iter_context']]
+    scores_ans_not_in_iter = [s['iter_context_rr_score'] for s in samples if s['answer'] not in s['iter_context']]
+    print(f"ITER rr Mean:{np.mean(scores_ans_in_iter+scores_ans_not_in_iter)}  ITER using rr_score: Answer IN Iter:{np.mean(scores_ans_in_iter)} ({len(scores_ans_in_iter)})  Answer NOT in Iter:{np.mean(scores_ans_not_in_iter)} ({len(scores_ans_not_in_iter)})")
+
+    scores_ans_in_iter_ev = [s['iter_context_ev_score'] for s in samples if s['answer'] in s['iter_context']]
+    scores_ans_not_in_iter_ev = [s['iter_context_ev_score'] for s in samples if s['answer'] not in s['iter_context']]
+    print(f"ITER ev Mean:{np.mean(scores_ans_in_iter_ev+scores_ans_not_in_iter_ev)}  ITER using ev_score: Answer IN Iter:{np.mean(scores_ans_in_iter_ev)} ({len(scores_ans_in_iter_ev)})  Answer NOT in Iter:{np.mean(scores_ans_not_in_iter_ev)} ({len(scores_ans_not_in_iter_ev)})")
+
+    return
 
 
 if __name__ == "__main__":
@@ -67,15 +87,25 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     """ Test options
-    args.prefix = 'LLM_ITER_MERGE_TEST0'
     args.num_workers_dev = 10
     args.model_name = 'google/electra-large-discriminator'
     args.init_checkpoint = '/large_data/thar011/out/mdr/logs/RR_test4_mcstrip0.5_notsinglepossplit_withsharednormal-04-11-2023-RR-seed42-bsz24-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8-nopairFalse-singleposFalse-mcstrip0.5/checkpoint_best.pt'
     args.predict_batch_size = 100
+    args.output_dir = '/large_data/thar011/out/mdr/logs'
+
+    CSQA:
+    args.prefix = 'LLM_ITER_MERGE_TEST0'
     args.llm_file = '/data/thar011/data/unifiedqa/commonsenseqa_llm_expl/dev.tsv'
     args.iter_file = '/large_data/thar011/out/mdr/logs/ITER_fullwiki_us_csqa_test66_b150_h4_hpqahovnqmubs250_mom-10-01-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
-    args.output_dir = '/large_data/thar011/out/mdr/logs'
     args.base_dataset = 'commonsenseqa'
+    
+    SQA:
+    args.prefix = 'LLM_ITER_MERGE_TEST0SQA'
+    args.llm_file = '/data/thar011/data/unifiedqa/strategy_qa_bigbench_llm_expl/dev.tsv'
+    args.iter_file = '/large_data/thar011/out/mdr/logs/ITER_fullwiki_us_sqabb_test64_b150_h4_hpqahovnqmubs250_mom-09-30-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
+    args.base_dataset = 'strategy_qa_bigbench'
+
+        
     """
 
     split = os.path.split(args.llm_file)[-1][:-4]     
@@ -151,7 +181,6 @@ if __name__ == "__main__":
     
     
     # run rr model preds, record scores for ITER expls
-    # run rr model preds, record scores for LLm expls
     eval_dataset = RREvalDataset(args, tokenizer, samples_llm, score_llm=False)
     eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, 
                                  pin_memory=True, num_workers=args.num_workers_dev)
@@ -160,8 +189,13 @@ if __name__ == "__main__":
     for i, s in enumerate(scores):
         samples_llm[i]['iter_context_rr_score'] = s
         
-    utils.saveas_jsonl(samples_llm, os.path.join(args.output_dir, f'samples_llm_iter_scored.jsonl'))
+    utils.saveas_jsonl(samples_llm, os.path.join(args.output_dir, 'samples_llm_iter_scored.jsonl'))
     
+    
+    
+    # eval on BART
 
-    # output combined file
     # output eval tsv files
+    
+    
+    
