@@ -56,22 +56,89 @@ def answer_in_expl(samples):
     """ Very Rough analysis of scoring by looking at whether the answer is in the expl
     CSQA: 
     LLM Mean:0.21302189518758627 (1221) Answer IN LLM Expl:0.2573089889034759 (584)  Answer NOT in LLM Expl:0.17241959890802655 (637)
+    LLM Max:0.9966553449630737  Min:0.00023650623916182667
     ITER rr Mean:0.44225340958100795  ITER using rr_score: Answer IN Iter:0.525674262189266 (301)  Answer NOT in Iter:0.41496028280374087 (920)
+    ITER rr Max:0.998989999294281  Min:0.0006781742558814585
     ITER ev Mean:0.0960430557541431  ITER using ev_score: Answer IN Iter:0.11044974461626385 (301)  Answer NOT in Iter:0.09132956298512315 (920)
+    ITER ev Max:0.9911504983901978  Min:0.0005898156086914241
+    
+    SQA:
+    LLM Mean:0.17280123899063612 (2290) Answer IN LLM Expl:0.17893527346471008 (491)  Answer NOT in LLM Expl:0.1711270806099967 (1799)
+    LLM Max:0.9966425895690918  Min:0.00020381664216984063
+    ITER rr Mean:0.7680089961612336  ITER using rr_score: Answer IN Iter:0.7686055063116949 (1162)  Answer NOT in Iter:0.7673945060948898 (1128)
+    ITER rr Max:0.9994673132896423  Min:0.0032099445816129446
+    ITER ev Mean:0.4878030581909179  ITER using ev_score: Answer IN Iter:0.483043173098768 (1162)  Answer NOT in Iter:0.4927064149968383 (1128)
+    ITER ev Max:0.9989007711410522  Min:0.000617390382103622    
+    
+    ARCDA:
+    LLM Mean:0.4057676666909243 (1397) Answer IN LLM Expl:0.4700740239746016 (297)  Answer NOT in LLM Expl:0.3884049502243314 (1100)
+    LLM Max:0.9982719421386719  Min:0.00023336267622653395
+    ITER rr Mean:0.6109208474389052  ITER using rr_score: Answer IN Iter:0.6736969843242203 (359)  Answer NOT in Iter:0.58920925481672 (1038)
+    ITER rr Max:0.9992144107818604  Min:0.0027664205990731716
+    ITER ev Mean:0.5978934605243488  ITER using ev_score: Answer IN Iter:0.7175364601249096 (359)  Answer NOT in Iter:0.5565140415873533 (1038)
+    ITER ev Max:0.9990513920783997  Min:0.0005922522977925837    
+
+    IIRC:
+    LLM Mean:0.591702777727683 (1301) Answer IN LLM Expl:0.6024548986217041 (303)  Answer NOT in LLM Expl:0.5884383562538469 (998)
+    LLM Max:0.9992634654045105  Min:0.00034453609259799123
+    ITER rr Mean:0.9732178821329379  ITER using rr_score: Answer IN Iter:0.9781740914367026 (528)  Answer NOT in Iter:0.9698325283006123 (773)
+    ITER rr Max:0.999610960483551  Min:0.05248409882187843
+    ITER ev Mean:0.4800406305406541  ITER using ev_score: Answer IN Iter:0.5161774624279077 (528)  Answer NOT in Iter:0.4553572576603567 (773)
+    ITER ev Max:0.9988969564437866  Min:0.0005918851820752025
+        
+    MU_DEV:
+    LLM Mean:0.03587697159156379 (2417) Answer IN LLM Expl:0.11416676165259933 (117)  Answer NOT in LLM Expl:0.031894404010198066 (2300)
+    LLM Max:0.9960206151008606  Min:0.00022117119806353003
+    ITER rr Mean:0.9571252590444912  ITER using rr_score: Answer IN Iter:0.9804996452769454 (686)  Answer NOT in Iter:0.9478619263145872 (1731)
+    ITER rr Max:0.9995593428611755  Min:0.00528826704248786
+    ITER ev Mean:0.49310641057146704  ITER using ev_score: Answer IN Iter:0.7122762090550788 (686)  Answer NOT in Iter:0.40624882434399295 (1731)
+    ITER ev Max:0.9991397857666016  Min:0.0005928017781116068        
+
     """
-    scores_ans_in_llm = [s['llm_rr_score'] for s in samples if s['answer'] in s['context']]
-    scores_ans_not_in_llm = [s['llm_rr_score'] for s in samples if s['answer'] not in s['context']]
+    
+    scores_ans_in_llm = [s['llm_rr_score'] for s in samples if (s['answer'] if type(s['answer'])==str else s['answer'][0]) in s['context']]
+    scores_ans_not_in_llm = [s['llm_rr_score'] for s in samples if (s['answer'] if type(s['answer'])==str else s['answer'][0]) not in s['context']]
     print(f"LLM Mean:{np.mean(scores_ans_in_llm+scores_ans_not_in_llm)} ({len(samples)}) Answer IN LLM Expl:{np.mean(scores_ans_in_llm)} ({len(scores_ans_in_llm)})  Answer NOT in LLM Expl:{np.mean(scores_ans_not_in_llm)} ({len(scores_ans_not_in_llm)})")
+    print(f"LLM Max:{np.max(scores_ans_in_llm+scores_ans_not_in_llm)}  Min:{np.min(scores_ans_in_llm+scores_ans_not_in_llm)}")
 
-    scores_ans_in_iter = [s['iter_context_rr_score'] for s in samples if s['answer'] in s['iter_context']]
-    scores_ans_not_in_iter = [s['iter_context_rr_score'] for s in samples if s['answer'] not in s['iter_context']]
+    scores_ans_in_iter = [s['iter_context_rr_score'] for s in samples if (s['answer'] if type(s['answer'])==str else s['answer'][0]) in s['iter_context']]
+    scores_ans_not_in_iter = [s['iter_context_rr_score'] for s in samples if (s['answer'] if type(s['answer'])==str else s['answer'][0]) not in s['iter_context']]
     print(f"ITER rr Mean:{np.mean(scores_ans_in_iter+scores_ans_not_in_iter)}  ITER using rr_score: Answer IN Iter:{np.mean(scores_ans_in_iter)} ({len(scores_ans_in_iter)})  Answer NOT in Iter:{np.mean(scores_ans_not_in_iter)} ({len(scores_ans_not_in_iter)})")
+    print(f"ITER rr Max:{np.max(scores_ans_in_iter+scores_ans_not_in_iter)}  Min:{np.min(scores_ans_in_iter+scores_ans_not_in_iter)}")
 
-    scores_ans_in_iter_ev = [s['iter_context_ev_score'] for s in samples if s['answer'] in s['iter_context']]
-    scores_ans_not_in_iter_ev = [s['iter_context_ev_score'] for s in samples if s['answer'] not in s['iter_context']]
+    scores_ans_in_iter_ev = [s['iter_context_ev_score'] for s in samples if (s['answer'] if type(s['answer'])==str else s['answer'][0]) in s['iter_context']]
+    scores_ans_not_in_iter_ev = [s['iter_context_ev_score'] for s in samples if (s['answer'] if type(s['answer'])==str else s['answer'][0]) not in s['iter_context']]
     print(f"ITER ev Mean:{np.mean(scores_ans_in_iter_ev+scores_ans_not_in_iter_ev)}  ITER using ev_score: Answer IN Iter:{np.mean(scores_ans_in_iter_ev)} ({len(scores_ans_in_iter_ev)})  Answer NOT in Iter:{np.mean(scores_ans_not_in_iter_ev)} ({len(scores_ans_not_in_iter_ev)})")
+    print(f"ITER ev Max:{np.max(scores_ans_in_iter_ev+scores_ans_not_in_iter_ev)}  Min:{np.min(scores_ans_in_iter_ev+scores_ans_not_in_iter_ev)}")
 
     return
+
+
+def create_combo_context(llm_context, iter_context):
+    """ Format combined context
+    """
+    idx = llm_context.find(' Further Explanation: ')
+    if idx != -1:
+        initial_context = llm_context[:idx].strip()
+        rationale = llm_context[idx+22:].strip()
+    else:
+        initial_context = ''
+        rationale = llm_context.strip()
+    iter_context = iter_context[len(initial_context):].strip()  # remove initial context if any from retrieved sample
+    if initial_context != '' and initial_context[-1] not in ['.', '!', '?', ':', ';']:
+        initial_context += '.'
+    if rationale != '' and rationale[-1] not in ['.', '!', '?', ':', ';']:
+        rationale += '.'
+    if iter_context != '' and iter_context[-1] not in ['.', '!', '?', ':', ';']:
+        iter_context += '.'
+    if rationale != '' and (initial_context != '' or iter_context != ''):
+        new_context = (initial_context + ' Further Explanation: ' + rationale + ' ' + iter_context).strip()
+    elif rationale != '':
+        new_context = (initial_context + ' ' + rationale + ' ' + iter_context).strip()
+    else:
+        new_context = (initial_context + ' ' + iter_context).strip()
+    return new_context
+
 
 
 if __name__ == "__main__":
@@ -94,7 +161,7 @@ if __name__ == "__main__":
     args.output_dir = '/large_data/thar011/out/mdr/logs'
 
     CSQA:
-    args.prefix = 'LLM_ITER_MERGE_TEST0'
+    args.prefix = 'LLM_ITER_MERGE_TEST0CSQA'
     args.llm_file = '/data/thar011/data/unifiedqa/commonsenseqa_llm_expl/dev.tsv'
     args.iter_file = '/large_data/thar011/out/mdr/logs/ITER_fullwiki_us_csqa_test66_b150_h4_hpqahovnqmubs250_mom-10-01-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
     args.base_dataset = 'commonsenseqa'
@@ -104,7 +171,24 @@ if __name__ == "__main__":
     args.llm_file = '/data/thar011/data/unifiedqa/strategy_qa_bigbench_llm_expl/dev.tsv'
     args.iter_file = '/large_data/thar011/out/mdr/logs/ITER_fullwiki_us_sqabb_test64_b150_h4_hpqahovnqmubs250_mom-09-30-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
     args.base_dataset = 'strategy_qa_bigbench'
+    
+    ARCDA:
+    args.prefix = 'LLM_ITER_MERGE_TEST0ARCDA'
+    args.llm_file = '/data/thar011/data/unifiedqa/arc_da_od_ans_llm_expl/test.tsv'
+    args.iter_file = '/large_data/thar011/out/mdr/logs/ITER_fullwiki_us_arcdatst_test70_b150_h4_hpqahovnqmubs250_mom-10-02-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
+    args.base_dataset = 'arc_da_od_ans'
 
+    IIRC:
+    args.prefix = 'LLM_ITER_MERGE_TEST0IIRC'
+    args.llm_file = '/data/thar011/data/unifiedqa/iirc_initial_context_llm_expl/test.tsv'
+    args.iter_file = '/large_data/thar011/out/mdr/logs/ITER_fullwiki_us_iircictst_test69_b150_h4_hpqahovnqmubs250_mom-10-01-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
+    args.base_dataset = 'iirc_initial_context'
+
+    MU_DEV:
+    args.prefix = 'LLM_ITER_MERGE_TEST0MU_DEV'
+    args.llm_file = '/data/thar011/data/unifiedqa/musique_mu_dev_odv2_llm_expl/dev.tsv'
+    args.iter_file = '/large_data/thar011/out/mdr/logs/ITER_fullwiki_us_mudev_test71_b150_h4_hpqahovnqmubs250_mom-10-02-2022-ITER-16False-tkparas150-s1tksents9-s1useparascrTrue-s2tksents5-s2minsentscr0.1-stmaxhops4-stevthresh1.01-stansconf99999.0-rusesentsFalse-rtitlesTrue/samples_with_context.jsonl'
+    args.base_dataset = 'musique_mu_dev_odv2'
         
     """
 
@@ -190,12 +274,65 @@ if __name__ == "__main__":
         samples_llm[i]['iter_context_rr_score'] = s
         
     utils.saveas_jsonl(samples_llm, os.path.join(args.output_dir, 'samples_llm_iter_scored.jsonl'))
+    answer_in_expl(samples_llm)
     
-    
-    
-    # eval on BART
-
     # output eval tsv files
+#    llm_rr_thresholds = [0.0, 0.0003, 0.0005, 0.0008, 0.00099, 0.005, 0.05, 0.5, 0.75, 0.9]
+#    iter_rr_thresholds = [0.0, 0.0003, 0.0005, 0.0008, 0.00099, 0.005, 0.05, 0.5, 0.75, 0.9]
+#    iter_ev_thresholds = [0.0, 0.0003, 0.0005, 0.0008, 0.00099, 0.005, 0.05, 0.5, 0.75, 0.9]
+
+    llm_rr_thresholds = [0.0005, 0.00099, 0.005, 0.75, 0.9]
+    iter_rr_thresholds = [0.005, 0.0099, 0.05, 0.75, 0.9]  # rr scores on iter tend to be higher than on llm especially at lower values
+    iter_ev_thresholds = [0.00099, 0.005, 0.75, 0.9]  # min evs around 0.0005 so exclude 0.0005 thresh
+
+    # q[+mc][+LLM expls that score over a threshold][+Iterator contexts with ev/rr score over a threshold] -> a
+    # 25 vs rr and 20 vs ev
+    file = split + '.tsv'
+    for llm_rr_thresh in llm_rr_thresholds:
+        for iter_rr_thresh in iter_rr_thresholds:
+            outdir = os.path.join(UQA_DIR, f"{args.base_dataset}_llm_expl_rr{str(llm_rr_thresh)}_fullwiki_rr{str(iter_rr_thresh)}")
+            logger.info(f"Output tsv to: {outdir}")
+            os.makedirs(outdir, exist_ok=True)
+            out_list = []
+            for s in samples_llm:
+                llm_context = s['context'] if s['llm_rr_score'] > llm_rr_thresh else ''
+                iter_context = s['iter_context'] if s['iter_context_rr_score'] > iter_rr_thresh else ''
+                new_context = create_combo_context(llm_context, iter_context)
+                out_list.append( utils.create_uqa_example(s['q_only'], 
+                                          utils.create_uqa_context(s['mc_options'], new_context), 
+                                          s['answer']) )
+            utils.save_uqa(out_list, outdir, file)
+
+        for iter_ev_thresh in iter_ev_thresholds:
+            outdir = os.path.join(UQA_DIR, f"{args.base_dataset}_llm_expl_rr{str(llm_rr_thresh)}_fullwiki_ev{str(iter_ev_thresh)}")
+            logger.info(f"Output tsv to: {outdir}")
+            os.makedirs(outdir, exist_ok=True)
+            out_list = []
+            for s in samples_llm:
+                llm_context = s['context'] if s['llm_rr_score'] > llm_rr_thresh else ''
+                iter_context = s['iter_context'] if s['iter_context_ev_score'] > iter_ev_thresh else ''
+                new_context = create_combo_context(llm_context, iter_context)
+                out_list.append( utils.create_uqa_example(s['q_only'], 
+                                          utils.create_uqa_context(s['mc_options'], new_context), 
+                                          s['answer']) )
+            utils.save_uqa(out_list, outdir, file)
+        
+    
+    #- q[+mc][+LLM expls that score over a threshold] -> a                           (LLM if good else nothing)
+    # 10 per dataset
+    #- q[+mc][+Iterator contexts with ev score over a threshold] -> a                (Iterator if good else nothing)
+    # 10 per dataset
+    #- q[+mc][+LLM expls that score over a threshold else Iterator context] -> a     (LLM if good else Iterator)
+    # 10 per dataset
+    #- q[+mc][+Iterator contexts that score over a threshold else LLM context] -> a  (Iterator if good else LLM)
+    # 10 per dataset
+    #- q[+mc][+max rr score of LLM expls or Iterator context] -> a                   (max rr of LLM / Iterator)
+    # 10 
+    #- q[+mc][+LLM expls that score over a threshold][+Iterator contexts with ev score over a threshold] -> a (could have one or both of LLM & Iterator expls)
+    # 10 per dataset with fixed ev threshold
+
+
+
     
     
     
