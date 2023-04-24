@@ -719,11 +719,11 @@ dataset_attribs = {
     'hpqa_r4c_expl_ans_2': {'type':'EX', 'prefer':''},
     }
 
-for ds in csqa_combos: dataset_attribs[ds] = {'type':'MC', 'prefer':''}          
-for ds in sqa_combos: dataset_attribs[ds] = {'type':'YN', 'prefer':''}          
-for ds in arcda_combos: dataset_attribs[ds] = {'type':'EX', 'prefer':''}          
-for ds in iirc_combos: dataset_attribs[ds] = {'type':'EX', 'prefer':''}          
-for ds in mudev_combos: dataset_attribs[ds] = {'type':'EX', 'prefer':''}          
+for ds in csqa_combos: dataset_attribs[ds] = {'type':'MC', 'prefer':''}
+for ds in sqa_combos: dataset_attribs[ds] = {'type':'YN', 'prefer':''}
+for ds in arcda_combos: dataset_attribs[ds] = {'type':'EX', 'prefer':''}
+for ds in iirc_combos: dataset_attribs[ds] = {'type':'EX', 'prefer':''}
+for ds in mudev_combos: dataset_attribs[ds] = {'type':'EX', 'prefer':''}
 
 
 ########################################################
@@ -733,7 +733,8 @@ for ds in mudev_combos: dataset_attribs[ds] = {'type':'EX', 'prefer':''}
 answer_type_map = {'anstypes_drop_dev.jsonl': ['drop'],
                    'anstypes_iirc_test.jsonl': ['iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
                                                 'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
-                                                'iirc_od_ans_fullwiki_bs150_mdr','iirc_initial_context_fullwiki_bs150_mdr'],
+                                                'iirc_od_ans_fullwiki_bs150_mdr','iirc_initial_context_fullwiki_bs150_mdr',
+                                                'iirc_initial_context_llm_expl', 'iirc_initial_context_llm_expl_fullwiki_bs150',],
                    'anstypes_tatqa_dev.jsonl': ['tatqa'],
                    }
 
