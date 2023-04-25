@@ -36,15 +36,29 @@ NOTES:
         - where multiple docs occur in a single evidence set we keep separate
     - Since we are building this dataset to train a sentence prediction model we skip "NOT ENOUGH INFO" claims.
     - We retain REFUTED claims in the belief that we are marking sentences as evidential toward deriving an answer rather than just positive examples ie "positive" means "evidential" not necessarily "supportive"
+
+Fix from: Jay DeYoung, Sarthak Jain, Nazneen Fatema Rajani, Eric Lehman, Caiming Xiong, Richard Socher, and Byron C. Wallace. 2020. ERASER: A Benchmark to Evaluate Rationalized NLP Models. Transactions of the Association for Computational Linguistics.
+    - 25/4/23: A fair number of Fever gold sent labels (in the original Fever dev/train files) are incorrect (right para, wrong sentence(s) labelled as gold). 
+                Eraser: For single-doc samples they performed additional (unspecified) processing and fixed the labels.
+                Hence we create "v2" fever files in which sent labels are updated with the Eraser fixes.
+                These v2 files were NOT used in training the original Iterator components and presumably results would have been even better if these had been used..
+                
 """
 import os
 import json
 from html import unescape
 import random
 
+
 import eval_metrics
 import utils
 from text_processing import normalize_unicode, convert_brc, replace_chars, create_sentence_spans, strip_accents, split_into_sentences
+
+ERASER_BASE_DIR = '/home/thar011/data/eraser/fever/'
+UPDATED_DEV_V2 = '/home/thar011/data/fever/fever_dev_with_sent_annots_labelfixesv2.jsonl'
+UPDATED_TRAIN_V2 = '/home/thar011/data/fever/fever_train_with_sent_annots_labelfixesv2.jsonl'
+UPDATED_DEV_V3 = '/home/thar011/data/fever/fever_dev_with_sent_annots_labelfixes_singleonly_v3.jsonl'
+UPDATED_TRAIN_V3 = '/home/thar011/data/fever/fever_train_with_sent_annots_labelfixes_singleonly_v3.jsonl'
 
 
 DEV = '/home/thar011/data/fever/shared_task_dev.jsonl'
@@ -306,14 +320,93 @@ print('Finished outputting fever_hard!')
 
 
 ################################
-#output fever rationales - run lines 273-287 first - not used, using ERASER version...
+#output fever rationales - run lines 273-287 first - not used, using ERASER version built in convert_fever_eraser_rationales.py ...
 ################################
 dev_out = utils.make_rationale(fever_dev_out, src='fever')
 train_out = utils.make_rationale(fever_train_out, src='fever')
 
 
+#######
+# Create "V2" files updating sentence labels for single-para samples..
+#######
+
+def create_eraser_dict(split):
+    """ create lookup dict of eraser gold sent labels
+    """
+    out_dict = {}
+    for s in split:
+        fid = s['annotation_id']
+        if fid.endswith('__0'):  # dev does, train doesnt
+            fid = fid[:-3]
+        evidence_list = utils.flatten(s['evidences'])
+        evidence_list.sort(key=lambda x: x['start_sentence'])
+        evidence_list = [e['start_sentence'] for e in evidence_list]
+        evidence_list = utils.unique_preserve_order(evidence_list) 
+        s['sentence_labels'] = evidence_list
+        s['title_normalised'] = normalize_unicode(convert_brc(unescape(s['docids'][0]))).replace('_', ' ')
+        assert len(s['docids']) == 1
+        out_dict[fid] = s        
+    return out_dict
 
 
+def overwrite_sent_labels(fever_split, eraser_dict_split):
+    """ Overwrite fever sentence labels with eraser ones
+        updates the original "full" list and also returns an eraser-match-only version which is entirely single para samples
+    """
+    eraser_match_only = []
+    for i, s in enumerate(fever_split):
+        fid = s['_id']
+        suffix_start = fid.index('_')
+        fid_base = fid[:suffix_start]
+        if len(s['pos_paras']) > 1:
+            continue
+        e = eraser_dict_split.get(fid_base)
+        if e is None:
+            print(f"idx{i} {fid} not found in eraser lookup. skipping..")
+            continue
+        if e['title_normalised'] != s['pos_paras'][0]['title'].replace('/','  ') and s['pos_paras'][0]['title'] not in ['AC/DC']:
+            print(f"ERROR: {i} {fid} title ({s['pos_paras'][0]['title']}) doesnt match eraser lookup entry title ({e['title_normalised']})!")
+            print(e)
+            assert  e['title_normalised'] == s['pos_paras'][0]['title']
+        s['pos_paras'][0]['sentence_labels'] = e['sentence_labels']
+        eraser_match_only.append(s)
+    return eraser_match_only
+        
+    
+eraser_dev = utils.load_jsonl( os.path.join(ERASER_BASE_DIR, 'dev.jsonl') )  # 6122
+eraser_test = utils.load_jsonl( os.path.join(ERASER_BASE_DIR, 'test.jsonl') ) #6111  #eraser test = 1/2 orig fever dev
+eraser_dev_test = eraser_dev + eraser_test  # 12233
+eraser_train = utils.load_jsonl( os.path.join(ERASER_BASE_DIR, 'train.jsonl') )  # 97957
+
+eraser_dev_test_dict = create_eraser_dict(eraser_dev_test)
+eraser_train_dict = create_eraser_dict(eraser_train)
+
+fever_dev_out = utils.load_jsonl(UPDATED_DEV)      # 15182 dict_keys(['question', 'answers', 'src', 'type', '_id', 'bridge', 'pos_paras', 'neg_paras'])
+fever_train_out =  utils.load_jsonl(UPDATED_TRAIN) # 130658 dict_keys(['question', 'answers', 'src', 'type', '_id', 'bridge', 'pos_paras', 'neg_paras'])
+
+fever_eraser_dev_only = overwrite_sent_labels(fever_dev_out, eraser_dev_test_dict) #12090
+fever_eraser_train_only = overwrite_sent_labels(fever_train_out, eraser_train_dict) #96702
+
+# save "full versions including samples without match in eraser..
+utils.saveas_jsonl(fever_dev_out, UPDATED_DEV_V2)
+utils.saveas_jsonl(fever_train_out, UPDATED_TRAIN_V2)
+
+# save single para-only versions that have match in eraser...
+utils.saveas_jsonl(fever_eraser_dev_only, UPDATED_DEV_V3)
+utils.saveas_jsonl(fever_eraser_train_only, UPDATED_TRAIN_V3)
+
+
+"""
+tst_dict = {}
+for s in fever_train_out:
+    fid = s['_id']
+    suffix_start = fid.index('_')
+    fid_base = fid[:suffix_start]
+    if len(s['pos_paras']) > 1:
+        continue
+    assert tst_dict.get(fid) is None
+    tst_dict[fid] = s
+"""    
 
 
 
