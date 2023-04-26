@@ -460,7 +460,7 @@ class Stage2Dataset(Dataset):
         ans_offset = torch.where(input_ids[0] == self.tokenizer.sep_token_id)[0][0].item()+1  # tok after 1st [SEP] = yes = start of non extractive answer options
         if ans_offset >= 509: #non extractive ans options + eval para truncated due to very long query
             ans_offset = -1  
-        item['insuff_offset'] = torch.LongTensor([ans_offset+2])   # idx of insuff token  if no insuff token = 1      
+        item['insuff_offset'] = torch.LongTensor([ans_offset+2])   # idx of insuff token  if no insuff token = 1
 
         if self.train:
             #if neg sample: point to [unused0]/insufficient evidence

@@ -1596,6 +1596,106 @@ def make_unanswerable_uqa_from_mdr_format(split, tokenizer, max_toks=507, includ
             print(f"Loaded {i} samples of {len(split)}...")
     return out_list
 
+    
+def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1.0, include_all_sent_prob=0.1, 
+                 keep_pos_sent_prob=0.5, keep_neg_sent_prob=0.6):
+    """ Create rr model formatted train/dev samples from "mdr" format dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id' [, 'bridge']])
+        with q + pos/neg paras per doc packed in to roughly max_toks toks.
+        
+        Format of each positive/negative context created mimics the format output from the Iterator:
+            
+        eg: Positive context:   "Pos Title A: Prev sentence to gold. Gold sentence. Following sentence to gold. Neg Title C: 1st random neg sentence. 2nd random neg sentence. 3rd random neg sentence. Pos Title B: Prev sentence to gold. Gold sentence. Following sentence to gold."
+        eg: Negative context:   "Pos Title A: Prev sentence to non-gold. Non-gold sentence. Following sentence to non-gold. Neg Title C: 1st random neg sentence. 2nd random neg sentence. 3rd random neg sentence. Pos Title B: Prev sentence to gold. Gold sentence. Following sentence to gold."
+        
+        Negatives (label 0.0 in rr model training ) are anything that doesn't have the full set of gold sentences ie like the Iterator stage 2 partial/no evidence has label 0
+               
+        include_all_sent_prob: Probability of including full para text (vs subset of para sentences)
+    
+        Note: Short docs will be less than 512 toks. We dont pack more in to these to preserve diversity. 
+              Also some may end up slightly over max_toks.
+        Note 2: For datasets where the pos paras don't have sentence annotations, set include_all_sent_prob=1.0 and entire paras will be used
+    """
+    out_list = []
+    for i, s in enumerate(split):
+        tok_count = len(tokenizer.tokenize(s['question']))
+        
+        para_list = []  #list so we can shuffle
+        for para in s['pos_paras']:
+            text = ''
+            if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
+                text += unescape(para['title']).strip() + ': '
+            if random.random() < include_all_sent_prob or len(para['sentence_spans']) <= 1:  # include full para text
+                text += para['text'].strip()
+                if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                    text += '.'
+                text += ' '
+            else:                                                                            # include gold + prev/following sentence
+                used_s_idxs = []
+                for j, (start, end) in enumerate(para['sentence_spans']):
+                    # Add prior/gold/next sentence:
+                    if (j not in used_s_idxs) and (j in para['sentence_labels'] or j+1 in para['sentence_labels'] or j-1 in para['sentence_labels']):
+                        text += para['text'][start:end].strip()
+                        if  text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                            text += '.'
+                        text += ' '
+                        used_s_idxs.append(j)
+            tok_count += len(tokenizer.tokenize(text))
+            para_list.append(text.strip())
+            
+        for para in s['neg_paras']:
+            text = ''
+            if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
+                text += unescape(para['title']).strip() + ': '
+            if random.random() < include_all_sent_prob:  # include full para text
+                text += para['text'].strip()
+                if  text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                    text += '.'
+                text += ' '
+            else:                                        # include subset of para sentences
+                sentence_spans = create_sentence_spans(split_into_sentences(para['text']))
+                num_sents = len(sentence_spans)
+                if len(num_sents) > 1:
+                    num_to_pick = max(random.choice([2,3,4]), num_sents)
+                    start_j = 0
+                    if num_to_pick < num_sents:
+                        start_j = random.choice([0,1])
+                    picked = 0
+                    for j, (start, end) in enumerate(sentence_spans):
+                        if j >= start_j:
+                            text += para['text'][start:end].strip()
+                            if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                                text += '.'
+                            text += ' '
+                            picked += 1
+                        if picked >= num_to_pick:
+                            break        
+                else:
+                    text += para['text'].strip()
+                    if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                        text += '.'
+                    text += ' '
+            para_toks = tokenizer.tokenize(text)
+            para_tok_len = para_toks + 2
+            if tok_count + para_tok_len < max_toks:
+                tok_count += para_tok_len
+                para_list.append(text.strip())
+            else:
+                break
+        random.shuffle(para_list)
+        context = ' '.join(para_list)
+        sample = create_rr_format(s['question'], text=context, answer=s['answers'], 
+                                  sentence_spans=None, _id='iter_'+s['_id'], src=s['src']+'_iter', append_q_char='?',
+                                  mc_options='', context='')
+        # add neg paras here
+        # 1 with no gold sents - neg sents from pos paras + neg sents from neg paras
+        # 1 with partial gold sents - 50% / 30% pos replaced with negs
+        # 1 entirely negative sents from neg paras?
+        
+        out_list.append( sample )
+        if i % 1000 == 0:
+            print(f"Processed {i} samples of {len(split)}...")
+    return out_list
+
 
 def make_rationale(split, src):
     """ Make rationales from mdr-style positive paras with sentence spans and sentence labels
