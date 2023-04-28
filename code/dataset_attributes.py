@@ -812,7 +812,11 @@ q_ret_paras_train = ['csqa2_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noi
 
 # minus musique:
 q_ret_paras_train_v2 = ['csqa2_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel', 'hover_fullwiki_bs60', 
-                     'qasc_fullwiki_bs60', 'hpqa_fullwiki_bs60', 'nq_open_fullwiki_bs60', ]
+                        'qasc_fullwiki_bs60', 'hpqa_fullwiki_bs60', 'nq_open_fullwiki_bs60', ]
+
+# substitute musique_qa_fullwiki_bs60_unique_answer for musique_qa_fullwiki_bs60:
+q_ret_paras_train_v3 = ['csqa2_fullwiki_bs150_noimplrel', 'creak_fullwiki_bs150_noimplrel', 'hover_fullwiki_bs60', 
+                        'qasc_fullwiki_bs60', 'hpqa_fullwiki_bs60', 'musique_qa_fullwiki_bs60_unique_answer', 'nq_open_fullwiki_bs60', ]
 
 
 #q[+mc]+our retrieved paras with max 4 paras->a
@@ -820,7 +824,11 @@ q_ret_paras_maxp4_train = ['csqa2_fullwiki_bs150_noimplrel_maxp4', 'creak_fullwi
                            'qasc_fullwiki_bs60_maxp4', 'hpqa_fullwiki_bs60_maxp4', 'musique_qa_fullwiki_bs60_maxp4', 'nq_open_fullwiki_bs60_maxp4', ]
 
 q_ret_paras_maxp4_train_v2 = ['csqa2_fullwiki_bs150_noimplrel_maxp4', 'creak_fullwiki_bs150_noimplrel_maxp4', 'hover_fullwiki_bs60_maxp4', 
-                           'qasc_fullwiki_bs60_maxp4', 'hpqa_fullwiki_bs60_maxp4', 'nq_open_fullwiki_bs60_maxp4', ]
+                              'qasc_fullwiki_bs60_maxp4', 'hpqa_fullwiki_bs60_maxp4', 'nq_open_fullwiki_bs60_maxp4', ]
+
+q_ret_paras_maxp4_train_v3 = ['csqa2_fullwiki_bs150_noimplrel_maxp4', 'creak_fullwiki_bs150_noimplrel_maxp4', 'hover_fullwiki_bs60_maxp4', 
+                              'qasc_fullwiki_bs60_maxp4', 'hpqa_fullwiki_bs60_maxp4','musique_qa_fullwiki_bs60_maxp4_unique_answer' , 'nq_open_fullwiki_bs60_maxp4', ]
+
 
 # added for LLM tests below:
 # q[+mc]+llm-generated rationale->a
