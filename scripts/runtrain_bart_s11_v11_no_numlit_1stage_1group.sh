@@ -11,7 +11,7 @@
 
 cd ../code
 
-python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_11_v11_NOnumlit_withwikissvise_idt_unisamp_1group_1stage \
+python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s11_v11_NOnumlit_withwikissvise_idt_unisamp_1group_1stage \
         --is_unifiedqa \
         --train_file $UDATA/data/unifiedqa/train.tsv \
         --predict_file $UDATA/data/unifiedqa/dev.tsv \
@@ -33,6 +33,6 @@ python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_11_v11_NOnumlit_wi
         --dont_save_train_token_file \
         --indiv_digits \
         --approx_dev_samples 1250 \
-        --mixture enwiki_20200801_selfsvised,q_paras_all,q_paras_noanswer_all,q_mc_all,q_mc_paras_all,q_od_all,enwiki_20200801_selfsvised,q_ret_paras_all,q_ret_paras_maxp4_all
+        --mixture q_paras_all,q_paras_noanswer_all,q_mc_all,q_mc_paras_all,q_od_all,enwiki_20200801_selfsvised,q_ret_paras_all,q_ret_paras_maxp4_all
 
 
