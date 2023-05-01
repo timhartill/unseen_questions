@@ -117,15 +117,16 @@ rr_train_all = utils.make_rr_from_mdr_format(iter_train, tokenizer, max_toks=507
 utils.saveas_jsonl(rr_train_all, os.path.join(RR_OUT_BASE, 'rr_train_iterctxtsv3_all.jsonl'))
 
 # load rr_dev, rr_train
-rr_dev_combo = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_dev.jsonl'))
-rr_train_combo = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_train.jsonl'))
+rr_dev_combo = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_dev.jsonl'))  #11240
+rr_train_combo = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_train.jsonl'))  #48554
 
 # merge hpqa, hover iter pos/negs into rr combo that has rationales
 rr_dev_combo_iter =  utils.merge_pos_into_rr(rr_dev_combo, rr_dev_all, include_negs=True, add_src_to_key=True, strip_from_src='_iter')
 rr_train_combo_iter =  utils.merge_pos_into_rr(rr_train_combo, rr_train_all, include_negs=True, add_src_to_key=True, strip_from_src='_iter')
 # add hover separately since doesnt exist in current rr rationale based combo:
-rr_dev_combo_iter += [s for s in rr_dev_all if s['src']=='hover_iter']
-rr_train_combo_iter += [s for s in rr_train_all if s['src']=='hover_iter']
+# note: below throws error msgs since many samples in rr_dev_all don't appear in rr_dev_combo
+rr_dev_combo_iter += [s for s in rr_dev_all if s['src']=='hover_iter']  # + 4000 = 15240
+rr_train_combo_iter += [s for s in rr_train_all if s['src']=='hover_iter']  # + 18171 = 66725
 # save combined file
 utils.saveas_jsonl(rr_dev_combo_iter, os.path.join(RR_OUT_BASE, 'rr_dev_rat_iterctxtsv3_merged.jsonl'))
 utils.saveas_jsonl(rr_train_combo_iter, os.path.join(RR_OUT_BASE, 'rr_train_rat_iterctxtsv3_merged.jsonl'))
