@@ -12,10 +12,10 @@ import os
 import utils
 
 
-FEVER_TRAIN = '/home/thar011/data/fever/fever_train_with_sent_annots.jsonl' #NOTE: Original with some mis-labelled gold sents
+FEVER_TRAIN = '/home/thar011/data/fever/fever_train_with_sent_annots.jsonl' #NOTE: Original based on original fever dataset that has some mis-labelled gold sents
 FEVER_DEV = '/home/thar011/data/fever/fever_dev_with_sent_annots.jsonl'     #NOTE: Original with some mis-labelled gold sents
 
-# For cleaner training set use these instead for fever:
+# For cleaner training set use these instead for fever.:
 FEVER_TRAIN_V3 = '/home/thar011/data/fever/fever_train_with_sent_annots_labelfixes_singleonly_v3.jsonl'
 FEVER_DEV_V3 = '/home/thar011/data/fever/fever_dev_with_sent_annots_labelfixes_singleonly_v3.jsonl'    
 
@@ -26,8 +26,6 @@ HPQA_TRAIN = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_train_wi
 HPQA_DEV = '/large_data/thar011/out/mdr/encoded_corpora/hotpot/hotpot_dev_with_neg_v0_sentannots.jsonl'
 
 SENT_DIR = '/home/thar011/data/sentences/'
-SENT_TRAIN = os.path.join(SENT_DIR, 'sent_train.jsonl')
-SENT_DEV = os.path.join(SENT_DIR, 'sent_dev.jsonl')
 os.makedirs(SENT_DIR, exist_ok=True)
 
 
@@ -47,16 +45,17 @@ hpqa_dev = utils.load_jsonl(HPQA_DEV)
 sent_train = hover_train + hpqa_train + fever_train  # 239276
 sent_dev = hover_dev + hpqa_dev + fever_dev          # 26587
 
+SENT_TRAIN = os.path.join(SENT_DIR, 'sent_train.jsonl')
+SENT_DEV = os.path.join(SENT_DIR, 'sent_dev.jsonl')
 utils.saveas_jsonl(sent_train, SENT_TRAIN)
 utils.saveas_jsonl(sent_dev, SENT_DEV)
+
 
 sent_train = hover_train + hpqa_train + fever_train_v3  # 205320
 sent_dev = hover_dev + hpqa_dev + fever_dev_v3          # 23495
 
 SENT_TRAIN = os.path.join(SENT_DIR, 'sent_train_feversingleonlyv3.jsonl')
 SENT_DEV = os.path.join(SENT_DIR, 'sent_dev_feversingleonlyv3.jsonl')
-
-
 utils.saveas_jsonl(sent_train, SENT_TRAIN)
 utils.saveas_jsonl(sent_dev, SENT_DEV)
 

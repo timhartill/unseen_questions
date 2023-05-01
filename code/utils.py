@@ -1597,8 +1597,7 @@ def make_unanswerable_uqa_from_mdr_format(split, tokenizer, max_toks=507, includ
     return out_list
 
     
-def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1.0, include_all_sent_prob=0.1, 
-                 keep_pos_sent_prob=0.5, keep_neg_sent_prob=0.6):
+def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1.0, include_all_sent_prob=0.1):
     """ Create rr model formatted train/dev samples from "mdr" format dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id' [, 'bridge']])
         with q + pos/neg paras per doc packed in to roughly max_toks toks.
         
@@ -1613,14 +1612,19 @@ def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1
     
         Note: Short docs will be less than 512 toks. We dont pack more in to these to preserve diversity. 
               Also some may end up slightly over max_toks.
-        Note 2: For datasets where the pos paras don't have sentence annotations, set include_all_sent_prob=1.0 and entire paras will be used
     """
     out_list = []
     for i, s in enumerate(split):
-        tok_count = len(tokenizer.tokenize(s['question']))
         
+        if s['answers'][0] in ["SUPPORTED", "SUPPORTS"]: #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
+            s['answers'][0] = 'yes'
+        elif s['answers'][0] in ["REFUTES", "NOT_SUPPORTED"]:
+            s['answers'][0] = 'no'
+
+        ###### build positive context first then negative context separately below
+        tok_count = len(tokenizer.tokenize(s['question']))
         para_list = []  #list so we can shuffle
-        for para in s['pos_paras']:
+        for para in s['pos_paras']:  # create pos part of pos context using gold sents +/-1 exta sentence
             text = ''
             if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
                 text += unescape(para['title']).strip() + ': '
@@ -1642,7 +1646,7 @@ def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1
             tok_count += len(tokenizer.tokenize(text))
             para_list.append(text.strip())
             
-        for para in s['neg_paras']:
+        for para in s['neg_paras']:  # create neg part of pos context using (neg) sents from neg paras
             text = ''
             if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
                 text += unescape(para['title']).strip() + ': '
@@ -1654,11 +1658,11 @@ def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1
             else:                                        # include subset of para sentences
                 sentence_spans = create_sentence_spans(split_into_sentences(para['text']))
                 num_sents = len(sentence_spans)
-                if len(num_sents) > 1:
-                    num_to_pick = max(random.choice([2,3,4]), num_sents)
+                if num_sents > 1:
+                    num_to_pick = min(random.choice([2,3,4]), num_sents)
                     start_j = 0
                     if num_to_pick < num_sents:
-                        start_j = random.choice([0,1])
+                        start_j = random.choice([0,1]) # randomly select sents starting from 1st or 2nd sent in para
                     picked = 0
                     for j, (start, end) in enumerate(sentence_spans):
                         if j >= start_j:
@@ -1667,15 +1671,15 @@ def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1
                                 text += '.'
                             text += ' '
                             picked += 1
-                        if picked >= num_to_pick:
-                            break        
+                        if picked >= num_to_pick: # randomly pick 2,3 or 4 sents
+                            break
                 else:
                     text += para['text'].strip()
                     if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
                         text += '.'
                     text += ' '
             para_toks = tokenizer.tokenize(text)
-            para_tok_len = para_toks + 2
+            para_tok_len = len(para_toks) + 2
             if tok_count + para_tok_len < max_toks:
                 tok_count += para_tok_len
                 para_list.append(text.strip())
@@ -1683,13 +1687,113 @@ def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1
                 break
         random.shuffle(para_list)
         context = ' '.join(para_list)
+        src = s.get('src')
+        if src is None:
+            src = 'hpqa'
         sample = create_rr_format(s['question'], text=context, answer=s['answers'], 
-                                  sentence_spans=None, _id='iter_'+s['_id'], src=s['src']+'_iter', append_q_char='?',
-                                  mc_options='', context='')
-        # add neg paras here
-        # 1 with no gold sents - neg sents from pos paras + neg sents from neg paras
-        # 1 with partial gold sents - 50% / 30% pos replaced with negs
-        # 1 entirely negative sents from neg paras?
+                                  sentence_spans=None, _id='iter_'+s['_id'], src=src+'_iter', append_q_char='?',
+                                  mc_options='', context='')  #Note: No training samples with mc options or initial context!
+
+        ###### build negative context below
+        tok_count = len(tokenizer.tokenize(s['question']))
+        para_list = []  # list so we can shuffle
+        num_pos_paras = len(s['pos_paras'])
+        para_idxs = list(range(num_pos_paras))
+        random.shuffle(para_idxs)
+        force_drop_idxs = [para_idxs[0]]  # make sure we drop at least one para (or gold sents within 1 para)
+        if num_pos_paras > 1:        # if > 1 pos para, randomly drop a 2nd para (or gold sents within it)
+            if random.random() > 0.5:
+                force_drop_idxs.append( random.choice(para_idxs[1:]) )
+
+        for k, para in enumerate(s['pos_paras']):  # neg context from pos paras
+            text = ''
+            if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
+                text += unescape(para['title']).strip() + ': '
+            if k not in force_drop_idxs:  # add para or gold sents as usual ie pos part of neg context
+                if random.random() < include_all_sent_prob or len(para['sentence_spans']) <= 1:  # include full para text
+                    text += para['text'].strip()
+                    if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                        text += '.'
+                    text += ' '
+                else:                                                                            # include gold + prev/following sentence
+                    used_s_idxs = []
+                    for j, (start, end) in enumerate(para['sentence_spans']):
+                        # Add prior/gold/next sentence:
+                        if (j not in used_s_idxs) and (j in para['sentence_labels'] or j+1 in para['sentence_labels'] or j-1 in para['sentence_labels']):
+                            text += para['text'][start:end].strip()
+                            if  text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                                text += '.'
+                            text += ' '
+                            used_s_idxs.append(j)
+            else:                       # drop para or gold sent(s) from a para ie create neg from pos
+                num_sents = len(para['sentence_spans']) - len(para['sentence_labels'])  # num neg sents after removing golds
+                if random.random() >= include_all_sent_prob and num_sents > 0: # implicitly drop full paras and where not dropping full, drop all gold sents
+                    num_to_pick = min(random.choice([2,3,4]), num_sents)
+                    start_j = 0
+                    if num_to_pick < num_sents:
+                        start_j = random.choice([0,1]) # randomly select sents starting from 1st or 2nd sent in para
+                    picked = 0
+                
+                    for j, (start, end) in enumerate(para['sentence_spans']):
+                        if j not in para['sentence_labels']: # always drop all gold sents, keep all others
+                            if j >= start_j:
+                                text += para['text'][start:end].strip()
+                                if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                                    text += '.'
+                                text += ' '
+                                picked += 1
+                            if picked >= num_to_pick: # randomly pick 2,3 or 4 sents
+                                break
+                else:       # insufficient non-gold sents to create neg from pos
+                    text = ''
+                    
+            if text.strip() != '':
+                tok_count += len(tokenizer.tokenize(text))
+                para_list.append(text.strip())
+
+        random.shuffle(s['neg_paras'])
+        for para in s['neg_paras']:  # pad neg context using (neg) sents from neg paras
+            text = ''
+            if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
+                text += unescape(para['title']).strip() + ': '
+            if random.random() < include_all_sent_prob:  # include full para text
+                text += para['text'].strip()
+                if  text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                    text += '.'
+                text += ' '
+            else:                                        # include subset of para sentences
+                sentence_spans = create_sentence_spans(split_into_sentences(para['text']))
+                num_sents = len(sentence_spans)
+                if num_sents > 1:
+                    num_to_pick = min(random.choice([2,3,4]), num_sents)
+                    start_j = 0
+                    if num_to_pick < num_sents:
+                        start_j = random.choice([0,1]) # randomly select sents starting from 1st or 2nd sent in para
+                    picked = 0
+                    for j, (start, end) in enumerate(sentence_spans):
+                        if j >= start_j:
+                            text += para['text'][start:end].strip()
+                            if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                                text += '.'
+                            text += ' '
+                            picked += 1
+                        if picked >= num_to_pick: # randomly pick 2,3 or 4 sents
+                            break
+                else:
+                    text += para['text'].strip()
+                    if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                        text += '.'
+                    text += ' '
+            para_toks = tokenizer.tokenize(text)
+            para_tok_len = len(para_toks) + 2
+            if tok_count + para_tok_len < max_toks:
+                tok_count += para_tok_len
+                para_list.append(text.strip())
+            else:
+                break
+        random.shuffle(para_list)
+        context = ' '.join(para_list)
+        sample['neg_paras'] = make_rr_para(context)
         
         out_list.append( sample )
         if i % 1000 == 0:
@@ -1882,12 +1986,21 @@ def load_llm_generations_singlemode(infile):
     return outlist
 
 
-def merge_pos_into_rr(rr_format, poslist, include_negs=False):
+def merge_pos_into_rr(rr_format, poslist, include_negs=False, add_src_to_key=False, strip_from_src='_iter'):
     """ Merge pos list (in rr format incl sent spans) into base rr format list and optionally neg_paras also
+    If add_src_to_key=True, prepend the question with the src to accomodate duplicate questions over different datasets
     """
-    rr_dict = {s['question'].rstrip().rstrip('?!:. ').lstrip(): s for s in rr_format}  # occasionally ending punctuation differences cause mismatches so strip all ending punctuation
+    if not add_src_to_key:
+        rr_dict = {s['question'].rstrip().rstrip('?!:. ').lstrip(): s for s in rr_format}  # occasionally ending punctuation differences cause mismatches so strip all ending punctuation
+    else:
+        rr_dict = {s['src'].replace(strip_from_src,'')+s['question'].rstrip().rstrip('?!:. ').lstrip(): s for s in rr_format}  # occasionally ending punctuation differences cause mismatches so strip all ending punctuation
+
     for i, pos in enumerate(poslist):
-        q = pos['question'].rstrip().rstrip('?!:. ').lstrip()
+        if not add_src_to_key:
+            q = pos['question'].rstrip().rstrip('?!:. ').lstrip()
+        else:
+            q = pos['src'].replace(strip_from_src,'')+pos['question'].rstrip().rstrip('?!:. ').lstrip()
+            
         rr_sample = rr_dict.get(q)
         if rr_sample is None:
             print(f"ERROR: Pos idx:{i}  Pos q:{q}: Unable to match in rr_dict [merge_pos_into_rr()]")
@@ -1895,7 +2008,7 @@ def merge_pos_into_rr(rr_format, poslist, include_negs=False):
             rr_sample['pos_paras'].extend(pos['pos_paras'])
             if include_negs:
                 rr_sample['neg_paras'].extend(pos['neg_paras'])    
-    rr_format_new = [rr_dict[q] for q in rr_dict.keys()]        
+    rr_format_new = [rr_dict[q] for q in rr_dict.keys()]
     return rr_format_new
 
     
