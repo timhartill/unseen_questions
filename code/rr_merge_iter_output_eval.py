@@ -192,7 +192,7 @@ if __name__ == "__main__":
         
     """
 
-    split = os.path.split(args.llm_file)[-1][:-4]     
+    split = os.path.split(args.llm_file)[-1][:-4]
     date_curr = date.today().strftime("%m-%d-%Y")
     model_name = f"{args.prefix}-{args.base_dataset}-{split}-{date_curr}-RR_ITER_MERGE"
     args.output_dir = os.path.join(args.output_dir, model_name)
@@ -274,13 +274,89 @@ if __name__ == "__main__":
         samples_llm[i]['iter_context_rr_score'] = s
         
     utils.saveas_jsonl(samples_llm, os.path.join(args.output_dir, 'samples_llm_iter_scored.jsonl'))
-    answer_in_expl(samples_llm)
+    #answer_in_expl(samples_llm)
     
     # output eval tsv files
-#    llm_rr_thresholds = [0.0, 0.0003, 0.0005, 0.0008, 0.00099, 0.005, 0.05, 0.5, 0.75, 0.9]
-#    iter_rr_thresholds = [0.0, 0.0003, 0.0005, 0.0008, 0.00099, 0.005, 0.05, 0.5, 0.75, 0.9]
-#    iter_ev_thresholds = [0.0, 0.0003, 0.0005, 0.0008, 0.00099, 0.005, 0.05, 0.5, 0.75, 0.9]
+    rr_thresholds = [0.0005, 0.005, 0.05, 0.135, 0.3, 0.5, 0.75, 0.9]
+    logger.info(f"Outputing combos for thresholds:{rr_thresholds}...")
+    file = split + '.tsv'
+    for rr_thresh in rr_thresholds:
+        newdataset = f"{args.base_dataset}_v2_llm_expl_rr{str(rr_thresh)}_fullwiki_rr{str(rr_thresh)}"
+        outdir = os.path.join(UQA_DIR, newdataset)
+        logger.info(f"Output tsv to: {outdir}")
+        os.makedirs(outdir, exist_ok=True)
+        llm_only, iter_only, both, both_default = 0, 0, 0, 0  # count contexts with llm only, iter only or both
+        
+        out_list = []
+        for s in samples_llm:
+            llm_context = s['context'] if s['llm_rr_score'] > rr_thresh else ''
+            iter_context = s['iter_context'] if s['iter_context_rr_score'] > rr_thresh else ''
+            if llm_context != '' or iter_context != '':
+                if llm_context != '' and iter_context == '':
+                    llm_only += 1
+                elif llm_context == '' and iter_context != '':
+                    iter_only += 1
+                else:
+                    both += 1
+                new_context = create_combo_context(llm_context, iter_context)
+            else:  # neither llm or iter meet thresh, default to combining both
+                both_default += 1
+                new_context = create_combo_context(s['context'], s['iter_context'])
+                
+            out_list.append( utils.create_uqa_example(s['q_only'], 
+                                      utils.create_uqa_context(s['mc_options'], new_context), 
+                                      s['answer']) )
+        utils.save_uqa(out_list, outdir, file)
+        logger.info(f"{newdataset}: LLM only:{llm_only}  Iter only:{iter_only}  Both over thresh:{both} Both under thresh:{both_default}  Total:{llm_only+iter_only+both+both_default}")
 
+
+    rr_thresholds = [0.3, 0.5, 0.75, 0.9]
+    logger.info(f"Outputting iter if over thresh else llm for thresholds:{rr_thresholds}...")
+    for rr_thresh in rr_thresholds:
+        newdataset = f"{args.base_dataset}_v2_iterthresh_llm_expl_rr_fullwiki_over_rr{str(rr_thresh)}"
+        outdir = os.path.join(UQA_DIR, newdataset)
+        logger.info(f"Output tsv to: {outdir}")
+        os.makedirs(outdir, exist_ok=True)
+        llm_only, iter_only = 0, 0  # count contexts with llm only, iter only
+        
+        out_list = []
+        for s in samples_llm:
+            if s['iter_context_rr_score'] < rr_thresh:
+                llm_only += 1
+                new_context = create_combo_context(s['context'], '')
+            else:
+                iter_only += 1
+                new_context = create_combo_context('', s['iter_context'])
+            out_list.append( utils.create_uqa_example(s['q_only'], 
+                                                        utils.create_uqa_context(s['mc_options'], new_context), 
+                                                        s['answer']) )
+        utils.save_uqa(out_list, outdir, file)
+        logger.info(f"{newdataset}: LLM only:{llm_only}  Iter only:{iter_only}")
+
+
+    logger.info("Outputting max(llm score, iter score)...")
+    newdataset = f"{args.base_dataset}_v2_maxrr_llm_expl_fullwiki"
+    outdir = os.path.join(UQA_DIR, newdataset)
+    logger.info(f"Output tsv to: {outdir}")
+    os.makedirs(outdir, exist_ok=True)
+    llm_only, iter_only = 0, 0  # count contexts with llm only, iter only or both    
+    out_list = []
+    for s in samples_llm:
+        if s['llm_rr_score'] >= s['iter_context_rr_score']:
+            llm_only += 1
+            new_context = create_combo_context(s['context'], '')
+        else:
+            iter_only += 1
+            new_context = create_combo_context('', s['iter_context'])
+        out_list.append( utils.create_uqa_example(s['q_only'], 
+                                  utils.create_uqa_context(s['mc_options'], new_context), 
+                                  s['answer']) )
+    utils.save_uqa(out_list, outdir, file)
+    logger.info(f"{newdataset}: LLM only:{llm_only}  Iter only:{iter_only}  Total:{llm_only+iter_only}")
+    
+
+
+    """  Old
     llm_rr_thresholds = [0.0005, 0.00099, 0.005, 0.75, 0.9]
     iter_rr_thresholds = [0.005, 0.0099, 0.05, 0.75, 0.9]  # rr scores on iter tend to be higher than on llm especially at lower values
     iter_ev_thresholds = [0.00099, 0.005, 0.75, 0.9]  # min evs around 0.0005 so exclude 0.0005 thresh
@@ -316,12 +392,8 @@ if __name__ == "__main__":
                                           utils.create_uqa_context(s['mc_options'], new_context), 
                                           s['answer']) )
             utils.save_uqa(out_list, outdir, file)
-        
+    """
     logger.info("Finished!")
-    #- q[+mc][+LLM expls that score over a threshold] -> a                           (LLM if good else nothing)
-    # 10 per dataset
-    #- q[+mc][+Iterator contexts with ev score over a threshold] -> a                (Iterator if good else nothing)
-    # 10 per dataset
     #- q[+mc][+LLM expls that score over a threshold else Iterator context] -> a     (LLM if good else Iterator)
     # 10 per dataset
     #- q[+mc][+Iterator contexts that score over a threshold else LLM context] -> a  (Iterator if good else LLM)

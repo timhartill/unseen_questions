@@ -224,7 +224,7 @@ class RREvalDataset(Dataset):
         q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
         max_toks_for_doc = self.max_seq_len - para_offset - 1
         if max_toks_for_doc <= 2 and self.debug and self.debug_count > 0:
-            print(f"Query too long: _id:{sample['_id']}")
+            print(f"Query too long: _id:{sample.get('_id')}")
             self.debug_count -= 1
         
         rat = " [SEP] " + c
@@ -233,7 +233,7 @@ class RREvalDataset(Dataset):
             if self.debug and self.debug_count > 0:
                 if len(r_toks) > 511:
                     print(f"RAT > 511 toks: index:{index}")
-                print(f"Rat truncated. index:{index} _id:{sample['_id']}")
+                print(f"Rat truncated. index:{index} _id:{sample.get('_id')}")
                 self.debug_count -= 1
             r_toks = r_toks[:max_toks_for_doc]
         r_ids = self.tokenizer.convert_tokens_to_ids(r_toks)

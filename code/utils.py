@@ -353,7 +353,8 @@ def return_filtered_list(full_list, filter_key = -1, return_none=-1):
 
 
 def create_grouped_metrics(logger, sample_list, group_key='src',
-                           metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall']):
+                           metric_keys = ['answer_em', 'answer_f1', 'sp_facts_covered_em', 'sp_facts_em', 'sp_facts_f1', 'sp_facts_prec', 'sp_facts_recall', 'joint_em', 'joint_f1', 'sp_em', 'sp_f1', 'sp_prec', 'sp_recall'],
+                           verbose=True):
     """ output mean metrics by group from a jsonl list
     """
     grouped_metrics = {}
@@ -366,12 +367,13 @@ def create_grouped_metrics(logger, sample_list, group_key='src',
             missing_metric_keys.append(key)
     if missing_metric_keys != []:
         metric_keys = present_metric_keys
-        if logger is not None:
-            logger.info("------------------------------------------------")     
-            logger.info(f"Samples dont have: {missing_metric_keys}. Skipping these.")
-        else:
-            print("------------------------------------------------")     
-            print(f"Samples dont have: {missing_metric_keys}. Skipping these.")
+        if verbose:
+            if logger is not None:
+                logger.info("------------------------------------------------")     
+                logger.info(f"Samples dont have: {missing_metric_keys}. Skipping these.")
+            else:
+                print("------------------------------------------------")     
+                print(f"Samples dont have: {missing_metric_keys}. Skipping these.")
     
     for sample in sample_list:
         if group_key.upper() == 'ALL':
@@ -404,10 +406,12 @@ def create_grouped_metrics(logger, sample_list, group_key='src',
         for key in metric_keys:
             n = len(mgroup[key])
             val = np.mean( mgroup[key] ) if n > 0 else -1
+            valmax = np.max( mgroup[key] ) if n > 0 else -1
+            valmin = np.min( mgroup[key] ) if n > 0 else -1
             if logger is not None:
-                logger.info(f'{key}: {val}  n={n}')
+                logger.info(f'{key}: Mean:{val}  n={n}')
             else:
-                print(f'{key}: {val}  n={n}')    
+                print(f'{key}: Mean:{val}  n={n}  max:{valmax: .6f}  min:{valmin: .6f}')    
         if logger is not None:
             logger.info("------------------------------------------------")
         else:
