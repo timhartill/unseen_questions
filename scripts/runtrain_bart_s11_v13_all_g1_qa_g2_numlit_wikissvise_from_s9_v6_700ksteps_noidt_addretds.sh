@@ -1,4 +1,4 @@
-# training command - train stage 2 without idt from stage 1 best model over 1m steps also trained without idt
+# training command - no idt, from best stage 1 model after 700k steps to match orig stage 1 best model
 
 #        --train_batch_size 32 \
 #        --fp16 \
@@ -11,11 +11,11 @@
 
 cd ../code
 
-python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s11_v12_all_g1_qa_g2_numlit_wikissvise_from_s9_v6_NOidt_addretds \
+python cli.py --do_train --output_dir $LDATA/out/mdr/logs/UQA_s11_v13_all_g1_qa_g2_numlit_wikissvise_from_s9_v6_NOidt_700ksteps_addretds \
         --is_unifiedqa \
         --train_file $UDATA/data/unifiedqa/train.tsv \
         --predict_file $UDATA/data/unifiedqa/dev.tsv \
-        --checkpoint $LDATA/out/mdr/logs/UQA_s9_v6_numlit_wikissvise_NOidt_errsamp_fixdecode/best-model.pt \
+        --checkpoint $LDATA/out/mdr/logs/UQA_s9_v6_numlit_wikissvise_NOidt_errsamp_fixdecode/best-model-700000.pt \
         --train_batch_size 32 \
         --predict_batch_size 32 \
         --append_another_bos --do_lowercase \
