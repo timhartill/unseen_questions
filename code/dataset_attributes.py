@@ -954,6 +954,7 @@ eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
                                     'out/mdr/logs/UQA_s14_v3_from_s9_v2_base_add_exp_gold_only/eval_metrics.json',
                                     'out/mdr/logs/UQA_s14_v4_from_s9_v2_base_ratd_add_exp_gold_only/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v10_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretdsv3mu_unique/eval_metrics.json',
+                                    'out/mdr/logs/UQA_s11_v11_NOnumlit_withwikissvise_idt_unisamp_1group_1stage/eval_metrics.json',
                                   ]
                        }
             # add additional sets in same format as 'default' here..

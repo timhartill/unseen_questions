@@ -11,11 +11,18 @@
 
 echo "Update existing BART outputs which use best-model without a particular checkpoint and indiv_digits..."
 
-for out in "${LDATA}/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise_COPY_AT810Ksteps" "${LDATA}/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise" "${LDATA}/out/mdr/logs/UQA_s11_v4_all_g1_qa_g2_numlit_wikissvise_addretds" "${LDATA}/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_COPY_AT810Ksteps" "${LDATA}/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2" "${LDATA}/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds" "${LDATA}/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_COPY_AT_770Ksteps" "${LDATA}/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m" "${LDATA}/out/mdr/logs/UQA_s11_v6_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretdsv2" "${LDATA}/out/mdr/logs/UQA_s12_v7__from_s11_v3cont1m_iircg_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v6__from_s11_v3cont1m_drop_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v8__from_s11_v3cont1m_iircr_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v10__from_s11_v2_iircg_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v9__from_s11_v2_drop_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v11__from_s11_v2_iircr_ft_bart" "${LDATA}/out/mdr/logs/UQA_s14_v1_from_s9_v2_base_add_exp" "${LDATA}/out/mdr/logs/UQA_s14_v2_from_s9_v2_base_ratd_add_exp" "${LDATA}/out/mdr/logs/UQA_s14_v3_from_s9_v2_base_add_exp_gold_only" "${LDATA}/out/mdr/logs/UQA_s14_v4_from_s9_v2_base_ratd_add_exp_gold_only" "${LDATA}/out/mdr/logs/UQA_s11_v10_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretdsv3mu_unique"
+for out in "${LDATA}/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise_COPY_AT810Ksteps" "${LDATA}/out/mdr/logs/UQA_s11_v1_all_g1_qa_g2_numlit_wikissvise" "${LDATA}/out/mdr/logs/UQA_s11_v4_all_g1_qa_g2_numlit_wikissvise_addretds" "${LDATA}/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_COPY_AT810Ksteps" "${LDATA}/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2" "${LDATA}/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds" "${LDATA}/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_COPY_AT_770Ksteps" "${LDATA}/out/mdr/logs/UQA_s11_v3_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretds_CONTINUE1m" "${LDATA}/out/mdr/logs/UQA_s11_v6_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretdsv2" "${LDATA}/out/mdr/logs/UQA_s12_v7__from_s11_v3cont1m_iircg_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v6__from_s11_v3cont1m_drop_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v8__from_s11_v3cont1m_iircr_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v10__from_s11_v2_iircg_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v9__from_s11_v2_drop_ft_bart" "${LDATA}/out/mdr/logs/UQA_s12_v11__from_s11_v2_iircr_ft_bart" "${LDATA}/out/mdr/logs/UQA_s14_v1_from_s9_v2_base_add_exp" "${LDATA}/out/mdr/logs/UQA_s14_v2_from_s9_v2_base_ratd_add_exp" "${LDATA}/out/mdr/logs/UQA_s14_v3_from_s9_v2_base_add_exp_gold_only" "${LDATA}/out/mdr/logs/UQA_s14_v4_from_s9_v2_base_ratd_add_exp_gold_only" "${LDATA}/out/mdr/logs/UQA_s11_v10_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretdsv3mu_unique" "${LDATA}/out/mdr/logs/UQA_s11_v11_NOnumlit_withwikissvise_idt_unisamp_1group_1stage"
 do
     echo "Updating eval for $out ..."
     bash runevalall_v2_bartlarge_pick_bestmodel_indivdigits.sh $out
 done
+
+#### TODO ADD bart eval on models WITHOUT IDT here:
+#for out in "${LDATA}/out/mdr/logs/UQA_s11_v12_all_g1_qa_g2_numlit_wikissvise_from_s9_v6_NOidt_addretds" "${LDATA}/out/mdr/logs/UQA_s11_v13_all_g1_qa_g2_numlit_wikissvise_from_s9_v6_NOidt_700ksteps_addretds"
+#do
+#    echo "Updating eval for $out ..."
+#    bash runevalall_v2_bartlarge_pick_bestmodel.sh $out
+#done
 
 
 echo "Update existing t5-large outputs which use best-model without a particular checkpoint and indiv_digits..."
