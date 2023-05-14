@@ -17,12 +17,12 @@ do
     bash runevalall_v2_bartlarge_pick_bestmodel_indivdigits.sh $out
 done
 
-#### TODO ADD bart eval on models WITHOUT IDT here:
-#for out in "${LDATA}/out/mdr/logs/UQA_s11_v12_all_g1_qa_g2_numlit_wikissvise_from_s9_v6_NOidt_addretds" "${LDATA}/out/mdr/logs/UQA_s11_v13_all_g1_qa_g2_numlit_wikissvise_from_s9_v6_NOidt_700ksteps_addretds"
-#do
-#    echo "Updating eval for $out ..."
-#    bash runevalall_v2_bartlarge_pick_bestmodel.sh $out
-#done
+#### bart eval on models WITHOUT IDT here:
+for out in "${LDATA}/out/mdr/logs/UQA_s11_v12_all_g1_qa_g2_numlit_wikissvise_from_s9_v6_NOidt_addretds" "${LDATA}/out/mdr/logs/UQA_s11_v13_all_g1_qa_g2_numlit_wikissvise_from_s9_v6_NOidt_700ksteps_addretds"
+do
+    echo "Updating eval for $out ..."
+    bash runevalall_v2_bartlarge_pick_bestmodel.sh $out
+done
 
 
 echo "Update existing t5-large outputs which use best-model without a particular checkpoint and indiv_digits..."
