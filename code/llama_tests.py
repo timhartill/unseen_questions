@@ -70,3 +70,23 @@ model = AutoModelForCausalLM.from_pretrained(lpath2,device_map='auto', load_in_8
 out = generate_simple(model, tokenizer, input_ids=tst, do_sample=True, num_beams=1, max_new_tokens=128, num_return_sequences=1, temperature=0.7, top_k=0, top_p=0.92)
 
 
+####
+# Stable vicuna tests
+####
+
+svpath = '/data/thar011/data_bai2/ckpts/stable-vicuna-13b'
+
+tokenizer = AutoTokenizer.from_pretrained(svpath)
+model = AutoModelForCausalLM.from_pretrained(svpath)
+model.half().cuda()
+
+prompt = """\
+### Human: Did Aristotle use a laptop?
+### Assistant:\
+"""
+
+input_ids = tokenize_input(tokenizer, prompt)
+
+out = generate_simple(model, tokenizer, input_ids, do_sample=True, num_beams=1, max_new_tokens=128, num_return_sequences=1, temperature=0.7, top_k=0, top_p=0.92)
+
+
