@@ -76,17 +76,30 @@ out = generate_simple(model, tokenizer, input_ids=tst, do_sample=True, num_beams
 
 svpath = '/data/thar011/data_bai2/ckpts/stable-vicuna-13b'
 
-tokenizer = AutoTokenizer.from_pretrained(svpath)
-model = AutoModelForCausalLM.from_pretrained(svpath)
-model.half().cuda()
+tokenizer = AutoTokenizer.from_pretrained(svpath)  #works
+model = AutoModelForCausalLM.from_pretrained(svpath) #works
+model.half().cuda()  #works 25.5 GB GPU 
 
 prompt = """\
 ### Human: Did Aristotle use a laptop?
 ### Assistant:\
 """
 
-input_ids = tokenize_input(tokenizer, prompt)
+input_ids = tokenize_input(tokenizer, prompt) #works
 
+#works! 26GB used (and generated good rationale)
+out = generate_simple(model, tokenizer, input_ids, do_sample=True, num_beams=1, max_new_tokens=128, num_return_sequences=1, temperature=0.7, top_k=0, top_p=0.92)
+
+prompt = """\
+### Human: Answer this question step by step then say 'So the answer is' followed by the answer: Did Aristotle use a laptop?
+### Assistant:\
+"""
+input_ids = tokenize_input(tokenizer, prompt) #works
+
+#works! 26GB used (and generated good rationale)
+out = generate_simple(model, tokenizer, input_ids, do_sample=True, num_beams=1, max_new_tokens=128, num_return_sequences=1, temperature=0.7, top_k=0, top_p=0.92)
+
+model = AutoModelForCausalLM.from_pretrained(svpath, device_map='auto', load_in_8bit=True, max_memory={0:'65GB'}) #works 14.1GB GPU !
 out = generate_simple(model, tokenizer, input_ids, do_sample=True, num_beams=1, max_new_tokens=128, num_return_sequences=1, temperature=0.7, top_k=0, top_p=0.92)
 
 
