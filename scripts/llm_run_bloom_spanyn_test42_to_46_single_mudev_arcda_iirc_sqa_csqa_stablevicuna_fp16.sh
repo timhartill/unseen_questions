@@ -80,6 +80,7 @@ python llm_infer_output.py \
     --predict_file commonsenseqa/dev.tsv \
     --template_file generic_csmadeup_weicot_anschoices_choicetextonlysqastyle_addhpqacsqa2_instructionv4_stablevicuna.txt \
     --model_name $UDATA/ckpts/stable-vicuna-13b \
+    --query_no_nl_mc_options \
     --max_new_tokens 128 \
     --max_seq_len_in 1152 \
     --fp16 \
