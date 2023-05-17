@@ -461,13 +461,19 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     
     logger.info(f"MODEL: {args.model_name}. Loaded tokenizer. Now loading model..")
-      
-    model = AutoModelForCausalLM.from_pretrained(
-      args.model_name, 
-      device_map='auto', 
-      load_in_8bit=True, 
-      max_memory=max_memory
-    )
+    
+    if args.fp16:
+        logger.info("Loading model using FP16...")
+        model = AutoModelForCausalLM.from_pretrained(args.model_name)
+        model.half().cuda()
+    else:
+        logger.info("Loading model using INT8...")
+        model = AutoModelForCausalLM.from_pretrained(
+          args.model_name, 
+          device_map='auto', 
+          load_in_8bit=True, 
+          max_memory=max_memory
+        )
     
     logger.info(f"Loaded model {args.model_name}!")
     
