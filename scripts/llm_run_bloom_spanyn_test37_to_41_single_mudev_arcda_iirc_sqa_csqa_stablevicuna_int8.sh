@@ -60,7 +60,7 @@ python llm_infer_output.py \
     --template_file generic_csqa2_ynmadeup_weicot_withinstructionv3_stablevicuna.txt \
     --model_name $UDATA/ckpts/stable-vicuna-13b \
     --max_new_tokens 128 \
-    --max_seq_len_in 1152 \
+    --max_seq_len_in 1472 \
     --debug \
     --max_samples -1 \
     --num_beams 1 \
@@ -78,7 +78,7 @@ python llm_infer_output.py \
     --model_name $UDATA/ckpts/stable-vicuna-13b \
     --query_no_nl_mc_options \
     --max_new_tokens 128 \
-    --max_seq_len_in 1152 \
+    --max_seq_len_in 1472 \
     --debug \
     --max_samples -1 \
     --num_beams 1 \
