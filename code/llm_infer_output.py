@@ -180,7 +180,7 @@ def make_llm_query(args, sample):
     """ Make sample components into LLM query
     # Question text only?" or 
     # "Context text.\nQuestion text?" or "Context text. Question text?" or
-    # "[Context text. ]Question text?\nAnswer Choices: (A) ground\n(B)bathroom\n(C) forest\n(D) countryside\n(E) rural area\n" or
+    # "[Context text. ]Question text?\nAnswer Choices: (A) ground\n(B) bathroom\n(C) forest\n(D) countryside\n(E) rural area\n" or
     # "Question text is Answer Choices: ..."
     """
     query = sample['q_only'].strip()
