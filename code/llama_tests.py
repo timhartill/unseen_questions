@@ -874,7 +874,7 @@ prompt = """\
 ### Human: A revolving door is convenient for two direction travel, but it also serves as a security measure at a what?
 ### Assistant:\
 """
-input_ids = tokenize_input(tokenizer, prompt, max_seq_len=1500) 
+input_ids = tokenize_input(tokenizer, prompt, max_seq_len=1152) 
 print(f"prompt len: {len(input_ids[0])}")  #1240
 #greedy:  This works& generates "so the answer is.." except for preceding 'A: '
 out = generate_simple(model, tokenizer, input_ids, do_sample=False, num_beams=1, max_new_tokens=128, num_return_sequences=1, temperature=1.0, top_k=0, top_p=0.92)
