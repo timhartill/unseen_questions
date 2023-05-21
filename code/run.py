@@ -146,6 +146,7 @@ def run(args, logger):
         if uqa_dir[-4:] == '.tsv':  # eg specified as '/data/thar011/data/unifiedqa/dev.tsv' like uqa train format
             uqa_dir = os.path.split(uqa_dir)[0]  # base uqa directory
         logger.info(f"Base dir: {uqa_dir}")
+
         ftype='dev'
         for ds in eval_metrics.dev_eval:
             args.prefix = ftype + '_' + ds + '_'
@@ -154,7 +155,11 @@ def run(args, logger):
                 logger.info(f"Skipping Prediction for {ftype} data of {ds} as prediction file already exists")
                 continue
             dspath = os.path.join(uqa_dir, ds, ftype+'.tsv')
-            inference_wrapper(tokenizer, model, args, logger, predict_file=dspath)
+            if os.path.exists(dspath):
+                inference_wrapper(tokenizer, model, args, logger, predict_file=dspath)
+            else:
+                logger.info(f"Skipping prediction for {ftype} {ds} path:{dspath} as source file doesnt exist.")
+
         ftype='test'
         for ds in eval_metrics.test_eval:
             args.prefix = ftype + '_' + ds + '_'
@@ -163,14 +168,17 @@ def run(args, logger):
                 logger.info(f"Skipping Prediction for {ftype} data of {ds} as prediction file already exists")
                 continue
             dspath = os.path.join(uqa_dir, ds, ftype+'.tsv')
-            inference_wrapper(tokenizer, model, args, logger, predict_file=dspath)         
+            if os.path.exists(dspath):
+                inference_wrapper(tokenizer, model, args, logger, predict_file=dspath)         
+            else:
+                logger.info(f"Skipping prediction for {ftype} {ds} path:{dspath} as source file doesnt exist.")
         
     if args.calc_metrics:
         tokenizer = load_model(model_name=args.model, loadwhat='tokenizer_only', special_tokens_dict=addspecialtoksdict)
         if args.is_unifiedqa:
             dev_data = UnifiedQAData(logger, args, args.predict_file, False)
         else:
-            dev_data = QAData(logger, args, args.predict_file, False)    
+            dev_data = QAData(logger, args, args.predict_file, False)
         dev_data.load_dataset(tokenizer, load_preprocessed=not args.dont_save_train_token_file)
         dev_data.load_dataloader()
         calc_metrics(args, logger, dev_data, predict_file=args.predict_file)
@@ -187,6 +195,7 @@ def run(args, logger):
         if uqa_dir[-4:] == '.tsv':  # eg specified as '/data/thar011/data/unifiedqa/dev.tsv' like uqa train format
             uqa_dir = os.path.split(uqa_dir)[0]  # base uqa directory
         logger.info(f"Running Calc Metrics All. Base dir: {uqa_dir}")
+
         ftype='dev'
         for ds in eval_metrics.dev_eval:
             args.prefix = ftype + '_' + ds + '_'
@@ -194,7 +203,11 @@ def run(args, logger):
                 logger.info(f"Skipping calc metrics for {ftype} data of {ds} as key already exists in eval_metrics.json")
                 continue
             dspath = os.path.join(uqa_dir, ds, ftype+'.tsv')
-            calc_metrics_wrapper(tokenizer, args, logger, predict_file=dspath)        
+            if os.path.exists(dspath):
+                calc_metrics_wrapper(tokenizer, args, logger, predict_file=dspath)        
+            else:
+                logger.info(f"Skipping calc metrics for {ftype} {ds} path:{dspath} as source file doesnt exist.")
+
         ftype='test'
         for ds in eval_metrics.test_eval:
             args.prefix = ftype + '_' + ds + '_'
@@ -202,7 +215,10 @@ def run(args, logger):
                 logger.info(f"Skipping calc metrics for {ftype} data of {ds} as key already exists in eval_metrics.json")
                 continue
             dspath = os.path.join(uqa_dir, ds, ftype+'.tsv')
-            calc_metrics_wrapper(tokenizer, args, logger, predict_file=dspath)
+            if os.path.exists(dspath):
+                calc_metrics_wrapper(tokenizer, args, logger, predict_file=dspath)
+            else:
+                logger.info(f"Skipping calc metrics for {ftype} {ds} path:{dspath} as source file doesnt exist.")
         
     if args.calc_similarity:
         calc_similarity(args, logger)
