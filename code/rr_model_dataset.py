@@ -71,7 +71,7 @@ class RRModel(nn.Module):
 
 
 class RRDataset(Dataset):
-    """ RR Model dataset """
+    """ RR Model dataset for training"""
     def __init__(self, args, tokenizer, data_path, train=False):
         self.data_path = data_path
         print(f"Train:{train} Loading from: {data_path}..")
@@ -219,7 +219,7 @@ class RREvalDataset(Dataset):
         if c != '':
             if c[-1] != '.':
                 c += '.'
-           
+
         para_offset = len(q_toks) + 1 #  cls
         q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
         max_toks_for_doc = self.max_seq_len - para_offset - 1

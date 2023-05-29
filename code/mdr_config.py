@@ -64,15 +64,16 @@ def common_args():
     parser.add_argument("--query_use_sentences", action="store_true", help="Use the gold or predicted sentences within a paragraph in the query instead of the entire paragraph.")
     parser.add_argument("--query_add_titles", action="store_true", help="If --query_use_sentences then prepend sentences with para title in query encoding.")
     parser.add_argument("--random_multi_seq", action="store_true", help="If training type multi para sequencing, randomize para seq in each step.")   
-    parser.add_argument("--sent_score_force_zero", action="store_true", help="Stage 1 reader training : Zero sentence scores where sent or para label is zero.")    
+    parser.add_argument("--sent_score_force_zero", action="store_true", help="Stage 1 reader training : Zero sentence scores where sent or para label is zero.")
     parser.add_argument("--sp_percent_thresh", type=float, default=0.55, help="maximum mean fraction of sentences in para for a given sp score threshold to take in order for that thresh to be selected.")
     parser.add_argument("--num_workers_dev", default=0, type=int, help="number of dev dataloader processes. 0 means run on main thread.")
-    parser.add_argument("--ev_combiner", action="store_true", help="reader training : Add evidence combining head to model and return extra ev_score key.")    
+    parser.add_argument("--ev_combiner", action="store_true", help="reader training : Add evidence combining head to model and return extra ev_score key.")
     parser.add_argument('--stop-drop', type=float, default=0.0, help="Dropout on stop head.")
-    parser.add_argument("--eval_stop", action="store_true", help="Retriever: Add stop head and/or evaluate stop prediction accuracy in addition to evaluating para retrieval.")   
+    parser.add_argument("--eval_stop", action="store_true", help="Retriever: Add stop head and/or evaluate stop prediction accuracy in addition to evaluating para retrieval.")
     parser.add_argument("--output_dir", default="./logs", type=str, help="The output directory where the model checkpoints, logs etc will be written.")
     parser.add_argument("--sp-weight", default=1.0, type=float, help="weight of the sentence relevance prediction loss")
-    parser.add_argument('--prefix', type=str, default="eval")
+    parser.add_argument('--prefix', type=str, default="eval", help="Prepended to log directory name.")
+    parser.add_argument('--model_type', type=str, default="rr", help="Model type. Default rr = Rationale ranker. s2=Evidence Set Scorer")
 
     return parser
 
