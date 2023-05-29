@@ -19,6 +19,10 @@ from tqdm import tqdm
 from transformers import AutoModel
 
 from utils import collate_tokens, move_to_cuda
+from text_processing import split_into_sentences
+
+NON_EXTRACTIVE_OPTIONS = ' [SEP] yes no [unused0] [SEP] '  # for s1 model..
+GENERIC_TITLE = 'Explanation'  # s1/s2 models expects a title
 
 
 class BertPooler(nn.Module):
@@ -252,6 +256,90 @@ class RREvalDataset(Dataset):
         item["para_offset"] = para_offset  # 1st tok after query ie [SEP]
 
         return item
+
+
+class S1S2EvalDataset(Dataset):
+    """ Stage 1 Para Reranker Model simplified Eval dataset
+    Here instead of reader.reader_dataset.py since only used from rr_eval_truthfulqa.py so simpler..
+    input samples: list of dict_keys(['question', 'answer', 'q_only', 'mc_options', 'context'])
+    q_only key contains the base question minus mc options or other context
+    """
+    def __init__(self, args, tokenizer, samples, score_llm=True, model_type='s1'):
+        self.score_llm = score_llm
+        if score_llm:
+            self.expl_key = 'context'       # llm-generated explanation/rationale/context including initial para for iirc
+        else:
+            self.expl_key = 'iter_context'  # iterator-generated context including init para for iirc            
+        self.tokenizer = tokenizer
+        self.max_seq_len = args.max_c_len # overall max seq len not max len of context portion..
+        self.max_q_len = args.max_q_len
+        self.debug = args.debug
+        self.debug_count = 3
+        self.data = samples
+        self.model_type = model_type
+        print(f"Data size: {len(self.data)}")
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        sample = self.data[index]
+        # encode query [c+]q[+mc]
+        q = sample['q_only'].strip()
+        m = sample['mc_options'].strip()
+        if m != '':
+            m = ' ' + m
+        q = q + m
+        q_toks = self.tokenizer.tokenize(q)[:self.max_q_len]
+        c = sample[self.expl_key].strip()  # context to score
+        if c != '':
+            if c[-1] != '.':
+                c += '.'
+
+        sents = split_into_sentences(c)
+        pre_sents = []
+        if self.model_type == 's1':
+            for idx, sent in enumerate(sents):
+                pre_sents.append("[unused1] " + sent.strip())
+            c = GENERIC_TITLE + " " + " ".join(pre_sents)
+        else:  #s2
+            for idx, sent in enumerate(sents):
+                pre_sents.append("[unused1] " + GENERIC_TITLE + ' | ' + sent.strip())
+            c = " ".join(pre_sents)
+
+        para_offset = len(q_toks) + 1 #  cls
+        q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
+        max_toks_for_doc = self.max_seq_len - para_offset - 1
+        if max_toks_for_doc <= 2 and self.debug and self.debug_count > 0:
+            print(f"Query too long: _id:{sample.get('_id')}")
+            self.debug_count -= 1
+        
+        rat = NON_EXTRACTIVE_OPTIONS + c
+        r_toks = self.tokenizer.tokenize(rat)
+        if len(r_toks) > max_toks_for_doc:
+            if self.debug and self.debug_count > 0:
+                if len(r_toks) > 511:
+                    print(f"RAT > 511 toks: index:{index}")
+                print(f"Rat truncated. index:{index} _id:{sample.get('_id')}")
+                self.debug_count -= 1
+            r_toks = r_toks[:max_toks_for_doc]
+        r_ids = self.tokenizer.convert_tokens_to_ids(r_toks)
+
+        input_ids = torch.tensor([q_ids + r_ids + [self.tokenizer.sep_token_id]], dtype=torch.int64)
+        attention_mask = torch.tensor([[1] * input_ids.shape[1]], dtype=torch.int64)
+        token_type_ids = torch.tensor([[0] * para_offset + [1] * (input_ids.shape[1]-para_offset)], dtype=torch.int64)
+        item = {}
+        item["encodings"] = {'input_ids': input_ids, 'token_type_ids': token_type_ids, 'attention_mask': attention_mask}
+        item["label"] = torch.LongTensor([-1])
+        item["question"] = q
+        item["context"] = c
+        item["answers"] = sample["answer"]
+        item["index"] = index
+        item["_id"] = str(index)
+        item["para_offset"] = para_offset  # 1st tok after query ie [SEP]
+
+        return item
+
 
 
 def predict_simple(eval_dataloader, model):

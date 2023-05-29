@@ -369,7 +369,7 @@ class Stage1Searcher():
         para_offset = len(q_toks) + 1 #  cls
         q_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(q_toks)
         max_toks_for_doc = self.args.max_c_len - para_offset - 1
-        q_sents = aggregate_sents(sample['s2'], title_sep = ' |', para_sep='[unused2]')  # aggregate sents for each title
+        q_sents = aggregate_sents(sample['s2'], title_sep = ' |', para_sep='[unused2]')  # aggregate sents for each title: '' if sample['s2']=[]
         if sample['init_context'] != '': # treat given initial context like it was 1st retrieved para
             q_sents = '[unused2] ' + sample['init_context'][:600].replace(':', ' |', 1) + ' ' + q_sents
         batch_extras = {'wp_tokens':[], 'doc_tokens':[], 'tok_to_orig_index':[], 'insuff_offset':[]}  # each key [len(sample['dense_retrieved'])] of data used for deriving answer span

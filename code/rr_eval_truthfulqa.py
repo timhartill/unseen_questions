@@ -28,15 +28,14 @@ from torch.utils.data import DataLoader
 from transformers import AutoConfig, AutoTokenizer
 
 from rr_model_dataset import RREvalDataset, predict_simple, batch_collate
-from rr_model_dataset import RRModel
+from rr_model_dataset import RRModel, S1S2EvalDataset
 
 from mdr_config import common_args
 import utils
 from utils import move_to_cuda, load_saved
 import eval_metrics
-import mdr_searchers
 
-ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]'] # Actually unused. Only using: [CLS] query [SEP] Rationale [SEP]
+ADDITIONAL_SPECIAL_TOKENS = ['[unused0]', '[unused1]', '[unused2]', '[unused3]'] # Only using: [CLS] query [SEP] Rationale [SEP] for RR but use other special tokens in S1/S2 models..
 
 UQA_DIR = eval_metrics.UQA_DIR
 
@@ -52,8 +51,27 @@ if __name__ == "__main__":
     args.init_checkpoint = '/large_data/thar011/out/mdr/logs/RR_test5_mcstrip0.5_notsinglepossplit_withsharednormal_additer-05-01-2023-RR-seed42-bsz24-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8-nopairFalse-singleposFalse-mcstrip0.5/checkpoint_best.pt'
     args.predict_batch_size = 100
     args.output_dir = '/large_data/thar011/out/mdr/logs'
-    args.model_type = 'rr'  # 's2'
+    args.model_type = 'rr'  # 's1'
     args.predict_file = '/home/thar011/data/truthfulqa/mc_task.json'
+    
+    args.prefix = "TRUTHFULQA_TEST"
+    args.num_workers_dev = 10
+    args.model_name = 'google/electra-large-discriminator'
+    args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage1_test5_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-05-29-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
+    args.predict_batch_size = 100
+    args.output_dir = '/large_data/thar011/out/mdr/logs'
+    args.model_type = 's1'  # 
+    args.predict_file = '/home/thar011/data/truthfulqa/mc_task.json'
+    
+    args.prefix = "TRUTHFULQA_TEST"
+    args.num_workers_dev = 10
+    args.model_name = 'google/electra-large-discriminator'
+    args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
+    args.predict_batch_size = 100
+    args.output_dir = '/large_data/thar011/out/mdr/logs'
+    args.model_type = 's2'  # 
+    args.predict_file = '/home/thar011/data/truthfulqa/mc_task.json'
+    
         
     """
 
@@ -85,9 +103,9 @@ if __name__ == "__main__":
     bert_config = AutoConfig.from_pretrained(args.model_name)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name, use_fast=True, additional_special_tokens=ADDITIONAL_SPECIAL_TOKENS)
 
-    if model_type == 'rr':
-        logger.info("Loading RR Model type...")
-        model = RRModel(bert_config, args)
+    if model_type in ['rr', 's1', 's2']:
+        logger.info(f"Loading {model_type} Model type...")
+        model = RRModel(bert_config, args)  #Note: can use RRModel for EVAL only for s1/s2 models para/evidene scoring (not sentence level) since they are all Electra
         collate_fc = partial(batch_collate, pad_id=tokenizer.pad_token_id)
     else:
         logger.info("MODEL TYPE NOT IMPLEMENTED!")
@@ -116,8 +134,13 @@ if __name__ == "__main__":
             samples.append(s_opt)
             
     logger.info(f"TruthfulQA samples: {len(samples_orig)} Number of MC Options: {len(samples)}")
-    # run rr model preds, record scores for LLm expls
-    eval_dataset = RREvalDataset(args, tokenizer, samples) 
+    # run rr model preds, record scores for truthfulqa
+    if model_type == 'rr':
+        eval_dataset = RREvalDataset(args, tokenizer, samples) 
+    elif model_type == 's1':
+        eval_dataset = S1S2EvalDataset(args, tokenizer, samples, model_type='s1')
+    elif model_type == 's2':
+        eval_dataset = S1S2EvalDataset(args, tokenizer, samples, model_type='s2')
     eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, 
                                  pin_memory=True, num_workers=args.num_workers_dev)
     #TJH batch = next(iter(eval_dataloader))

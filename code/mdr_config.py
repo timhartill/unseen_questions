@@ -73,7 +73,7 @@ def common_args():
     parser.add_argument("--output_dir", default="./logs", type=str, help="The output directory where the model checkpoints, logs etc will be written.")
     parser.add_argument("--sp-weight", default=1.0, type=float, help="weight of the sentence relevance prediction loss")
     parser.add_argument('--prefix', type=str, default="eval", help="Prepended to log directory name.")
-    parser.add_argument('--model_type', type=str, default="rr", help="Model type. Default rr = Rationale ranker. s2=Evidence Set Scorer")
+    parser.add_argument('--model_type', type=str, default="rr", help="Model type. Default rr = Rationale ranker. s1=para Reranker s2=Evidence Set Scorer")
 
     return parser
 
