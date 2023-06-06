@@ -5,7 +5,7 @@ Created on Mon Apr 17 18:03:44 2023
 
 @author: tim hartill
 
-Evaluate RR, Iterator S1 and Iterator S2 models on truthfulqa mc1 split.
+Evaluate RR, Iterator S1 and Iterator S2 models on StrategyQA gold facts.
 
 
 """
@@ -16,6 +16,7 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import json
 import copy
+import random
 import numpy as np
 from datetime import date
 from functools import partial
@@ -45,39 +46,39 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     """ Test options
-    args.prefix = "TRUTHFULQA_TEST"
+    args.prefix = "RATRELEVANCE_TEST"
     args.num_workers_dev = 10
     args.model_name = 'google/electra-large-discriminator'
     args.init_checkpoint = '/large_data/thar011/out/mdr/logs/RR_test5_mcstrip0.5_notsinglepossplit_withsharednormal_additer-05-01-2023-RR-seed42-bsz24-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8-nopairFalse-singleposFalse-mcstrip0.5/checkpoint_best.pt'
     args.predict_batch_size = 100
     args.output_dir = '/large_data/thar011/out/mdr/logs'
     args.model_type = 'rr'  # 's1'
-    args.predict_file = '/home/thar011/data/truthfulqa/mc_task.json'
+    args.predict_file = '/data/thar011/data/unifiedqa/strategy_qa_bigbench_expl_ans/dev.tsv'
     
-    args.prefix = "TRUTHFULQA_TEST"
+    args.prefix = "RATRELEVANCE_TEST"
     args.num_workers_dev = 10
     args.model_name = 'google/electra-large-discriminator'
     args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage1_test5_hpqa_hover_fever_new_sentMASKforcezerospweight1_fullevalmetrics-05-29-2022-rstage1-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
     args.predict_batch_size = 100
     args.output_dir = '/large_data/thar011/out/mdr/logs'
     args.model_type = 's1'  # 
-    args.predict_file = '/home/thar011/data/truthfulqa/mc_task.json'
+    args.predict_file = '/data/thar011/data/unifiedqa/strategy_qa_bigbench_expl_ans/dev.tsv'
     
-    args.prefix = "TRUTHFULQA_TEST"
+    args.prefix = "RATRELEVANCE_TEST"
     args.num_workers_dev = 10
     args.model_name = 'google/electra-large-discriminator'
     args.init_checkpoint = '/large_data/thar011/out/mdr/logs/stage2_test3_hpqa_hover_fever_new_sentMASKforcezerospweight1_fevernegfix-06-14-2022-rstage2-seed42-bsz12-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8/checkpoint_best.pt'
     args.predict_batch_size = 100
     args.output_dir = '/large_data/thar011/out/mdr/logs'
     args.model_type = 's2'  # 
-    args.predict_file = '/home/thar011/data/truthfulqa/mc_task.json'
+    args.predict_file = '/data/thar011/data/unifiedqa/strategy_qa_bigbench_expl_ans/dev.tsv'
     
         
     """
 
     model_type = args.model_type.strip().lower()
     date_curr = date.today().strftime("%m-%d-%Y")
-    model_name = f"{args.prefix}-{model_type}-{date_curr}-TRUTHFULQA_MC1"
+    model_name = f"{args.prefix}-{model_type}-{date_curr}-SQA_RAT_RELEVANCE"
     args.output_dir = os.path.join(args.output_dir, model_name)
     
     os.makedirs(args.output_dir, exist_ok=True)
@@ -117,23 +118,28 @@ if __name__ == "__main__":
     model.to(device)
     model.eval()
 
-    samples_orig = json.load(open(args.predict_file))
+    random.seed(42)
+
+    samples_orig = utils.load_uqa_supervised(args.predict_file, ans_lower=False, return_parsed=True)
+    orig_idxs = [i for i in range(len(samples_orig))]
     
     samples = []  # list of dict_keys(['question', 'answer', 'q_only', 'mc_options', 'context'])
     for i, s in enumerate(samples_orig): #reformat to input format of ranker models using one mc option per sample
         s['_id'] = str(i)
-        q = s['question'].strip()
-        a = None
-        for option in s['mc1_targets']:
-            if s['mc1_targets'][option] == 1:
-                a = option
-                break
-        assert a is not None, f"ERROR: idx:{i} {q} NO LABEL 1."
-        for j, option in enumerate(s['mc1_targets']):
+        q = s['q_only'].strip()
+        a = s['context']
+        s['targets'] = {s['context']: 1}
+        for j in range(4):  # make into 5-way multichoice by adding 4 irrelevant contexts
+            idx = random.choice(orig_idxs)
+            while idx == i:
+                idx = random.choice(orig_idxs)
+            s['targets'][ samples_orig[idx]['context'] ] = 0
+        
+        for j, option in enumerate(s['targets']):
             s_opt = {'question': q, 'answer': a, 'q_only': q, 'mc_options': '', 'context': option, '_id': str(i)+'__'+str(j)}
             samples.append(s_opt)
             
-    logger.info(f"TruthfulQA samples: {len(samples_orig)} Number of MC Options: {len(samples)}")
+    logger.info(f"StrategyQA samples: {len(samples_orig)} Number of MC Options: {len(samples)}")
     # run rr model preds, record scores for truthfulqa
     if model_type == 'rr':
         eval_dataset = RREvalDataset(args, tokenizer, samples) 
@@ -148,22 +154,22 @@ if __name__ == "__main__":
     for i, s in enumerate(scores):
         samples[i]['score'] = s
     
-    utils.saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_truthfulqa_mc1_options_scored.jsonl'))
+    utils.saveas_jsonl(samples, os.path.join(args.output_dir, 'samples_sqa_rat_relevance_options_scored.jsonl'))
     
     # EVAL MC
     for s in samples:
         curr_q_id = int(s['_id'][:s['_id'].find('__')])
-        if samples_orig[curr_q_id].get('mc1_scores') is None:
-            samples_orig[curr_q_id]['mc1_scores'] = []
-        samples_orig[curr_q_id]['mc1_scores'].append(s['score'])
+        if samples_orig[curr_q_id].get('scores') is None:
+            samples_orig[curr_q_id]['scores'] = []
+        samples_orig[curr_q_id]['scores'].append(s['score'])
 
     right = 0
     wrong = 0
     for s in samples_orig:
-        pred_option_idx = int(np.argmax(s['mc1_scores']))
+        pred_option_idx = int(np.argmax(s['scores']))
         s['pred_option_idx'] = pred_option_idx
-        for i, option in enumerate(s['mc1_targets']):
-            if s['mc1_targets'][option] == 1:
+        for i, option in enumerate(s['targets']):
+            if s['targets'][option] == 1:
                 s['gold_answer'] = option
                 s['gold_option_idx'] = i
                 correct = pred_option_idx == i
@@ -174,6 +180,6 @@ if __name__ == "__main__":
                     wrong += 1
                 break
     logger.info(f"Accuracy: Right: {right}  Wrong: {wrong} ACC: {right/len(samples_orig)}  check:{(right+wrong) == len(samples_orig)}")
-    utils.saveas_jsonl(samples_orig, os.path.join(args.output_dir, 'samples_truthfulqa_mc1_aggregated_scored.jsonl'))
+    utils.saveas_jsonl(samples_orig, os.path.join(args.output_dir, 'samples_sqa_rat_relevance_aggregated_scored.jsonl'))
     
     
