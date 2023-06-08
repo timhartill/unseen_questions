@@ -1927,6 +1927,8 @@ def make_rr_rat_from_mdr_format(split, include_title_prob=0.75):
 
         random.shuffle(para_list)
         context = ' '.join(para_list)
+        if context.strip() == '':
+            context = "A dummy irrelevant sentence."
         sample['neg_paras'] = make_rr_para(context)
         
         out_list.append( sample )

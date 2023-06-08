@@ -181,11 +181,18 @@ idxs = idxs[:10000]
 hpqa_train = [hpqa_train[i] for i in idxs]
 rr_train_hpqa_newratlike = utils.make_rr_rat_from_mdr_format(hpqa_train, include_title_prob=0.75)
 
+
 rr_train_combo_iter += rr_train_fever_newratlike + rr_train_hover_newratlike + rr_train_hpqa_newratlike
+for s in rr_train_combo_iter:  # 172 blank negs..
+    if len(s['neg_paras']) == 0: s['neg_paras'] = [{'text': 'A dummy irrelevant sentence.', 'sentence_spans': [[0, 28]]}]
+    
 utils.saveas_jsonl(rr_train_combo_iter, os.path.join(RR_OUT_BASE, 'rr_train_rat_iterctxtsv3_merged_extrarelevancerats.jsonl'))
 
 
 rr_dev_newratlike = utils.make_rr_rat_from_mdr_format(iter_dev, include_title_prob=0.75)
 rr_dev_combo_iter += rr_dev_newratlike
+for s in rr_dev_combo_iter:  # 236 blank negs..
+    if len(s['neg_paras']) == 0: s['neg_paras'] = [{'text': 'A dummy irrelevant sentence.', 'sentence_spans': [[0, 28]]}]
+
 utils.saveas_jsonl(rr_dev_combo_iter, os.path.join(RR_OUT_BASE, 'rr_dev_rat_iterctxtsv3_merged_extrarelevancerats.jsonl'))
 
