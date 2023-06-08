@@ -1611,7 +1611,7 @@ def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1
         eg: Negative context:   "Pos Title A: Prev sentence to non-gold. Non-gold sentence. Following sentence to non-gold. Neg Title C: 1st random neg sentence. 2nd random neg sentence. 3rd random neg sentence. Pos Title B: Prev sentence to gold. Gold sentence. Following sentence to gold."
         
         Negatives (label 0.0 in rr model training ) are anything that doesn't have the full set of gold sentences ie like the Iterator stage 2 partial/no evidence has label 0
-               
+        
         include_all_sent_prob: Probability of including full para text (vs subset of para sentences)
     
         Note: Short docs will be less than 512 toks. We dont pack more in to these to preserve diversity. 
@@ -1696,7 +1696,7 @@ def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1
             src = 'hpqa'
         sample = create_rr_format(s['question'], text=context, answer=s['answers'], 
                                   sentence_spans=None, _id='iter_'+s['_id'], src=src+'_iter', append_q_char='?',
-                                  mc_options='', context='')  #Note: No training samples with mc options or initial context!
+                                  mc_options='', context='')  #Note: No training samples from this method with mc options or initial context!
 
         ###### build negative context below
         tok_count = len(tokenizer.tokenize(s['question']))
@@ -1803,6 +1803,138 @@ def make_rr_from_mdr_format(split, tokenizer, max_toks=507, include_title_prob=1
         if i % 1000 == 0:
             print(f"Processed {i} samples of {len(split)}...")
     return out_list
+
+
+def make_rr_rat_from_mdr_format(split, include_title_prob=0.75):
+    """ Create rr model formatted rationales style train/dev samples from "mdr" format dict_keys(['question', 'answers', 'type', 'pos_paras', 'neg_paras', '_id' [, 'bridge']])
+        with q + pos/neg paras per doc packed in to roughly max_toks toks.
+        
+        In contrast to make_rr_rat_from_mdr_format() above which makes iterator-like contexts, here we make rationale-like contexts
+            
+        eg: Positive context:   "Pos Title A: Gold sentence. Pos Title B: Gold sentence."
+        eg: Negative context:   "Pos Title A: Non-gold sentence. Neg Title C: 1st random neg sentence. 2nd random neg sentence. Pos Title B: Gold sentence."
+        
+        Negatives (label 0.0 in rr model training ) are anything that doesn't have the full set of gold sentences ie like the Iterator stage 2 partial/no evidence has label 0
+        
+    """
+    out_list = []
+    for i, s in enumerate(split):
+        
+        if s['answers'][0] in ["SUPPORTED", "SUPPORTS"]: #fever = refutes/supports (neis excluded). hover = not_supported/supported where not_supported can be refuted or nei
+            s['answers'][0] = 'yes'
+        elif s['answers'][0] in ["REFUTES", "NOT_SUPPORTED"]:
+            s['answers'][0] = 'no'
+
+        ###### build positive context first then negative context separately below
+        para_list = []  #list so we can shuffle
+        for para in s['pos_paras']:  # create pos part of pos context using gold sents +/-1 exta sentence
+            text = ''
+            if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
+                title = unescape(para['title']).strip()
+                text += random.choice(['Regarding ', 'Concerning ', 'With respect to ', '']) + title + random.choice([': ', '. ', ', '])
+                
+            # include gold + prev/following sentence
+            used_s_idxs = []
+            for j, (start, end) in enumerate(para['sentence_spans']):
+                # Add prior/gold/next sentence:
+                if (j not in used_s_idxs) and (j in para['sentence_labels']):
+                    text += para['text'][start:end].strip()
+                    if  text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                        text += '.'
+                    text += ' '
+                    used_s_idxs.append(j)
+            para_list.append(text.strip())
+            
+        random.shuffle(para_list)
+        context = ' '.join(para_list)
+        src = s.get('src')
+        if src is None:
+            src = 'hpqa'
+        sample = create_rr_format(s['question'], text=context, answer=s['answers'], 
+                                  sentence_spans=None, _id='iter_'+s['_id'], src=src+'_ratlike', append_q_char='?',
+                                  mc_options='', context='')  #Note: No training samples from this method with mc options or initial context!
+
+        ###### build negative context below
+        para_list = []  # list so we can shuffle
+        num_pos_paras = len(s['pos_paras'])
+        para_idxs = list(range(num_pos_paras))
+        random.shuffle(para_idxs)
+        force_drop_idxs = [para_idxs[0]]  # make sure we drop at least one para (or gold sents within 1 para)
+        if num_pos_paras > 1:        # if > 1 pos para, randomly drop a 2nd para (or gold sents within it)
+            if random.random() > 0.5:
+                force_drop_idxs.append( random.choice(para_idxs[1:]) )
+
+        for k, para in enumerate(s['pos_paras']):  # neg context from pos paras
+            text = ''
+            if random.random() < include_title_prob and len(unescape(para['title']).strip()) > 0:
+                title = unescape(para['title']).strip()
+                text += random.choice(['Regarding ', 'Concerning ', 'With respect to ', '']) + title + random.choice([': ', '. ', ', '])
+
+            if k not in force_drop_idxs:  # add para or gold sents as usual ie pos part of neg context
+                # include gold sentence
+                used_s_idxs = []
+                for j, (start, end) in enumerate(para['sentence_spans']):
+                    if (j not in used_s_idxs) and (j in para['sentence_labels']):
+                        text += para['text'][start:end].strip()
+                        if  text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                            text += '.'
+                        text += ' '
+                        used_s_idxs.append(j)
+            else:                       # drop para or gold sent(s) from a para ie create neg from pos
+                num_sents = len(para['sentence_spans']) - len(para['sentence_labels'])  # num neg sents after removing golds
+                if num_sents > 0: #  drop all gold sents
+                    num_to_pick = min(random.choice([1,2]), num_sents)
+                    start_j = 0
+                    if num_to_pick < num_sents:
+                        start_j = random.choice([0,1]) # randomly select sents starting from 1st or 2nd sent in para
+                    picked = 0
+                
+                    for j, (start, end) in enumerate(para['sentence_spans']):
+                        if j not in para['sentence_labels']: # always drop all gold sents, keep num_to_pick others
+                            if j >= start_j:
+                                text += para['text'][start:end].strip()
+                                if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                                    text += '.'
+                                text += ' '
+                                picked += 1
+                            if picked >= num_to_pick: # randomly pick 1 or 2 sents
+                                break
+                else:       # insufficient non-gold sents to create neg from pos
+                    if random.random() > 0.5: # randomly omit or create neg portion of rationale from a neg
+                        text = ''
+                    else:
+                        negpara = random.choice(s['neg_paras'])
+                        sentence_spans = create_sentence_spans(split_into_sentences(negpara['text']))
+                        num_sents = len(sentence_spans)
+                        if num_sents > 1:
+                            num_to_pick = min(random.choice([1,2]), num_sents)
+                            start_j = 0
+                            if num_to_pick < num_sents:
+                                start_j = random.choice([0,1]) # randomly select sents starting from 1st or 2nd sent in para
+                            picked = 0
+                            for j, (start, end) in enumerate(sentence_spans):
+                                if j >= start_j:
+                                    text += negpara['text'][start:end].strip()
+                                    if text != '' and text[-1] not in ['.', '!', '?', ':', ';']:
+                                        text += '.'
+                                    text += ' '
+                                    picked += 1
+                                if picked >= num_to_pick: # randomly pick 1 or 2 sents
+                                    break
+                    
+            if text.strip() != '':
+                para_list.append(text.strip())
+
+        random.shuffle(para_list)
+        context = ' '.join(para_list)
+        sample['neg_paras'] = make_rr_para(context)
+        
+        out_list.append( sample )
+        if i % 1000 == 0:
+            print(f"Processed {i} samples of {len(split)}...")
+    return out_list
+
+
 
 
 def make_rationale(split, src):
@@ -1991,7 +2123,9 @@ def load_llm_generations_singlemode(infile):
 
 
 def merge_pos_into_rr(rr_format, poslist, include_negs=False, add_src_to_key=False, strip_from_src='_iter'):
-    """ Merge pos list (in rr format incl sent spans) into base rr format list and optionally neg_paras also
+    """ Merge pos list (in rr format incl sent spans) into base rr format list including optionally neg_paras
+        pos_list items without matching key in rr_format are skipped. 
+        Existing rr_format samples without match in pos_list are retained as-is.
     If add_src_to_key=True, prepend the question with the src to accomodate duplicate questions over different datasets
     """
     if not add_src_to_key:
@@ -2011,7 +2145,7 @@ def merge_pos_into_rr(rr_format, poslist, include_negs=False, add_src_to_key=Fal
         else:
             rr_sample['pos_paras'].extend(pos['pos_paras'])
             if include_negs:
-                rr_sample['neg_paras'].extend(pos['neg_paras'])    
+                rr_sample['neg_paras'].extend(pos['neg_paras'])
     rr_format_new = [rr_dict[q] for q in rr_dict.keys()]
     return rr_format_new
 

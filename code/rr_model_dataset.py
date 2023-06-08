@@ -109,7 +109,7 @@ class RRDataset(Dataset):
                 sample['answers'][0] = 'yes'
             elif sample['answers'][0] in ["REFUTES", "NOT_SUPPORTED"]:
                 sample['answers'][0] = 'no'
-            sample['_id'] = sample['src'] + '___' + sample['_id']  # in the very unlikely case we get the same id from different datasets in one batch..
+            sample['_id'] = sample['src'] + '___' + sample['_id']  # in the unlikely case we get the same id from different datasets in one batch..
             sample['label'] = 1
             if sample.get('mc_options') is None:
                 sample['mc_options'] = ''
@@ -271,7 +271,7 @@ class S1S2EvalDataset(Dataset):
         else:
             self.expl_key = 'iter_context'  # iterator-generated context including init para for iirc            
         self.tokenizer = tokenizer
-        self.max_seq_len = args.max_c_len # overall max seq len not max len of context portion..
+        self.max_seq_len = args.max_c_len   # overall max seq len not max len of context portion..
         self.max_q_len = args.max_q_len
         self.debug = args.debug
         self.debug_count = 3

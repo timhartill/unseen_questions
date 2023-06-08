@@ -29,6 +29,8 @@ Output 'rr' format:
 """
 
 import os
+import random
+import copy
 import eval_metrics
 import utils
 from text_processing import normalize_unicode, convert_brc, replace_chars, format_sentence, create_sentence_spans, strip_accents, split_into_sentences
@@ -41,6 +43,10 @@ rr_train = os.path.join(BASE_DIR, 'fever_train_rationales.jsonl')
 
 rr_dev_exclposonly = BASE_DIR + 'fever_dev_rr_all_pos_neg_exclposonly.jsonl'
 rr_train_exclposonly = BASE_DIR + 'fever_train_rr_all_pos_neg_exclposonly.jsonl'
+
+rr_dev_newneg = BASE_DIR + 'fever_dev_rr_all_pos_neg_extrasinglenegs.jsonl'
+rr_train_newneg = BASE_DIR + 'fever_train_rr_all_pos_neg_extrasinglenegs.jsonl'
+
 
 file_rr_dev_negs = ['/large_data/thar011/out/mdr/logs/LLM_NEGRAT_T48_FEVER_DEV_onv6_sample-03-07-2023-LLM-bigscience-bloom-maxsmpls-1-randFalse/llm_samples_with_context.json', 
                ]
@@ -134,16 +140,39 @@ utils.output_neg_tsv(train_rr_format, os.path.join(UQA_DIR, 'fever_neg_expl_ans'
 #train_rr_format = utils.load_jsonl(rr_train)
 
 # save final rr model creak training dataset - only output where negs exist which is all of them in this case but for consistency and debug..
-utils.output_rr_where_negs_exist(dev_rr_format, outfile=rr_dev_exclposonly)   #6000
-utils.output_rr_where_negs_exist(train_rr_format, outfile=rr_train_exclposonly) #91274
+utils.output_rr_where_negs_exist(dev_rr_format, outfile=rr_dev_exclposonly)   
+utils.output_rr_where_negs_exist(train_rr_format, outfile=rr_train_exclposonly) 
 
 dev_rr_format_exclposonly = utils.load_jsonl(rr_dev_exclposonly) # 2472
 train_rr_format_exclposonly = utils.load_jsonl(rr_train_exclposonly)  #8896
 
+# create single random easy neg for samples that don't have negs. These are added to rr training in combine_rr_datasets.py
+dev_rr_format = utils.load_jsonl(rr_dev)      #6000 NOTE: loading here means llm negs from  utils.load_merge_negs above have been added...
+train_rr_format = utils.load_jsonl(rr_train)  #91274 after de-dup questions in load_merge_negs(..)
 
 
+def add_single_easy_neg(samples, force_overwrite=False):
+    """ Add a single random neg to samples without negs and return just those samples
+    """
+    orig_idxs = [i for i,s in enumerate(samples) if len(s['neg_paras']) == 0 or force_overwrite ]
+    outlist = []
+    for i, s in enumerate(samples):
+        if len(s['neg_paras']) > 0 and not force_overwrite:
+            continue
+        idx = random.choice(orig_idxs)
+        while idx == i:
+            idx = random.choice(orig_idxs)
+        out = copy.deepcopy(s)
+        out['neg_paras'] = [ samples[idx]['pos_paras'][0] ]
+        outlist.append(out)
+    print(f"Returning {len(outlist)} of {len(samples)}")
+    return outlist
 
+random.seed(42)
+dev_rr_format_newneg = add_single_easy_neg(dev_rr_format, force_overwrite=True)  #6000
+utils.saveas_jsonl(dev_rr_format_newneg, rr_dev_newneg)
 
-
+train_rr_format_newneg = add_single_easy_neg(train_rr_format, force_overwrite=False)  #71716
+utils.saveas_jsonl(train_rr_format_newneg, rr_train_newneg)
 
 
