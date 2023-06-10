@@ -150,7 +150,8 @@ if __name__ == "__main__":
     parser.add_argument("--tok_model_name", default="roberta-base", type=str, help="Tokenizer to check iterator context length with. Default roberta-base matches mdr_searchers usage.")
     parser.add_argument('--ctx_topk_paras', type=int, default=-1, help="Number of paras to include in final Iterator context build. -1 means include all.")
     parser.add_argument('--ctx_gold_sents_only', action="store_true", help="Iterator: If set only sentences from s2 included in final context. Otherwise 1 sentence before/after each s2 sent is included.")
- 
+    parser.add_argument('--rr_version', default="v2", type=str, help="Version of RR model to use. v2=test5. v3t8=test8")
+    
     args = parser.parse_args()
 
     """ Test options
@@ -281,7 +282,7 @@ if __name__ == "__main__":
     logger.info(f"Outputing combos for thresholds:{rr_thresholds}...")
     file = split + '.tsv'
     for rr_thresh in rr_thresholds:
-        newdataset = f"{args.base_dataset}_v2_llm_expl_rr{str(rr_thresh)}_fullwiki_rr{str(rr_thresh)}"
+        newdataset = f"{args.base_dataset}_{args.rr_version}_llm_expl_rr{str(rr_thresh)}_fullwiki_rr{str(rr_thresh)}"
         outdir = os.path.join(UQA_DIR, newdataset)
         logger.info(f"Output tsv to: {outdir}")
         os.makedirs(outdir, exist_ok=True)
@@ -313,7 +314,7 @@ if __name__ == "__main__":
     rr_thresholds = [0.3, 0.5, 0.75, 0.9]
     logger.info(f"Outputting iter if over thresh else llm for thresholds:{rr_thresholds}...")
     for rr_thresh in rr_thresholds:
-        newdataset = f"{args.base_dataset}_v2_iterthresh_llm_expl_rr_fullwiki_over_rr{str(rr_thresh)}"
+        newdataset = f"{args.base_dataset}_{args.rr_version}_iterthresh_llm_expl_rr_fullwiki_over_rr{str(rr_thresh)}"
         outdir = os.path.join(UQA_DIR, newdataset)
         logger.info(f"Output tsv to: {outdir}")
         os.makedirs(outdir, exist_ok=True)
@@ -335,7 +336,7 @@ if __name__ == "__main__":
 
 
     logger.info("Outputting max(llm score, iter score)...")
-    newdataset = f"{args.base_dataset}_v2_maxrr_llm_expl_fullwiki"
+    newdataset = f"{args.base_dataset}_{args.rr_version}_maxrr_llm_expl_fullwiki"
     outdir = os.path.join(UQA_DIR, newdataset)
     logger.info(f"Output tsv to: {outdir}")
     os.makedirs(outdir, exist_ok=True)

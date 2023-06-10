@@ -132,7 +132,8 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'nq_open_llm_expl', 'nq_open_llm_expl_with_llm_ans', 'nq_open_llm_expl_fullwiki_bs60',
             ]
 
-#csqa_combos = sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_v2_*'))
+#bloom - v2 combos - llm only, iter only and naive combo for each eval dataset is above
+#csqa_combos = sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_v2_*')) 
 csqa_combos = ['commonsenseqa_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'commonsenseqa_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
  'commonsenseqa_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
@@ -147,16 +148,19 @@ csqa_combos = ['commonsenseqa_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'commonsenseqa_v2_llm_expl_rr0.9_fullwiki_rr0.9',
  'commonsenseqa_v2_maxrr_llm_expl_fullwiki']
 
+#llm only for sv
 # sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_llm_expl_sv*'))
 csqa_combos += ['commonsenseqa_llm_expl_svfp16',
  'commonsenseqa_llm_expl_svfp16_with_llm_ans',
  'commonsenseqa_llm_expl_svint8',
  'commonsenseqa_llm_expl_svint8_with_llm_ans']
 
+# naive combo llm + iter for sv
 # sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_llm_expl_fullwiki_*sv*'))
 csqa_combos += ['commonsenseqa_llm_expl_fullwiki_bs150_noimplrel_svfp16',
  'commonsenseqa_llm_expl_fullwiki_bs150_noimplrel_svint8']
 
+#rr-ranked v2 combos for sv
 # sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_sv*'))
 csqa_combos += ['commonsenseqa_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'commonsenseqa_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
