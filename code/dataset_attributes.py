@@ -132,6 +132,8 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'nq_open_llm_expl', 'nq_open_llm_expl_with_llm_ans', 'nq_open_llm_expl_fullwiki_bs60',
             ]
 
+
+#######################
 #bloom - v2 combos - llm only, iter only and naive combo for each eval dataset is above
 #csqa_combos = sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_v2_*')) 
 csqa_combos = ['commonsenseqa_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
@@ -148,6 +150,23 @@ csqa_combos = ['commonsenseqa_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'commonsenseqa_v2_llm_expl_rr0.9_fullwiki_rr0.9',
  'commonsenseqa_v2_maxrr_llm_expl_fullwiki']
 
+#bloom v3 combos
+# sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_v3t8_*'))
+csqa_combos += ['commonsenseqa_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'commonsenseqa_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'commonsenseqa_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'commonsenseqa_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'commonsenseqa_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'commonsenseqa_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'commonsenseqa_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'commonsenseqa_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'commonsenseqa_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'commonsenseqa_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'commonsenseqa_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'commonsenseqa_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'commonsenseqa_v3t8_maxrr_llm_expl_fullwiki']
+
+
 #llm only for sv
 # sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_llm_expl_sv*'))
 csqa_combos += ['commonsenseqa_llm_expl_svfp16',
@@ -161,7 +180,7 @@ csqa_combos += ['commonsenseqa_llm_expl_fullwiki_bs150_noimplrel_svfp16',
  'commonsenseqa_llm_expl_fullwiki_bs150_noimplrel_svint8']
 
 #rr-ranked v2 combos for sv
-# sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_sv*'))
+# sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_sv*_v2_*'))
 csqa_combos += ['commonsenseqa_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'commonsenseqa_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
  'commonsenseqa_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
@@ -189,7 +208,36 @@ csqa_combos += ['commonsenseqa_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr
  'commonsenseqa_svint8_v2_llm_expl_rr0.9_fullwiki_rr0.9',
  'commonsenseqa_svint8_v2_maxrr_llm_expl_fullwiki']
 
+#rr-ranked v3 combos for sv
+# sorted(list_files_pattern(UQA_DIR, pattern='commonsenseqa_sv*_v3t8*'))
+csqa_combos += ['commonsenseqa_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'commonsenseqa_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'commonsenseqa_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'commonsenseqa_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'commonsenseqa_svfp16_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'commonsenseqa_svfp16_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'commonsenseqa_svfp16_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'commonsenseqa_svfp16_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'commonsenseqa_svfp16_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'commonsenseqa_svfp16_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'commonsenseqa_svfp16_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'commonsenseqa_svfp16_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'commonsenseqa_svfp16_v3t8_maxrr_llm_expl_fullwiki',
+ 'commonsenseqa_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'commonsenseqa_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'commonsenseqa_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'commonsenseqa_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'commonsenseqa_svint8_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'commonsenseqa_svint8_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'commonsenseqa_svint8_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'commonsenseqa_svint8_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'commonsenseqa_svint8_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'commonsenseqa_svint8_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'commonsenseqa_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'commonsenseqa_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'commonsenseqa_svint8_v3t8_maxrr_llm_expl_fullwiki']
 
+#######################
 #sqa_combos = sorted(list_files_pattern(UQA_DIR, pattern='strategy_qa_bigbench_v2_*'))
 sqa_combos = ['strategy_qa_bigbench_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'strategy_qa_bigbench_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
@@ -205,6 +253,22 @@ sqa_combos = ['strategy_qa_bigbench_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.
  'strategy_qa_bigbench_v2_llm_expl_rr0.9_fullwiki_rr0.9',
  'strategy_qa_bigbench_v2_maxrr_llm_expl_fullwiki']
 
+# sorted(list_files_pattern(UQA_DIR, pattern='strategy_qa_bigbench_v3t8_*'))
+sqa_combos += ['strategy_qa_bigbench_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'strategy_qa_bigbench_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'strategy_qa_bigbench_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'strategy_qa_bigbench_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'strategy_qa_bigbench_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'strategy_qa_bigbench_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'strategy_qa_bigbench_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'strategy_qa_bigbench_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'strategy_qa_bigbench_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'strategy_qa_bigbench_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'strategy_qa_bigbench_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'strategy_qa_bigbench_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'strategy_qa_bigbench_v3t8_maxrr_llm_expl_fullwiki']
+
+
 # sorted(list_files_pattern(UQA_DIR, pattern='strategy_qa_bigbench_llm_expl_sv*'))
 sqa_combos += ['strategy_qa_bigbench_llm_expl_svfp16',
  'strategy_qa_bigbench_llm_expl_svfp16_with_llm_ans',
@@ -215,7 +279,7 @@ sqa_combos += ['strategy_qa_bigbench_llm_expl_svfp16',
 sqa_combos += ['strategy_qa_bigbench_llm_expl_fullwiki_bs150_noimplrel_svfp16',
  'strategy_qa_bigbench_llm_expl_fullwiki_bs150_noimplrel_svint8']
 
-# sorted(list_files_pattern(UQA_DIR, pattern='strategy_qa_bigbench_sv*'))
+# sorted(list_files_pattern(UQA_DIR, pattern='strategy_qa_bigbench_sv*_v2_*'))
 sqa_combos += ['strategy_qa_bigbench_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'strategy_qa_bigbench_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
  'strategy_qa_bigbench_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
@@ -243,7 +307,36 @@ sqa_combos += ['strategy_qa_bigbench_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_o
  'strategy_qa_bigbench_svint8_v2_llm_expl_rr0.9_fullwiki_rr0.9',
  'strategy_qa_bigbench_svint8_v2_maxrr_llm_expl_fullwiki']
 
+#sorted(list_files_pattern(UQA_DIR, pattern='strategy_qa_bigbench_sv*_v3t8*'))
+sqa_combos += ['strategy_qa_bigbench_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'strategy_qa_bigbench_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'strategy_qa_bigbench_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'strategy_qa_bigbench_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'strategy_qa_bigbench_svfp16_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'strategy_qa_bigbench_svfp16_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'strategy_qa_bigbench_svfp16_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'strategy_qa_bigbench_svfp16_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'strategy_qa_bigbench_svfp16_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'strategy_qa_bigbench_svfp16_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'strategy_qa_bigbench_svfp16_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'strategy_qa_bigbench_svfp16_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'strategy_qa_bigbench_svfp16_v3t8_maxrr_llm_expl_fullwiki',
+ 'strategy_qa_bigbench_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'strategy_qa_bigbench_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'strategy_qa_bigbench_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'strategy_qa_bigbench_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'strategy_qa_bigbench_svint8_v3t8_maxrr_llm_expl_fullwiki']
 
+
+#######################
 #mudev_combos = sorted(list_files_pattern(UQA_DIR, pattern='musique_mu_dev_odv2_v2_*'))
 mudev_combos = ['musique_mu_dev_odv2_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'musique_mu_dev_odv2_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
@@ -259,6 +352,22 @@ mudev_combos = ['musique_mu_dev_odv2_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0
  'musique_mu_dev_odv2_v2_llm_expl_rr0.9_fullwiki_rr0.9',
  'musique_mu_dev_odv2_v2_maxrr_llm_expl_fullwiki']
 
+# sorted(list_files_pattern(UQA_DIR, pattern='musique_mu_dev_odv2_v3t8_*'))
+mudev_combos += ['musique_mu_dev_odv2_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'musique_mu_dev_odv2_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'musique_mu_dev_odv2_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'musique_mu_dev_odv2_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'musique_mu_dev_odv2_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'musique_mu_dev_odv2_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'musique_mu_dev_odv2_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'musique_mu_dev_odv2_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'musique_mu_dev_odv2_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'musique_mu_dev_odv2_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'musique_mu_dev_odv2_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'musique_mu_dev_odv2_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'musique_mu_dev_odv2_v3t8_maxrr_llm_expl_fullwiki']
+
+
 # sorted(list_files_pattern(UQA_DIR, pattern='musique_mu_dev_odv2_llm_expl_sv*'))
 mudev_combos += ['musique_mu_dev_odv2_llm_expl_svfp16',
  'musique_mu_dev_odv2_llm_expl_svfp16_with_llm_ans',
@@ -269,7 +378,7 @@ mudev_combos += ['musique_mu_dev_odv2_llm_expl_svfp16',
 mudev_combos += ['musique_mu_dev_odv2_llm_expl_fullwiki_bs150_svfp16',
  'musique_mu_dev_odv2_llm_expl_fullwiki_bs150_svint8']
 
-# sorted(list_files_pattern(UQA_DIR, pattern='musique_mu_dev_odv2_sv*'))
+# sorted(list_files_pattern(UQA_DIR, pattern='musique_mu_dev_odv2_sv*_v2_*'))
 mudev_combos += ['musique_mu_dev_odv2_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'musique_mu_dev_odv2_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
  'musique_mu_dev_odv2_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
@@ -297,6 +406,34 @@ mudev_combos += ['musique_mu_dev_odv2_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_
  'musique_mu_dev_odv2_svint8_v2_llm_expl_rr0.9_fullwiki_rr0.9',
  'musique_mu_dev_odv2_svint8_v2_maxrr_llm_expl_fullwiki']
 
+# sorted(list_files_pattern(UQA_DIR, pattern='musique_mu_dev_odv2_sv*_v3t8*'))
+mudev_combos += ['musique_mu_dev_odv2_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'musique_mu_dev_odv2_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'musique_mu_dev_odv2_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'musique_mu_dev_odv2_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'musique_mu_dev_odv2_svfp16_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'musique_mu_dev_odv2_svfp16_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'musique_mu_dev_odv2_svfp16_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'musique_mu_dev_odv2_svfp16_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'musique_mu_dev_odv2_svfp16_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'musique_mu_dev_odv2_svfp16_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'musique_mu_dev_odv2_svfp16_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'musique_mu_dev_odv2_svfp16_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'musique_mu_dev_odv2_svfp16_v3t8_maxrr_llm_expl_fullwiki',
+ 'musique_mu_dev_odv2_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'musique_mu_dev_odv2_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'musique_mu_dev_odv2_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'musique_mu_dev_odv2_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'musique_mu_dev_odv2_svint8_v3t8_maxrr_llm_expl_fullwiki']
+
 dev_eval = dev_eval + csqa_combos + sqa_combos + mudev_combos
 
 
@@ -319,6 +456,8 @@ test_eval = ['openbookqa', 'openbookqa_with_ir',
              'worldtree_mc_expl_ans', 'worldtree_od_ans',
              ]
 
+
+#######################
 #arcda_combos = sorted(list_files_pattern(UQA_DIR, pattern='arc_da_od_ans_v2_*'))
 arcda_combos = ['arc_da_od_ans_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'arc_da_od_ans_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
@@ -334,6 +473,22 @@ arcda_combos = ['arc_da_od_ans_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'arc_da_od_ans_v2_llm_expl_rr0.9_fullwiki_rr0.9',
  'arc_da_od_ans_v2_maxrr_llm_expl_fullwiki']
 
+#sorted(list_files_pattern(UQA_DIR, pattern='arc_da_od_ans_v3t8_*'))
+arcda_combos += ['arc_da_od_ans_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'arc_da_od_ans_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'arc_da_od_ans_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'arc_da_od_ans_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'arc_da_od_ans_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'arc_da_od_ans_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'arc_da_od_ans_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'arc_da_od_ans_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'arc_da_od_ans_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'arc_da_od_ans_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'arc_da_od_ans_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'arc_da_od_ans_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'arc_da_od_ans_v3t8_maxrr_llm_expl_fullwiki']
+
+
 # sorted(list_files_pattern(UQA_DIR, pattern='arc_da_od_ans_llm_expl_sv*'))
 arcda_combos += ['arc_da_od_ans_llm_expl_svfp16',
  'arc_da_od_ans_llm_expl_svfp16_with_llm_ans',
@@ -344,7 +499,7 @@ arcda_combos += ['arc_da_od_ans_llm_expl_svfp16',
 arcda_combos += ['arc_da_od_ans_llm_expl_fullwiki_bs150_svfp16',
  'arc_da_od_ans_llm_expl_fullwiki_bs150_svint8']
 
-# sorted(list_files_pattern(UQA_DIR, pattern='arc_da_od_ans_sv*'))
+# sorted(list_files_pattern(UQA_DIR, pattern='arc_da_od_ans_sv*_v2_*'))
 arcda_combos += ['arc_da_od_ans_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'arc_da_od_ans_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
  'arc_da_od_ans_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
@@ -373,6 +528,35 @@ arcda_combos += ['arc_da_od_ans_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_r
  'arc_da_od_ans_svint8_v2_maxrr_llm_expl_fullwiki']
 
 
+# sorted(list_files_pattern(UQA_DIR, pattern='arc_da_od_ans_sv*_v3t8_*'))
+arcda_combos += ['arc_da_od_ans_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'arc_da_od_ans_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'arc_da_od_ans_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'arc_da_od_ans_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'arc_da_od_ans_svfp16_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'arc_da_od_ans_svfp16_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'arc_da_od_ans_svfp16_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'arc_da_od_ans_svfp16_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'arc_da_od_ans_svfp16_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'arc_da_od_ans_svfp16_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'arc_da_od_ans_svfp16_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'arc_da_od_ans_svfp16_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'arc_da_od_ans_svfp16_v3t8_maxrr_llm_expl_fullwiki',
+ 'arc_da_od_ans_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'arc_da_od_ans_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'arc_da_od_ans_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'arc_da_od_ans_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'arc_da_od_ans_svint8_v3t8_maxrr_llm_expl_fullwiki']
+
+
 #iirc_combos = sorted(list_files_pattern(UQA_DIR, pattern='iirc_initial_context_v2_*'))
 iirc_combos = ['iirc_initial_context_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'iirc_initial_context_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
@@ -388,6 +572,22 @@ iirc_combos = ['iirc_initial_context_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0
  'iirc_initial_context_v2_llm_expl_rr0.9_fullwiki_rr0.9',
  'iirc_initial_context_v2_maxrr_llm_expl_fullwiki']
 
+# sorted(list_files_pattern(UQA_DIR, pattern='iirc_initial_context_v3t8_*'))
+iirc_combos += ['iirc_initial_context_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'iirc_initial_context_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'iirc_initial_context_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'iirc_initial_context_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'iirc_initial_context_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'iirc_initial_context_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'iirc_initial_context_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'iirc_initial_context_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'iirc_initial_context_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'iirc_initial_context_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'iirc_initial_context_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'iirc_initial_context_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'iirc_initial_context_v3t8_maxrr_llm_expl_fullwiki']
+
+
 # sorted(list_files_pattern(UQA_DIR, pattern='iirc_initial_context_llm_expl_sv*'))
 iirc_combos += ['iirc_initial_context_llm_expl_svfp16',
  'iirc_initial_context_llm_expl_svfp16_with_llm_ans',
@@ -398,7 +598,7 @@ iirc_combos += ['iirc_initial_context_llm_expl_svfp16',
 iirc_combos += ['iirc_initial_context_llm_expl_fullwiki_bs150_svfp16',
  'iirc_initial_context_llm_expl_fullwiki_bs150_svint8']
 
-# sorted(list_files_pattern(UQA_DIR, pattern='iirc_initial_context_sv*'))
+# sorted(list_files_pattern(UQA_DIR, pattern='iirc_initial_context_sv*_v2_*'))
 iirc_combos += ['iirc_initial_context_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
  'iirc_initial_context_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
  'iirc_initial_context_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
@@ -426,6 +626,33 @@ iirc_combos += ['iirc_initial_context_svfp16_v2_iterthresh_llm_expl_rr_fullwiki_
  'iirc_initial_context_svint8_v2_llm_expl_rr0.9_fullwiki_rr0.9',
  'iirc_initial_context_svint8_v2_maxrr_llm_expl_fullwiki']
 
+# sorted(list_files_pattern(UQA_DIR, pattern='iirc_initial_context_sv*_v3t8_*'))
+iirc_combos += ['iirc_initial_context_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'iirc_initial_context_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'iirc_initial_context_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'iirc_initial_context_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'iirc_initial_context_svfp16_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'iirc_initial_context_svfp16_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'iirc_initial_context_svfp16_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'iirc_initial_context_svfp16_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'iirc_initial_context_svfp16_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'iirc_initial_context_svfp16_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'iirc_initial_context_svfp16_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'iirc_initial_context_svfp16_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'iirc_initial_context_svfp16_v3t8_maxrr_llm_expl_fullwiki',
+ 'iirc_initial_context_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.3',
+ 'iirc_initial_context_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.5',
+ 'iirc_initial_context_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.75',
+ 'iirc_initial_context_svint8_v3t8_iterthresh_llm_expl_rr_fullwiki_over_rr0.9',
+ 'iirc_initial_context_svint8_v3t8_llm_expl_rr0.0005_fullwiki_rr0.0005',
+ 'iirc_initial_context_svint8_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+ 'iirc_initial_context_svint8_v3t8_llm_expl_rr0.05_fullwiki_rr0.05',
+ 'iirc_initial_context_svint8_v3t8_llm_expl_rr0.135_fullwiki_rr0.135',
+ 'iirc_initial_context_svint8_v3t8_llm_expl_rr0.3_fullwiki_rr0.3',
+ 'iirc_initial_context_svint8_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
+ 'iirc_initial_context_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
+ 'iirc_initial_context_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+ 'iirc_initial_context_svint8_v3t8_maxrr_llm_expl_fullwiki']
 
 test_eval = test_eval + arcda_combos + iirc_combos
 
