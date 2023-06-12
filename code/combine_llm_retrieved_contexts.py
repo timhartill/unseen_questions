@@ -117,7 +117,7 @@ def main():
                                                       origsample['answer']) )
         
         utils.save_uqa(out_list, outdir, file)
-
+    return
     
     
     
