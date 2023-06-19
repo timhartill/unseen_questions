@@ -434,7 +434,28 @@ mudev_combos += ['musique_mu_dev_odv2_svfp16_v3t8_iterthresh_llm_expl_rr_fullwik
  'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
  'musique_mu_dev_odv2_svint8_v3t8_maxrr_llm_expl_fullwiki']
 
-dev_eval = dev_eval + csqa_combos + sqa_combos + mudev_combos
+
+#sorted(list_files_pattern(UQA_DIR, pattern='drop_llm_expl*'))
+drop_combos = ['drop_llm_expl',
+ 'drop_llm_expl_only',
+ 'drop_llm_expl_only_ood',
+ 'drop_llm_expl_only_svfp16',
+ 'drop_llm_expl_only_svfp16_ood',
+ 'drop_llm_expl_only_svint8',
+ 'drop_llm_expl_only_svint8_ood',
+ 'drop_llm_expl_ood',
+ 'drop_llm_expl_ood_with_llm_ans',
+ 'drop_llm_expl_svfp16',
+ 'drop_llm_expl_svfp16_ood',
+ 'drop_llm_expl_svfp16_ood_with_llm_ans',
+ 'drop_llm_expl_svfp16_with_llm_ans',
+ 'drop_llm_expl_svint8',
+ 'drop_llm_expl_svint8_ood',
+ 'drop_llm_expl_svint8_ood_with_llm_ans',
+ 'drop_llm_expl_svint8_with_llm_ans',
+ 'drop_llm_expl_with_llm_ans']
+
+dev_eval = dev_eval + csqa_combos + sqa_combos + mudev_combos + drop_combos
 
 
 #Add to this list to create predictions/calc metrics for corresponding test.tsv:
@@ -987,6 +1008,7 @@ for ds in sqa_combos: dataset_attribs[ds] = {'type':'YN', 'prefer':''}
 for ds in arcda_combos: dataset_attribs[ds] = {'type':'EX', 'prefer':''}
 for ds in iirc_combos: dataset_attribs[ds] = {'type':'EX', 'prefer':''}
 for ds in mudev_combos: dataset_attribs[ds] = {'type':'EX', 'prefer':''}
+for ds in drop_combos: dataset_attribs[ds] = {'type':'AB', 'prefer':'F1'}
 
 
 ########################################################
@@ -1174,7 +1196,7 @@ unifiedqa_unseen_4 = [
     'mmlu_elementary_to_college_math_test',
     ]
 
-unifiedqa_unseen_4 = unifiedqa_unseen_4 + csqa_combos + mudev_combos + arcda_combos + sqa_combos + iirc_combos
+unifiedqa_unseen_4 = unifiedqa_unseen_4 + csqa_combos + mudev_combos + arcda_combos + sqa_combos + iirc_combos + drop_combos
 
 # Note: This is only used in create_least_similar_versions.py and check_least_similar_answer.py
 # These two py files have now been modified s.t. if a datasets isn't in this map, the file defaults to 'dev.tsv'..
