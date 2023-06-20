@@ -1015,11 +1015,26 @@ for ds in drop_combos: dataset_attribs[ds] = {'type':'AB', 'prefer':'F1'}
 # Map answer types file -> datasets for answer type analysis
 ########################################################
 
-answer_type_map = {'anstypes_drop_dev.jsonl': ['drop'],
-                   'anstypes_iirc_test.jsonl': ['iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
-                                                'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
-                                                'iirc_od_ans_fullwiki_bs150_mdr','iirc_initial_context_fullwiki_bs150_mdr',
-                                                'iirc_initial_context_llm_expl', 'iirc_initial_context_llm_expl_fullwiki_bs150',],
+answer_type_map = {'anstypes_drop_dev.jsonl': ['drop',
+                                               'drop_llm_expl_ood',
+                                               'drop_llm_expl_only_ood',
+                                               'drop_llm_expl_svint8_ood',
+                                               'drop_llm_expl_only_svint8_ood',],
+                   'anstypes_iirc_test.jsonl': ['iirc_od_ans', 
+                                                'iirc_gold_context', 
+                                                'iirc_initial_context',
+                                                'iirc_od_ans_fullwiki_bs150', 
+                                                'iirc_initial_context_fullwiki_bs150',
+                                                'iirc_od_ans_fullwiki_bs150_mdr',
+                                                'iirc_initial_context_fullwiki_bs150_mdr',
+                                                'iirc_initial_context_llm_expl', 
+                                                'iirc_initial_context_llm_expl_fullwiki_bs150',
+                                                'iirc_initial_context_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+                                                'iirc_initial_context_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
+                                                'iirc_initial_context_llm_expl_svint8',
+                                                'iirc_initial_context_llm_expl_fullwiki_bs150_svint8',
+                                                'iirc_initial_context_svint8_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
+                                                'iirc_initial_context_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',],
                    'anstypes_tatqa_dev.jsonl': ['tatqa'],
                    }
 
