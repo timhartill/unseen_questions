@@ -80,6 +80,7 @@ train_rr_format = utils.load_jsonl(file_hpqa_train) # 90447 of which 5481 are y/
 dev_rr_format_r4c = utils.load_jsonl(file_r4c_dev) # 2209
 train_rr_format_r4c = utils.load_jsonl(file_r4c_train) # 2379
 
+# create 
 dev_rr_format = utils.merge_pos_into_rr(dev_rr_format, dev_rr_format_r4c)
 train_rr_format = utils.merge_pos_into_rr(train_rr_format, train_rr_format_r4c)
 

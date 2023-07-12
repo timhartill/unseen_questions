@@ -127,7 +127,7 @@ dev_rr_format = utils.load_jsonl(rr_dev)      #6122 -> 6000
 train_rr_format = utils.load_jsonl(rr_train)  #97957 -> 91274 after de-dup questions in load_merge_negs(..)
 
 # merge routine to align pos and negs
-dev_rr_format = utils.load_merge_negs(dev_rr_format, file_rr_dev_negs)
+dev_rr_format = utils.load_merge_negs(dev_rr_format, file_rr_dev_negs)  # dev_rr_format = all q+pos with negs added where there is a match ie the superset
 utils.saveas_jsonl(dev_rr_format, rr_dev)
 
 train_rr_format = utils.load_merge_negs(train_rr_format, file_rr_train_negs)
@@ -139,7 +139,7 @@ utils.output_neg_tsv(train_rr_format, os.path.join(UQA_DIR, 'fever_neg_expl_ans'
 #dev_rr_format = utils.load_jsonl(rr_dev)
 #train_rr_format = utils.load_jsonl(rr_train)
 
-# save final rr model creak training dataset - only output where negs exist which is all of them in this case but for consistency and debug..
+# save  rr model fever training dataset - only output where negs exist 
 utils.output_rr_where_negs_exist(dev_rr_format, outfile=rr_dev_exclposonly)   
 utils.output_rr_where_negs_exist(train_rr_format, outfile=rr_train_exclposonly) 
 
@@ -153,6 +153,7 @@ train_rr_format = utils.load_jsonl(rr_train)  #91274 after de-dup questions in l
 
 def add_single_easy_neg(samples, force_overwrite=False):
     """ Add a single random neg to samples without negs and return just those samples
+    random neg is just a pos from a different sample..
     """
     orig_idxs = [i for i,s in enumerate(samples) if len(s['neg_paras']) == 0 or force_overwrite ]
     outlist = []

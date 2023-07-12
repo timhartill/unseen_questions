@@ -107,6 +107,7 @@ train_out = load_print_stats_combine(RR_IN_TRAIN, 'rr_train')
 
 ####
 # Create rr training samples for iter-like contexts fromev set scorer train samples to supplement the short rationale-form samples
+# "test 5" comes from this
 ####
 
 tokenizer = utils.load_model(loadwhat='tokenizer_only')
@@ -125,7 +126,7 @@ utils.saveas_jsonl(rr_train_all, os.path.join(RR_OUT_BASE, 'rr_train_iterctxtsv3
 rr_dev_combo = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_dev.jsonl'))  #11240
 rr_train_combo = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_train.jsonl'))  #48554
 
-# merge hpqa, hover iter pos/negs into rr combo that has rationales
+# merge hpqa, hover iter pos/negs into rr combo that has rationales. Eliminates iter (rr_dev_all) questions not existing in rr_dev_combo
 rr_dev_combo_iter =  utils.merge_pos_into_rr(rr_dev_combo, rr_dev_all, include_negs=True, add_src_to_key=True, strip_from_src='_iter')
 rr_train_combo_iter =  utils.merge_pos_into_rr(rr_train_combo, rr_train_all, include_negs=True, add_src_to_key=True, strip_from_src='_iter')
 
@@ -138,13 +139,13 @@ utils.saveas_jsonl(rr_dev_combo_iter, os.path.join(RR_OUT_BASE, 'rr_dev_rat_iter
 utils.saveas_jsonl(rr_train_combo_iter, os.path.join(RR_OUT_BASE, 'rr_train_rat_iterctxtsv3_merged.jsonl'))
 
 ###################################
-# Create version with extra negs
+# Create version with extra relevance samples - "test 8" comes from this
 ####################################
 
 rr_dev_combo_iter = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_dev_rat_iterctxtsv3_merged.jsonl'))
 rr_train_combo_iter = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_train_rat_iterctxtsv3_merged.jsonl'))
 
-# add extra fever rationale negs
+# add extra fever rationale negs ("newneg" = an erasor pos without an LLM-generated neg that has an "easy" (ie random pos from difft sample) neg added   )
 fever_dev_newneg = utils.load_jsonl(RR_DEV_FEVER_NEWNEG)    #6000
 fever_train_newneg = utils.load_jsonl(RR_TRAIN_FEVER_NEWNEG)  #71716
 

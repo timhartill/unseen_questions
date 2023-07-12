@@ -2157,7 +2157,7 @@ def merge_negs_into_rr(rr_format, negs, verbose=True):
     """ Match and Merge neg rationales into rr format. 
     rr format is as created by create_rr_format above.
     negs format is as created by load_llm_generations_singlemode above
-    Assumes all negs samples exist in rr format but rr_format may be a superset.
+    Assumes all negs samples exist in rr format but rr_format may be a superset (& returns superset).
     """
     rr_dict = {s['question'].rstrip().rstrip('?!:. ').lstrip(): s for s in rr_format}  # occasionally ending punctuation differences cause mismatches so strip all ending punctuation
     for i, neg in enumerate(negs):
