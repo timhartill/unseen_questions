@@ -5,7 +5,9 @@ Created on Mon Jan 16 17:29:18 2023
 
 @author: tim hartill
 
-Create new tsv formatted samples by concatenating Initial Context (if any) + LLM-retrieved rationale + Iterator-retrieved context 
+Create new tsv formatted samples by concatenating Initial Context (if any) + LLM-retrieved rationale + Iterator-retrieved context
+
+i.e. create "Rationale + Iterator (Naïve Concatenation)" 
 
 """
 

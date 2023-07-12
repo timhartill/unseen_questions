@@ -55,6 +55,7 @@ RR_TRAIN_FEVER_NEWNEG = '/home/thar011/data/eraser/fever/fever_train_rr_all_pos_
 
 def load_print_stats_combine(split_list, outfile):
     """ Load each file, print stats for each then combine into one file for output
+    Note: stats counts unused here, revised version below used for final combined training file...
     """
     outstatsfile = os.path.join(RR_OUT_BASE, outfile + '_counts.json')
     outfile = os.path.join(RR_OUT_BASE, outfile + '.jsonl')
@@ -195,4 +196,68 @@ for s in rr_dev_combo_iter:  # 236 blank negs..
     if len(s['neg_paras']) == 0: s['neg_paras'] = [{'text': 'A dummy irrelevant sentence.', 'sentence_spans': [[0, 28]]}]
 
 utils.saveas_jsonl(rr_dev_combo_iter, os.path.join(RR_OUT_BASE, 'rr_dev_rat_iterctxtsv3_merged_extrarelevancerats.jsonl'))
+
+
+#######
+# Below added for final stats output
+#######
+
+def print_stats_final(rr_train_combo_iter, outstatsfile):
+    """ Output stats for train file
+    Note: dev sample counts = dev question counts since we sample a single q+pos or q+neg
+    """
+    stats = {}
+    print("######################################")
+    
+    for s in rr_train_combo_iter:
+        src = s['src']
+        if stats.get(src) is None:
+            stats[src] = {'questions': 0, 'pos':0, 'neg': 0, 'mc': False, 'ctxt':False}
+        stats[src]['questions'] += 1  
+        stats[src]['pos'] += len(s['pos_paras'])
+        stats[src]['neg'] += len(s['neg_paras'])
+        hasmc = s.get('mc_options') is not None and s['mc_options'].strip() != ''
+        if hasmc:
+            stats[src]['mc'] = True
+        hascontext = s.get('context') is not None and s['context'] != '' # for consistency. Note no training samples have context key
+        if hascontext:
+            stats[src]['ctxt'] = True
+
+    numsamples, numpos, numneg = 0, 0, 0
+    for src in stats:
+        numsamples += stats[src]['questions']
+        numpos += stats[src]['pos']
+        numneg += stats[src]['neg']
+        stats[src]['pos_mean'] = stats[src]['pos'] / stats[src]['questions']
+        stats[src]['neg_mean'] = stats[src]['neg'] / stats[src]['questions']
+        print(f"{src}  {stats[src]}")
+    stats['TOTAL'] = {'questions': 0, 'pos':0, 'neg': 0}
+    stats['TOTAL']['questions'] = numsamples
+    stats['TOTAL']['pos'] = numpos
+    stats['TOTAL']['neg'] = numneg
+    stats['TOTAL']['pos_mean'] = numpos / numsamples
+    stats['TOTAL']['neg_mean'] = numneg / numsamples
+    print("########### TOTALS ###########################")
+    print(stats['TOTAL'])
+    json.dump(stats, open(outstatsfile, 'w'))
+    print(f"Counts saved to {outstatsfile}")
+    return
+
+
+rr_train_combo_iter = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_train_rat_iterctxtsv3_merged_extrarelevancerats.jsonl'))
+outstatsfile = os.path.join(RR_OUT_BASE, 'rr_train_rat_iterctxtsv3_merged_extrarelevancerats_STATSFINAL.json')
+print_stats_final(rr_train_combo_iter, outstatsfile)
+
+rr_dev_combo_iter = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_dev_rat_iterctxtsv3_merged_extrarelevancerats.jsonl'))
+outstatsfile = os.path.join(RR_OUT_BASE, 'rr_dev_rat_iterctxtsv3_merged_extrarelevancerats_STATSFINAL.json')
+print_stats_final(rr_dev_combo_iter, outstatsfile)
+
+
+rr_train_combo_iter = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_train_rat_iterctxtsv3_merged.jsonl'))
+outstatsfile = os.path.join(RR_OUT_BASE, 'rr_train_rat_iterctxtsv3_merged_STATSFINAL.json')
+print_stats_final(rr_train_combo_iter, outstatsfile)
+
+rr_dev_combo_iter = utils.load_jsonl(os.path.join(RR_OUT_BASE, 'rr_dev_rat_iterctxtsv3_merged.jsonl'))
+outstatsfile = os.path.join(RR_OUT_BASE, 'rr_dev_rat_iterctxtsv3_merged_STATSFINAL.json')
+print_stats_final(rr_dev_combo_iter, outstatsfile)
 
