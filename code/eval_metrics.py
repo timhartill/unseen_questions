@@ -38,7 +38,7 @@ import datasets  # NOTE: must also pip install rouge_score
 import eval_drop
 from sari import SARI
 from dataset_attributes import dev_eval, test_eval, metric_groups, dataset_attribs, replace_sim_with
-from dataset_attributes import unifiedqa_base_train, synth_num_base_train, poet_base_train, tt_base_train
+from dataset_attributes import unifiedqa_base_train_orig, unifiedqa_base_train, synth_num_base_train, poet_base_train, tt_base_train
 from dataset_attributes import q_paras_train, q_paras_noanswer_train, q_od_train, q_mc_train, q_mc_paras_train
 from dataset_attributes import q_ret_paras_train, q_ret_paras_maxp4_train, q_ret_paras_train_v2, q_ret_paras_maxp4_train_v2, q_ret_paras_train_v3, q_ret_paras_maxp4_train_v3
 from dataset_attributes import q_llm_expl_train, q_llm_expl_paras_train, q_expl_train
@@ -640,8 +640,11 @@ class DatasetMetrics:
                 if not pref_metric:
                     dsettype = dataset_attribs[ds]['type']
                     pref_metric = metric_groups[dsettype]['prefer']
-            else:
-                pref_metric = 'NA'
+            else: # mot in dataset_attribs, try getting "non-current" version
+                if self.results_dict.get(ds) is not None:
+                    pref_metric = self.results_dict[ds]['prefer']
+                else:
+                    pref_metric = 'NA'
         else:    
             if self.results_dict.get(ds) is not None:
                 pref_metric = self.results_dict[ds]['prefer']

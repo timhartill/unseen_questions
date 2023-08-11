@@ -9,7 +9,7 @@
 #         --num_workers 0 \    default is 0 so no need to include
 #         --add_mask_char NONE \  made this the default so excluding here
 
-# THIS TRAINS THE BASE+EXP MODEL v1
+# THIS TRAINS THE BASE+EXP MODEL v1 (GR in paper)
 
 #         --do_compile \  crashed so removed
 

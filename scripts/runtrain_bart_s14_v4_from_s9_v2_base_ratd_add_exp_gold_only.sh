@@ -9,7 +9,7 @@
 #         --num_workers 0 \    default is 0 so no need to include
 #         --add_mask_char NONE \  made this the default so excluding here
 
-# This trains the BASE+RATD+EXP model
+# This trains the BASE+RATD+EXP model (GR+RATD in paper)
 #         --do_compile \ 
 
 cd ../code

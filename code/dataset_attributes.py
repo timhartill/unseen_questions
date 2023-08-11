@@ -20,7 +20,7 @@ Add/Edit datasets:
     unifiedqa_unseen_6      # filtered versions of unseen eval datasets (not currently used)
     unifiedqa_seen_1        # datasets used in training but that we wish to evaluate for various reasons anyway
 - Edit UQA_DIR to point to base directory for unified-qa formatted datasets.
-- Edit create_datasets_dynamic to add new datasets to dynamically create explations for (i.e from q[+mc]->a make q[+mc]+e->a). (UNUSED)
+- <UNUSED> Edit create_datasets_dynamic to add new datasets to dynamically create explations for (i.e from q[+mc]->a make q[+mc]+e->a). (UNUSED)
     Datasets added here must be in dev_eval/test_eval and in dataset_attribs..
     Dynamically created versions i.e /UQA_DIR/qasc_svised_expl_ans_modeloutputdir_timestamp will be added to dev_eval/test_eval and dataset_attribs when this module is loaded..
 
@@ -56,6 +56,10 @@ To run eval manually:
         SAMPLE METRICS: EM_score: 0.00   F1_score: 0.00
 
 - Run metrics in similarity buckets ...
+    - create similarity embeddings eg see runsembeddings_bart_indivdigits_tdnd_V7.sh
+    - calculate train-eval similarity eg see runsim_for_sembeddings_bart_indivdigits_tdnd_V7.sh
+    - load overlap_detector.py
+    - run report fns interactively as described there. eg run_all_reports(...)
 
 """
 
@@ -87,11 +91,10 @@ else:
 
 
 
-
 #Add to this list to create predictions/calc metrics for corresponding dev.tsv:
 dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_ropes', 
             'boolq_np', 'contrast_sets_boolq', 'physical_iqa', 
-            'social_iqa', 'squad1_1_titlereformat', 'squad2_titlereformat', 'boolq',  
+            'social_iqa', 'squad1_1_titlereformat', 'squad2_titlereformat', 'squad1_1', 'squad2','boolq',  
             'winogrande_xl', 'tatqa',
             'csqa2', 'csqa2_fullwiki_bs150_noimplrel', 'csqa2_fullwiki_bs150_noimplrel_maxp4', 
             'csqa2_impl_rels', 'csqa2_fullwiki_bs150_implrel', 'csqa2_fullwiki_bs150_implrel_origq',
@@ -773,6 +776,8 @@ dataset_attribs = {
     'social_iqa_dedup': {'type':'MC', 'prefer':''},
     'squad1_1_titlereformat': {'type':'EX', 'prefer':''},
     'squad2_titlereformat': {'type':'EX', 'prefer':''},
+    'squad1_1': {'type':'EX', 'prefer':''},
+    'squad2': {'type':'EX', 'prefer':''},
     'winogrande_l': {'type':'MC', 'prefer':''},
     'winogrande_m': {'type':'MC', 'prefer':''},
     'winogrande_s': {'type':'MC', 'prefer':''},
@@ -1043,6 +1048,9 @@ answer_type_map = {'anstypes_drop_dev.jsonl': ['drop',
 #################################################
 # Groups of datasets for use in 'mixture' parameter to save typing each in individually 
 #################################################
+unifiedqa_base_train_orig = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
+                             "arc_hard", "arc_easy", "mctest_corrected_the_separator",
+                             "squad1_1", "squad2", "boolq", "race_string", "openbookqa"]
 
 unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
                         "arc_hard", "arc_easy", "mctest_corrected_the_separator",
@@ -1296,9 +1304,6 @@ unifiedqa_seen_1 = [
     'nq_open_llm_expl', 'nq_open_llm_expl_with_llm_ans', 'nq_open_llm_expl_fullwiki_bs60',
     ]
 
-            
-              
-            
 
 
 # The 57 mmlu datasets. 

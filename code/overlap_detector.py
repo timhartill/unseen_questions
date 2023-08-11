@@ -2,11 +2,17 @@
 F1, n-gram and sentence embedding test-train overlap detector
 Also contains the functions to run reports combining test-train similarity and prediction performance
 To run the reports use the run_all_reports(...) function below. It is designed to be run interactively 
-rather than from the command line.
+rather than from the command line but could be easily modified with if __name__ == ... as needed.
 
 Author: Tim Hartill
 
 The n-gram overlap detector is adapted from code from: https://github.com/elangovana/nlp-train-test-overlap-detector
+
+Full workflow to run reports involving train-eval similarity:
+    - create similarity embeddings eg see runsembeddings_bart_indivdigits_tdnd_V7.sh
+    - calculate train-eval similarity eg see runsim_for_sembeddings_bart_indivdigits_tdnd_V7.sh
+    - load overlap_detector.py ie this file into interactive ide like spyder
+    - run report fns interactively as described below for each function run_*(). eg run_all_reports(...)
 
 """
 
@@ -431,7 +437,7 @@ class SimilarityAggregator:
         if self.compare_over == 'ALL':
             self.compare_over = ['ALL']
         elif self.compare_over == 'UQA':
-            self.compare_over = eval_metrics.unifiedqa_base_train
+            self.compare_over = eval_metrics.unifiedqa_base_train_orig
         else:
             assert type(self.compare_over) == list, f"Error: compare_over param must be 'ALL', 'UQA' or list of training datasets to compare over not {self.compare_over}."
         self.thresh_buckets = thresh_buckets
@@ -1212,9 +1218,11 @@ def run_sim_detail_reports(logdir, sim_results_file, model_results_file, trainin
         Note:   model_results_file will supply the predictions in the output but these will only be valid 
                 for the particular combination of training datasets the model was trained against...
     Usage: 
-        logdir='/data/thar011/out/unifiedqa_averages/s7_v1/'
+        logdir='/data/thar011/out/unifiedqa_averages/uqa_train_eval_most_similar/'
+        #logdir='/data/thar011/out/unifiedqa_averages/s7_v1/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformatted eval questions for ssvise train datasets
-        model_results_file='/data/thar011/out/unifiedqa_bart_large_s6_v4_musique_qa_plus_all_decomps/eval_metrics.json'
+        model_results_file = '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_metrics.json'
+        #model_results_file='/data/thar011/out/unifiedqa_bart_large_s6_v4_musique_qa_plus_all_decomps/eval_metrics.json'
         training_subsets_list = [ ['musique_qa_paras_full'],
                                   ['musique_qa_full'],
                                   ['musique_decomp_new_dev_in_train_full']
@@ -1331,7 +1339,7 @@ def run_summary_thresh_reports(logdir, sim_results_file, results_list, include_l
 
 
 def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqaplus_results_file):
-    """ Runs all reports used in our paper and a few more...
+    """ Runs all reports used in our paper on memorisation and a few more...
     Usage: 
         logdir='/data/thar011/out/unifiedqa_averages/s7_v1/'
         sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'  #reformat
@@ -1430,6 +1438,40 @@ def run_all_reports(logdir, sim_results_file, model_uqa_results_file, model_uqap
     return    
 
 
+def run_similarity_dump_single(logdir, sim_results_file, model_results_file, eval_datasets, 
+                               train_datasets='ALL', outfile = 'most_similar_dump_detail.txt'):
+    """ Run the most similar train-eval pairs detail dump for one set of eval datasets vs one set of train datasets
+        model_results_file is used as the source for model predictions added into the report
+    
+    logdir='/data/thar011/out/unifiedqa_averages/uqa_train_eval_most_similar/'
+
+    sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'
+    model_results_file = '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_metrics.json'
+
+    eval_datasets = eval_metrics.unifiedqa_base_train_orig.copy()
+    if 'narrativeqa' in eval_datasets: eval_datasets.remove('narrativeqa') # narrativeqa eval sim wasnt calculated...
+    train_datasets = eval_metrics.unifiedqa_base_train_orig.copy()  # orig squad instead of title reformatted versions
+   
+    """
+    if logdir[-1] != '/':
+        logdir += '/'
+    print(f'Reports will be out to {logdir}')
+    os.makedirs(logdir, exist_ok=True)
+    print(f'Loading similarity file {sim_results_file}...')
+    sim_results = json.load(open(sim_results_file))
+    results_list = [model_results_file]
+    print(f'Obtaining similarities over training datasets: {results_list}')
+    s_uqa_summary = SimilarityAggregator(sim_results, no_overlap_thresh=60.0, results_list=results_list, 
+                                         compare_over=train_datasets,
+                                         thresh_buckets = [0,60,90,101], logdir=logdir)
+    print(f'Outputting to {outfile}')
+    new_outlist = output_most_similar_detail(s_uqa_summary, dsetset=eval_datasets, ngram='Unigram', column='combo', 
+                                             topk=10000, outname = outfile)
+    
+    print('Finished!')
+    return
+
+
 def check_duplicates(s, dsetset='ALL', ngram='Unigram', column='combo', 
                          outname = 'tmp_duplicate_counts.txt'):
     """ Check for duplicates in dev and test sets
@@ -1453,7 +1495,10 @@ def check_duplicates(s, dsetset='ALL', ngram='Unigram', column='combo',
     return outlist
         
 
+# Below called from calc_similarity_embeddings(...) (and calc_similarity(..) for bow calc_similarity_numeric(..) for F1) in run.py
 class UQADataset:
+    """ Calculate similarity between each eval and each train sample
+    """
     def __init__(self):
         pass
 
