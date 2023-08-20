@@ -8,7 +8,7 @@ Created on Fri Jul  2 12:56:01 2021
 
 Check before and after dataset filtering answer distributions.
 
-Outputs summary separated into textual and numeric answers.
+Also outputs summary separated into textual and numeric answers.
 
 
 
