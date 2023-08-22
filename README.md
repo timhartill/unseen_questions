@@ -63,7 +63,8 @@ Run everything below from the code subdirectory.
 
 Run evaluation for the _Base_ model. This will create a file in the $LDATA/base subdirectory called eval_metrics.json containing metrics for all unseen evaluation datasets plus a selection of the training datasets. A separate json file of predictions for each dataset will also be output:
 
-```python cli.py --output_dir $LDATA/base \
+```
+python cli.py --output_dir $LDATA/base \
         --predict_file $UQA_DIR/dev.tsv \
         --predict_batch_size 32 \
         --append_another_bos --do_lowercase \
