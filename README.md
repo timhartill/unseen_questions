@@ -55,6 +55,8 @@ Decompress the downloaded file (17.3GB):
 
     tar -xvf wiki20200801.tar.gz -C $HDATA
 
+
+
 ## Running Evaluation On BART QA/Reasoning Models 
 
 Run everything below from the /code subdirectory. 
@@ -134,6 +136,23 @@ To train a _Base+RATD_ model is as above but with --mixture:
 Generally to add new datasets to a training mixture, follow the directions in "dataset_attributes.py".
 
 ## Iterator: Encoding Wikipedia for Dense Retrieval
+
+To encode the downloaded Wikipedia paragraphs in subdirectory $LDATA/full_wiki_iterator_retriever_v1:
+
+```
+python mdr_encode_corpus_nativeamp.py \
+    --do_predict \
+    --predict_batch_size 500 \
+    --model_name roberta-base \
+    --predict_file $HDATA/home/thar011/data/beerqa/enwiki-20200801-pages-articles-compgen-withmerges.jsonl \
+    --init_checkpoint $LDATA/iterator_retriever/checkpoint_q_best.pt \
+    --embed_save_path $LDATA/full_wiki_iterator_retriever_v1 \
+    --use_var_versions \
+    --fp16 \
+    --max_c_len 300 \
+    --num_workers 10
+```
+
 
 ## Iterator: Training the Retriever, Stage 1 Paragraph Reranker or Stage 2 Evidence Set Scorer
 
