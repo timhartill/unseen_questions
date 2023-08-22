@@ -40,7 +40,7 @@ Decompress the downloaded file (17.5GB):
     tar -xvf models_tsv.tar.gz -C $LDATA
 
 
-**4:** If training Iterator sub-models or encoding the Wikipedia corpus for sense retrieval in order to use the Iterator for inference:
+**4:** If training Iterator sub-models or encoding the Wikipedia corpus for dense retrieval in order to use the Iterator for inference:
 
 4.1: Download training datasets for Iterator (Retriever, Stage 1 Paragraph Reranker and Stage 2 Evidence Set Scorer): https://drive.google.com/file/d/1LAH1c8XmLI2dBUImnSLx36fKxLJAHfVl/view?usp=sharing
 
@@ -55,6 +55,17 @@ Decompress the downloaded file (17.3GB):
 
     tar -xvf wiki20200801.tar.gz -C $HDATA
 
+## Running Evaluation for Unseen Datasets on one of our BART QA/Reasoning models 
  
- 
-More instructions coming soon...
+
+## Training a QA/Reasoning Model
+
+
+## Iterator: Encoding Wikipedia for Dense Retrieval
+
+## Iterator: Training the Retriever, Stage 1 Paragraph Reranker or Stage 2 Evidence Set Scorer
+
+## Iterator: Inference i.e. Generating a context for a set of Open Domain, Multi-choice or Partially Contextualised Questions
+
+
+
