@@ -7,11 +7,11 @@ Tested on Ubuntu 20.04, Python 3.9
 
 **1:** After cloning this repository, edit .bashrc to export three environmental variables which are necessary to run our code and shell scripts:
 
-export UQA_DIR=/path/to/base/tsv_formatted_datasets
+    export UQA_DIR=/path/to/base/tsv_formatted_datasets
 
-export LDATA=/path/to/logs_and_model_checkpoints
+    export LDATA=/path/to/logs_and_model_checkpoints
 
-export HDATA=/path/to/misc_other
+    export HDATA=/path/to/misc_other
 
 _UQA_DIR_ is where datasets to train/evaluate our BART-based QA/Reasoning models live. Each dataset is in it's own subdirectory under this and will comprose some or all of dev.tsv. train.tsv and test.tsv.
 
