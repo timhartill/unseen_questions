@@ -3,7 +3,7 @@
 
 Tested on Ubuntu 20.04, Python 3.9
 
-* Initial Setup
+## Initial Setup
 
 **1:** After cloning this repository, edit .bashrc to export three environmental variables which are necessary to run our code and shell scripts:
 
@@ -13,11 +13,11 @@ export LDATA=/path/to/logs_and_model_checkpoints
 
 export HDATA=/path/to/misc_other
 
-UQA_DIR is where datasets to train/evaluate our BART-based QA/Reasoning models live. Each dataset is in it's own subdirectory under this and will comprose some or all of dev.tsv. train.tsv and test.tsv.
+_UQA_DIR_ is where datasets to train/evaluate our BART-based QA/Reasoning models live. Each dataset is in it's own subdirectory under this and will comprose some or all of dev.tsv. train.tsv and test.tsv.
 
-LDATA is where logs and model checkpoints go. Each model training run will be in it's own subdirectory under LDATA.
+_LDATA_ is where logs and model checkpoints go. Each model training run will be in it's own subdirectory under LDATA.
 
-HDATA is where miscellaneous other things go including json-formatted training datasets for Iterator models and the Wikipedia corpus. For simplicity the instructions below assume all miscellaneous stuff is in this directory but you can choose to create individual subdirectories under this and adapt the instructions.
+_HDATA_ is where miscellaneous other things go including json-formatted training datasets for Iterator models and the Wikipedia corpus. For simplicity the instructions below assume all miscellaneous stuff is in this directory but you can choose to create individual subdirectories under this and adapt the instructions.
 
  
 **2:** Download tsv-formatted datasets: https://drive.google.com/file/d/1QMY9GbwMCvNdsRQh66UCsFKnZzjrXMZ_/view?usp=sharing
