@@ -18,20 +18,35 @@ Add/Edit datasets:
 - Add to test_eval to produce preds, metrics for a dataset's test.tsv - each dataset must be in either dev_eval or test_eval but not both!
 - Add to dataset_attribs to include in eval and/or similarity calc plus to configure the set of metrics to be produced for a given dataset
 - Add to replace_sim_with to use sembs from another dataset as proxy in calculating similarity for a given dataset
-- Edit the following to add/remove datasets from sets of current output reports:
+- Edit the following to add/remove datasets for evaluation from sets of current output reports:
     unifiedqa_unseen_4      # unseen eval dataset
     unifiedqa_unseen_4_map  # must configure this to identify whether dev.tsv or test.tsv is the file to be used for calculation
     unifiedqa_unseen_6      # filtered versions of unseen eval datasets (not currently used)
     unifiedqa_seen_1        # datasets used in training but that we wish to evaluate for various reasons anyway
+- To add/edit groups of datasets for training, add/edit as above then:
+    - modify or add lists under "TRAINING DATASET GROUPINGS" below.
+    - edit parse_mixture(..) in eval_metrics.py so the system knows what to do with them
+
 
 
 Run eval:
-After configuring datasets as specified above:
-To run generic eval for unseen4 and seen1: 
+    
+- Run eval for each model as described on our github page after configuring which datasets to calculate for as described above.
+- Output metrics across multiple models in tabular form into a text file suitable for import into a spreadsheet etc
+To run generic eval for unseen4 and seen1 against the 'default' eval set: (this will only work for models on our machines)
     Configure models to run + output dir in eval_set below
     then run: bash run_all_eval_output.sh    
 
-To run eval manually:
+To run eval for unseen4 and seen1 against the 'base_ratd' eval set: (Use if you have set up per our github instructions)
+    Configure models to run + output dir in eval_set below
+    then run: python eval_metrics.py --eval_set base_ratd   
+
+To run eval for unseen4 and seen1 against a new eval set eg "my_new":
+    Configure models to run + output dir in eval_set below perhaps by copying and editting the 'base_ratd' key
+    then run: python eval_metrics.py --eval_set my_new   
+
+
+To run eval manually by editting one of our existing shell scripts:
 - Edit/run one of the "runevalall....sh" scripts making sure to include flags: --do_predict_all --calc_metrics_all --add_only_missing
     - do_predict_all: Generates a predictions file with naming convention: dev|test_dataset name_predictions.json
                       Does so for each dataset specified below in dev_eval (for dev.tsv) and test_eval (for test.tsv)
@@ -1040,6 +1055,7 @@ answer_type_map = {'anstypes_drop_dev.jsonl': ['drop',
 
 
 #################################################
+# TRAINING DATASET GROUPINGS
 # Groups of datasets for use in 'mixture' parameter to save typing each in individually 
 #################################################
 unifiedqa_base_train_orig = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
@@ -1424,6 +1440,11 @@ eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
                                     'out/mdr/logs/UQA_s11_v11_NOnumlit_withwikissvise_idt_unisamp_1group_1stage/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v12_all_g1_qa_g2_numlit_wikissvise_from_s9_v6_NOidt_addretds/eval_metrics.json',
                                     'out/mdr/logs/UQA_s11_v13_all_g1_qa_g2_numlit_wikissvise_from_s9_v6_NOidt_700ksteps_addretds/eval_metrics.json',
+                                  ]
+                       },
+            'base_ratd': {'output_dir': 'eval_outputs',
+                        'models': [ 'base/eval_metrics.json',
+                                    'base_plus_ratd/eval_metrics.json',
                                   ]
                        }
             # add additional sets in same format as 'default' here..
