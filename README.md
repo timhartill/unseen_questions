@@ -91,6 +91,46 @@ Generally, to add/remove datasets for evaluation and/or to create a new or modif
 
 ## Training a QA/Reasoning Model
 
+To train a _Base_ model starting from our checkpoint from the first stage of QA model training:
+
+```
+python cli.py --do_train --output_dir $LDATA/my_new_base_model \
+        --is_unifiedqa \
+        --train_file $UQA_DIR/train.tsv \
+        --predict_file $UQA_DIR/dev.tsv \
+        --checkpoint $LDATA/stage_1_bart/best-model.pt \
+        --train_batch_size 32 \
+        --predict_batch_size 32 \
+        --append_another_bos --do_lowercase \
+        --eval_period 10000 --verbose \
+        --gradient_accumulation_steps 4 \
+        --wait_step 10 \
+        --num_scheduler_steps 250000 \
+        --learning_rate 2e-5 \
+        --model facebook/bart-large \
+        --seed 42 \
+        --ssm_prob 0.65 \
+        --add_mask_char NONE \
+        --max_output_length 130 \
+        --fp16 \
+        --dont_pretokenize \
+        --dont_save_train_token_file \
+        --indiv_digits \
+        --approx_dev_samples 1250 \
+        --g2_prob 0.2 \
+        --error_based_ssvise_prob 0.05 \
+        --g1_type err \
+        --g2_type uni \
+        --g2_datasets q_od_all,tt_all,poet_all,synth_num_all,synthetic_textual,enwiki_20200801_selfsvised \
+        --mixture q_paras_all,q_paras_noanswer_all,q_mc_all,q_mc_paras_all,q_od_all,tt_all,poet_all,synth_num_all,synthetic_textual,enwiki_20200801_selfsvised
+```
+
+To train a _Base+RATD_ model is as above but with --mixture:
+
+```
+        --mixture q_paras_all,q_paras_noanswer_all,q_mc_all,q_mc_paras_all,q_od_all,tt_all,poet_all,synth_num_all,synthetic_textual,enwiki_20200801_selfsvised,q_ret_paras_all,q_ret_paras_maxp4_all```
+
+Generally to add new datasets to a training mixture, follow the directions in "dataset_attributes.py".
 
 ## Iterator: Encoding Wikipedia for Dense Retrieval
 
