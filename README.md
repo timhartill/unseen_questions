@@ -273,13 +273,60 @@ python mdr_train_mhop_nativeamp.py \
 To train the Stage 1 Paragraph Reranker:
 
 ```
-
+python mdr_train_stage1_nativeamp.py \
+    --do_train \
+    --prefix STAGE1RERANKER_v1 \
+    --predict_batch_size 100 \
+    --model_name google/electra-large-discriminator \
+    --train_batch_size 12 \
+    --learning_rate 5e-5 \
+    --fp16 \
+    --train_file $HDATA/sent_train.jsonl \
+    --predict_file $HDATA/sent_dev.jsonl \
+    --seed 42 \
+    --eval-period 2000 \
+    --max_c_len 512 \
+    --max_q_len 70 \
+    --gradient_accumulation_steps 8 \
+    --use-adam \
+    --sp-weight 1.0 \
+    --output_dir $LDATA \
+    --save_prediction stage1_dev_predictions.jsonl \
+    --num_train_epochs 7 \
+    --sent_score_force_zero \
+    --sp_percent_thresh 0.55 \
+    --num_workers_dev 10 \
+    --debug \
+    --warmup-ratio 0.1
 ```
 
 To train the Stage 2 Evidence Set Scorer:
 
 ```
-
+python mdr_train_stage2_nativeamp.py \
+    --do_train \
+    --prefix STAGE2EVSETSCORER_v1 \
+    --predict_batch_size 100 \
+    --model_name google/electra-large-discriminator \
+    --train_batch_size 12 \
+    --learning_rate 5e-5 \
+    --fp16 \
+    --train_file $HDATA/sent_train.jsonl \
+    --predict_file $HDATA/sent_dev.jsonl \
+    --seed 42 \
+    --eval-period 2000 \
+    --max_c_len 512 \
+    --max_q_len 70 \
+    --gradient_accumulation_steps 8 \
+    --use-adam \
+    --sp-weight 1.0 \
+    --output_dir $LDATA \
+    --save_prediction stage2_dev_predictions.jsonl \
+    --num_train_epochs 7 \
+    --sent_score_force_zero \
+    --sp_percent_thresh 1.0 \
+    --num_workers_dev 10 \
+    --warmup-ratio 0.1
 ```
 
 
