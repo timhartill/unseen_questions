@@ -23,6 +23,7 @@ _HDATA_ is where miscellaneous other things go including json-formatted training
 **2:** Download tsv-formatted datasets: https://drive.google.com/file/d/1QMY9GbwMCvNdsRQh66UCsFKnZzjrXMZ_/view?usp=sharing
 
 Decompress the downloaded file (6.5GB):
+
     tar -xvf datasets_tsv.tar.gz -C $UQA_DIR
 
 NOTE: The Retrieval-Augmented Training Datasets (_RATD_) can be identifed as the subset with the key __fullwiki_bs_ contained in the dataset name.
@@ -31,6 +32,7 @@ NOTE: The Retrieval-Augmented Training Datasets (_RATD_) can be identifed as the
 **3:** Download our pretrained models: https://drive.google.com/file/d/1wgJvMYKHIxbtbeMX1e0n_rwcSFiES3Tc/view?usp=sharing
 
 Decompress the downloaded file (17.5GB):
+
     tar -xvf models_tsv.tar.gz -C $LDATA
 
 
@@ -39,12 +41,14 @@ Decompress the downloaded file (17.5GB):
 4.1: Download training datasets for Iterator (Retriever, Stage 1 Paragraph Reranker and Stage 2 Evidence Set Scorer): https://drive.google.com/file/d/1LAH1c8XmLI2dBUImnSLx36fKxLJAHfVl/view?usp=sharing
 
 Decompress the downloaded file (3.2GB):
+
     tar -xvf datasets_iterator_reranker.tar.gz -C $HDATA
 
 
 4.2: Download preprocessed Wikipedia corpus: https://drive.google.com/file/d/143MS2mzom4m2AdkvWM93KH89xjOqfx3A/view?usp=sharing
 
 Decompress the downloaded file (17.3GB):
+
     tar -xvf wiki20200801.tar.gz -C $HDATA
 
  
