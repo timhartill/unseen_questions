@@ -65,6 +65,12 @@ Decompress the downloaded file (17.3GB):
 
 ## Iterator: Training the Retriever, Stage 1 Paragraph Reranker or Stage 2 Evidence Set Scorer
 
+
+## Iterator: Inference i.e. Generating a context for a set of Open Domain, Multi-choice or Partially Contextualised Questions
+
+
+
+
 ## References
 If you find this repository useful, please consider giving a star and citing this work:
 
@@ -80,8 +86,4 @@ If you find this repository useful, please consider giving a star and citing thi
 }
 
 ```
-
-## Iterator: Inference i.e. Generating a context for a set of Open Domain, Multi-choice or Partially Contextualised Questions
-
-
 
