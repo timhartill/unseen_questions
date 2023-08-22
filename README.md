@@ -61,7 +61,7 @@ Run everything below from the code subdirectory.
 
 ### Output Metrics for each Model
 
-Run evaluation for the _Base_ model. This will create a file in the $LDATA/base subdirectory called eval_metrics.json containing metrics for all unseen evaluation datasets plus a selection of the training datasets. A separate json file of predictions for each dataset will also be output:
+Run evaluation for the _Base_ model. This will create a file in the $LDATA/base subdirectory called eval_metrics.json containing metrics for all unseen evaluation datasets plus a selection of the training datasets. A separate json file of predictions for each dataset will also be output. If you subsequently run this command again after adding new datasets, inference will only run for the new datasets: and it will be much faster.
 
 ```
 python cli.py --output_dir $LDATA/base \
@@ -78,6 +78,16 @@ python cli.py --output_dir $LDATA/base \
 ```
 
 Next run evaluation for the Base+RATD model by running the same command as above but substituting _base_plus_ratd_ for _base_.
+
+### Create Tables of Metrics over a Set of Models
+
+Running the following will output text files into $LDATA/eval_outputs summarising metrics for Base versus Base+RATD. The file with name containing to "unseen4" will be for unseen evaluation datasets and that for "seen1" will be for training datasets.
+
+```
+python eval_metrics.py --eval_set base_ratd
+```
+
+Generally, to add/remove datasets for evaluation and/or to create a new or modified set of models to output a summary for, please refer to the instructions at the top of "dataset_attributes.py".
 
 ## Training a QA/Reasoning Model
 
