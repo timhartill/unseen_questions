@@ -200,9 +200,87 @@ python mdr_searchers.py \
 ```
 
 
-## Iterator: Training the Retriever, Stage 1 Paragraph Reranker or Stage 2 Evidence Set Scorer
+## Iterator: Training the Retriever, Stage 1 Paragraph Reranker and Stage 2 Evidence Set Scorer
 
+To train the Retriever model:
 
+```
+python mdr_train_mhop_nativeamp.py \
+    --do_train \
+    --prefix RETRIEVER_v1 \
+    --predict_batch_size 100 \
+    --model_name roberta-base \
+    --train_batch_size 150 \
+    --learning_rate 2e-5 \
+    --fp16 \
+    --train_file $HDATA/hpqa_hover_nq_mu_train_with_neg_v0.jsonl \
+    --predict_file $HDATA/hpqa_hover_nq_mu_dev_with_neg_v0.jsonl \
+    --seed 16 \
+    --eval-period -1 \
+    --max_c_len 300 \
+    --max_q_len 70 \
+    --max_q_sp_len 512 \
+    --shared-encoder \
+    --gradient_accumulation_steps 1 \
+    --use_var_versions \
+    --reduction none \
+    --retrieve_loss_multiplier 1.0 \
+    --max_hops 4 \
+    --num_negs 2 \
+    --random_multi_seq \
+    --output_dir $LDATA \
+    --num_train_epochs 75 \
+    --warmup-ratio 0.1
+```
+
+To further train the Retriever using momentum. Note --init_retriever must be updated with the actual directory name which begins with RETRIEVER_v1 but is extended with the date etc:
+
+```
+python mdr_train_mhop_nativeamp.py \
+    --do_train \
+    --prefix RETRIEVER_MOM_v2_from_v1 \
+    --predict_batch_size 100 \
+    --model_name roberta-base \
+    --train_batch_size 250 \
+    --learning_rate 1e-5 \
+    --fp16 \
+    --train_file $HDATA/hpqa_hover_nq_mu_train_with_neg_v0.jsonl \
+    --predict_file $HDATA/hpqa_hover_nq_mu_dev_with_neg_v0.jsonl \
+    --seed 16 \
+    --eval-period -1 \
+    --max_c_len 300 \
+    --max_q_len 70 \
+    --max_q_sp_len 512 \
+    --shared-encoder \
+    --gradient_accumulation_steps 1 \
+    --use_var_versions \
+    --output_dir $LDATA \
+    --momentum \
+    --reduction none \
+    --retrieve_loss_multiplier 1.0 \
+    --max_hops 4 \
+    --num_negs 2 \
+    --random_multi_seq \
+    --k 76800 \
+    --m 0.999 \
+    --temperature 1 \
+    --init_retriever $LDATA/RETRIEVER_v1..../checkpoint_best.pt \
+    --output_dir $LDATA/out/mdr/logs \
+    --num_train_epochs 75 \
+    --warmup-ratio 0.1
+```
+
+To train the Stage 1 Paragraph Reranker:
+
+```
+
+```
+
+To train the Stage 2 Evidence Set Scorer:
+
+```
+
+```
 
 
 ## References
