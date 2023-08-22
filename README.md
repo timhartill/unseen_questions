@@ -55,8 +55,28 @@ Decompress the downloaded file (17.3GB):
 
     tar -xvf wiki20200801.tar.gz -C $HDATA
 
-## Running Evaluation for Unseen Datasets on one of our BART QA/Reasoning models 
- 
+## Running Evaluation for Unseen Datasets on BART QA/Reasoning Models 
+
+Run everything below from the code subdirectory. 
+
+### Output Metrics for each Model
+
+Run evaluation for the _Base_ model. This will create a file in the $LDATA/base subdirectory called eval_metrics.json containing metrics for all unseen evaluation datasets plus a selection of the training datasets. A separate json file of predictions for each dataset will also be output:
+
+```python cli.py --output_dir $LDATA/base \
+        --predict_file $UQA_DIR/dev.tsv \
+        --predict_batch_size 32 \
+        --append_another_bos --do_lowercase \
+        --verbose \
+        --model facebook/bart-large \
+        --indiv_digits \
+        --dont_pretokenize \
+        --dont_save_train_token_file \
+        --max_output_length 130 \
+        --do_predict_all --calc_metrics_all --add_only_missing
+```
+
+Next run evaluation for the Base+RATD model by running the same command as above but substituting _base_plus_ratd_ for _base_.
 
 ## Training a QA/Reasoning Model
 
