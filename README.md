@@ -17,7 +17,7 @@ Tested on Ubuntu 20.04, Python 3.9
 
     export HDATA=/path/to/misc_other
 
-_UQA_DIR_ is where datasets to train/evaluate our BART-based QA/Reasoning models live. Each dataset is in it's own subdirectory under this and will comprose some or all of dev.tsv. train.tsv and test.tsv.
+_UQA_DIR_ is where the tsv-formatted datasets used to train/evaluate our BART-based QA/Reasoning models live. Each dataset is in it's own subdirectory under this and will comprose some or all of dev.tsv. train.tsv and test.tsv.
 
 _LDATA_ is where logs and model checkpoints go. Each model training run will be in it's own subdirectory under LDATA.
 
