@@ -9,6 +9,10 @@ Common parameter definitions
 
 Edit this file to add new datasets to evaluation/similarity routines and/or to update the set of models to run eval for:
 
+- Edit UQA_DIR to point to base directory for tsv-formatted datasets.
+- Edit LDATA to point to base of directories where model checkpoints and log files are written (each model run will be a separate subdirectory off LDATA) 
+    
+
 Add/Edit datasets:
 - Add to dev_eval to produce preds, metrics for a dataset's dev.tsv - each dataset must be in either dev_eval or test_eval but not both!
 - Add to test_eval to produce preds, metrics for a dataset's test.tsv - each dataset must be in either dev_eval or test_eval but not both!
@@ -19,15 +23,12 @@ Add/Edit datasets:
     unifiedqa_unseen_4_map  # must configure this to identify whether dev.tsv or test.tsv is the file to be used for calculation
     unifiedqa_unseen_6      # filtered versions of unseen eval datasets (not currently used)
     unifiedqa_seen_1        # datasets used in training but that we wish to evaluate for various reasons anyway
-- Edit UQA_DIR to point to base directory for unified-qa formatted datasets.
-- <UNUSED> Edit create_datasets_dynamic to add new datasets to dynamically create explations for (i.e from q[+mc]->a make q[+mc]+e->a). (UNUSED)
-    Datasets added here must be in dev_eval/test_eval and in dataset_attribs..
-    Dynamically created versions i.e /UQA_DIR/qasc_svised_expl_ans_modeloutputdir_timestamp will be added to dev_eval/test_eval and dataset_attribs when this module is loaded..
+
 
 Run eval:
 After configuring datasets as specified above:
 To run generic eval for unseen4 and seen1: 
-    Configure models to run + output dir in eval_set below   
+    Configure models to run + output dir in eval_set below
     then run: bash run_all_eval_output.sh    
 
 To run eval manually:
@@ -59,7 +60,7 @@ To run eval manually:
     - create similarity embeddings eg see runsembeddings_bart_indivdigits_tdnd_V7.sh
     - calculate train-eval similarity eg see runsim_for_sembeddings_bart_indivdigits_tdnd_V7.sh
     - load overlap_detector.py
-    - run report fns interactively as described there. eg run_all_reports(...)
+    - run report fns interactively as described in overlap_detector.py. eg run_all_reports(...)
 
 """
 
@@ -78,13 +79,13 @@ else:
     assert False, "ERROR: Set the environment variable 'UQA_DIR' to the base directory of tsv-formatted datasets: export UQA_DIR=/parentdir/datasets "
     
 if os.environ.get('LDATA') is not None:
-    LDATA = os.environ.get('LDATA') + '/'  #'.../logs' # output logs base directory
+    LDATA = os.environ.get('LDATA') + '/'  #'.../logs' # output logs, model checkpoints base directory
 else:
     LDATA = None
     print("WARNING: If running evaluation, Set the environment variable 'LDATA' to the base directory of model training output logs within which eval_metrics.json for each model can be found: export LDATA=/parentdir/logs ")
 
 if os.environ.get('HDATA') is not None:
-    HDATA = os.environ.get('HDATA') + '/'  #'.../logs' # output logs base directory
+    HDATA = os.environ.get('HDATA') + '/'  #'.../home/thar011/data' # Not directly used in training/eval but path to raw data files etc. Typically datasets are downloaded here and a preprocessing program transforms and outputs tsv-formatted files into UQA_DIR 
 else:
     HDATA = None
     print("WARNING: Set the environment variable 'HDATA' for consistency over different servers for base directory for unconverted source data subdirectories: export HDATA=/parentdir/source_data ")
@@ -108,18 +109,14 @@ dev_eval = ['newsqa', 'quoref', 'contrast_sets_quoref', 'ropes', 'contrast_sets_
             'drop', 'contrast_sets_drop',
             'commonsenseqa',
             'commonsenseqa_fullwiki_bs150_noimplrel', 'commonsenseqa_fullwiki_bs150_implrel', 'commonsenseqa_fullwiki_bs150_implrel_origq',
-            'commonsenseqa_fullwiki_bs150_noimplrel_mdr', 'commonsenseqa_fullwiki_bs150_implrel_mdr', 'commonsenseqa_fullwiki_bs150_implrel_origq_mdr',
             'commonsenseqa_llm_expl', 'commonsenseqa_llm_expl_with_llm_ans', 'commonsenseqa_llm_expl_fullwiki_bs150_noimplrel',
             'musique_mu_dev_odv2', 'musique_mu_dev_parasv2',
             'musique_mu_dev_odv2_fullwiki_bs150', 'musique_mu_dev_inital_contextv2', 'musique_mu_dev_inital_contextv2_fullwiki_bs150', 
-            'musique_mu_dev_odv2_fullwiki_bs150_mdr', 'musique_mu_dev_inital_contextv2_fullwiki_bs150_mdr',
             'musique_mu_dev_odv2_llm_expl', 'musique_mu_dev_odv2_llm_expl_with_llm_ans', 'musique_mu_dev_odv2_llm_expl_fullwiki_bs150',
             'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans', 'strategy_qa_bigbench_gold_context_0', 'strategy_qa_bigbench_gold_context_1', 'strategy_qa_bigbench_gold_context_2',
             'strategy_qa_bigbench_fullwiki_bs150_noimplrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq', 
-            'strategy_qa_bigbench_fullwiki_bs150_noimplrel_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_mdr', 
             'strategy_qa_bigbench_od_ans_yn', 'strategy_qa_bigbench_expl_ans_yn', 'strategy_qa_bigbench_gold_context_0_yn', 'strategy_qa_bigbench_gold_context_1_yn', 'strategy_qa_bigbench_gold_context_2_yn',
             'strategy_qa_bigbench_fullwiki_bs150_noimplrel_yn', 'strategy_qa_bigbench_fullwiki_bs150_implrel_yn', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_yn',
-            'strategy_qa_bigbench_fullwiki_bs150_noimplrel_yn_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_yn_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_yn_mdr',
             'strategy_qa_bigbench_llm_expl', 'strategy_qa_bigbench_llm_expl_with_llm_ans', 'strategy_qa_bigbench_llm_expl_fullwiki_bs150_noimplrel',
             'fever_hard', 'fever_expl_ans',
             'hover_hard', 'hover_fullwiki_bs60', 'hover_fullwiki_bs60_maxp4',
@@ -471,11 +468,10 @@ test_eval = ['openbookqa', 'openbookqa_with_ir',
              'race_string',  
              'mmlu_elementary_to_college_math_test', 
              'arc_da_expl_ans', 'arc_da_od_ans', 
-             'arc_da_od_ans_fullwiki_bs150', 'arc_da_od_ans_fullwiki_bs150_mdr',
+             'arc_da_od_ans_fullwiki_bs150', 
              'arc_da_od_ans_llm_expl', 'arc_da_od_ans_llm_expl_with_llm_ans', 'arc_da_od_ans_llm_expl_fullwiki_bs150',
              'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
              'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
-             'iirc_od_ans_fullwiki_bs150_mdr','iirc_initial_context_fullwiki_bs150_mdr',
              'iirc_initial_context_llm_expl', 'iirc_initial_context_llm_expl_with_llm_ans', 'iirc_initial_context_llm_expl_fullwiki_bs150',
              'worldtree_mc_expl_ans', 'worldtree_od_ans',
              ]
@@ -1030,8 +1026,6 @@ answer_type_map = {'anstypes_drop_dev.jsonl': ['drop',
                                                 'iirc_initial_context',
                                                 'iirc_od_ans_fullwiki_bs150', 
                                                 'iirc_initial_context_fullwiki_bs150',
-                                                'iirc_od_ans_fullwiki_bs150_mdr',
-                                                'iirc_initial_context_fullwiki_bs150_mdr',
                                                 'iirc_initial_context_llm_expl', 
                                                 'iirc_initial_context_llm_expl_fullwiki_bs150',
                                                 'iirc_initial_context_v3t8_llm_expl_rr0.005_fullwiki_rr0.005',
@@ -1191,33 +1185,42 @@ unifiedqa_unseen_2 = []
 # Not used
 unifiedqa_unseen_3 = []
 
-# The unseen evaluation datasets
-unifiedqa_unseen_4 = [
-    'drop', 'contrast_sets_drop',
-    'commonsenseqa',
-    'commonsenseqa_fullwiki_bs150_noimplrel', 'commonsenseqa_fullwiki_bs150_implrel', 'commonsenseqa_fullwiki_bs150_implrel_origq',
+mdr_unused = [
     'commonsenseqa_fullwiki_bs150_noimplrel_mdr', 'commonsenseqa_fullwiki_bs150_implrel_mdr', 'commonsenseqa_fullwiki_bs150_implrel_origq_mdr',
-    'commonsenseqa_llm_expl', 'commonsenseqa_llm_expl_with_llm_ans', 'commonsenseqa_llm_expl_fullwiki_bs150_noimplrel',
-    'musique_mu_dev_odv2', 'musique_mu_dev_parasv2', 'musique_mu_dev_inital_contextv2',
-    'musique_mu_dev_odv2_fullwiki_bs150', 'musique_mu_dev_inital_contextv2_fullwiki_bs150',
     'musique_mu_dev_odv2_fullwiki_bs150_mdr', 'musique_mu_dev_inital_contextv2_fullwiki_bs150_mdr',
-    'musique_mu_dev_odv2_llm_expl', 'musique_mu_dev_odv2_llm_expl_with_llm_ans', 'musique_mu_dev_odv2_llm_expl_fullwiki_bs150',
-    'arc_da_od_ans', 'arc_da_expl_ans', 
     'arc_da_od_ans_fullwiki_bs150', 'arc_da_od_ans_fullwiki_bs150_mdr',
-    'arc_da_od_ans_llm_expl', 'arc_da_od_ans_llm_expl_with_llm_ans', 'arc_da_od_ans_llm_expl_fullwiki_bs150',
-    'strategy_qa_bigbench_od_ans', 'strategy_qa_bigbench_expl_ans', 'strategy_qa_bigbench_gold_context_0', 'strategy_qa_bigbench_gold_context_1', 'strategy_qa_bigbench_gold_context_2',
     'strategy_qa_bigbench_fullwiki_bs150_noimplrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq', 
     'strategy_qa_bigbench_fullwiki_bs150_noimplrel_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_mdr', 
-    'strategy_qa_bigbench_od_ans_yn', 'strategy_qa_bigbench_expl_ans_yn', 'strategy_qa_bigbench_gold_context_0_yn', 'strategy_qa_bigbench_gold_context_1_yn', 'strategy_qa_bigbench_gold_context_2_yn',
-    'strategy_qa_bigbench_fullwiki_bs150_noimplrel_yn', 'strategy_qa_bigbench_fullwiki_bs150_implrel_yn', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_yn',
     'strategy_qa_bigbench_fullwiki_bs150_noimplrel_yn_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_yn_mdr', 'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_yn_mdr',
-    'strategy_qa_bigbench_llm_expl', 'strategy_qa_bigbench_llm_expl_with_llm_ans', 'strategy_qa_bigbench_llm_expl_fullwiki_bs150_noimplrel',
-    'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context',
-    'iirc_od_ans_fullwiki_bs150', 'iirc_initial_context_fullwiki_bs150',
     'iirc_od_ans_fullwiki_bs150_mdr','iirc_initial_context_fullwiki_bs150_mdr',
-    'iirc_initial_context_llm_expl', 'iirc_initial_context_llm_expl_with_llm_ans', 'iirc_initial_context_llm_expl_fullwiki_bs150',
-    'mmlu_elementary_to_college_math_test',
     ]
+
+# The unseen evaluation datasets
+unifiedqa_unseen_4 = ['drop', 'contrast_sets_drop', 
+                      'commonsenseqa', 'commonsenseqa_fullwiki_bs150_noimplrel', 'commonsenseqa_fullwiki_bs150_implrel', 
+                      'commonsenseqa_fullwiki_bs150_implrel_origq', 'commonsenseqa_llm_expl', 
+                      'commonsenseqa_llm_expl_with_llm_ans', 'commonsenseqa_llm_expl_fullwiki_bs150_noimplrel', 
+                      'musique_mu_dev_odv2', 'musique_mu_dev_parasv2', 'musique_mu_dev_inital_contextv2', 
+                      'musique_mu_dev_odv2_fullwiki_bs150', 'musique_mu_dev_inital_contextv2_fullwiki_bs150', 
+                      'musique_mu_dev_odv2_llm_expl', 'musique_mu_dev_odv2_llm_expl_with_llm_ans', 
+                      'musique_mu_dev_odv2_llm_expl_fullwiki_bs150', 
+                      'arc_da_od_ans', 'arc_da_expl_ans', 
+                      'arc_da_od_ans_fullwiki_bs150', 'arc_da_od_ans_llm_expl', 'arc_da_od_ans_llm_expl_with_llm_ans', 
+                      'arc_da_od_ans_llm_expl_fullwiki_bs150', 'strategy_qa_bigbench_od_ans', 
+                      'strategy_qa_bigbench_expl_ans', 'strategy_qa_bigbench_gold_context_0', 
+                      'strategy_qa_bigbench_gold_context_1', 'strategy_qa_bigbench_gold_context_2', 
+                      'strategy_qa_bigbench_fullwiki_bs150_noimplrel', 'strategy_qa_bigbench_fullwiki_bs150_implrel', 
+                      'strategy_qa_bigbench_fullwiki_bs150_implrel_origq', 'strategy_qa_bigbench_od_ans_yn', 
+                      'strategy_qa_bigbench_expl_ans_yn', 'strategy_qa_bigbench_gold_context_0_yn', 
+                      'strategy_qa_bigbench_gold_context_1_yn', 'strategy_qa_bigbench_gold_context_2_yn', 
+                      'strategy_qa_bigbench_fullwiki_bs150_noimplrel_yn', 'strategy_qa_bigbench_fullwiki_bs150_implrel_yn',
+                      'strategy_qa_bigbench_fullwiki_bs150_implrel_origq_yn', 'strategy_qa_bigbench_llm_expl', 
+                      'strategy_qa_bigbench_llm_expl_with_llm_ans', 
+                      'strategy_qa_bigbench_llm_expl_fullwiki_bs150_noimplrel', 
+                      'iirc_od_ans', 'iirc_gold_context', 'iirc_initial_context', 'iirc_od_ans_fullwiki_bs150', 
+                      'iirc_initial_context_fullwiki_bs150', 'iirc_initial_context_llm_expl', 
+                      'iirc_initial_context_llm_expl_with_llm_ans', 'iirc_initial_context_llm_expl_fullwiki_bs150', 
+                      'mmlu_elementary_to_college_math_test']
 
 unifiedqa_unseen_4 = unifiedqa_unseen_4 + csqa_combos + mudev_combos + arcda_combos + sqa_combos + iirc_combos + drop_combos
 
