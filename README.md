@@ -68,14 +68,12 @@ Decompress the downloaded file (17.3GB):
 ## References
 If you find this repository useful, please consider giving a star and citing this work:
 
-[1] G. Izacard, M. Caron, L. Hosseini, S. Riedel, P. Bojanowski, A. Joulin, E. Grave [*Unsupervised Dense Information Retrieval with Contrastive Learning*](https://arxiv.org/abs/2112.09118)
+[1] Hartill, Tim and TAN, Neset and Witbrock, Michael and Riddle, Patricia J [*Teaching Smaller Language Models To Generalise To Unseen Compositional Questions*](https://arxiv.org/abs/2308.00946)
 
 ```bibtex
 @ARTICLE{Hartill2023-pf,
-  title    = "Teaching Smaller Language Models To Generalise To Unseen
-              Compositional Questions",
-  author   = "Hartill, Tim and TAN, Neset and Witbrock, Michael and Riddle,
-              Patricia J",
+  title    = "Teaching Smaller Language Models To Generalise To Unseen Compositional Questions",
+  author   = "Hartill, Tim and TAN, Neset and Witbrock, Michael and Riddle, Patricia J",
   journal  = "Transactions on Machine Learning Research",
   month    =  aug,
   year     =  2023
