@@ -65,6 +65,24 @@ Decompress the downloaded file (17.3GB):
 
 ## Iterator: Training the Retriever, Stage 1 Paragraph Reranker or Stage 2 Evidence Set Scorer
 
+## References
+If you find this repository useful, please consider giving a star and citing this work:
+
+[1] G. Izacard, M. Caron, L. Hosseini, S. Riedel, P. Bojanowski, A. Joulin, E. Grave [*Unsupervised Dense Information Retrieval with Contrastive Learning*](https://arxiv.org/abs/2112.09118)
+
+```bibtex
+@ARTICLE{Hartill2023-pf,
+  title    = "Teaching Smaller Language Models To Generalise To Unseen
+              Compositional Questions",
+  author   = "Hartill, Tim and TAN, Neset and Witbrock, Michael and Riddle,
+              Patricia J",
+  journal  = "Transactions on Machine Learning Research",
+  month    =  aug,
+  year     =  2023
+}
+
+```
+
 ## Iterator: Inference i.e. Generating a context for a set of Open Domain, Multi-choice or Partially Contextualised Questions
 
 
