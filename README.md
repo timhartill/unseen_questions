@@ -3,6 +3,10 @@
 
 Tested on Ubuntu 20.04, Python 3.9
 
+## Create virtual environment:
+
+    bash py39_llm_torch2_install.sh
+
 ## Initial Setup
 
 **1:** After cloning this repository, edit .bashrc to export three environmental variables which are necessary to run our code and shell scripts:
