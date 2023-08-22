@@ -154,10 +154,53 @@ python mdr_encode_corpus_nativeamp.py \
 ```
 
 
-## Iterator: Training the Retriever, Stage 1 Paragraph Reranker or Stage 2 Evidence Set Scorer
-
-
 ## Iterator: Inference i.e. Generating a context for a set of Open Domain, Multi-choice or Partially Contextualised Questions
+
+The following is an example of using the Iterator to generate a context for a tsv-formatted dataset file. The results will be written out as a new tsv-formatted dataset into $UQA_DIR as well as stored in jsonl format in output dir $LDATA/ITER_fullwiki_iirc_dev_using_full_wiki_iterator_retriever_v1... 
+
+If using HNSW as below and running for the first time the HNSW index will be built and saved into $LDATA/full_wiki_iterator_retriever_v1. This takes several hours and requires a lot of RAM.
+
+```
+python mdr_searchers.py \
+    --prefix ITER_fullwiki_iirc_dev_using_full_wiki_iterator_retriever_v1 \
+    --output_dir $LDATA \
+    --output_dataset $UQA_DIR/iirc_initial_context_fullwiki_bs60_my_version1/dev.tsv \
+    --predict_file $UQA_DIR/iirc_initial_context/dev.tsv \
+    --index_path $LDATA/full_wiki_iterator_retriever_v1/index.npy \
+    --corpus_dict $LDATA/full_wiki_iterator_retriever_v1/id2doc.json \
+    --model_name roberta-base \
+    --init_checkpoint $LDATA/iterator_retriever/checkpoint_q_best.pt \
+    --model_name_stage google/electra-large-discriminator \
+    --init_checkpoint_stage1 $LDATA/iterator_stage1_para_reranker/checkpoint_best.pt \
+    --init_checkpoint_stage2 $LDATA/iterator_stage2_evidence_set_scorer/checkpoint_best.pt \
+    --gpu_model \
+    --hnsw \
+    --hnsw_buffersize 40000000 \
+    --save_index \
+    --beam_size 60 \
+    --predict_batch_size 160 \
+    --query_add_titles \
+    --topk 9 \
+    --topk_stage2 5 \
+    --s1_use_para_score \
+    --s1_para_sent_ratio 0.5 \
+    --s1_para_sent_ratio_final -1.0 \
+    --s2_use_para_score \
+    --s2_para_sent_ratio 0.5 \
+    --s2_para_sent_ratio_final -1.0 \
+    --max_hops 4 \
+    --max_q_len 70 \
+    --max_q_sp_len 512 \
+    --max_c_len 512 \
+    --max_ans_len 35 \
+    --s2_sp_thresh 0.10 \
+    --s2_min_take 2 \
+    --stop_ev_thresh 1.01 \
+    --stop_ansconfdelta_thresh 99999.0
+```
+
+
+## Iterator: Training the Retriever, Stage 1 Paragraph Reranker or Stage 2 Evidence Set Scorer
 
 
 
@@ -165,7 +208,7 @@ python mdr_encode_corpus_nativeamp.py \
 ## References
 If you find this repository useful, please consider giving a star and citing this work:
 
-[1] Hartill, Tim and TAN, Neset and Witbrock, Michael and Riddle, Patricia J [*Teaching Smaller Language Models To Generalise To Unseen Compositional Questions*](https://arxiv.org/abs/2308.00946)
+Hartill, Tim and TAN, Neset and Witbrock, Michael and Riddle, Patricia J [*Teaching Smaller Language Models To Generalise To Unseen Compositional Questions*](https://arxiv.org/abs/2308.00946)
 
 ```bibtex
 @ARTICLE{Hartill2023-pf,
