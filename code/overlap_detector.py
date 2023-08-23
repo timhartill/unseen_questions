@@ -1448,7 +1448,7 @@ def run_similarity_dump_single(logdir, sim_results_file, model_results_file, eva
     sim_results_file='/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'
     model_results_file = '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_metrics.json'
 
-    eval_datasets = eval_metrics.unifiedqa_base_train_orig.copy()
+    eval_datasets = eval_metrics.unifiedqa_base_train_orig.copy()  # if comparing orig uqa dev to train datasets 
     if 'narrativeqa' in eval_datasets: eval_datasets.remove('narrativeqa') # narrativeqa eval sim wasnt calculated...
     train_datasets = eval_metrics.unifiedqa_base_train_orig.copy()  # orig squad instead of title reformatted versions
    

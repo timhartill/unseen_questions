@@ -692,6 +692,25 @@ iirc_combos += ['iirc_initial_context_svfp16_v3t8_iterthresh_llm_expl_rr_fullwik
 test_eval = test_eval + arcda_combos + iirc_combos
 
 
+ # if extra datasets for our memorisation paper have been downloaded, include these in metric calculations
+if os.path.exists(os.path.join(UQA_DIR, 'drop_dedup_lowsim_tdnd')): 
+    dev_eval += [
+                'drop_dedup_lowsim_tdnd',
+                'contrast_sets_drop_dedup_lowsim_tdnd',
+                'physical_iqa_lowsim_tdnd',
+                'social_iqa_dedup_lowsim_tdnd',
+                'commonsenseqa_lowsim_tdnd',
+                'qasc_lowsim_tdnd',
+                'qasc_with_ir_lowsim_tdnd',
+                'ropes_lowsim_tdnd',
+                'newsqa_lowsim_tdnd',
+                'drop_dedup',
+                'contrast_sets_drop_dedup',
+                'social_iqa_dedup',
+                ]
+    test_eval += ['mmlu_elementary_to_college_math_test_lowsim_tdnd', ]
+
+
 #Map dataset types to relevant metrics to calculate (and specify referred reporting metric)
 metric_groups = {
     'EX': {'compute':['EM', 'F1', 'RL'], 'prefer':'F1'},
@@ -1058,10 +1077,13 @@ answer_type_map = {'anstypes_drop_dev.jsonl': ['drop',
 # TRAINING DATASET GROUPINGS
 # Groups of datasets for use in 'mixture' parameter to save typing each in individually 
 #################################################
+
+# datasets used in unifiedqa paper and in our memorisation paper:
 unifiedqa_base_train_orig = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
                              "arc_hard", "arc_easy", "mctest_corrected_the_separator",
                              "squad1_1", "squad2", "boolq", "race_string", "openbookqa"]
 
+# not used anywhere, sqad replaced with updated version with context reformatted:
 unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
                         "arc_hard", "arc_easy", "mctest_corrected_the_separator",
                         "squad1_1_titlereformat", "squad2_titlereformat", "boolq", "race_string", "openbookqa"]
@@ -1240,7 +1262,7 @@ unifiedqa_unseen_4 = ['drop', 'contrast_sets_drop',
 
 unifiedqa_unseen_4 = unifiedqa_unseen_4 + csqa_combos + mudev_combos + arcda_combos + sqa_combos + iirc_combos + drop_combos
 
-# Note: This is only used in create_least_similar_versions.py and check_least_similar_answer.py
+# Note: This is used in create_least_similar_versions.py and calc_eval_lowsim_highsim.py
 # These two py files have now been modified s.t. if a datasets isn't in this map, the file defaults to 'dev.tsv'..
 # So only need to add datasets to this map if 'test.tsv' is the one needed..
 unifiedqa_unseen_4_map = {
@@ -1269,7 +1291,7 @@ unifiedqa_unseen_4_map = {
 
 
 
-# The filtered versions of the 10 unseen datasets used in our paper
+# The filtered versions of the unseen datasets used in our memorisation paper.  NOTE: ORDER OF unifiedqa_unseen_6_unfiltered must be same as order of unifiedqa_unseen_6 or output report will be scrambled
 unifiedqa_unseen_6 = [
     'drop_dedup_lowsim_tdnd',
     'contrast_sets_drop_dedup_lowsim_tdnd',
@@ -1281,6 +1303,30 @@ unifiedqa_unseen_6 = [
     'qasc_with_ir_lowsim_tdnd',
     'ropes_lowsim_tdnd',
     'newsqa_lowsim_tdnd'
+    ]
+
+# The unfiltered versions of the unseen datasets used in our memorisation paper. NOTE: ORDER OF unifiedqa_unseen_6_unfiltered must be same as order of unifiedqa_unseen_6 or output report will be scrambled
+unifiedqa_unseen_6_unfiltered = [
+    'drop_dedup',
+    'contrast_sets_drop_dedup',
+    'mmlu_elementary_to_college_math_test',
+    'physical_iqa',
+    'social_iqa_dedup',
+    'commonsenseqa',
+    'qasc',
+    'qasc_with_ir',
+    'ropes',
+    'newsqa'
+    ]
+
+# List of datasets in our memorisation paper which are further filtered in calc_eval_lowsim_highsim.py to textual answers only
+textual_answers_only = [
+    'drop_dedup_lowsim_tdnd',
+    'contrast_sets_drop_dedup_lowsim_tdnd',
+    'mmlu_elementary_to_college_math_test_lowsim_tdnd',
+    'drop_dedup',
+    'contrast_sets_drop_dedup',
+    'mmlu_elementary_to_college_math_test',
     ]
 
 
