@@ -767,8 +767,8 @@ def create_sentence_embeddings(args, logger):
         Save them in the respective data directories
     To test:
         run cli.py args stuff
-        args.train_file = '/data/thar011/data/unifiedqa/train.tsv'
-        args.output_dir = '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd'
+        args.train_file = '/data/thar011/data/unifiedqa/train.tsv'                      # $UQA_DIR/train.tsv
+        args.output_dir = '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd'  # $LDATA/uqa_plus_tdnd
         args.is_unifiedqa = True
         args.mixture = 'unifiedqa,synthetic_textual,synthetic_numeric'
         args.predict_batch_size=20
@@ -838,7 +838,10 @@ def create_sentence_embeddings(args, logger):
 
     #create sentence embeddings from eval datasets
     for testset in results_dict.keys():
-        gt_file = eval_metrics.get_gt_file_path(results_dict[testset]['gt_file'])
+        if args.sim_orig_eval_only:  # skip datasets not used in memorisation paper
+            if testset not in eval_metrics.unifiedqa_unseen_6_unfiltered + eval_metrics.unifiedqa_unseen_6 + eval_metrics.unifiedqa_base_train_orig:
+                continue
+        gt_file = eval_metrics.get_gt_file_path(results_dict[testset]['gt_file'])  # must have tsvs in same path as when created eval_metrics.json
         dev_data = QAData(logger, args, gt_file, False)
         if gt_file.endswith('test.tsv'):
             if args.use_question_only:
@@ -908,8 +911,8 @@ def calc_similarity_embeddings(args, logger):
         
         To test:
         run cli.py args stuff
-        args.train_file = '/data/thar011/data/unifiedqa/train.tsv'
-        args.output_dir = '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd'
+        args.train_file = '/data/thar011/data/unifiedqa/train.tsv'                       # $UQA_DIR/train.tsv
+        args.output_dir = '/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd'   # $LDATA/uqa_plus_tdnd
         args.is_unifiedqa = True
         args.mixture = 'unifiedqa,synthetic_textual,synthetic_numeric'
         args.answer_thresh = -100.1
@@ -919,7 +922,7 @@ def calc_similarity_embeddings(args, logger):
         testset = 'drop' 
         args.add_only_missing = True
         args.use_question_only = False
-        args.reformat_question_ssvise = True
+        args.reformat_question_ssvise = False
         manually run relevant lines below..
     """
     logger.info("Calculating sentence embedding cosine similarity between train and test sets..")
@@ -968,6 +971,9 @@ def calc_similarity_embeddings(args, logger):
             changed = True
             
         for testset in results_dict.keys():
+            if args.sim_orig_eval_only:  # skip datasets not used in memorisation paper
+                if testset not in eval_metrics.unifiedqa_unseen_6_unfiltered + eval_metrics.unifiedqa_unseen_6 + eval_metrics.unifiedqa_base_train_orig:
+                    continue
             if testset == 'narrativeqa':
                 logger.info(f" ... skipping {testset}")  #insufficient memory and not needed
             else:    

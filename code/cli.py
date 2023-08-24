@@ -119,7 +119,7 @@ def main():
                         help="If using 2-Group sampling: uni = uniform sampling for group 2, err = error-based sampling for group 2")
     
     parser.add_argument("--calc_similarity", action='store_true',
-                        help="Calculate similarity between train datasets specified by  --mixture and eval datasets specified in eval_metrics.json.")
+                        help="Calculate similarity as cosine over bag-of-words vectors between train datasets specified by  --mixture and eval datasets specified in eval_metrics.json.")
     parser.add_argument("--calc_similarity_numeric", action='store_true',
                         help="Calculate F1 similarity between synthetic_textual and synthetic_numeric train datasets vs DROP")
     parser.add_argument("--answer_thresh", default=-100.1, type=float,
@@ -133,7 +133,9 @@ def main():
     parser.add_argument("--calc_similarity_embeddings", action='store_true',
                         help="Calculate cosine similarity between sentence embeddings between train datasets specified by  --mixture and eval datasets specified in eval_metrics.json. --create_embeddings must be run before running this.")
     parser.add_argument("--add_only_missing", action='store_true',
-                        help="If true only missing sentence embedding files are added.")
+                        help="If true only missing sentence embedding files and/or eval datasets are added.")
+    parser.add_argument("--sim_orig_eval_only", action='store_true',
+                        help="If true only create sentence embeddings and/or add them to the similarity matrix json file for original eval datasets used in our memorisation paper.")
     parser.add_argument("--ssm_prob", default=0.5, type=float,
                         help="If sample is self supervised and named entities have been found, the prob of masking using SSM vs WWSC.")
     parser.add_argument("--wwsc_toks_to_mask", default=0.11, type=float,

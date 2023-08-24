@@ -202,7 +202,7 @@ if __name__ == '__main__':
     parser.add_argument("--in_log_dir", default="/data/thar011/out", type=str, help="Log directory from which model runs will be read.")
     parser.add_argument("--uqa_run_subdirs", default="unifiedqa_bart_large_v3,unifiedqa_bart_large_V3_run4,unifiedqa_bart_large_V3_run6", type=str, help="Subdirectories under --in_log_dir from which eval_metrics.json can be read.")
     parser.add_argument("--uqatdnd_run_subdirs", default="unifiedqa_bart_large_v7indiv_digits_tdnd,unifiedqa_bart_large_v7_run4_indiv_digits_tdnd,unifiedqa_bart_large_v7_run6_indiv_digits_tdnd", type=str, help="Subdirectories under --in_log_dir from which eval_metrics.json can be read.")
-    parser.add_argument("--sim_file", default="'/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json'", type=str, help="Full path to train-test similarity json file.")
+    parser.add_argument("--sim_file", default="/data/thar011/out/unifiedqa_bart_large_v7indiv_digits_tdnd/eval_test_train_similarities_semb_thresh-100.1.json", type=str, help="Full path to train-test similarity json file.")
     parser.add_argument("--output_dir", default="/large_data/thar011/out/mdr/logs/eval_outputs/uqa_3runs", type=str, help="Output directory.")
     
     args = parser.parse_args()

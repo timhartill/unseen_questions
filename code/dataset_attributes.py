@@ -1083,7 +1083,7 @@ unifiedqa_base_train_orig = ["narrativeqa", "ai2_science_middle", "ai2_science_e
                              "arc_hard", "arc_easy", "mctest_corrected_the_separator",
                              "squad1_1", "squad2", "boolq", "race_string", "openbookqa"]
 
-# not used anywhere, sqad replaced with updated version with context reformatted:
+# not used anywhere, squad replaced with updated version with context reformatted:
 unifiedqa_base_train = ["narrativeqa", "ai2_science_middle", "ai2_science_elementary",
                         "arc_hard", "arc_easy", "mctest_corrected_the_separator",
                         "squad1_1_titlereformat", "squad2_titlereformat", "boolq", "race_string", "openbookqa"]
