@@ -130,7 +130,7 @@ python cli.py --do_train --output_dir $LDATA/my_new_base_model \
 To train a _Base+RATD_ model is as above but with --mixture:
 
 ```
-        --mixture q_paras_all,q_paras_noanswer_all,q_mc_all,q_mc_paras_all,q_od_all,tt_all,poet_all,synth_num_all,synthetic_textual,enwiki_20200801_selfsvised,q_ret_paras_all,q_ret_paras_maxp4_all```
+        --mixture q_paras_all,q_paras_noanswer_all,q_mc_all,q_mc_paras_all,q_od_all,tt_all,poet_all,synth_num_all,synthetic_textual,enwiki_20200801_selfsvised,q_ret_paras_all,q_ret_paras_maxp4_all
 ```
 
 Generally to add new datasets to a training mixture, follow the directions in "dataset_attributes.py".
