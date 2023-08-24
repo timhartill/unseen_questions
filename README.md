@@ -55,6 +55,11 @@ Decompress the downloaded file (17.3GB):
 
     tar -xvf wiki20200801.tar.gz -C $HDATA
 
+**5:** Only if performing similarity calculations (not in paper): https://drive.google.com/file/d/1jnzXMUvDga9o3toxrSOxpzC2-Q4SI9dE/view?usp=sharing
+
+Decompress the downloaded file (6.2Mb):
+
+    tar -xvf datasets_tsv_sim.tar.gz -C $UQA_DIR
 
 
 ## Running Evaluation On BART QA/Reasoning Models 
