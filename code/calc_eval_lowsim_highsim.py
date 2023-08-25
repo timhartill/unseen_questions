@@ -30,14 +30,23 @@ DSET_MAP = eval_metrics.unifiedqa_unseen_4_map
 UQA_DIR = eval_metrics.UQA_DIR
 
 
-def aggregate_scores_by_bucket(s, eval_datasets):
+def aggregate_scores_by_bucket(s, eval_datasets, uqatdnd=None):
     """ Aggregate scores for a model run for a set of datasets
     
-    s.eval_results['drop_dedup']['unifiedqa_bart_large_v3']['test_scores']
+    if uqatdnd=None (uqatdnd  will be called before uqa): 
+        - record the indices for eval_dataset in the highest and lowest buckets.
+    if uqatdnd is not None: (calling with uqa)
+        - The indices are then passed in via uqatdnd and used to calc metrics for the corresponding indices from uqa+tdnd
+    
+    
+    To obtain individual prediction scores: s.eval_results['drop_dedup']['unifiedqa_bart_large_v3']['test_scores']
     
     returns out_dict['eval_dataset'] = {'all_scores': [...], 'all_score': score,
                                         'mostsim_scores': [...], 'mostsim_score': score,
                                         'leastsim_scores': [...], 'leastsim_score': score,
+                                        'leastsim_indices': [...], 'mostsim_indices: [...]',  # indices into eval_dataset
+                                        'uqatdnd_subset_mostsim_scores': [...], 'uqatdnd_subset_mostsim_score': score,    #only for uqa
+                                        'uqatdnd_subset_leastsim_scores': [...], 'uqatdnd_subset_leastsim_score': score,  #only for uqa 
                                         }
     """
     firstresultset = list(s.eval_results[eval_datasets[0]].keys())[0]  # resultset = eval_metrics.json. Only one in practice.
@@ -45,9 +54,21 @@ def aggregate_scores_by_bucket(s, eval_datasets):
     out_dict = {}
     for dset in eval_datasets:
         print(f'Processing {dset} ...')
+        
         out_dict[dset] = {'all_scores': [], 'all_score': 0.0,
                           'mostsim_scores': [], 'mostsim_score': 0.0,
-                          'leastsim_scores': [], 'leastsim_score': 0.0}
+                          'leastsim_scores': [], 'leastsim_score': 0.0,
+                          'leastsim_indices': [], 'mostsim_indices': [],
+                          }
+
+        if uqatdnd is not None:  # then this is uqa
+            tdnd_leastsim_indices = set(uqatdnd[dset]['leastsim_indices'])
+            tdnd_mostsim_indices = set(uqatdnd[dset]['mostsim_indices'])
+            out_dict[dset]['uqatdnd_subset_mostsim_scores'] = []
+            out_dict[dset]['uqatdnd_subset_mostsim_score'] = 0.0
+            out_dict[dset]['uqatdnd_subset_leastsim_scores'] = []
+            out_dict[dset]['uqatdnd_subset_leastsim_score'] = 0.0
+
         indir = os.path.join(UQA_DIR, dset)
         file = ''
         for k in DSET_MAP:  # find tsv filename
@@ -69,9 +90,18 @@ def aggregate_scores_by_bucket(s, eval_datasets):
             out_dict[dset]['all_scores'].append(pred_score)
             if combo_score < 60:
                 bucket = 'leastsim_scores'
+                bucket_ind = 'leastsim_indices'
             else:
                 bucket = 'mostsim_scores'
+                bucket_ind = 'mostsim_indices'
             out_dict[dset][bucket].append(pred_score)
+            out_dict[dset][bucket_ind].append(ind)
+            
+            if uqatdnd is not None:
+                if ind in tdnd_leastsim_indices:
+                    out_dict[dset]['uqatdnd_subset_leastsim_scores'].append(pred_score)
+                elif ind in tdnd_mostsim_indices:
+                    out_dict[dset]['uqatdnd_subset_mostsim_scores'].append(pred_score)
             
     for dset in out_dict:   # calc means
         out_dict[dset]['all_count'] = len(out_dict[dset]['all_scores'])
@@ -83,24 +113,35 @@ def aggregate_scores_by_bucket(s, eval_datasets):
         out_dict[dset]['leastsim_count'] = len(out_dict[dset]['leastsim_scores'])
         if len(out_dict[dset]['leastsim_scores']) > 0:
             out_dict[dset]['leastsim_score'] = sum(out_dict[dset]['leastsim_scores']) / len(out_dict[dset]['leastsim_scores'])
-        del out_dict[dset]['all_scores']
-        del out_dict[dset]['mostsim_scores']
-        del out_dict[dset]['leastsim_scores']
+        if uqatdnd is not None:
+            out_dict[dset]['uqatdnd_subset_mostsim_count'] = len(out_dict[dset]['uqatdnd_subset_mostsim_scores'])
+            if len(out_dict[dset]['uqatdnd_subset_mostsim_scores']) > 0:
+                out_dict[dset]['uqatdnd_subset_mostsim_score'] = sum(out_dict[dset]['uqatdnd_subset_mostsim_scores']) / len(out_dict[dset]['uqatdnd_subset_mostsim_scores'])   
+            out_dict[dset]['uqatdnd_subset_leastsim_count'] = len(out_dict[dset]['uqatdnd_subset_leastsim_scores'])
+            if len(out_dict[dset]['uqatdnd_subset_leastsim_scores']) > 0:
+                out_dict[dset]['uqatdnd_subset_leastsim_score'] = sum(out_dict[dset]['uqatdnd_subset_leastsim_scores']) / len(out_dict[dset]['uqatdnd_subset_leastsim_scores'])
+                
+        #del out_dict[dset]['all_scores']
+        #del out_dict[dset]['mostsim_scores']
+        #del out_dict[dset]['leastsim_scores']
             
-    return out_dict                
+    return out_dict
             
-        
-def calc_means_by_bucket(sim_results, metrics_files, train_datasets, eval_datasets):
+
+def calc_means_by_bucket(sim_results, metrics_files, train_datasets, eval_datasets, uqatdnd_means=None):
     """ calculate the metric means by bucket over a set of model runs (set could be 1)
     """
     print(f"Calculating similarity for each eval sample over train datasets: {train_datasets}")
     means_list = []
-    for f in metrics_files:
+    for i, f in enumerate(metrics_files):
         # calculate sim between each eval dataset in eval_metrics.json (f) and train_datasets
         s_summary = SimilarityAggregator(sim_results, no_overlap_thresh=1000.0, results_list=[f], 
                                          compare_over=train_datasets,
                                          thresh_buckets = [0,60,90,101])  # we aggregate 60:90 into 90+ as "most similar"
-        means_list.append( aggregate_scores_by_bucket(s_summary, eval_datasets) )
+        if uqatdnd_means is None:
+            means_list.append( aggregate_scores_by_bucket(s_summary, eval_datasets) )
+        else:
+            means_list.append( aggregate_scores_by_bucket(s_summary, eval_datasets, uqatdnd_means[0]) )  # tdnd least/most indices will be same for each run so just take 1st run in case there are different # runs between uqa and uqa_tdnd
     return means_list
 
 
@@ -108,6 +149,7 @@ def calc_mean_std_over_runs(means_list):
     """ Calculate mean and std over over runs
     return mean_over_runs
     """
+    is_uqa = False # if true calc extra metrics for the corresponding uqa_tdnd subset on uqa model..
     all_mean_over_runs = {}
     for i, m in enumerate(means_list):
         for dset in m:
@@ -119,10 +161,19 @@ def calc_mean_std_over_runs(means_list):
                 all_mean_over_runs[dset]['all_scores'] = []
                 all_mean_over_runs[dset]['mostsim_scores'] = []
                 all_mean_over_runs[dset]['leastsim_scores'] = []
-                
+                if m[dset].get('uqatdnd_subset_mostsim_count'):
+                    is_uqa = True
+                    all_mean_over_runs[dset]['uqatdnd_subset_mostsim_count'] = m[dset]['uqatdnd_subset_mostsim_count']
+                    all_mean_over_runs[dset]['uqatdnd_subset_leastsim_count'] = m[dset]['uqatdnd_subset_leastsim_count']
+                    all_mean_over_runs[dset]['uqatdnd_subset_mostsim_scores'] = []
+                    all_mean_over_runs[dset]['uqatdnd_subset_leastsim_scores'] = []
             all_mean_over_runs[dset]['all_scores'].append(m[dset]['all_score'])
             all_mean_over_runs[dset]['mostsim_scores'].append(m[dset]['mostsim_score'])
             all_mean_over_runs[dset]['leastsim_scores'].append(m[dset]['leastsim_score'])
+            if is_uqa:
+                all_mean_over_runs[dset]['uqatdnd_subset_mostsim_scores'].append(m[dset]['uqatdnd_subset_mostsim_score'])
+                all_mean_over_runs[dset]['uqatdnd_subset_leastsim_scores'].append(m[dset]['uqatdnd_subset_leastsim_score'])
+                
             
     for dset in all_mean_over_runs:
         all_mean_over_runs[dset]['all_score'] = float(np.mean(all_mean_over_runs[dset]['all_scores'])*100.0)
@@ -131,24 +182,37 @@ def calc_mean_std_over_runs(means_list):
         all_mean_over_runs[dset]['mostsim_score_std'] = float(np.std(all_mean_over_runs[dset]['mostsim_scores'])*100.0)
         all_mean_over_runs[dset]['leastsim_score'] = float(np.mean(all_mean_over_runs[dset]['leastsim_scores'])*100.0)
         all_mean_over_runs[dset]['leastsim_score_std'] = float(np.std(all_mean_over_runs[dset]['leastsim_scores'])*100.0)
-        del all_mean_over_runs[dset]['all_scores']
-        del all_mean_over_runs[dset]['mostsim_scores']
-        del all_mean_over_runs[dset]['leastsim_scores']
+        if is_uqa:
+            all_mean_over_runs[dset]['uqatdnd_subset_mostsim_score'] = float(np.mean(all_mean_over_runs[dset]['uqatdnd_subset_mostsim_scores'])*100.0)
+            all_mean_over_runs[dset]['uqatdnd_subset_mostsim_score_std'] = float(np.std(all_mean_over_runs[dset]['uqatdnd_subset_mostsim_scores'])*100.0)
+            all_mean_over_runs[dset]['uqatdnd_subset_leastsim_score'] = float(np.mean(all_mean_over_runs[dset]['uqatdnd_subset_leastsim_scores'])*100.0)
+            all_mean_over_runs[dset]['uqatdnd_subset_leastsim_score_std'] = float(np.std(all_mean_over_runs[dset]['uqatdnd_subset_leastsim_scores'])*100.0)
+
+        #del all_mean_over_runs[dset]['all_scores']
+        #del all_mean_over_runs[dset]['mostsim_scores']
+        #del all_mean_over_runs[dset]['leastsim_scores']
+    print(f'Means and STD calculated over {len(means_list)} runs. Extra keys for uqa on uqatdnd samples subset: {is_uqa}')
     return all_mean_over_runs
     
 
 def output_single(uqa_mean_over_runs, uqatdnd_mean_over_runs, 
-                 eval_datasets_unfiltered, eval_datasets_filtered, key):
+                 eval_datasets_unfiltered, eval_datasets_filtered, key, uqa_prefix=''):
     """ create output for one of means, std dev or counts
     """
-    outheader = 'eval_dataset,all_uqa,all_uqatdnd,mostsim_uqa,mostsim_uqatdnd,leastsim_uqa,leastsim_uqatdnd,filtered_leastsim_uqa,filtered_leastsim_uqatdnd'
+    if uqa_prefix == '':
+        outheader = 'eval_dataset,all_uqa,all_uqatdnd,mostsim_uqa,mostsim_uqatdnd,leastsim_uqa,leastsim_uqatdnd,filtered_leastsim_uqa,filtered_leastsim_uqatdnd'
+    else:
+        outheader = 'eval_dataset,mostsim_uqa,mostsim_uqatdnd,leastsim_uqa,leastsim_uqatdnd,filtered_leastsim_uqa,filtered_leastsim_uqatdnd'
+        
     outlist = [outheader]
     for i, dset in enumerate(eval_datasets_unfiltered):
         dset_filtered = eval_datasets_filtered[i]
-        row=f"{dset},{uqa_mean_over_runs[dset]['all_'+key]},{uqatdnd_mean_over_runs[dset]['all_'+key]},"
-        row += f"{uqa_mean_over_runs[dset]['mostsim_'+key]},{uqatdnd_mean_over_runs[dset]['mostsim_'+key]},"
-        row += f"{uqa_mean_over_runs[dset]['leastsim_'+key]},{uqatdnd_mean_over_runs[dset]['leastsim_'+key]},"
-        row += f"{uqa_mean_over_runs[dset_filtered]['leastsim_'+key]},{uqatdnd_mean_over_runs[dset_filtered]['leastsim_'+key]}"
+        row = f"{dset},"
+        if uqa_prefix == '':
+            row+=f"{uqa_mean_over_runs[dset][uqa_prefix+'all_'+key]},{uqatdnd_mean_over_runs[dset]['all_'+key]},"
+        row += f"{uqa_mean_over_runs[dset][uqa_prefix+'mostsim_'+key]},{uqatdnd_mean_over_runs[dset]['mostsim_'+key]},"
+        row += f"{uqa_mean_over_runs[dset][uqa_prefix+'leastsim_'+key]},{uqatdnd_mean_over_runs[dset]['leastsim_'+key]},"
+        row += f"{uqa_mean_over_runs[dset_filtered][uqa_prefix+'leastsim_'+key]},{uqatdnd_mean_over_runs[dset_filtered]['leastsim_'+key]}"
         outlist.append(row)
         
     return outlist
@@ -156,29 +220,29 @@ def output_single(uqa_mean_over_runs, uqatdnd_mean_over_runs,
 
 def output_means(uqa_mean_over_runs, uqatdnd_mean_over_runs, 
                  eval_datasets_unfiltered, eval_datasets_filtered,
-                 output_dir):
+                 output_dir, uqa_prefix=''):
     """ Output means, std dev and counts in csv files for:
         
         all_uqa, all_uqatdnd, mostsim_uqa, mostsim_uqatdnd, leastsim_uqa, leastsim_uqatdnd, filtered_leastsim_uqa, filtered_leastsim_uqatdnd
     """
     
     key = 'count'
-    outlist = output_single(uqa_mean_over_runs, uqatdnd_mean_over_runs, eval_datasets_unfiltered, eval_datasets_filtered, key)
-    outfile = os.path.join(output_dir, 'uqa_uqatdnd_bucket_counts.txt')
+    outlist = output_single(uqa_mean_over_runs, uqatdnd_mean_over_runs, eval_datasets_unfiltered, eval_datasets_filtered, key, uqa_prefix)
+    outfile = os.path.join(output_dir, uqa_prefix+'uqa_uqatdnd_bucket_counts.txt')
     with open(outfile, 'w') as f:
         f.write('\r\n'.join(outlist))
     print(f"Output to: {outfile}")        
 
     key = 'score'
-    outlist = output_single(uqa_mean_over_runs, uqatdnd_mean_over_runs, eval_datasets_unfiltered, eval_datasets_filtered, key)
-    outfile = os.path.join(output_dir, 'uqa_uqatdnd_bucket_meanscores.txt')
+    outlist = output_single(uqa_mean_over_runs, uqatdnd_mean_over_runs, eval_datasets_unfiltered, eval_datasets_filtered, key, uqa_prefix)
+    outfile = os.path.join(output_dir, uqa_prefix+'uqa_uqatdnd_bucket_meanscores.txt')
     with open(outfile, 'w') as f:
         f.write('\r\n'.join(outlist))
     print(f"Output to: {outfile}")        
 
     key = 'score_std'
-    outlist = output_single(uqa_mean_over_runs, uqatdnd_mean_over_runs, eval_datasets_unfiltered, eval_datasets_filtered, key)
-    outfile = os.path.join(output_dir, 'uqa_uqatdnd_bucket_meanscores_std.txt')
+    outlist = output_single(uqa_mean_over_runs, uqatdnd_mean_over_runs, eval_datasets_unfiltered, eval_datasets_filtered, key, uqa_prefix)
+    outfile = os.path.join(output_dir, uqa_prefix+'uqa_uqatdnd_bucket_meanscores_std.txt')
     with open(outfile, 'w') as f:
         f.write('\r\n'.join(outlist))
     print(f"Output to: {outfile}")         
@@ -225,8 +289,8 @@ if __name__ == '__main__':
     print(f"Eval samples from: {eval_datasets}")
 
 
-    uqa_means = calc_means_by_bucket(sim_results, metrics_files_uqa, train_datasets_uqa, eval_datasets)
     uqatdnd_means = calc_means_by_bucket(sim_results, metrics_files_uqatdnd, train_datasets_uqatdnd, eval_datasets)
+    uqa_means = calc_means_by_bucket(sim_results, metrics_files_uqa, train_datasets_uqa, eval_datasets, uqatdnd_means)
     
     json.dump(uqa_means, open(os.path.join(args.output_dir, 'uqa_means.json'), 'w'))
     json.dump(uqatdnd_means, open(os.path.join(args.output_dir, 'uqatdnd_means.json'), 'w'))
@@ -240,7 +304,10 @@ if __name__ == '__main__':
     
     output_means(uqa_mean_over_runs, uqatdnd_mean_over_runs, 
                  eval_metrics.unifiedqa_unseen_6_unfiltered, eval_metrics.unifiedqa_unseen_6,
-                 args.output_dir)
+                 args.output_dir, uqa_prefix = '')
     
+    output_means(uqa_mean_over_runs, uqatdnd_mean_over_runs, 
+                 eval_metrics.unifiedqa_unseen_6_unfiltered, eval_metrics.unifiedqa_unseen_6,
+                 args.output_dir, uqa_prefix = 'uqatdnd_subset_')
 
 

@@ -1492,7 +1492,14 @@ eval_set = {'default': {'output_dir': 'out/mdr/logs/eval_outputs/s11/',
                         'models': [ 'base/eval_metrics.json',
                                     'base_plus_ratd/eval_metrics.json',
                                   ]
-                       }
+                       },
+            'base_ratd_gr': {'output_dir': 'eval_outputs',
+                        'models': [ 'base/eval_metrics.json',
+                                    'base_plus_ratd/eval_metrics.json',
+                                    'base_plus_gr/eval_metrics.json',
+                                    'base_plus_ratd_plus_gr/eval_metrics.json',
+                                  ]
+                       },
             # add additional sets in same format as 'default' here..
             }
 
