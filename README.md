@@ -24,7 +24,7 @@ _LDATA_ is where logs and model checkpoints go. Each model training run will be 
 _HDATA_ is where miscellaneous other things go including json-formatted training datasets for Iterator models and the Wikipedia corpus. For simplicity the instructions below assume all miscellaneous stuff is in this directory but you can choose to create individual subdirectories under this and adapt the instructions.
 
  
-**2:** Download tsv-formatted datasets: https://drive.google.com/file/d/1QMY9GbwMCvNdsRQh66UCsFKnZzjrXMZ_/view?usp=sharing
+**2:** Download tsv-formatted datasets: https://drive.google.com/file/d/161h6dTdXAS13JwM-EOhfyghWBng2wGAU/view?usp=sharing
 
 Decompress the downloaded file (6.5GB):
 
