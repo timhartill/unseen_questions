@@ -193,9 +193,12 @@ class RREvalDataset(Dataset):
     input samples: list of dict_keys(['question', 'answer', 'q_only', 'mc_options', 'context', 'iter_context', 'iter_context_ev_score'])
     q_only key contains the base question minus mc options or other context
     """
-    def __init__(self, args, tokenizer, samples, score_llm=True):
+    def __init__(self, args, tokenizer, samples, score_llm=True, score_specialkey=''):
         self.score_llm = score_llm
-        if score_llm:
+        self.score_specialkey = score_specialkey
+        if score_specialkey != '':
+            self.expl_key = score_specialkey  # eg 'concat_context'      
+        elif score_llm:
             self.expl_key = 'context'       # llm-generated explanation/rationale/context including initial para for iirc
         else:
             self.expl_key = 'iter_context'  # iterator-generated context including init para for iirc            

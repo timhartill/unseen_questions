@@ -21,6 +21,7 @@ Create eval datasets combining LLM and Iterator explanations.
 
 """
 
+import sys
 import argparse
 import logging
 import os
@@ -150,14 +151,18 @@ if __name__ == "__main__":
     parser.add_argument("--tok_model_name", default="roberta-base", type=str, help="Tokenizer to check iterator context length with. Default roberta-base matches mdr_searchers usage.")
     parser.add_argument('--ctx_topk_paras', type=int, default=-1, help="Number of paras to include in final Iterator context build. -1 means include all.")
     parser.add_argument('--ctx_gold_sents_only', action="store_true", help="Iterator: If set only sentences from s2 included in final context. Otherwise 1 sentence before/after each s2 sent is included.")
-    parser.add_argument('--rr_version', default="v2", type=str, help="Version of RR model to use. v2=test5. v3t8=test8")
+    parser.add_argument('--rr_version', default="vt38", type=str, help="Version of RR model to use. v2=test5. v3t8=test8")
+    parser.add_argument('--default_highest_score_only', action="store_true", help="If set only generate default_highest_score combos.")
+    
     
     args = parser.parse_args()
 
     """ Test options
     args.num_workers_dev = 10
     args.model_name = 'google/electra-large-discriminator'
-    args.init_checkpoint = '/large_data/thar011/out/mdr/logs/RR_test4_mcstrip0.5_notsinglepossplit_withsharednormal-04-11-2023-RR-seed42-bsz24-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8-nopairFalse-singleposFalse-mcstrip0.5/checkpoint_best.pt'
+    
+    #args.init_checkpoint = '/large_data/thar011/out/mdr/logs/RR_test4_mcstrip0.5_notsinglepossplit_withsharednormal-04-11-2023-RR-seed42-bsz24-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8-nopairFalse-singleposFalse-mcstrip0.5/checkpoint_best.pt'
+    args.init_checkpoint = '/large_data/thar011/out/mdr/logs/RR_test8_mcstrip0.5_WITHsinglepossplit_withsharednormal_additer_addxtrarelrats-06-08-2023-RR-seed42-bsz24-fp16True-lr5e-05-decay0.0-warm0.1-valbsz100-ga8-nopairFalse-singleposTrue-mcstrip0.5/checkpoint_best.pt'
     args.predict_batch_size = 100
     args.output_dir = '/large_data/thar011/out/mdr/logs'
 
@@ -253,6 +258,7 @@ if __name__ == "__main__":
             logger.info(f"ERROR: Pos idx:{i}  llm q:{q}: Unable to match in iter_dict.")
         s['iter_context'] = iter_sample['final_context_fitted']  # for iirc has form init para title: init para. retrieved title a: retrived para A test. ...
         s['iter_context_ev_score'] = iter_sample['s2_best_preds']['s2ev_score']
+        s['concat_context'] = create_combo_context(s['context'], s['iter_context'])
         
     
     # run rr model preds, record scores for LLm expls
@@ -273,11 +279,71 @@ if __name__ == "__main__":
     scores, qids = predict_simple(eval_dataloader, model)
     for i, s in enumerate(scores):
         samples_llm[i]['iter_context_rr_score'] = s
+
+
+    # run rr model preds, record scores for naiive concat
+    eval_dataset = RREvalDataset(args, tokenizer, samples_llm, score_llm=False, score_specialkey='concat_context')
+    eval_dataloader = DataLoader(eval_dataset, batch_size=args.predict_batch_size, collate_fn=collate_fc, 
+                                 pin_memory=True, num_workers=args.num_workers_dev)
+    #TJH batch = next(iter(eval_dataloader))
+    scores, qids = predict_simple(eval_dataloader, model)
+    for i, s in enumerate(scores):
+        samples_llm[i]['combo_context_rr_score'] = s
+
         
     utils.saveas_jsonl(samples_llm, os.path.join(args.output_dir, 'samples_llm_iter_scored.jsonl'))
     #answer_in_expl(samples_llm)
+
+
+    rr_thresholds = [0.75, 0.9]
+    logger.info(f"Outputing extra combos for thresholds:{rr_thresholds} with default top scoring of either component or the concat...")
+    file = split + '.tsv'
+    for rr_thresh in rr_thresholds:
+        newdataset = f"{args.base_dataset}_{args.rr_version}_llm_expl_rr{str(rr_thresh)}_fullwiki_rr{str(rr_thresh)}_default_highscore"
+        outdir = os.path.join(UQA_DIR, newdataset)
+        logger.info(f"Output tsv to: {outdir}")
+        os.makedirs(outdir, exist_ok=True)
+        llm_only, iter_only, both, both_default = 0, 0, 0, 0  # count contexts with llm only, iter only or both
+        
+        out_list = []
+        for s in samples_llm:
+            llm_context = s['context'] if s['llm_rr_score'] > rr_thresh else ''
+            iter_context = s['iter_context'] if s['iter_context_rr_score'] > rr_thresh else ''
+            if llm_context != '' or iter_context != '':
+                if llm_context != '' and iter_context == '':
+                    llm_only += 1
+                elif llm_context == '' and iter_context != '':
+                    iter_only += 1
+                else:
+                    both += 1
+                new_context = create_combo_context(llm_context, iter_context)
+            else:  # neither llm or iter meet thresh, default to taking highest scoring 
+                if s['llm_rr_score'] > s['iter_context_rr_score']:
+                    if s['llm_rr_score'] > s['combo_context_rr_score']:
+                        llm_only += 1
+                        new_context = create_combo_context(s['context'], '')
+                    else:
+                        both_default += 1
+                        new_context = create_combo_context(s['context'], s['iter_context'])
+                elif s['iter_context_rr_score'] > s['combo_context_rr_score']:
+                    iter_only += 1
+                    new_context = create_combo_context('', s['iter_context'])
+                else:
+                    both_default += 1
+                    new_context = create_combo_context(s['context'], s['iter_context'])
+                
+            out_list.append( utils.create_uqa_example(s['q_only'], 
+                                      utils.create_uqa_context(s['mc_options'], new_context), 
+                                      s['answer']) )
+        utils.save_uqa(out_list, outdir, file)
+        logger.info(f"{newdataset}: LLM only:{llm_only}  Iter only:{iter_only}  Both over thresh:{both} Both under thresh:{both_default}  Total:{llm_only+iter_only+both+both_default}")
+
+    if args.default_highest_score_only:
+        logger.info("args.default_highest_score_only=True. Exiting...")
+        sys.exit(0)
+
     
-    # output eval tsv files
+    # output eval tsv files for combos where one or both components scores over a threshold
     rr_thresholds = [0.0005, 0.005, 0.05, 0.135, 0.3, 0.5, 0.75, 0.9]
     logger.info(f"Outputing combos for thresholds:{rr_thresholds}...")
     file = split + '.tsv'
