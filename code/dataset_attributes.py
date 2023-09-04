@@ -250,7 +250,9 @@ csqa_combos += ['commonsenseqa_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over_
  'commonsenseqa_svint8_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
  'commonsenseqa_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
  'commonsenseqa_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
- 'commonsenseqa_svint8_v3t8_maxrr_llm_expl_fullwiki']
+ 'commonsenseqa_svint8_v3t8_maxrr_llm_expl_fullwiki',
+ 'commonsenseqa_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75_default_highscore',
+ 'commonsenseqa_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9_default_highscore']
 
 #######################
 #sqa_combos = sorted(list_files_pattern(UQA_DIR, pattern='strategy_qa_bigbench_v2_*'))
@@ -348,7 +350,9 @@ sqa_combos += ['strategy_qa_bigbench_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki
  'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
  'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
  'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
- 'strategy_qa_bigbench_svint8_v3t8_maxrr_llm_expl_fullwiki']
+ 'strategy_qa_bigbench_svint8_v3t8_maxrr_llm_expl_fullwiki',
+ 'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75_default_highscore',
+ 'strategy_qa_bigbench_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9_default_highscore']
 
 
 #######################
@@ -447,7 +451,9 @@ mudev_combos += ['musique_mu_dev_odv2_svfp16_v3t8_iterthresh_llm_expl_rr_fullwik
  'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
  'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
  'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
- 'musique_mu_dev_odv2_svint8_v3t8_maxrr_llm_expl_fullwiki']
+ 'musique_mu_dev_odv2_svint8_v3t8_maxrr_llm_expl_fullwiki',
+ 'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75_default_highscore',
+ 'musique_mu_dev_odv2_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9_default_highscore']
 
 
 #sorted(list_files_pattern(UQA_DIR, pattern='drop_llm_expl*'))
@@ -589,7 +595,9 @@ arcda_combos += ['arc_da_od_ans_svfp16_v3t8_iterthresh_llm_expl_rr_fullwiki_over
  'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
  'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
  'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
- 'arc_da_od_ans_svint8_v3t8_maxrr_llm_expl_fullwiki']
+ 'arc_da_od_ans_svint8_v3t8_maxrr_llm_expl_fullwiki',
+ 'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75_default_highscore',
+ 'arc_da_od_ans_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9_default_highscore']
 
 
 #iirc_combos = sorted(list_files_pattern(UQA_DIR, pattern='iirc_initial_context_v2_*'))
@@ -687,7 +695,9 @@ iirc_combos += ['iirc_initial_context_svfp16_v3t8_iterthresh_llm_expl_rr_fullwik
  'iirc_initial_context_svint8_v3t8_llm_expl_rr0.5_fullwiki_rr0.5',
  'iirc_initial_context_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75',
  'iirc_initial_context_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9',
- 'iirc_initial_context_svint8_v3t8_maxrr_llm_expl_fullwiki']
+ 'iirc_initial_context_svint8_v3t8_maxrr_llm_expl_fullwiki',
+ 'iirc_initial_context_svint8_v3t8_llm_expl_rr0.75_fullwiki_rr0.75_default_highscore',
+ 'iirc_initial_context_svint8_v3t8_llm_expl_rr0.9_fullwiki_rr0.9_default_highscore']
 
 test_eval = test_eval + arcda_combos + iirc_combos
 
