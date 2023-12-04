@@ -51,7 +51,7 @@ Decompress the downloaded file (3.2GB):
 
 4.2: Download preprocessed Wikipedia corpus: https://drive.google.com/file/d/143MS2mzom4m2AdkvWM93KH89xjOqfx3A/view?usp=sharing
 
-Decompress the downloaded file (17.3GB):
+Decompress the downloaded file (7.3GB):
 
     tar -xvf wiki20200801.tar.gz -C $HDATA
 
