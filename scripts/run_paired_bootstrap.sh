@@ -148,6 +148,7 @@ python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/pa
         --num_samples 100000
 
 
+echo "base vs base plus ratd minus mu..."
 python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/paired_bootstrap.txt \
         --gold $UQA_DIR/musique_mu_dev_odv2_fullwiki_bs150/dev.tsv \
         --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/dev_musique_mu_dev_odv2_fullwiki_bs150_predictions.json \
@@ -160,6 +161,23 @@ python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/pa
         --gold $UQA_DIR/musique_mu_dev_parasv2/dev.tsv \
         --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/dev_musique_mu_dev_parasv2_predictions.json \
         --sys2 $LDATA/out/mdr/logs/UQA_s11_v6_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretdsv2/dev_musique_mu_dev_parasv2_predictions.json \
+        --eval_type f1 \
+        --num_samples 100000
+
+
+echo "base vs base plus ratd minus mu plus mu_unique..."
+python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/paired_bootstrap.txt \
+        --gold $UQA_DIR/musique_mu_dev_odv2_fullwiki_bs150/dev.tsv \
+        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/dev_musique_mu_dev_odv2_fullwiki_bs150_predictions.json \
+        --sys2 $LDATA/out/mdr/logs/UQA_s11_v10_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretdsv3mu_unique/dev_musique_mu_dev_odv2_fullwiki_bs150_predictions.json \
+        --eval_type f1 \
+        --num_samples 100000
+
+
+python paired_bootstrap.py --output_file $LDATA/out/mdr/logs/eval_outputs/s11/paired_bootstrap.txt \
+        --gold $UQA_DIR/musique_mu_dev_parasv2/dev.tsv \
+        --sys1 $LDATA/out/mdr/logs/UQA_s11_v2_all_g1_qa_g2_numlit_wikissvise_from_s9_v2/dev_musique_mu_dev_parasv2_predictions.json \
+        --sys2 $LDATA/out/mdr/logs/UQA_s11_v10_all_g1_qa_g2_numlit_wikissvise_from_s9_v2_addretdsv3mu_unique/dev_musique_mu_dev_parasv2_predictions.json \
         --eval_type f1 \
         --num_samples 100000
 
