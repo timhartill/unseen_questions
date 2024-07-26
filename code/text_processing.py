@@ -20,7 +20,7 @@ import unicodedata
 from urllib.parse import unquote  # convert percent encoding eg %28%20%29 -> ( )   quote does opposite
 from html import unescape # eg H&amp;M -> H&M
 
-import nltk
+import nltk  # first time: nltk.download('stopwords')
 from nltk import word_tokenize  # Usage: word_tokenize("The rain in Spain. It lies on God's domain.") -> ['The', 'rain', 'in', 'Spain', '.', 'It', 'lies', 'on', 'God', "'s", 'domain', '.']
 from nltk.corpus import words, wordnet
 from nltk.corpus import stopwords as nltk_stopwords
