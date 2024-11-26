@@ -42,8 +42,7 @@ Decompress the downloaded file (17.5GB):
 
 **4:** If training Iterator sub-models or encoding the Wikipedia corpus for dense retrieval in order to use the Iterator for inference:
 
-4.1: Download training datasets for Iterator (Retriever, Stage 1 Paragraph Reranker and Stage 2 Evidence Set Scorer): https://drive.google.com/file/d/1LAH1c8XmLI2dBUImnSLx36fKxLJAHfVl/view?usp=sharing
-
+4.1: Download training datasets for Iterator (Retriever, Stage 1 Paragraph Reranker and Stage 2 Evidence Set Scorer): https://drive.google.com/file/d/1rdS_jghsqJXsJP0l7Pha-O3vi9jSpFWz/view?usp=sharing
 Decompress the downloaded file (3.2GB):
 
     tar -xvf datasets_iterator_reranker.tar.gz -C $HDATA
