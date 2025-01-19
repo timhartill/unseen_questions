@@ -49,7 +49,7 @@ Decompress the downloaded file (3.2GB):
     tar -xvf datasets_iterator_reranker.tar.gz -C $HDATA
 
 
-4.2: Download preprocessed Wikipedia corpus: https://drive.google.com/file/d/143MS2mzom4m2AdkvWM93KH89xjOqfx3A/view?usp=sharing
+4.2: Download preprocessed Wikipedia corpus: https://drive.google.com/file/d/1qGt-2jxGyGmbbGlOeS7DKewwCIWYxMm7/view?usp=sharing
 
 Decompress the downloaded file (7.3GB):
 
